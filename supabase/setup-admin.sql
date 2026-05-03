@@ -1,0 +1,19 @@
+-- ============================================================
+-- Setup do usuário admin inicial
+-- ============================================================
+-- Execute ANTES de qualquer coleta de dados.
+--
+-- Crie o usuário pelo Supabase Dashboard (mais seguro):
+-- 1. Acesse https://supabase.com/dashboard/project/[SEU_PROJETO]/auth/users
+-- 2. Clique em "Add user" > "Create new user"
+-- 3. E-mail: admin@browniedoton.com.br
+-- 4. Senha: escolha uma senha forte (mínimo 12 caracteres,
+--           letras maiúsculas, minúsculas, números e símbolos)
+-- 5. Marque "Auto Confirm User"
+--
+-- IMPORTANTE — segurança obrigatória:
+-- * NUNCA use senhas simples ou previsíveis
+-- * Ative 2FA (Supabase Dashboard > Auth > Settings > MFA)
+-- * Desative "Enable Email Signup" para impedir cadastros externos:
+--   Supabase Dashboard > Auth > Providers > Email > desmarcar "Enable signup"
+-- ============================================================
