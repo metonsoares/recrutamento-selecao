@@ -23,6 +23,8 @@ export default function AdminHeader({ userEmail }: Props) {
   const navLinks = [
     { href: '/admin/dashboard', label: 'Dashboard' },
     { href: '/admin/respondentes', label: 'Respondentes' },
+    { href: '/admin/perguntas', label: 'Perguntas' },
+    { href: '/admin/configuracoes', label: 'Configurações' },
   ]
 
   return (
