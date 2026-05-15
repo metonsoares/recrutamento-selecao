@@ -14,7 +14,6 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/candidatos', label: 'Candidatos', icon: Users },
   { href: '/admin/vagas', label: 'Vagas', icon: Briefcase },
-  { href: '/admin/formulario', label: 'Formulário de Experiência', icon: ClipboardList },
   { href: '/admin/teste-cultural', label: 'Teste Cultural', icon: FlaskConical },
   { href: '/admin/ia', label: 'Configuração da IA', icon: Brain },
   { href: '/admin/whatsapp', label: 'Mensagens WhatsApp', icon: MessageSquare },
@@ -24,6 +23,7 @@ const navItems = [
 const settingsItems = [
   { href: '/admin/configuracoes/whatsapp', label: 'WhatsApp / Z-API', icon: Zap },
   { href: '/admin/configuracoes/empresa', label: 'Empresa e Cultura', icon: Building2 },
+  { href: '/admin/formulario', label: 'Config Currículos', icon: ClipboardList },
   { href: '/admin/configuracoes/usuarios', label: 'Usuários Admin', icon: Users },
 ]
 
@@ -31,7 +31,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [settingsOpen, setSettingsOpen] = useState(
-    pathname.startsWith('/admin/configuracoes')
+    pathname.startsWith('/admin/configuracoes') || pathname.startsWith('/admin/formulario')
   )
 
   async function handleLogout() {
@@ -83,7 +83,7 @@ export function Sidebar() {
             onClick={() => setSettingsOpen(o => !o)}
             className={cn(
               'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-              pathname.startsWith('/admin/configuracoes')
+              pathname.startsWith('/admin/configuracoes') || pathname.startsWith('/admin/formulario')
                 ? 'bg-sidebar-primary text-sidebar-primary-foreground font-medium'
                 : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
             )}
