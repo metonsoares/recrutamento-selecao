@@ -232,7 +232,7 @@ export function Sidebar() {
                 )}
               >
                 <Users className="w-3 h-3 shrink-0" />
-                Usuários Admin
+                Usuários
               </Link>
 
             </div>
