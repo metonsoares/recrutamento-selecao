@@ -6,6 +6,7 @@ export default async function FormularioPage() {
   const { data: questions } = await supabase
     .from('form_questions')
     .select('*')
+    .in('form_type', ['experience', 'registration'])
     .order('sort_order')
 
   return <FormQuestionsManager questions={questions || []} />

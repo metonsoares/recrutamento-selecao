@@ -117,7 +117,7 @@ export interface Job {
 
 export interface FormQuestion {
   id: string
-  form_type: 'experience' | 'cultural'
+  form_type: 'experience' | 'cultural' | 'registration'
   question_text: string
   description: string | null
   field_type: 'short_text' | 'long_text' | 'phone' | 'email' | 'date' | 'number' | 'select' | 'multiple_choice' | 'checkbox' | 'file_upload' | 'scale' | 'yes_no'

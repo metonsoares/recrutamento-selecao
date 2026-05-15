@@ -9,7 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { FormQuestion } from '@/types'
-import { Plus, Pencil, Power, GripVertical } from 'lucide-react'
+import { Plus, Pencil, Power } from 'lucide-react'
+
+type FormType = 'experience' | 'registration'
 
 const FIELD_TYPES = [
   { value: 'short_text', label: 'Texto curto' },
@@ -36,14 +38,17 @@ const defaultForm = {
 
 export function FormQuestionsManager({ questions }: { questions: FormQuestion[] }) {
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<FormType>('experience')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<FormQuestion | null>(null)
   const [form, setForm] = useState(defaultForm)
   const [saving, setSaving] = useState(false)
 
+  const filteredQuestions = questions.filter(q => q.form_type === activeTab)
+
   function openCreate() {
     setEditing(null)
-    setForm({ ...defaultForm, sort_order: questions.length + 1 })
+    setForm({ ...defaultForm, sort_order: filteredQuestions.length + 1 })
     setOpen(true)
   }
 
@@ -57,7 +62,7 @@ export function FormQuestionsManager({ questions }: { questions: FormQuestion[] 
     if (!form.question_text.trim()) return
     setSaving(true)
     const supabase = createSupabaseBrowserClient()
-    const data = { ...form, form_type: 'experience', updated_at: new Date().toISOString() }
+    const data = { ...form, form_type: activeTab, updated_at: new Date().toISOString() }
     if (editing) {
       await supabase.from('form_questions').update(data).eq('id', editing.id)
     } else {
@@ -74,12 +79,47 @@ export function FormQuestionsManager({ questions }: { questions: FormQuestion[] 
     router.refresh()
   }
 
+  const TAB_CONFIG: Record<FormType, { label: string; title: string; badge: string }> = {
+    experience: {
+      label: 'Formulário de Experiência',
+      title: 'Formulário de Experiência',
+      badge: '/candidato/experiencia',
+    },
+    registration: {
+      label: 'Currículo Público (/curriculo)',
+      title: 'Currículo Público',
+      badge: '/curriculo',
+    },
+  }
+
   return (
     <div className="p-6 space-y-5">
+      {/* Tab switcher */}
+      <div className="flex gap-2 p-1 bg-muted/40 rounded-xl w-fit">
+        {(Object.keys(TAB_CONFIG) as FormType[]).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+              ${activeTab === tab
+                ? 'bg-white shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            {TAB_CONFIG[tab].label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Formulário de Experiência</h1>
-          <p className="text-muted-foreground text-sm mt-1">{questions.length} perguntas configuradas</p>
+          <h1 className="text-2xl font-bold">{TAB_CONFIG[activeTab].title}</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {filteredQuestions.length} perguntas configuradas
+            <span className="ml-2 text-xs bg-muted px-2 py-0.5 rounded-full font-mono">
+              {TAB_CONFIG[activeTab].badge}
+            </span>
+          </p>
         </div>
         <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Nova Pergunta</Button>
       </div>
@@ -97,26 +137,35 @@ export function FormQuestionsManager({ questions }: { questions: FormQuestion[] 
             </tr>
           </thead>
           <tbody>
-            {questions.map(q => (
-              <tr key={q.id} className="border-b last:border-0 hover:bg-muted/10">
-                <td className="px-4 py-3 text-muted-foreground">{q.sort_order}</td>
-                <td className="px-4 py-3">
-                  <p className="line-clamp-1">{q.question_text}</p>
-                  {q.is_required && <span className="text-xs text-red-500">Obrigatória</span>}
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">{FIELD_TYPES.find(t => t.value === q.field_type)?.label || q.field_type}</td>
-                <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">{q.category || '—'}</td>
-                <td className="px-4 py-3">
-                  <Badge variant={q.is_active ? 'default' : 'secondary'}>{q.is_active ? 'Ativa' : 'Inativa'}</Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(q)}><Pencil className="w-3 h-3" /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => toggleActive(q)}><Power className="w-3 h-3" /></Button>
-                  </div>
+            {filteredQuestions.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                  Nenhuma pergunta configurada para este formulário.{' '}
+                  <button onClick={openCreate} className="text-primary underline">Criar a primeira</button>
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredQuestions.map(q => (
+                <tr key={q.id} className="border-b last:border-0 hover:bg-muted/10">
+                  <td className="px-4 py-3 text-muted-foreground">{q.sort_order}</td>
+                  <td className="px-4 py-3">
+                    <p className="line-clamp-1">{q.question_text}</p>
+                    {q.is_required && <span className="text-xs text-red-500">Obrigatória</span>}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">{FIELD_TYPES.find(t => t.value === q.field_type)?.label || q.field_type}</td>
+                  <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">{q.category || '—'}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={q.is_active ? 'default' : 'secondary'}>{q.is_active ? 'Ativa' : 'Inativa'}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(q)}><Pencil className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => toggleActive(q)}><Power className="w-3 h-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
