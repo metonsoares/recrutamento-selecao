@@ -81,7 +81,7 @@ export default function ConfiguracoesSurvey({ survey }: Props) {
   const publicUrl =
     typeof window !== 'undefined'
       ? window.location.origin
-      : 'https://pequisa-team-ashen.vercel.app'
+      : 'https://recrutamento-selecao-ashen.vercel.app'
 
   return (
     <div className="max-w-2xl mx-auto px-5 py-6 space-y-5">
