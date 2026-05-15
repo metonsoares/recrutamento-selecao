@@ -1,7 +1,5 @@
-import IdentificationForm from './IdentificationForm'
+import { redirect } from 'next/navigation'
 
-// Server Component — lê variáveis de ambiente seguras e passa para o form
-export default function HomePage() {
-  const requiresCode = !!process.env.SURVEY_ACCESS_CODE
-  return <IdentificationForm requiresCode={requiresCode} />
+export default function Home() {
+  redirect('/admin')
 }

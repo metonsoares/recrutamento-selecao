@@ -1,15 +1,19 @@
-// Layout compartilhado para todas as páginas /admin
-// A proteção de rota é feita no proxy.ts (Next.js 16 Proxy)
-// Páginas individuais fazem sua própria verificação quando precisam de dados admin
+import { redirect } from 'next/navigation'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { Sidebar } from '@/components/admin/sidebar'
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
   return (
-    <div className="min-h-screen bg-muted">
-      {children}
+    <div className="flex min-h-screen bg-muted/30">
+      <Sidebar />
+      <main className="flex-1 overflow-auto">
+        {children}
+      </main>
     </div>
   )
 }
