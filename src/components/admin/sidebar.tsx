@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
-  FlaskConical, Zap, Building2, Menu, X,
+  FlaskConical, Zap, Building2, Menu, X, Layers,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -45,7 +45,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const inCurriculos =
     pathname.startsWith('/admin/formulario') ||
     pathname.startsWith('/admin/vagas') ||
-    pathname.startsWith('/admin/teste-cultural')
+    pathname.startsWith('/admin/teste-cultural') ||
+    pathname.startsWith('/admin/secoes')
 
   const inEmpresa =
     pathname.startsWith('/admin/configuracoes/empresa') ||
@@ -170,6 +171,17 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           </button>
           {curriculosOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link
+                href="/admin/secoes"
+                onClick={go}
+                className={cn(
+                  DEEP_BASE,
+                  pathname.startsWith('/admin/secoes') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                )}
+              >
+                <Layers className="w-3 h-3 shrink-0 opacity-50" />
+                Seções
+              </Link>
               <Link
                 href="/admin/formulario"
                 onClick={go}
