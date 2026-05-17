@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
-  LayoutDashboard, Users, Briefcase, ClipboardList, Brain,
+  LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X,
 } from 'lucide-react'
@@ -49,7 +49,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
   const inEmpresa =
     pathname.startsWith('/admin/configuracoes/empresa') ||
-    pathname.startsWith('/admin/ia')
+    pathname.startsWith('/admin/ia')  // /admin/ia redireciona para empresa
 
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
@@ -143,22 +143,11 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
                 onClick={go}
                 className={cn(
                   DEEP_BASE,
-                  pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT,
+                  inEmpresa ? DEEP_ACTIVE : DEEP_DEFAULT,
                 )}
               >
                 <Building2 className="w-3 h-3 shrink-0 opacity-50" />
                 Dados da Empresa
-              </Link>
-              <Link
-                href="/admin/ia"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/ia') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <Brain className="w-3 h-3 shrink-0 opacity-50" />
-                Configuração da IA
               </Link>
             </div>
           )}

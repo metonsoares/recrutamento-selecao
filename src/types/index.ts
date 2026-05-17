@@ -205,6 +205,7 @@ export interface AiSettings {
   culture_weight: number
   experience_weight: number
   availability_weight: number
+  anthropic_api_key_encrypted: string | null
   created_at: string
   updated_at: string
 }

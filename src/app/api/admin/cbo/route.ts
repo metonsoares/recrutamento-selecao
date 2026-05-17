@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 
 interface CboResult {
   codigo: string
@@ -75,13 +76,15 @@ Responda SOMENTE com JSON válido, sem markdown, sem explicações:
 
 async function tryAI(code: string): Promise<CboResult | null> {
   const prompt = buildPrompt(code)
+  const anthropicKey = await getAnthropicKey()
+  const openaiKey = await getOpenAIKey()
 
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (anthropicKey) {
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'x-api-key': anthropicKey,
           'anthropic-version': '2023-06-01',
           'content-type': 'application/json',
         },
@@ -105,12 +108,12 @@ async function tryAI(code: string): Promise<CboResult | null> {
     }
   }
 
-  if (process.env.OPENAI_API_KEY) {
+  if (openaiKey) {
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${openaiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -158,8 +161,10 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'Nenhuma chave de IA configurada nas variáveis de ambiente.' }, { status: 500 })
+    const anthropicKey = await getAnthropicKey()
+    const openaiKey = await getOpenAIKey()
+    if (!anthropicKey && !openaiKey) {
+      return NextResponse.json({ error: 'Chave de IA não configurada. Adicione em Dados da Empresa > Configuração da IA.' }, { status: 500 })
     }
 
     // 1ª tentativa: BrasilAPI

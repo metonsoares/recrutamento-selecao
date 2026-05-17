@@ -1,8 +1,6 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { AiSettingsForm } from './ai-settings-form'
+import { redirect } from 'next/navigation'
 
-export default async function IAPage() {
-  const supabase = await createSupabaseServerClient()
-  const { data: settings } = await supabase.from('ai_settings').select('*').limit(1).single()
-  return <AiSettingsForm settings={settings} />
+// Configuração da IA foi incorporada em Dados da Empresa
+export default function IAPage() {
+  redirect('/admin/configuracoes/empresa')
 }
