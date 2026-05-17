@@ -110,6 +110,8 @@ export interface Job {
   schedule_requirements: string[]
   salary_range: string | null
   benefits: string | null
+  cbo_code: string | null
+  cbo_description: string | null
   is_active: boolean
   created_at: string
   updated_at: string
