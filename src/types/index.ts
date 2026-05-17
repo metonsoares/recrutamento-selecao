@@ -111,6 +111,7 @@ export interface Job {
   salary_range: string | null
   benefits: string | null
   cbo_code: string | null
+  cbo_title: string | null
   cbo_description: string | null
   is_active: boolean
   created_at: string
