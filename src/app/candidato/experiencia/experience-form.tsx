@@ -36,7 +36,7 @@ export function ExperienceForm({ application, questions, jobs, token }: Props) {
 
   if (done) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm p-8 text-center space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8 text-center space-y-4">
         <p className="text-4xl">🎉</p>
         <h2 className="font-bold text-xl">Formulário enviado!</h2>
         <p className="text-muted-foreground text-sm">
@@ -49,8 +49,8 @@ export function ExperienceForm({ application, questions, jobs, token }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <h1 className="text-xl font-bold">Formulário de Experiência</h1>
+      <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+        <h1 className="text-lg sm:text-xl font-bold">Formulário de Experiência</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Olá, {(application.candidates as { full_name?: string } | null)?.full_name}! Preencha com atenção — suas respostas são importantes para nossa análise.
         </p>
@@ -71,21 +71,23 @@ export function ExperienceForm({ application, questions, jobs, token }: Props) {
                 required={q.is_required}
                 rows={3}
                 placeholder="Escreva sua resposta aqui..."
+                className="text-base resize-none"
               />
             )}
 
             {(q.field_type === 'short_text' || q.field_type === 'number' || q.field_type === 'phone' || q.field_type === 'email') && (
               <Input
-                type={q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : 'text'}
+                type={q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
                 value={answers[q.id] || ''}
                 onChange={e => setAnswer(q.id, e.target.value)}
                 required={q.is_required}
                 placeholder="Sua resposta..."
+                className="text-base"
               />
             )}
 
             {q.field_type === 'yes_no' && (
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 {['Sim', 'Não'].map(opt => (
                   <label key={opt} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -95,6 +97,7 @@ export function ExperienceForm({ application, questions, jobs, token }: Props) {
                       checked={answers[q.id] === opt}
                       onChange={() => setAnswer(q.id, opt)}
                       required={q.is_required}
+                      className="w-4 h-4"
                     />
                     <span className="text-sm">{opt}</span>
                   </label>
@@ -104,7 +107,7 @@ export function ExperienceForm({ application, questions, jobs, token }: Props) {
 
             {q.field_type === 'select' && q.question_text.toLowerCase().includes('vaga') ? (
               <select
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border rounded-lg px-3 py-2 text-base"
                 value={answers[q.id] || ''}
                 onChange={e => setAnswer(q.id, e.target.value)}
                 required={q.is_required}
@@ -114,7 +117,7 @@ export function ExperienceForm({ application, questions, jobs, token }: Props) {
               </select>
             ) : q.field_type === 'select' ? (
               <select
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border rounded-lg px-3 py-2 text-base"
                 value={answers[q.id] || ''}
                 onChange={e => setAnswer(q.id, e.target.value)}
                 required={q.is_required}
@@ -130,6 +133,7 @@ export function ExperienceForm({ application, questions, jobs, token }: Props) {
                 value={answers[q.id] || ''}
                 onChange={e => setAnswer(q.id, e.target.value)}
                 required={q.is_required}
+                className="text-base"
               />
             )}
 

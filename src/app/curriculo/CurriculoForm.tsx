@@ -99,7 +99,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
             required={q.is_required}
             rows={4}
             placeholder="Escreva sua resposta aqui..."
-            className="resize-none"
+            className="resize-none text-base"
           />
         )
 
@@ -127,7 +127,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
         return (
           <select
             id={q.id}
-            className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full border border-input rounded-lg px-3 py-2 text-base bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             value={(answers[q.id] as string) || ''}
             onChange={e => setAnswer(q.id, e.target.value)}
             required={q.is_required}
@@ -168,6 +168,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
             onChange={e => setAnswer(q.id, e.target.value)}
             required={q.is_required}
             placeholder="0"
+            className="text-base"
           />
         )
 
@@ -179,19 +180,20 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
             value={(answers[q.id] as string) || ''}
             onChange={e => setAnswer(q.id, e.target.value)}
             required={q.is_required}
+            className="text-base"
           />
         )
 
       case 'scale': {
         const current = answers[q.id] as string
         return (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {[1, 2, 3, 4, 5].map(n => (
               <button
                 key={n}
                 type="button"
                 onClick={() => setAnswer(q.id, String(n))}
-                className={`w-10 h-10 rounded-lg border text-sm font-semibold transition-all
+                className={`w-11 h-11 rounded-lg border text-sm font-semibold transition-all
                   ${current === String(n)
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                     : 'border-input bg-background hover:border-primary/50 hover:bg-primary/5'
@@ -213,14 +215,15 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
             onChange={e => setAnswer(q.id, e.target.value)}
             required={q.is_required}
             placeholder="Sua resposta..."
+            className="text-base"
           />
         )
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 py-8 px-4">
-      <div className="max-w-xl mx-auto space-y-5">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 py-6 sm:py-8 px-4">
+      <div className="max-w-xl mx-auto space-y-4 sm:space-y-5">
 
         {/* Brand Header */}
         <div className="text-center space-y-1">
@@ -228,7 +231,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
             <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" />
             <span className="text-sm font-semibold text-primary">Brownie do Ton</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Cadastre seu Currículo</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Cadastre seu Currículo</h1>
           {companyInfo?.mission && (
             <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
               {companyInfo.mission}
@@ -239,7 +242,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Fixed Fields Card */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4 sm:space-y-5">
             <div>
               <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">
                 Dados Pessoais
@@ -258,7 +261,8 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
                 onChange={e => setFullName(e.target.value)}
                 required
                 placeholder="Seu nome completo"
-                className="h-10"
+                autoComplete="name"
+                className="h-11 text-base"
               />
             </div>
 
@@ -269,12 +273,13 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
               </Label>
               <Input
                 id="phone"
-                type="text"
+                type="tel"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 required
                 placeholder="11 99999-9999"
-                className="h-10"
+                autoComplete="tel"
+                className="h-11 text-base"
               />
             </div>
 
@@ -290,7 +295,8 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="seu@email.com"
-                className="h-10"
+                autoComplete="email"
+                className="h-11 text-base"
               />
             </div>
 
@@ -306,7 +312,8 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
                 onChange={e => setCity(e.target.value)}
                 required
                 placeholder="Sua cidade"
-                className="h-10"
+                autoComplete="address-level2"
+                className="h-11 text-base"
               />
             </div>
 
@@ -322,7 +329,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
                 value={neighborhood}
                 onChange={e => setNeighborhood(e.target.value)}
                 placeholder="Seu bairro"
-                className="h-10"
+                className="h-11 text-base"
               />
             </div>
 
@@ -335,7 +342,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
                 </Label>
                 <select
                   id="job_id"
-                  className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background h-10 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full border border-input rounded-lg px-3 py-2 text-base bg-background h-11 focus:outline-none focus:ring-2 focus:ring-primary/30"
                   value={jobId}
                   onChange={e => setJobId(e.target.value)}
                 >
@@ -350,7 +357,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
 
           {/* Dynamic Questions */}
           {questions.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4 sm:space-y-5">
               <div>
                 <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">
                   Informações Adicionais
@@ -373,7 +380,7 @@ export function CurriculoForm({ jobs, questions, companyInfo }: Props) {
           )}
 
           {/* LGPD */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"

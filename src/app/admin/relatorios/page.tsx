@@ -38,40 +38,40 @@ export default async function RelatoriosPage() {
   const taxaAprovacao = total > 0 ? Math.round((approved / total) * 100) : 0
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
       <div>
-        <h1 className="text-2xl font-bold">Relatórios</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Relatórios</h1>
         <p className="text-muted-foreground text-sm mt-1">Visão analítica do processo seletivo</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card><CardContent className="p-4 text-center">
-          <p className="text-3xl font-bold">{totalCandidates}</p>
-          <p className="text-sm text-muted-foreground">Total de Candidatos</p>
+          <p className="text-2xl sm:text-3xl font-bold">{totalCandidates}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Total de Candidatos</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 text-center">
-          <p className="text-3xl font-bold">{avgFinal.toFixed(1)}</p>
-          <p className="text-sm text-muted-foreground">Média Nota Final</p>
+          <p className="text-2xl sm:text-3xl font-bold">{avgFinal.toFixed(1)}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Média Nota Final</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 text-center">
-          <p className="text-3xl font-bold">{avgCulture.toFixed(1)}</p>
-          <p className="text-sm text-muted-foreground">Média Nota Cultural</p>
+          <p className="text-2xl sm:text-3xl font-bold">{avgCulture.toFixed(1)}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Média Nota Cultural</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 text-center">
-          <p className="text-3xl font-bold">{taxaAprovacao}%</p>
-          <p className="text-sm text-muted-foreground">Taxa de Aprovação</p>
+          <p className="text-2xl sm:text-3xl font-bold">{taxaAprovacao}%</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Taxa de Aprovação</p>
         </CardContent></Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Candidatos por Status</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {Object.entries(byStatus).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
-              <div key={status} className="flex items-center justify-between">
-                <Badge variant="outline" className="text-xs">{STATUS_LABELS[status as CandidateStatus] || status}</Badge>
+              <div key={status} className="flex items-center justify-between gap-2">
+                <Badge variant="outline" className="text-xs shrink-0">{STATUS_LABELS[status as CandidateStatus] || status}</Badge>
                 <div className="flex items-center gap-2">
-                  <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="w-20 sm:w-32 h-2 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-primary rounded-full" style={{ width: `${(count / totalCandidates) * 100}%` }} />
                   </div>
                   <span className="text-sm font-medium w-6 text-right">{count}</span>
@@ -86,10 +86,10 @@ export default async function RelatoriosPage() {
           <CardHeader className="pb-3"><CardTitle className="text-base">Candidatos por Vaga</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {Object.entries(byJob).sort((a, b) => b[1] - a[1]).map(([job, count]) => (
-              <div key={job} className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground truncate">{job}</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+              <div key={job} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground truncate flex-1">{job}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="w-20 sm:w-32 h-2 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-accent rounded-full" style={{ width: `${(count / apps.length) * 100}%` }} />
                   </div>
                   <span className="text-sm font-medium w-6 text-right">{count}</span>
@@ -103,8 +103,8 @@ export default async function RelatoriosPage() {
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Resumo por Status</CardTitle></CardHeader>
-        <CardContent>
-          <table className="w-full text-sm">
+        <CardContent className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[260px]">
             <thead><tr className="border-b text-muted-foreground text-xs">
               <th className="text-left pb-2">Status</th>
               <th className="text-right pb-2">Qtd</th>

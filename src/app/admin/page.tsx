@@ -52,24 +52,24 @@ export default async function DashboardPage() {
   })
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-1">Visão geral do processo seletivo</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {statCards.map(card => {
           const Icon = card.icon
           const count = card.status === null ? total : (statusCounts[card.status] || 0)
           return (
             <Card key={card.label} className="shadow-sm">
-              <CardContent className="p-4">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className={`p-2 rounded-lg ${card.color}`}>
-                    <Icon className="w-4 h-4" />
+                  <div className={`p-1.5 sm:p-2 rounded-lg ${card.color}`}>
+                    <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
-                  <span className="text-2xl font-bold">{count}</span>
+                  <span className="text-xl sm:text-2xl font-bold">{count}</span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-tight">{card.label}</p>
               </CardContent>
@@ -78,17 +78,17 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Candidatos por Vaga</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {Object.entries(vagaCounts).sort((a, b) => b[1] - a[1]).map(([vaga, count]) => (
-              <div key={vaga} className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground truncate">{vaga}</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+              <div key={vaga} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground truncate flex-1">{vaga}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="w-16 sm:w-24 h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full"
                       style={{ width: `${Math.round((count / (apps.length || 1)) * 100)}%` }}
@@ -110,9 +110,9 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([status, count]) => (
-              <div key={status} className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{STATUS_LABELS[status as CandidateStatus] || status}</span>
-                <span className="text-sm font-medium">{count}</span>
+              <div key={status} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground truncate flex-1">{STATUS_LABELS[status as CandidateStatus] || status}</span>
+                <span className="text-sm font-medium shrink-0">{count}</span>
               </div>
             ))}
             {!Object.keys(statusCounts).length && (

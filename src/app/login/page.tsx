@@ -31,12 +31,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[oklch(0.20_0.03_150)] to-[oklch(0.28_0.04_150)] p-4">
-      <Card className="w-full max-w-md shadow-2xl">
+      <Card className="w-full max-w-[400px] shadow-2xl">
         <CardHeader className="text-center space-y-2 pb-6">
           <div className="mx-auto w-16 h-16 bg-[oklch(0.88_0.08_85)] rounded-2xl flex items-center justify-center text-2xl font-bold text-[oklch(0.20_0.03_150)]">
             BT
           </div>
-          <CardTitle className="text-2xl font-bold">Banco de Talentos do Ton</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl font-bold">Banco de Talentos do Ton</CardTitle>
           <CardDescription>Acesso restrito ao painel administrativo</CardDescription>
         </CardHeader>
         <CardContent>
@@ -51,6 +51,7 @@ export default function LoginPage() {
                 placeholder="admin@browniedoton.com.br"
                 required
                 autoComplete="email"
+                className="text-base"
               />
             </div>
             <div className="space-y-2">
@@ -63,6 +64,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
+                className="text-base"
               />
             </div>
             {error && (

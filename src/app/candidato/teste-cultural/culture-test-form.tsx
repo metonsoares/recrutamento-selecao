@@ -34,7 +34,7 @@ export function CultureTestForm({ application, questions, token }: Props) {
 
   if (done) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm p-8 text-center space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8 text-center space-y-4">
         <p className="text-4xl">🏆</p>
         <h2 className="font-bold text-xl">Teste concluído!</h2>
         <p className="text-muted-foreground text-sm">
@@ -47,8 +47,8 @@ export function CultureTestForm({ application, questions, token }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <h1 className="text-xl font-bold">Teste Cultural</h1>
+      <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+        <h1 className="text-lg sm:text-xl font-bold">Teste Cultural</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Responda com sinceridade — não existe resposta certa ou errada. Queremos conhecer você de verdade.
         </p>
@@ -77,7 +77,7 @@ export function CultureTestForm({ application, questions, token }: Props) {
                 return (
                   <label
                     key={letter}
-                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors w-full ${
                       selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'
                     }`}
                   >
@@ -89,7 +89,7 @@ export function CultureTestForm({ application, questions, token }: Props) {
                       onChange={() => setAnswers(prev => ({ ...prev, [q.id]: letter }))}
                       className="mt-0.5 shrink-0"
                     />
-                    <span className="text-sm">{opt}</span>
+                    <span className="text-sm leading-snug">{opt}</span>
                   </label>
                 )
               })}

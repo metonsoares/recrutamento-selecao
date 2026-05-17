@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Job } from '@/types'
 import { Plus, Pencil, Power } from 'lucide-react'
@@ -51,24 +51,28 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
   }
 
   return (
-    <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 max-w-full overflow-x-hidden">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Vagas</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Vagas</h1>
           <p className="text-muted-foreground text-sm mt-1">{jobs.length} vagas cadastradas</p>
         </div>
-        <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Nova Vaga</Button>
+        <Button onClick={openCreate} className="shrink-0">
+          <Plus className="w-4 h-4 mr-1" />
+          <span className="hidden sm:inline">Nova Vaga</span>
+          <span className="sm:hidden">Nova</span>
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {jobs.map(job => (
           <div key={job.id} className="bg-white rounded-xl border shadow-sm p-4 space-y-3">
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="font-semibold">{job.title}</h3>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold truncate">{job.title}</h3>
                 {job.unit && <p className="text-xs text-muted-foreground">{job.unit}</p>}
               </div>
-              <Badge variant={job.is_active ? 'default' : 'secondary'}>
+              <Badge variant={job.is_active ? 'default' : 'secondary'} className="shrink-0">
                 {job.is_active ? 'Ativa' : 'Inativa'}
               </Badge>
             </div>
@@ -91,31 +95,55 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg mx-4 sm:mx-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Vaga' : 'Nova Vaga'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>Título *</Label>
-              <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ex: Atendimento" />
+              <Input
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Ex: Atendimento"
+                className="text-base"
+              />
             </div>
             <div className="space-y-1">
               <Label>Unidade</Label>
-              <Input value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} placeholder="Ex: Loja Centro" />
+              <Input
+                value={form.unit}
+                onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+                placeholder="Ex: Loja Centro"
+                className="text-base"
+              />
             </div>
             <div className="space-y-1">
               <Label>Descrição</Label>
-              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} />
+              <Textarea
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                rows={3}
+              />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Faixa Salarial</Label>
-                <Input value={form.salary_range} onChange={e => setForm(f => ({ ...f, salary_range: e.target.value }))} placeholder="Ex: R$ 1.500 - 2.000" />
+                <Input
+                  value={form.salary_range}
+                  onChange={e => setForm(f => ({ ...f, salary_range: e.target.value }))}
+                  placeholder="Ex: R$ 1.500 - 2.000"
+                  className="text-base"
+                />
               </div>
               <div className="space-y-1">
                 <Label>Benefícios</Label>
-                <Input value={form.benefits} onChange={e => setForm(f => ({ ...f, benefits: e.target.value }))} placeholder="VT, VR..." />
+                <Input
+                  value={form.benefits}
+                  onChange={e => setForm(f => ({ ...f, benefits: e.target.value }))}
+                  placeholder="VT, VR..."
+                  className="text-base"
+                />
               </div>
             </div>
             <div className="flex justify-end gap-2">

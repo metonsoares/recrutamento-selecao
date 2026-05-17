@@ -12,12 +12,12 @@ export default function ObrigadoPage() {
         </div>
 
         {/* Success card */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 space-y-4">
           <div className="text-5xl">✅</div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             Currículo enviado com sucesso!
           </h1>
-          <p className="text-muted-foreground leading-relaxed">
+          <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
             Agradecemos seu interesse. Entraremos em contato em breve.
           </p>
           <div className="pt-2">

@@ -45,26 +45,26 @@ export function CandidatesList({ candidates, jobs }: Props) {
   })
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 max-w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Candidatos</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Candidatos</h1>
           <p className="text-muted-foreground text-sm mt-1">{filtered.length} candidatos encontrados</p>
         </div>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            className="pl-9"
+            className="pl-9 text-base"
             placeholder="Buscar por nome, telefone, e-mail..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
-          <SelectTrigger className="w-[220px]">
+          <SelectTrigger className="w-full sm:w-[220px]">
             <SelectValue placeholder="Filtrar por status" />
           </SelectTrigger>
           <SelectContent>
@@ -76,8 +76,8 @@ export function CandidatesList({ candidates, jobs }: Props) {
         </Select>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[320px]">
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Candidato</th>
@@ -120,7 +120,7 @@ export function CandidatesList({ candidates, jobs }: Props) {
                     <Link href={`/admin/candidatos/${c.id}`}>
                       <Button size="sm" variant="ghost" className="gap-1">
                         <Eye className="w-3 h-3" />
-                        Ver
+                        <span className="hidden sm:inline">Ver</span>
                       </Button>
                     </Link>
                   </td>
