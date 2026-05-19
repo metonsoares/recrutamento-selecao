@@ -7,22 +7,20 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
+  Settings2, BrainCircuit,
 } from 'lucide-react'
 import { useState } from 'react'
 
 // ─── Estilos base dos itens ───────────────────────────────────────────────────
 
-/** Item principal (Dashboard, Candidatos…) */
 const NAV_BASE = 'flex items-center gap-2.5 px-3 h-9 w-full rounded-[6px] text-[16px] font-normal transition-colors'
 const NAV_DEFAULT = 'text-[#333333] hover:bg-[#f0f0f0]'
 const NAV_ACTIVE = 'bg-[#e6e6e6] text-[#1a1a1a] font-medium'
 
-/** Item de primeiro nível dentro de Configurações */
 const SUB_BASE = 'flex items-center gap-2.5 px-3 h-9 w-full rounded-[6px] text-[16px] font-normal transition-colors'
 const SUB_DEFAULT = 'text-[#333333] hover:bg-[#f0f0f0]'
 const SUB_ACTIVE = 'bg-[#e6e6e6] text-[#1a1a1a] font-medium'
 
-/** Item de segundo nível (sub-submenu) */
 const DEEP_BASE = 'flex items-center gap-2 px-2.5 h-8 w-full rounded-[6px] text-[14px] font-normal transition-colors'
 const DEEP_DEFAULT = 'text-[#555555] hover:bg-[#f0f0f0]'
 const DEEP_ACTIVE = 'bg-[#e6e6e6] text-[#1a1a1a]'
@@ -43,17 +41,21 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const router = useRouter()
 
   const inCurriculos =
+    pathname.startsWith('/admin/secoes') ||
     pathname.startsWith('/admin/formulario') ||
     pathname.startsWith('/admin/vagas') ||
-    pathname.startsWith('/admin/teste-cultural') ||
-    pathname.startsWith('/admin/secoes')
+    pathname.startsWith('/admin/teste-cultural')
 
   const inEmpresa =
-    pathname.startsWith('/admin/configuracoes/empresa') ||
-    pathname.startsWith('/admin/ia')  // /admin/ia redireciona para empresa
+    pathname.startsWith('/admin/configuracoes/empresa')
+
+  const inPlataforma =
+    pathname.startsWith('/admin/configuracoes/whatsapp') ||
+    pathname.startsWith('/admin/configuracoes/ia')
 
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
+  const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
 
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient()
@@ -109,18 +111,48 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           </span>
         </div>
 
-        {/* WhatsApp / Z-API */}
-        <Link
-          href="/admin/configuracoes/whatsapp"
-          onClick={go}
-          className={cn(
-            SUB_BASE,
-            pathname.startsWith('/admin/configuracoes/whatsapp') ? SUB_ACTIVE : SUB_DEFAULT,
+        {/* Configurações Plataforma ▾ */}
+        <div>
+          <button
+            onClick={() => setPlataformaOpen(o => !o)}
+            className={cn(SUB_BASE, inPlataforma ? SUB_ACTIVE : SUB_DEFAULT)}
+          >
+            <Settings2 className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            <span className="flex-1 text-left">Configurações Plataforma</span>
+            <ChevronDown
+              className={cn(
+                'w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200',
+                plataformaOpen && 'rotate-180',
+              )}
+            />
+          </button>
+          {plataformaOpen && (
+            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link
+                href="/admin/configuracoes/whatsapp"
+                onClick={go}
+                className={cn(
+                  DEEP_BASE,
+                  pathname.startsWith('/admin/configuracoes/whatsapp') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                )}
+              >
+                <Zap className="w-3 h-3 shrink-0 opacity-50" />
+                WhatsApp / Z-API
+              </Link>
+              <Link
+                href="/admin/configuracoes/ia"
+                onClick={go}
+                className={cn(
+                  DEEP_BASE,
+                  pathname.startsWith('/admin/configuracoes/ia') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                )}
+              >
+                <BrainCircuit className="w-3 h-3 shrink-0 opacity-50" />
+                Configuração IA
+              </Link>
+            </div>
           )}
-        >
-          <Zap className="w-[15px] h-[15px] shrink-0 opacity-60" />
-          WhatsApp / Z-API
-        </Link>
+        </div>
 
         {/* Empresa e Cultura ▾ */}
         <div>
@@ -144,7 +176,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
                 onClick={go}
                 className={cn(
                   DEEP_BASE,
-                  inEmpresa ? DEEP_ACTIVE : DEEP_DEFAULT,
+                  pathname.startsWith('/admin/configuracoes/empresa') ? DEEP_ACTIVE : DEEP_DEFAULT,
                 )}
               >
                 <Building2 className="w-3 h-3 shrink-0 opacity-50" />
@@ -176,22 +208,11 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
                 onClick={go}
                 className={cn(
                   DEEP_BASE,
-                  pathname.startsWith('/admin/secoes') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                  (pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario')) ? DEEP_ACTIVE : DEEP_DEFAULT,
                 )}
               >
                 <Layers className="w-3 h-3 shrink-0 opacity-50" />
-                Seções
-              </Link>
-              <Link
-                href="/admin/formulario"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/formulario') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />
-                Perguntas
+                Seções e Perguntas
               </Link>
               <Link
                 href="/admin/vagas"
@@ -256,7 +277,6 @@ export function AdminNav() {
 
   return (
     <>
-      {/* Barra superior mobile — visível somente em < lg */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-[#e8e8e8] flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 bg-[#1a1a1a] rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0 tracking-wide">
@@ -273,24 +293,19 @@ export function AdminNav() {
         </button>
       </header>
 
-      {/* Espaçador para a barra mobile */}
       <div className="lg:hidden h-14" />
 
-      {/* Sidebar desktop — sempre visível em lg+ */}
       <aside className="hidden lg:flex w-64 min-h-screen bg-white border-r border-[#e8e8e8] flex-col fixed top-0 left-0 bottom-0 z-30">
         <SidebarContent />
       </aside>
 
-      {/* Drawer mobile */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          {/* Fundo escurecido */}
           <div
             className="fixed inset-0 bg-black/30 backdrop-blur-[2px]"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
-          {/* Drawer */}
           <aside className="relative w-72 max-w-[85vw] bg-white border-r border-[#e8e8e8] flex flex-col h-full shadow-xl animate-in slide-in-from-left duration-200">
             <button
               onClick={() => setMobileOpen(false)}

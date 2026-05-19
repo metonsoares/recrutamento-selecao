@@ -1,7 +1,11 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, UserCheck, ClipboardList, FlaskConical, Brain, ThumbsUp, ThumbsDown, Star, UserPlus, Briefcase } from 'lucide-react'
+import {
+  Users, UserCheck, ClipboardList, FlaskConical, Brain, ThumbsUp,
+  ThumbsDown, Star, UserPlus, Briefcase, Link2,
+} from 'lucide-react'
 import { CandidateStatus, STATUS_LABELS } from '@/types'
+import { DashboardPublicLink } from './dashboard-public-link'
 
 async function getDashboardStats() {
   const supabase = await createSupabaseServerClient()
@@ -51,6 +55,12 @@ export default async function DashboardPage() {
     vagaCounts[title] = (vagaCounts[title] || 0) + 1
   })
 
+  // URL pública do formulário de cadastro
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+  const publicUrl = appUrl ? `${appUrl}/curriculo` : '/curriculo'
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
       <div>
@@ -58,6 +68,40 @@ export default async function DashboardPage() {
         <p className="text-muted-foreground text-sm mt-1">Visão geral do processo seletivo</p>
       </div>
 
+      {/* ── Link público de cadastro ──────────────────────── */}
+      <Card className="border-2 border-dashed border-[#e0e0e0]">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {/* QR Code */}
+            <div className="shrink-0 flex flex-col items-center gap-1">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(
+                  appUrl ? publicUrl : 'https://recrutamento-selecao-ashen.vercel.app/curriculo'
+                )}&bgcolor=ffffff&color=1a1a1a&qzone=1`}
+                alt="QR Code do formulário de cadastro"
+                width={120}
+                height={120}
+                className="rounded-lg border border-[#e8e8e8]"
+              />
+              <span className="text-[10px] text-muted-foreground">Escaneie para cadastrar</span>
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Link2 className="w-4 h-4 text-[#555]" />
+                <p className="text-sm font-semibold text-[#333]">Link público para cadastro de currículos</p>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Compartilhe este link ou QR Code para que candidatos se cadastrem diretamente no banco de talentos.
+              </p>
+              <DashboardPublicLink url={appUrl ? publicUrl : 'https://recrutamento-selecao-ashen.vercel.app/curriculo'} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Cards de status ───────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {statCards.map(card => {
           const Icon = card.icon
@@ -111,7 +155,9 @@ export default async function DashboardPage() {
           <CardContent className="space-y-2">
             {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([status, count]) => (
               <div key={status} className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground truncate flex-1">{STATUS_LABELS[status as CandidateStatus] || status}</span>
+                <span className="text-sm text-muted-foreground truncate flex-1">
+                  {STATUS_LABELS[status as CandidateStatus] || status}
+                </span>
                 <span className="text-sm font-medium shrink-0">{count}</span>
               </div>
             ))}
