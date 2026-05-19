@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 
 export async function GET(
   _req: NextRequest,
@@ -55,4 +55,32 @@ export async function GET(
     cultureAnswers: cultureAnswers ?? [],
     notes: notes ?? [],
   })
+}
+
+/**
+ * DELETE /api/admin/candidatos/[id]
+ * Soft-deletes the candidate (sets deleted_at). Requires authenticated admin session.
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+
+  const supabase = await createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+
+  const service = await createSupabaseServiceClient()
+  const { error } = await service
+    .from('candidates')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (error) {
+    console.error('[delete candidate]', error)
+    return NextResponse.json({ error: 'Erro ao remover candidato.' }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
 }

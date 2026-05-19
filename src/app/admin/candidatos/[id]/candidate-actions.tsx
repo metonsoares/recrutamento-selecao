@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { Brain, MessageSquare, StickyNote } from 'lucide-react'
+import { Brain, StickyNote, CalendarCheck, Trash2, Loader2 } from 'lucide-react'
 
 const ALL_STATUSES = Object.keys(STATUS_LABELS) as CandidateStatus[]
 
@@ -26,6 +26,9 @@ export function CandidateActions({
   const [noteOpen, setNoteOpen] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function handleStatusChange(newStatus: string | null) {
     if (!newStatus) return
@@ -66,8 +69,42 @@ export function CandidateActions({
     }
   }
 
+  async function handleScheduleInterview() {
+    setScheduling(true)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/schedule-interview`, {
+        method: 'POST',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(data.error || 'Erro ao agendar entrevista.')
+        return
+      }
+      setStatus('entrevista_agendada')
+      router.refresh()
+    } finally {
+      setScheduling(false)
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(data.error || 'Erro ao remover candidato.')
+        setDeleting(false)
+        return
+      }
+      router.push('/admin/candidatos')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex gap-2 flex-wrap items-center">
       {applicationId && (
         <Select value={status} onValueChange={handleStatusChange}>
           <SelectTrigger className="w-[200px]">
@@ -85,6 +122,21 @@ export function CandidateActions({
         <Button variant="outline" size="sm" onClick={handleAnalyzeAI} disabled={analyzing}>
           <Brain className="w-4 h-4 mr-1" />
           {analyzing ? 'Analisando...' : 'Analisar IA'}
+        </Button>
+      )}
+
+      {/* Agendar Entrevista — visível quando apto */}
+      {status === 'apto_para_entrevista' && (
+        <Button
+          size="sm"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          onClick={handleScheduleInterview}
+          disabled={scheduling}
+        >
+          {scheduling
+            ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Agendando...</>
+            : <><CalendarCheck className="w-4 h-4 mr-1" />Agendar Entrevista</>
+          }
         </Button>
       )}
 
@@ -110,6 +162,38 @@ export function CandidateActions({
           </Button>
         </DialogContent>
       </Dialog>
+
+      {/* Remover currículo */}
+      {!confirmDelete ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-red-500 hover:text-red-700 hover:bg-red-50 ml-auto"
+          onClick={() => setConfirmDelete(true)}
+        >
+          <Trash2 className="w-4 h-4 mr-1" />
+          Remover Currículo
+        </Button>
+      ) : (
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm text-red-600 font-medium">Confirmar remoção permanente?</span>
+          <Button
+            size="sm"
+            className="bg-red-600 hover:bg-red-700 text-white"
+            disabled={deleting}
+            onClick={handleDelete}
+          >
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sim, remover'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setConfirmDelete(false)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

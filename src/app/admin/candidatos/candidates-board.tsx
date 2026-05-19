@@ -14,6 +14,7 @@ import {
   Search, SortAsc, UserCheck, UserX, PhoneOff,
   ExternalLink, Loader2, User, Briefcase,
   ChevronDown, ChevronUp, ChevronsUpDown,
+  CalendarCheck, Trash2,
 } from 'lucide-react'
 
 // ─── Grupos de status para cada quadro ───────────────────────────────────────
@@ -97,6 +98,8 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
   const [detail, setDetail] = useState<DetailData | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [changing, setChanging] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Fetch candidate detail when selected
   useEffect(() => {
@@ -154,6 +157,35 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
         : c
     ))
     setChanging(false)
+    setSelectedId(null)
+    router.refresh()
+  }
+
+  async function handleScheduleInterview() {
+    if (!selectedId || scheduling) return
+    setScheduling(true)
+    const res = await fetch(`/api/admin/candidatos/${selectedId}/schedule-interview`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setScheduling(false)
+    if (!res.ok) { alert(data.error || 'Erro ao agendar entrevista.'); return }
+    // Update local state
+    setCandidates(prev => prev.map(c =>
+      c.id === selectedId && c.applications
+        ? { ...c, applications: { ...c.applications, status: 'entrevista_agendada' } }
+        : c
+    ))
+    setSelectedId(null)
+    router.refresh()
+  }
+
+  async function handleDeleteCandidate() {
+    if (!selectedId || deleting) return
+    setDeleting(true)
+    const res = await fetch(`/api/admin/candidatos/${selectedId}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    setDeleting(false)
+    if (!res.ok) { alert(data.error || 'Erro ao remover candidato.'); return }
+    setCandidates(prev => prev.filter(c => c.id !== selectedId))
     setSelectedId(null)
     router.refresh()
   }
@@ -256,7 +288,11 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
               detail={detail}
               selectedId={selectedId!}
               changing={changing}
+              scheduling={scheduling}
+              deleting={deleting}
               onChangeStatus={changeStatus}
+              onScheduleInterview={handleScheduleInterview}
+              onDeleteCandidate={handleDeleteCandidate}
             />
           )}
         </DialogContent>
@@ -311,13 +347,22 @@ function CandidateModal({
   detail,
   selectedId,
   changing,
+  scheduling,
+  deleting,
   onChangeStatus,
+  onScheduleInterview,
+  onDeleteCandidate,
 }: {
   detail: DetailData
   selectedId: string
   changing: boolean
+  scheduling: boolean
+  deleting: boolean
   onChangeStatus: (s: CandidateStatus) => void
+  onScheduleInterview: () => void
+  onDeleteCandidate: () => void
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const c = detail.candidate as {
     id: string; full_name: string; phone: string | null; email: string | null
     city: string | null; neighborhood: string | null; source: string | null
@@ -526,39 +571,92 @@ function CandidateModal({
       </div>
 
       {/* Footer: botões de ação */}
-      <div className="px-5 py-3 border-t bg-[#f9fafb] shrink-0">
-        <p className="text-xs text-muted-foreground mb-2">Alterar situação do candidato:</p>
-        <div className="flex gap-2 flex-wrap">
+      <div className="px-5 py-3 border-t bg-[#f9fafb] shrink-0 space-y-3">
+
+        {/* Agendar Entrevista — exibido somente quando apto */}
+        {currentStatus === 'apto_para_entrevista' && (
           <Button
             size="sm"
-            variant="outline"
-            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-            disabled={changing || currentGroupKey === 'entrevista'}
-            onClick={() => onChangeStatus('apto_para_entrevista')}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={scheduling}
+            onClick={onScheduleInterview}
           >
-            <UserCheck className="w-3.5 h-3.5 mr-1" />
-            {changing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Entrevistar'}
+            {scheduling
+              ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Agendando...</>
+              : <><CalendarCheck className="w-3.5 h-3.5 mr-1.5" />Agendar Entrevista (envia WhatsApp)</>
+            }
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-gray-300 text-gray-600 hover:bg-gray-50"
-            disabled={changing || currentStatus === 'desistente'}
-            onClick={() => onChangeStatus('desistente')}
-          >
-            <PhoneOff className="w-3.5 h-3.5 mr-1" />
-            {changing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Não Retornou'}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-red-300 text-red-600 hover:bg-red-50"
-            disabled={changing || currentStatus === 'reprovado'}
-            onClick={() => onChangeStatus('reprovado')}
-          >
-            <UserX className="w-3.5 h-3.5 mr-1" />
-            {changing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Não Aprovado'}
-          </Button>
+        )}
+
+        {/* Demais mudanças de status */}
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">Alterar situação:</p>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              disabled={changing || currentGroupKey === 'entrevista'}
+              onClick={() => onChangeStatus('apto_para_entrevista')}
+            >
+              <UserCheck className="w-3.5 h-3.5 mr-1" />
+              {changing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Entrevistar'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-gray-300 text-gray-600 hover:bg-gray-50"
+              disabled={changing || currentStatus === 'desistente'}
+              onClick={() => onChangeStatus('desistente')}
+            >
+              <PhoneOff className="w-3.5 h-3.5 mr-1" />
+              {changing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Não Retornou'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-300 text-red-600 hover:bg-red-50"
+              disabled={changing || currentStatus === 'reprovado'}
+              onClick={() => onChangeStatus('reprovado')}
+            >
+              <UserX className="w-3.5 h-3.5 mr-1" />
+              {changing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Não Aprovado'}
+            </Button>
+
+            {/* Remover currículo */}
+            {!confirmDelete ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto text-red-500 hover:text-red-700 hover:bg-red-50"
+                disabled={deleting}
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                Remover
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-xs text-red-600 font-medium">Confirmar remoção?</span>
+                <Button
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white h-7 px-2.5 text-xs"
+                  disabled={deleting}
+                  onClick={onDeleteCandidate}
+                >
+                  {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Sim'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Não
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>
