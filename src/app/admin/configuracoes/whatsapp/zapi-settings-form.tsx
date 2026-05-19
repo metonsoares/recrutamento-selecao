@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { WhatsappSettings, WhatsappLog } from '@/types'
 import { formatDateTime } from '@/lib/helpers'
 import { Copy, CheckCircle, XCircle, Zap, Bot, Check } from 'lucide-react'
@@ -85,8 +84,6 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
     setCopiedKey(key)
     setTimeout(() => setCopiedKey(null), 2000)
   }
-
-  const webhookUrl = `${appUrl}/api/webhooks/zapi/received`
 
   async function handleSave() {
     setSaving(true)
@@ -410,9 +407,9 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
           <div className="rounded-xl border p-4 space-y-2 text-sm">
             <p className="font-semibold">Outras configurações recomendadas no Z-API</p>
             <ul className="space-y-1 text-muted-foreground text-xs list-disc list-inside">
-              <li>Ative <strong>"Ler mensagens automático"</strong> para marcar como lidas ao receber</li>
-              <li>Ative <strong>"WhatsApp Business"</strong> se a conta for Business</li>
-              <li>Ative <strong>"Rejeitar chamadas automático"</strong> para evitar chamadas indesejadas</li>
+              <li>Ative <strong>&quot;Ler mensagens automático&quot;</strong> para marcar como lidas ao receber</li>
+              <li>Ative <strong>&quot;WhatsApp Business&quot;</strong> se a conta for Business</li>
+              <li>Ative <strong>&quot;Rejeitar chamadas automático&quot;</strong> para evitar chamadas indesejadas</li>
             </ul>
           </div>
         </TabsContent>

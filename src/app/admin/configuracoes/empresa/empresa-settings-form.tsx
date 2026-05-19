@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { AiSettings } from '@/types'
-import { Sparkles, Loader2, Key, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { Sparkles, Loader2 } from 'lucide-react'
 
 type FieldKey =
   | 'mission'
@@ -25,6 +25,37 @@ type FieldKey =
 function maskKey(key: string | null): string {
   if (!key) return ''
   return '••••••••••••' + key.slice(-4)
+}
+
+function FieldLabel({
+  label,
+  field,
+  improvingField,
+  onImprove,
+}: {
+  label: string
+  field: FieldKey
+  improvingField: FieldKey | null
+  onImprove: (field: FieldKey) => void
+}) {
+  const isImproving = improvingField === field
+  return (
+    <div className="flex items-center justify-between gap-2 mb-1.5">
+      <Label className="text-sm">{label}</Label>
+      <button
+        type="button"
+        onClick={() => onImprove(field)}
+        disabled={isImproving || !!improvingField}
+        className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+        title="Melhorar com IA"
+      >
+        {isImproving
+          ? <><Loader2 className="w-3 h-3 animate-spin" />Ajustando...</>
+          : <><Sparkles className="w-3 h-3" />Ajustar com IA</>
+        }
+      </button>
+    </div>
+  )
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -53,13 +84,6 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
     experience_weight: settings?.experience_weight ?? 0.35,
     availability_weight: settings?.availability_weight ?? 0.15,
   })
-
-  // ── Chave de API ──────────────────────────────────────────────────────────
-  const [savingKey, setSavingKey] = useState(false)
-  const [apiKey, setApiKey] = useState('')
-  const [showKey, setShowKey] = useState(false)
-  const [keyStatus, setKeyStatus] = useState<'idle' | 'saved' | 'error'>('idle')
-  const hasStoredKey = !!settings?.anthropic_api_key_encrypted
 
   const totalWeight =
     Number(aiForm.culture_weight) +
@@ -111,31 +135,6 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
     alert('Configuração da IA salva!')
   }
 
-  // ── Salvar chave de API ───────────────────────────────────────────────────
-  async function handleSaveKey() {
-    if (!apiKey.trim()) return
-    setSavingKey(true)
-    setKeyStatus('idle')
-    try {
-      const res = await fetch('/api/admin/ai/save-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: apiKey.trim(), settingsId: settings?.id }),
-      })
-      if (res.ok) {
-        setKeyStatus('saved')
-        setApiKey('')
-        router.refresh()
-      } else {
-        setKeyStatus('error')
-      }
-    } catch {
-      setKeyStatus('error')
-    } finally {
-      setSavingKey(false)
-    }
-  }
-
   // ── Ajustar campo com IA ──────────────────────────────────────────────────
   async function handleImprove(field: FieldKey) {
     const value = field in form
@@ -170,28 +169,6 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
     }
   }
 
-  // ── Sub-componente: label com botão de IA ─────────────────────────────────
-  function FieldLabel({ label, field }: { label: string; field: FieldKey }) {
-    const isImproving = improvingField === field
-    return (
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <Label className="text-sm">{label}</Label>
-        <button
-          type="button"
-          onClick={() => handleImprove(field)}
-          disabled={isImproving || !!improvingField}
-          className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-          title="Melhorar com IA"
-        >
-          {isImproving
-            ? <><Loader2 className="w-3 h-3 animate-spin" />Ajustando...</>
-            : <><Sparkles className="w-3 h-3" />Ajustar com IA</>
-          }
-        </button>
-      </div>
-    )
-  }
-
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 sm:p-6 space-y-8 max-w-3xl">
@@ -208,7 +185,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         <h2 className="text-base font-semibold text-[#333333] border-b pb-2">Empresa</h2>
 
         <div>
-          <FieldLabel label="Missão" field="mission" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Missão" field="mission" />
           <Input
             value={form.mission}
             onChange={e => setForm(f => ({ ...f, mission: e.target.value }))}
@@ -218,7 +195,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         </div>
 
         <div>
-          <FieldLabel label="Visão" field="vision" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Visão" field="vision" />
           <Input
             value={form.vision}
             onChange={e => setForm(f => ({ ...f, vision: e.target.value }))}
@@ -228,7 +205,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         </div>
 
         <div>
-          <FieldLabel label="Cultura da Empresa" field="company_culture" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Cultura da Empresa" field="company_culture" />
           <Textarea
             value={form.company_culture}
             onChange={e => setForm(f => ({ ...f, company_culture: e.target.value }))}
@@ -238,7 +215,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         </div>
 
         <div>
-          <FieldLabel label="Perfil Ideal do Colaborador" field="ideal_candidate_profile" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Perfil Ideal do Colaborador" field="ideal_candidate_profile" />
           <Textarea
             value={form.ideal_candidate_profile}
             onChange={e => setForm(f => ({ ...f, ideal_candidate_profile: e.target.value }))}
@@ -248,7 +225,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         </div>
 
         <div>
-          <FieldLabel label="Comportamentos Desejados (um por linha)" field="desired_behaviors" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Comportamentos Desejados (um por linha)" field="desired_behaviors" />
           <Textarea
             value={form.desired_behaviors}
             onChange={e => setForm(f => ({ ...f, desired_behaviors: e.target.value }))}
@@ -259,7 +236,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         </div>
 
         <div>
-          <FieldLabel label="Comportamentos de Alerta (um por linha)" field="alert_behaviors" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Comportamentos de Alerta (um por linha)" field="alert_behaviors" />
           <Textarea
             value={form.alert_behaviors}
             onChange={e => setForm(f => ({ ...f, alert_behaviors: e.target.value }))}
@@ -338,7 +315,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
 
         {/* Prompts */}
         <div>
-          <FieldLabel label="Prompt da IA Atendente (WhatsApp)" field="whatsapp_agent_prompt" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Prompt da IA Atendente (WhatsApp)" field="whatsapp_agent_prompt" />
           <Textarea
             value={aiForm.whatsapp_agent_prompt}
             onChange={e => setAiForm(f => ({ ...f, whatsapp_agent_prompt: e.target.value }))}
@@ -349,7 +326,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         </div>
 
         <div>
-          <FieldLabel label="Prompt da IA Analista (Análise de Candidatos)" field="analysis_prompt" />
+          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Prompt da IA Analista (Análise de Candidatos)" field="analysis_prompt" />
           <Textarea
             value={aiForm.analysis_prompt}
             onChange={e => setAiForm(f => ({ ...f, analysis_prompt: e.target.value }))}
@@ -364,74 +341,16 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         </Button>
       </section>
 
-      {/* ══ SEÇÃO 3: Chave de API ═══════════════════════════════════════════ */}
-      <section className="space-y-4">
-        <h2 className="text-base font-semibold text-[#333333] border-b pb-2">Chave de API (Anthropic / Claude)</h2>
-
-        <p className="text-sm text-muted-foreground">
-          A chave é necessária para as funcionalidades de IA: &quot;Ajustar com IA&quot;, busca de CBO e análise de candidatos.
-          Ela é armazenada de forma criptografada.
-        </p>
-
-        {hasStoredKey && (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            Chave salva: <span className="font-mono">{maskKey(settings?.anthropic_api_key_encrypted || null)}</span>
-          </div>
-        )}
-
-        <div className="space-y-1">
-          <Label className="flex items-center gap-1.5">
-            <Key className="w-3.5 h-3.5" />
-            {hasStoredKey ? 'Substituir chave' : 'Adicionar chave'}
-          </Label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                type={showKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={e => { setApiKey(e.target.value); setKeyStatus('idle') }}
-                placeholder="sk-ant-api03-..."
-                className="text-base pr-10 font-mono text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <Button
-              onClick={handleSaveKey}
-              disabled={savingKey || !apiKey.trim()}
-              className="shrink-0"
-            >
-              {savingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
-            </Button>
-          </div>
-
-          {keyStatus === 'saved' && (
-            <p className="flex items-center gap-1 text-xs text-green-600 mt-1">
-              <CheckCircle2 className="w-3 h-3" />Chave salva com sucesso!
-            </p>
-          )}
-          {keyStatus === 'error' && (
-            <p className="text-xs text-red-500 mt-1">Erro ao salvar a chave. Tente novamente.</p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Obtenha sua chave em{' '}
-            <a
-              href="https://console.anthropic.com/settings/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline text-violet-600 hover:text-violet-800"
-            >
-              console.anthropic.com
-            </a>
-          </p>
-        </div>
-      </section>
+      {/* Chaves de API foram movidas para Configurações Plataforma → Configuração IA */}
+      <div className="rounded-lg border border-[#e8e8e8] bg-[#fafafa] p-4 text-sm text-muted-foreground flex items-center gap-3">
+        <span className="text-[#555]">🔑</span>
+        <span>
+          As chaves de API (Anthropic / OpenAI) são gerenciadas em{' '}
+          <a href="/admin/configuracoes/ia" className="underline text-violet-600 hover:text-violet-800 font-medium">
+            Configurações Plataforma → Configuração IA
+          </a>.
+        </span>
+      </div>
 
     </div>
   )

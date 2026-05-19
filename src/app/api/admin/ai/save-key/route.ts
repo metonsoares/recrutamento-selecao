@@ -4,7 +4,7 @@ import { encryptToken } from '@/lib/helpers'
 
 export async function POST(req: NextRequest) {
   try {
-    const { key, settingsId } = await req.json()
+    const { key, provider = 'anthropic', settingsId } = await req.json()
 
     if (!key || typeof key !== 'string' || key.trim().length < 10) {
       return NextResponse.json({ error: 'Chave inválida' }, { status: 400 })
@@ -13,16 +13,39 @@ export async function POST(req: NextRequest) {
     const encrypted = encryptToken(key.trim())
     const supabase = await createSupabaseServiceClient()
 
+    // Determina qual coluna atualizar com base no provider
+    const fieldMap: Record<string, string> = {
+      anthropic: 'anthropic_api_key_encrypted',
+      openai: 'openai_api_key_encrypted',
+    }
+    const field = fieldMap[provider]
+    if (!field) {
+      return NextResponse.json({ error: 'Provider inválido' }, { status: 400 })
+    }
+
     if (settingsId) {
       await supabase
         .from('ai_settings')
-        .update({ anthropic_api_key_encrypted: encrypted, updated_at: new Date().toISOString() })
+        .update({ [field]: encrypted, updated_at: new Date().toISOString() })
         .eq('id', settingsId)
     } else {
-      // Cria registro se não existir
-      await supabase
+      // Verifica se já existe um registro
+      const { data: existing } = await supabase
         .from('ai_settings')
-        .insert({ anthropic_api_key_encrypted: encrypted })
+        .select('id')
+        .limit(1)
+        .single()
+
+      if (existing?.id) {
+        await supabase
+          .from('ai_settings')
+          .update({ [field]: encrypted, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+      } else {
+        await supabase
+          .from('ai_settings')
+          .insert({ [field]: encrypted } as Record<string, unknown>)
+      }
     }
 
     return NextResponse.json({ ok: true })
