@@ -385,7 +385,7 @@ function CandidateCard({
       </div>
 
       {/* Vaga + data */}
-      <div className="mt-1.5 pl-4.5 space-y-0.5">
+      <div className="mt-1.5 pl-5 space-y-0.5">
         {jobTitle && (
           <p className="text-[10px] text-muted-foreground truncate">{jobTitle}</p>
         )}

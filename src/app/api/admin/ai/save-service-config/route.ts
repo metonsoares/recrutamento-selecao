@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
   }
 
   const fields = SERVICE_FIELDS[service]
-  const service_client = await createSupabaseServiceClient()
+  const serviceClient = await createSupabaseServiceClient()
 
   // Upsert into ai_settings (always a single row)
-  const { data: existing } = await service_client
+  const { data: existing } = await serviceClient
     .from('ai_settings')
     .select('id')
     .limit(1)
@@ -47,13 +47,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (existing?.id) {
-    const { error } = await service_client
+    const { error } = await serviceClient
       .from('ai_settings')
       .update(payload)
       .eq('id', existing.id)
     if (error) return NextResponse.json({ error: 'Erro ao salvar.' }, { status: 500 })
   } else {
-    const { error } = await service_client
+    const { error } = await serviceClient
       .from('ai_settings')
       .insert(payload)
     if (error) return NextResponse.json({ error: 'Erro ao salvar.' }, { status: 500 })

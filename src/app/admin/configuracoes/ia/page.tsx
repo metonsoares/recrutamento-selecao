@@ -3,6 +3,18 @@ import { IaSettingsForm } from './ia-settings-form'
 
 export const dynamic = 'force-dynamic'
 
+type AiSettingsRow = {
+  id: string
+  anthropic_api_key_encrypted: string | null
+  openai_api_key_encrypted: string | null
+  analysis_provider: 'anthropic' | 'openai' | null
+  analysis_prompt: string | null
+  whatsapp_provider: 'anthropic' | 'openai' | null
+  whatsapp_agent_prompt: string | null
+  company_provider: 'anthropic' | 'openai' | null
+  company_prompt: string | null
+}
+
 export default async function IaConfigPage() {
   const supabase = await createSupabaseServerClient()
   const { data: settings } = await supabase
@@ -14,18 +26,18 @@ export default async function IaConfigPage() {
       'company_provider, company_prompt'
     )
     .limit(1)
-    .maybeSingle()
+    .maybeSingle() as { data: AiSettingsRow | null }
 
   return (
     <IaSettingsForm
       hasAnthropicKey={!!settings?.anthropic_api_key_encrypted}
       hasOpenaiKey={!!settings?.openai_api_key_encrypted}
       settingsId={settings?.id ?? null}
-      analysisProvider={(settings?.analysis_provider as 'anthropic' | 'openai' | null) ?? null}
+      analysisProvider={settings?.analysis_provider ?? null}
       analysisPrompt={settings?.analysis_prompt ?? ''}
-      whatsappProvider={(settings?.whatsapp_provider as 'anthropic' | 'openai' | null) ?? null}
+      whatsappProvider={settings?.whatsapp_provider ?? null}
       whatsappPrompt={settings?.whatsapp_agent_prompt ?? ''}
-      companyProvider={(settings?.company_provider as 'anthropic' | 'openai' | null) ?? null}
+      companyProvider={settings?.company_provider ?? null}
       companyPrompt={settings?.company_prompt ?? ''}
     />
   )

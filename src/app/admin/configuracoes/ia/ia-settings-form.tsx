@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import type { ElementType } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -105,7 +106,7 @@ function ServiceCard({
   hasAnthropicKey,
   hasOpenaiKey,
 }: {
-  icon: React.ElementType
+  icon: ElementType
   title: string
   description: string
   service: Service
@@ -146,7 +147,7 @@ function ServiceCard({
       {/* Header */}
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <Icon className="w-4.5 h-4.5 text-primary" />
+          <Icon className="w-4 h-4 text-primary" />
         </div>
         <div>
           <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
