@@ -192,6 +192,11 @@ async function buildAiReply(
     return buildFallbackReply(settings)
   }
 
+  // Respect configured whatsapp_provider: if set, use only that provider
+  const configuredProvider = aiSettings?.whatsapp_provider as 'anthropic' | 'openai' | null | undefined
+  if (configuredProvider === 'anthropic') { openaiKey = null }
+  else if (configuredProvider === 'openai') { anthropicKey = null }
+
   // Load last 10 messages for context (the current inbound was just saved, so it's already included)
   const { data: history } = await supabase
     .from('whatsapp_messages')
