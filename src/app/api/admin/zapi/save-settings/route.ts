@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
       api_base_url: body.api_base_url || 'https://api.z-api.io',
       environment: body.environment || 'production',
       is_active: body.is_active,
+      auto_reply_enabled: body.auto_reply_enabled ?? true,
+      welcome_message: body.welcome_message ?? null,
       updated_at: new Date().toISOString(),
     }
 
