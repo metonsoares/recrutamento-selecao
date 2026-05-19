@@ -747,20 +747,6 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
             <PartyPopper className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
             Boa sorte no processo seletivo!
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSuccess(false)
-              setAnswers({})
-              setAddrValues({})
-              setFileInfos({})
-              setLgpd(false)
-              setError(null)
-            }}
-            className="text-sm text-muted-foreground hover:text-gray-700 underline underline-offset-2"
-          >
-            Enviar outro currículo
-          </button>
         </div>
       </div>
     )
