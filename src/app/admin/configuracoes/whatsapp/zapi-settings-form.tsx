@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { WhatsappSettings, WhatsappLog } from '@/types'
 import { formatDateTime } from '@/lib/helpers'
-import { Copy, CheckCircle, XCircle, Zap } from 'lucide-react'
+import { Copy, CheckCircle, XCircle, Zap, Bot, Check } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 
 function maskToken(token: string | null) {
   if (!token) return ''
@@ -25,6 +26,10 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
   const [testPhone, setTestPhone] = useState('')
   const [testMsg, setTestMsg] = useState('Olá! Mensagem de teste do Banco de Talentos do Ton. 🎉')
   const [sendingTest, setSendingTest] = useState(false)
+  const [testingWebhook, setTestingWebhook] = useState(false)
+  const [webhookTestResult, setWebhookTestResult] = useState<{ ok: boolean; msg: string; detail?: string } | null>(null)
+
+  const DEFAULT_WELCOME = `Olá! Aqui é {ATENDENTE}, do Brownie do Ton 😊\n\nObrigado pelo contato! Ficamos felizes com seu interesse em fazer parte da nossa equipe.\n\nPara se candidatar, acesse nosso formulário:\n{LINK}\n\nApós o envio, nossa equipe de RH analisará seu perfil e entrará em contato. 😊`
 
   const [form, setForm] = useState({
     instance_name: settings?.instance_name || '',
@@ -36,9 +41,51 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
     api_base_url: settings?.api_base_url || 'https://api.z-api.io',
     environment: settings?.environment || 'production',
     is_active: settings?.is_active || false,
+    auto_reply_enabled: settings?.auto_reply_enabled ?? true,
+    welcome_message: settings?.welcome_message || '',
   })
 
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+
   const appUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
+  const webhooks = [
+    {
+      key: 'received',
+      zapiLabel: 'Ao receber',
+      description: 'Disparado quando uma mensagem é recebida — necessário para a resposta automática.',
+      url: `${appUrl}/api/webhooks/zapi/received`,
+      required: true,
+    },
+    {
+      key: 'disconnected',
+      zapiLabel: 'Ao desconectar',
+      description: 'Disparado quando a instância se desconecta do WhatsApp.',
+      url: `${appUrl}/api/webhooks/zapi/disconnected`,
+      required: false,
+    },
+    {
+      key: 'status',
+      zapiLabel: 'Receber status da mensagem',
+      description: 'Disparado quando o status de uma mensagem enviada muda (entregue, lida etc.).',
+      url: `${appUrl}/api/webhooks/zapi/message-status`,
+      required: false,
+    },
+    {
+      key: 'delivered',
+      zapiLabel: 'Ao enviar',
+      description: 'Disparado após o envio de cada mensagem. Permite capturar erros de entrega e confirmar que a mensagem saiu corretamente.',
+      url: `${appUrl}/api/webhooks/zapi/delivered`,
+      required: false,
+    },
+  ]
+
+  function copyWebhook(key: string, url: string) {
+    navigator.clipboard.writeText(url)
+    setCopiedKey(key)
+    setTimeout(() => setCopiedKey(null), 2000)
+  }
+
   const webhookUrl = `${appUrl}/api/webhooks/zapi/received`
 
   async function handleSave() {
@@ -46,7 +93,10 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
     const res = await fetch('/api/admin/zapi/save-settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        welcome_message: form.welcome_message || null,
+      }),
     })
     setSaving(false)
     if (res.ok) { router.refresh(); alert('Configurações salvas!') }
@@ -60,6 +110,27 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
     const data = await res.json()
     setTestResult({ ok: data.ok, msg: data.ok ? 'Conexão bem-sucedida!' : (data.error || 'Falha na conexão') })
     setTesting(false)
+  }
+
+  async function handleTestWebhook() {
+    setTestingWebhook(true)
+    setWebhookTestResult(null)
+    try {
+      const res = await fetch('/api/admin/zapi/test-webhook', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        setWebhookTestResult({
+          ok: true,
+          msg: `✅ Webhook funcionando! Respondeu em ${data.elapsed_ms}ms`,
+          detail: data.log_created ? 'Log registrado no banco ✓' : 'Webhook chamado mas log não encontrado',
+        })
+      } else {
+        setWebhookTestResult({ ok: false, msg: `❌ ${data.error}` })
+      }
+    } catch {
+      setWebhookTestResult({ ok: false, msg: '❌ Erro ao chamar o endpoint de teste' })
+    }
+    setTestingWebhook(false)
   }
 
   async function handleSendTest() {
@@ -82,6 +153,7 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
         <p className="text-muted-foreground text-sm mt-1">Configuração da integração com WhatsApp via Z-API</p>
       </div>
 
+      {/* Status cards */}
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
@@ -106,9 +178,35 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
         </Card>
       </div>
 
+      {/* Diagnostics checklist */}
+      {(() => {
+        const checks = [
+          { label: 'Integração ativa', ok: !!settings?.is_active, fix: 'Marque "Integração ativa" na aba Configurações e salve.' },
+          { label: 'Instance ID configurado', ok: !!settings?.instance_id, fix: 'Preencha o Instance ID na aba Configurações.' },
+          { label: 'Token da instância configurado', ok: !!settings?.instance_token_encrypted, fix: 'Preencha o Token da Instância na aba Configurações.' },
+          { label: 'Client Token configurado', ok: !!settings?.client_token_encrypted, fix: 'Preencha o Client Token na aba Configurações.' },
+          { label: 'Auto-resposta ativada', ok: settings?.auto_reply_enabled !== false, fix: 'Ative a resposta automática na aba Auto-resposta.' },
+        ]
+        const hasIssues = checks.some(c => !c.ok)
+        if (!hasIssues) return null
+        return (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
+            <p className="text-sm font-semibold text-red-800">⚠️ Pendências na configuração</p>
+            <ul className="space-y-1">
+              {checks.filter(c => !c.ok).map(c => (
+                <li key={c.label} className="text-xs text-red-700">
+                  <span className="font-medium">• {c.label}:</span> {c.fix}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })()}
+
       <Tabs defaultValue="config">
         <TabsList>
           <TabsTrigger value="config">Configurações</TabsTrigger>
+          <TabsTrigger value="auto_reply">Auto-resposta</TabsTrigger>
           <TabsTrigger value="test">Testar</TabsTrigger>
           <TabsTrigger value="webhook">Webhook</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
@@ -153,6 +251,62 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
           </Button>
         </TabsContent>
 
+        {/* ── Auto-resposta ───────────────────────────────────────────── */}
+        <TabsContent value="auto_reply" className="space-y-5 mt-4">
+          <div className="flex items-start gap-3 p-4 rounded-xl border bg-muted/30">
+            <Bot className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+            <div className="text-sm space-y-1">
+              <p className="font-medium">Como funciona</p>
+              <p className="text-muted-foreground">Quando um candidato mandar a primeira mensagem, o sistema responde automaticamente com a mensagem de boas-vindas abaixo. Nas mensagens seguintes, a IA (configurada em <strong>Config → IA</strong>) responde de forma contextual usando o prompt do agente WhatsApp.</p>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.auto_reply_enabled}
+              onChange={e => setForm(f => ({ ...f, auto_reply_enabled: e.target.checked }))}
+              className="w-4 h-4 accent-primary"
+            />
+            <span className="text-sm font-medium">Resposta automática ativada</span>
+          </label>
+
+          <div className="space-y-2">
+            <Label>Mensagem de boas-vindas (1ª mensagem recebida)</Label>
+            <p className="text-xs text-muted-foreground">
+              Variáveis disponíveis: <code className="bg-muted px-1 rounded">{'{ATENDENTE}'}</code> → nome do atendente &nbsp;|&nbsp; <code className="bg-muted px-1 rounded">{'{LINK}'}</code> → link do formulário de currículo
+            </p>
+            <Textarea
+              rows={10}
+              value={form.welcome_message || DEFAULT_WELCOME}
+              onChange={e => setForm(f => ({ ...f, welcome_message: e.target.value }))}
+              placeholder={DEFAULT_WELCOME}
+              className="font-mono text-sm"
+            />
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() => setForm(f => ({ ...f, welcome_message: DEFAULT_WELCOME }))}
+            >
+              Restaurar mensagem padrão
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Pré-visualização (com valores reais)</Label>
+            <pre className="text-sm whitespace-pre-wrap bg-muted/40 border rounded-xl p-4 leading-relaxed">
+              {(form.welcome_message || DEFAULT_WELCOME)
+                .replace(/\{ATENDENTE\}/g, form.attendant_name || 'Assistente do Ton')
+                .replace(/\{LINK\}/g, 'https://recrutamento-selecao-ashen.vercel.app/curriculo')}
+            </pre>
+          </div>
+
+          <Button onClick={handleSave} disabled={saving}>
+            <Zap className="w-4 h-4 mr-1" />
+            {saving ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </TabsContent>
+
         <TabsContent value="test" className="space-y-4 mt-4">
           <div className="space-y-4">
             <Button onClick={handleTestConnection} disabled={testing} variant="outline">
@@ -181,20 +335,85 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
           </div>
         </TabsContent>
 
-        <TabsContent value="webhook" className="space-y-4 mt-4">
+        <TabsContent value="webhook" className="space-y-5 mt-4">
+
+          {/* Instruction banner */}
+          <div className="flex gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50">
+            <span className="text-amber-500 text-lg shrink-0">⚠️</span>
+            <div className="text-sm">
+              <p className="font-semibold text-amber-800">Configure os URLs abaixo no painel do Z-API</p>
+              <p className="text-amber-700 mt-0.5">
+                Acesse <strong>Z-API → sua instância → Webhooks e configurações gerais</strong> e cole cada URL no campo correspondente. Sem isso, as mensagens não chegam à plataforma.
+              </p>
+            </div>
+          </div>
+
+          {/* Webhook list */}
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Configure este URL no painel da Z-API como webhook de mensagens recebidas:</p>
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-              <code className="text-xs flex-1 break-all">{webhookUrl}</code>
-              <Button size="sm" variant="ghost" onClick={() => navigator.clipboard.writeText(webhookUrl)}>
-                <Copy className="w-3 h-3" />
-              </Button>
+            {webhooks.map(wh => (
+              <div key={wh.key} className={`rounded-xl border p-4 space-y-2 ${wh.required ? 'border-primary/30 bg-primary/5' : 'bg-muted/30'}`}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">
+                      Campo no Z-API: <span className="text-primary">{wh.zapiLabel}</span>
+                    </span>
+                    {wh.required && (
+                      <span className="text-xs bg-primary text-white px-2 py-0.5 rounded-full">Obrigatório</span>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={copiedKey === wh.key ? 'default' : 'outline'}
+                    className="gap-1.5 shrink-0"
+                    onClick={() => copyWebhook(wh.key, wh.url)}
+                  >
+                    {copiedKey === wh.key
+                      ? <><Check className="w-3.5 h-3.5" /> Copiado!</>
+                      : <><Copy className="w-3.5 h-3.5" /> Copiar URL</>
+                    }
+                  </Button>
+                </div>
+                <code className="block text-xs bg-white border rounded-lg px-3 py-2 break-all text-muted-foreground">
+                  {wh.url}
+                </code>
+                <p className="text-xs text-muted-foreground">{wh.description}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Test webhook button */}
+          <div className="rounded-xl border p-4 space-y-3">
+            <div>
+              <p className="font-semibold text-sm">Testar recebimento de webhook</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Simula uma mensagem chegando à plataforma e verifica se o fluxo está funcionando ponta a ponta.</p>
             </div>
-            <div className="text-sm space-y-1">
-              <p className="font-medium">Outros webhooks:</p>
-              <p className="text-muted-foreground text-xs">/api/webhooks/zapi/message-status — Status de mensagens</p>
-              <p className="text-muted-foreground text-xs">/api/webhooks/zapi/disconnected — Desconexão</p>
-            </div>
+            <Button
+              variant="outline"
+              onClick={handleTestWebhook}
+              disabled={testingWebhook}
+              className="gap-2"
+            >
+              {testingWebhook
+                ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>Testando…</>
+                : <><Zap className="w-4 h-4" />Testar Webhook</>
+              }
+            </Button>
+            {webhookTestResult && (
+              <div className={`p-3 rounded-lg text-sm space-y-1 ${webhookTestResult.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                <p className="font-medium">{webhookTestResult.msg}</p>
+                {webhookTestResult.detail && <p className="text-xs opacity-80">{webhookTestResult.detail}</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Z-API extra tips */}
+          <div className="rounded-xl border p-4 space-y-2 text-sm">
+            <p className="font-semibold">Outras configurações recomendadas no Z-API</p>
+            <ul className="space-y-1 text-muted-foreground text-xs list-disc list-inside">
+              <li>Ative <strong>"Ler mensagens automático"</strong> para marcar como lidas ao receber</li>
+              <li>Ative <strong>"WhatsApp Business"</strong> se a conta for Business</li>
+              <li>Ative <strong>"Rejeitar chamadas automático"</strong> para evitar chamadas indesejadas</li>
+            </ul>
           </div>
         </TabsContent>
 
