@@ -345,8 +345,8 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     const badCPF = questions.find(q => q.field_type === 'cpf' && cpfErrors[q.id])
     if (badCPF) { setError('CPF inválido. Verifique o campo e tente novamente.'); return }
 
-    // Validate files — check that uploads completed (URL available)
-    for (const q of questions.filter(q => q.field_type === 'file_upload')) {
+    // Validate files — only check questions actually rendered on the form (in usedIds)
+    for (const q of questions.filter(q => q.field_type === 'file_upload' && usedIds.has(q.id))) {
       const fi = fileInfos[q.id]
       if (fi?.error) { setError(`Erro no campo "${q.question_text}": ${fi.error}`); return }
       if (fi?.uploading) {
@@ -367,8 +367,8 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     // Build final answers
     const finalAnswers: Record<string, string | string[]> = { ...answers }
 
-    // Serialize address fields
-    for (const q of questions.filter(q => q.field_type === 'address')) {
+    // Serialize address fields (rendered questions only)
+    for (const q of questions.filter(q => q.field_type === 'address' && usedIds.has(q.id))) {
       const addr = addrValues[q.id] || emptyAddr()
       if (q.is_required && (!addr.cep || !addr.number || !addr.city)) {
         setError('Preencha todos os campos do endereço (CEP, Número e Cidade).')
@@ -381,8 +381,8 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         .filter(Boolean).join(' - ')
     }
 
-    // Files are already uploaded — just map the stored URLs into finalAnswers
-    for (const q of questions.filter(q => q.field_type === 'file_upload')) {
+    // Files are already uploaded — just map the stored URLs into finalAnswers (rendered questions only)
+    for (const q of questions.filter(q => q.field_type === 'file_upload' && usedIds.has(q.id))) {
       const fi = fileInfos[q.id]
       if (fi?.uploadedUrl) finalAnswers[q.id] = fi.uploadedUrl
     }
