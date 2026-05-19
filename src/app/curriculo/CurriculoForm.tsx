@@ -56,9 +56,20 @@ const emptyAddr = (): AddrFields => ({ cep: '', street: '', number: '', neighbor
 
 // ─── File info ────────────────────────────────────────────────────────────────
 
-interface FileInfo { file: File; error: string | null; compressing?: boolean }
+interface FileInfo {
+  file: File
+  error: string | null
+  /** Compression running in background */
+  compressing?: boolean
+  /** Upload to server in progress */
+  uploading?: boolean
+  /** Upload progress 0-100 */
+  uploadPct?: number
+  /** URL returned by server after successful upload */
+  uploadedUrl?: string
+}
 
-const MAX_FILE_BYTES = 2 * 1024 * 1024
+const MAX_FILE_BYTES = 5 * 1024 * 1024 // 5 MB — server also accepts up to 5 MB
 
 /** Accepts any image/* type (JPEG, PNG, HEIC, WebP…) plus PDF */
 function isImageFile(file: File) {
@@ -71,9 +82,8 @@ function isImageFile(file: File) {
 function validateFile(file: File): string | null {
   const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
   const isImage = isImageFile(file)
-  if (!isPDF && !isImage) return 'Apenas PDF ou imagem (JPG, PNG) são permitidos.'
-  // Images are compressed automatically — only PDFs are hard-limited
-  if (isPDF && file.size > MAX_FILE_BYTES) return 'PDF muito grande. Máximo 2 MB.'
+  if (!isPDF && !isImage) return 'Apenas PDF ou imagem (JPG, PNG e outros) são permitidos.'
+  if (file.size > MAX_FILE_BYTES) return 'Arquivo muito grande. Máximo 5 MB.'
   return null
 }
 
@@ -166,7 +176,6 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
   const [cpfErrors, setCpfErrors] = useState<Record<string, boolean>>({})
   const [addrValues, setAddrValues] = useState<Record<string, AddrFields>>({})
   const [fileInfos, setFileInfos] = useState<Record<string, FileInfo | null>>({})
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({}) // 0-100, -1 = done
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const [lgpd, setLgpd] = useState(false)
@@ -226,69 +235,91 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
   async function handleFileSelect(id: string, file: File) {
     const err = validateFile(file)
     if (err) {
-      setFileInfos(p => ({ ...p, [id]: { file, error: err, compressing: false } }))
+      setFileInfos(p => ({ ...p, [id]: { file, error: err } }))
       return
     }
 
-    // ✅ Store the file immediately — the user can see the preview and submit right away
-    setFileInfos(p => ({ ...p, [id]: { file, error: null, compressing: false } }))
+    // Show "uploading" state immediately so the user sees feedback right away
+    setFileInfos(p => ({ ...p, [id]: { file, error: null, uploading: true, uploadPct: 0 } }))
 
-    // Large images: try to compress in the background (non-blocking)
-    // If compression fails or times out we simply keep the original — never block the user.
-    if (isImageFile(file) && file.size > MAX_FILE_BYTES) {
-      setFileInfos(p => ({ ...p, [id]: { file, error: null, compressing: true } }))
+    // Try to compress images > 2 MB to JPEG before uploading (reduces upload time and
+    // ensures the server receives a standard JPEG type even for camera photos with empty MIME type)
+    let fileToUpload = file
+    if (isImageFile(file)) {
       try {
-        const compressed = await compressImageSafe(file)
-        setFileInfos(p => ({ ...p, [id]: { file: compressed, error: null, compressing: false } }))
+        const compressed = await compressImageSafe(file, 2 * 1024 * 1024)
+        fileToUpload = compressed
+        // Update stored file with compressed version
+        setFileInfos(p => {
+          const cur = p[id]; if (!cur) return p
+          return { ...p, [id]: { ...cur, file: fileToUpload } }
+        })
       } catch {
-        // Compression failed or timed out — keep the original, never block the user
-        setFileInfos(p => ({ ...p, [id]: { file, error: null, compressing: false } }))
+        // Compression failed or timed out — upload original file
       }
     }
+
+    // Start the actual upload to the server
+    startUpload(id, fileToUpload)
   }
 
   function clearFile(id: string) {
     setFileInfos(p => ({ ...p, [id]: null }))
-    setUploadProgress(p => { const n = { ...p }; delete n[id]; return n })
     if (fileRefs.current[id]) fileRefs.current[id]!.value = ''
   }
 
-  /** Upload using XHR so we can track progress per question id. */
-  function uploadFileWithProgress(id: string, file: File): Promise<{ url: string }> {
-    return new Promise((resolve, reject) => {
-      const fd = new FormData()
-      fd.append('file', file)
+  /**
+   * Upload a file to the server via XHR (for real-time progress tracking).
+   * Progress and result are written directly into fileInfos state.
+   */
+  function startUpload(id: string, file: File) {
+    const fd = new FormData()
+    fd.append('file', file)
 
-      const xhr = new XMLHttpRequest()
+    const xhr = new XMLHttpRequest()
 
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 100)
-          setUploadProgress(p => ({ ...p, [id]: pct }))
-        }
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.min(Math.round((e.loaded / e.total) * 100), 99)
+        setFileInfos(p => {
+          const cur = p[id]; if (!cur) return p
+          return { ...p, [id]: { ...cur, uploadPct: pct } }
+        })
       }
+    }
 
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText)
-          if (data.error) { reject(new Error(data.error)); return }
-          setUploadProgress(p => ({ ...p, [id]: 100 }))
-          resolve(data)
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText)
+        if (xhr.status >= 200 && xhr.status < 300 && !data.error) {
+          // ✅ Upload successful — store the URL
+          setFileInfos(p => {
+            const cur = p[id]; if (!cur) return p
+            return { ...p, [id]: { ...cur, uploading: false, uploadPct: 100, uploadedUrl: data.url } }
+          })
         } else {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            reject(new Error(data.error || 'Erro ao enviar arquivo.'))
-          } catch {
-            reject(new Error('Erro ao enviar arquivo.'))
-          }
+          setFileInfos(p => {
+            const cur = p[id]; if (!cur) return p
+            return { ...p, [id]: { ...cur, uploading: false, error: data.error || 'Erro ao enviar arquivo.' } }
+          })
         }
+      } catch {
+        setFileInfos(p => {
+          const cur = p[id]; if (!cur) return p
+          return { ...p, [id]: { ...cur, uploading: false, error: 'Resposta inválida do servidor.' } }
+        })
       }
+    }
 
-      xhr.onerror = () => reject(new Error('Falha na conexão ao enviar arquivo.'))
+    xhr.onerror = () => {
+      setFileInfos(p => {
+        const cur = p[id]; if (!cur) return p
+        return { ...p, [id]: { ...cur, uploading: false, error: 'Falha na conexão. Verifique sua internet e tente novamente.' } }
+      })
+    }
 
-      xhr.open('POST', '/api/public/upload-file')
-      xhr.send(fd)
-    })
+    xhr.open('POST', '/api/public/upload-file')
+    xhr.send(fd)
   }
 
   // ─── Group questions by section ───────────────────────────────────────────
@@ -314,11 +345,18 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     const badCPF = questions.find(q => q.field_type === 'cpf' && cpfErrors[q.id])
     if (badCPF) { setError('CPF inválido. Verifique o campo e tente novamente.'); return }
 
-    // Validate files
+    // Validate files — check that uploads completed (URL available)
     for (const q of questions.filter(q => q.field_type === 'file_upload')) {
       const fi = fileInfos[q.id]
-      if (fi?.error) { setError(fi.error); return }
-      if (q.is_required && !fi?.file) { setError(`O campo "${q.question_text}" é obrigatório.`); return }
+      if (fi?.error) { setError(`Erro no campo "${q.question_text}": ${fi.error}`); return }
+      if (fi?.uploading) {
+        setError(`Aguarde o upload do campo "${q.question_text}" concluir antes de enviar.`)
+        return
+      }
+      if (q.is_required && !fi?.uploadedUrl) {
+        setError(`O campo "${q.question_text}" é obrigatório. Selecione e aguarde o upload concluir.`)
+        return
+      }
     }
 
     if (!lgpd) { setError('Você precisa aceitar os termos de uso de dados para continuar.'); return }
@@ -343,20 +381,10 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         .filter(Boolean).join(' - ')
     }
 
-    // Upload files (with progress tracking via XHR)
+    // Files are already uploaded — just map the stored URLs into finalAnswers
     for (const q of questions.filter(q => q.field_type === 'file_upload')) {
       const fi = fileInfos[q.id]
-      if (!fi?.file) continue
-      setUploadProgress(p => ({ ...p, [q.id]: 0 }))
-      try {
-        const data = await uploadFileWithProgress(q.id, fi.file)
-        finalAnswers[q.id] = data.url
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro ao enviar arquivo.')
-        setUploadProgress(p => { const n = { ...p }; delete n[q.id]; return n })
-        setSubmitting(false)
-        return
-      }
+      if (fi?.uploadedUrl) finalAnswers[q.id] = fi.uploadedUrl
     }
 
     // Auto-detect candidate identity from dynamic answers
@@ -501,7 +529,11 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
 
       case 'file_upload': {
         const fi = fileInfos[q.id]
-        const isPDF = fi?.file?.type === 'application/pdf'
+        const isPDF = fi?.file?.type === 'application/pdf' || fi?.file?.name?.toLowerCase().endsWith('.pdf')
+        const pct = fi?.uploadPct ?? 0
+        const isUploading = fi?.uploading === true
+        const uploadDone = !!fi?.uploadedUrl
+
         return (
           <div className="space-y-2">
             {/* Hidden file input */}
@@ -510,97 +542,105 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
               type="file"
               accept="image/*,application/pdf,.pdf,.heic,.heif"
               className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(q.id, f) }}
+              onChange={e => {
+                const f = e.target.files?.[0]
+                if (f) handleFileSelect(q.id, f)
+                // Reset input so the same file can be reselected if user clears and picks again
+                if (fileRefs.current[q.id]) fileRefs.current[q.id]!.value = ''
+              }}
             />
 
             {!fi ? (
-              /* Upload button */
+              /* ── No file selected yet ── */
               <button
                 type="button"
                 onClick={() => fileRefs.current[q.id]?.click()}
                 className="w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-6 text-sm text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all cursor-pointer"
               >
-                <Paperclip className="w-6 h-6 opacity-50" />
-                <span className="font-medium">Toque para selecionar arquivo</span>
-                <span className="text-xs">PDF ou foto (JPG, PNG e outros)</span>
-                <span className="text-xs text-muted-foreground/70">📷 Tire uma foto ou escolha da galeria</span>
+                <Paperclip className="w-7 h-7 opacity-40" />
+                <span className="font-semibold">Toque aqui para adicionar a foto</span>
+                <span className="text-xs">Tire uma foto com a câmera ou escolha da galeria</span>
+                <span className="text-xs text-muted-foreground/60">JPG, PNG, PDF — máx. 5 MB</span>
               </button>
-            ) : fi.compressing ? (
-              /* Compressing state — file is already stored; compression is just optimization */
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-3">
-                  <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-green-800">✅ Arquivo recebido!</p>
-                    <p className="text-xs text-green-700 truncate">{fi.file.name}</p>
+
+            ) : fi.error ? (
+              /* ── Upload error ── */
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-700">Falha no upload</p>
+                    <p className="text-xs text-red-600 mt-0.5">{fi.error}</p>
                   </div>
-                  <button type="button" onClick={() => clearFile(q.id)} className="p-1 text-muted-foreground hover:text-red-500">
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileRefs.current[q.id]?.click()}
+                  className="w-full py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium transition-colors"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+
+            ) : isUploading ? (
+              /* ── Uploading in progress ── */
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  {isPDF
+                    ? <FileText className="w-8 h-8 text-blue-500 shrink-0" />
+                    : <Image className="w-8 h-8 text-blue-500 shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-blue-800 truncate">{fi.file.name}</p>
+                    <p className="text-xs text-blue-600">{formatBytes(fi.file.size)}</p>
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-blue-600 font-medium">
+                    <span>Enviando arquivo…</span>
+                    <span>{pct}%</span>
+                  </div>
+                  <div className="w-full bg-blue-100 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-3 rounded-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+            ) : uploadDone ? (
+              /* ── Upload complete ✅ ── */
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-6 h-6 text-green-700" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-green-800">Upload concluído! ✅</p>
+                    <p className="text-xs text-green-700 truncate">{fi.file.name}</p>
+                    <p className="text-xs text-green-600">{formatBytes(fi.file.size)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => clearFile(q.id)}
+                    className="p-1.5 text-green-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Remover arquivo"
+                  >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-blue-600">
-                  <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>
-                  Otimizando imagem em segundo plano…
-                </div>
+                <button
+                  type="button"
+                  onClick={() => fileRefs.current[q.id]?.click()}
+                  className="text-xs text-green-700 hover:text-green-900 underline underline-offset-2"
+                >
+                  Trocar arquivo
+                </button>
               </div>
-            ) : (
-              /* File preview */
-              (() => {
-                const pct = uploadProgress[q.id]
-                const isUploading = pct !== undefined && pct < 100
-                const uploadDone = pct === 100
-                return (
-                  <div className={`rounded-xl border p-3 space-y-2 ${fi.error ? 'border-red-300 bg-red-50' : isUploading || uploadDone ? 'border-blue-200 bg-blue-50' : 'border-green-200 bg-green-50'}`}>
-                    {/* Confirmation banner */}
-                    {!fi.error && !isUploading && !uploadDone && (
-                      <div className="flex items-center gap-1.5 text-green-700 text-xs font-semibold mb-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Arquivo confirmado — pronto para envio!
-                      </div>
-                    )}
-                    {/* Top row: icon + name + actions */}
-                    <div className="flex items-center gap-3">
-                      <div className="shrink-0">
-                        {isPDF
-                          ? <FileText className={`w-8 h-8 ${fi.error ? 'text-red-400' : isUploading || uploadDone ? 'text-blue-500' : 'text-green-600'}`} />
-                          : <Image className={`w-8 h-8 ${fi.error ? 'text-red-400' : isUploading || uploadDone ? 'text-blue-500' : 'text-green-600'}`} />
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{fi.file.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {isUploading ? `Enviando… ${pct}%` : uploadDone ? 'Enviado ✓' : formatBytes(fi.file.size)}
-                        </p>
-                        {fi.error && <p className="text-xs text-red-600 mt-0.5">{fi.error}</p>}
-                      </div>
-                      {!isUploading && !uploadDone && (
-                        <div className="flex gap-1 shrink-0">
-                          <button type="button" onClick={() => fileRefs.current[q.id]?.click()} className="text-xs text-primary hover:underline px-2 py-1">Trocar</button>
-                          <button type="button" onClick={() => clearFile(q.id)} className="p-1 text-muted-foreground hover:text-red-500">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {/* Progress bar */}
-                    {(isUploading || uploadDone) && (
-                      <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-2 rounded-full transition-all duration-200"
-                          style={{
-                            width: `${pct}%`,
-                            background: uploadDone ? '#22c55e' : '#3b82f6',
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )
-              })()
-            )}
+
+            ) : null}
           </div>
         )
       }
@@ -714,7 +754,6 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
               setAnswers({})
               setAddrValues({})
               setFileInfos({})
-              setUploadProgress({})
               setLgpd(false)
               setError(null)
             }}
@@ -770,14 +809,29 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
           )}
 
           {/* Submit */}
-          <Button type="submit" className="w-full h-12 text-base font-semibold rounded-xl" disabled={submitting || !lgpd}>
+          {/* Show a hint if any file upload is still in progress */}
+          {Object.values(fileInfos).some(f => f?.uploading) && (
+            <p className="text-center text-xs text-blue-600 font-medium flex items-center justify-center gap-1.5">
+              <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              Aguarde o upload da foto concluir…
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full h-12 text-base font-semibold rounded-xl"
+            disabled={submitting || !lgpd || Object.values(fileInfos).some(f => f?.uploading)}
+          >
             {submitting ? (
               <span className="flex items-center gap-2">
                 <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
-                Enviando...
+                Enviando currículo…
               </span>
             ) : 'Enviar Currículo'}
           </Button>
