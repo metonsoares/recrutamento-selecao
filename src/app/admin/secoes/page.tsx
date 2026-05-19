@@ -5,10 +5,18 @@ export const dynamic = 'force-dynamic'
 
 export default async function SecoesPage() {
   const supabase = await createSupabaseServerClient()
-  const { data: sections } = await supabase
-    .from('form_sections')
-    .select('*')
-    .order('sort_order', { ascending: true })
 
-  return <SectionsManager sections={sections ?? []} />
+  const [{ data: sections }, { data: questions }] = await Promise.all([
+    supabase
+      .from('form_sections')
+      .select('*')
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('form_questions')
+      .select('*')
+      .eq('form_type', 'registration')
+      .order('sort_order', { ascending: true }),
+  ])
+
+  return <SectionsManager sections={sections ?? []} questions={questions ?? []} />
 }

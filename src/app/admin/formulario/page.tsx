@@ -1,13 +1,5 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { FormQuestionsManager } from './form-questions-manager'
+import { redirect } from 'next/navigation'
 
-export default async function FormularioPage() {
-  const supabase = await createSupabaseServerClient()
-  const { data: questions } = await supabase
-    .from('form_questions')
-    .select('*')
-    .in('form_type', ['experience', 'registration'])
-    .order('sort_order')
-
-  return <FormQuestionsManager questions={questions || []} />
+export default function FormularioPage() {
+  redirect('/admin/secoes')
 }

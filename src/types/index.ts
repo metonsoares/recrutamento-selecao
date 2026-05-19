@@ -123,7 +123,7 @@ export interface FormQuestion {
   form_type: 'experience' | 'cultural' | 'registration'
   question_text: string
   description: string | null
-  field_type: 'short_text' | 'long_text' | 'phone' | 'email' | 'date' | 'number' | 'select' | 'multiple_choice' | 'checkbox' | 'file_upload' | 'scale' | 'yes_no'
+  field_type: 'short_text' | 'long_text' | 'phone' | 'email' | 'date' | 'number' | 'select' | 'multiple_choice' | 'checkbox' | 'file_upload' | 'scale' | 'yes_no' | 'cpf' | 'cep' | 'celular' | 'address' | 'job_select'
   options: string[]
   category: string | null
   weight: number
@@ -206,6 +206,7 @@ export interface AiSettings {
   experience_weight: number
   availability_weight: number
   anthropic_api_key_encrypted: string | null
+  openai_api_key_encrypted: string | null
   created_at: string
   updated_at: string
 }
@@ -233,6 +234,8 @@ export interface WhatsappSettings {
   webhook_disconnected_url: string | null
   environment: string | null
   is_active: boolean
+  auto_reply_enabled: boolean
+  welcome_message: string | null
   last_connection_at: string | null
   last_test_sent_at: string | null
   last_message_received_at: string | null

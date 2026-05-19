@@ -12,10 +12,10 @@ import { Job } from '@/types'
 import { Plus, Pencil, Trash2, Search, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 
 const EMPTY_FORM = {
-  title: '',          // Nome da vaga (dado pela empresa)
-  cbo_code: '',       // Código CBO
-  cbo_title: '',      // Título oficial do cargo conforme CBO (auto-preenchido)
-  description: '',    // Descrição do cargo (auto-preenchida ou manual)
+  title: '',
+  cbo_code: '',
+  cbo_title: '',
+  description: '',
 }
 
 type FormState = typeof EMPTY_FORM
@@ -49,7 +49,6 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
     setOpen(true)
   }
 
-  // Formata o código enquanto o usuário digita: XXXX-XX
   function formatCboInput(value: string): string {
     const digits = value.replace(/\D/g, '').slice(0, 6)
     if (digits.length > 4) return digits.slice(0, 4) + '-' + digits.slice(4)
@@ -59,10 +58,8 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
   async function searchCbo() {
     const code = form.cbo_code.trim()
     if (!code || code.replace(/\D/g, '').length < 5) return
-
     setSearchingCbo(true)
     setCboStatus('idle')
-
     try {
       const res = await fetch('/api/admin/cbo', {
         method: 'POST',
@@ -70,13 +67,11 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
         body: JSON.stringify({ code }),
       })
       const data = await res.json()
-
       if (data.encontrado && data.titulo) {
         setForm(f => ({
           ...f,
           cbo_code: data.codigo || f.cbo_code,
           cbo_title: data.titulo,
-          // Preenche a descrição apenas se estiver vazia
           description: f.description.trim() ? f.description : (data.descricao || ''),
         }))
         setCboStatus('found')
@@ -94,7 +89,6 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
     if (!form.title.trim()) return
     setSaving(true)
     const supabase = createSupabaseBrowserClient()
-
     const payload = {
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -102,13 +96,11 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
       cbo_title: form.cbo_title.trim() || null,
       updated_at: new Date().toISOString(),
     }
-
     if (editing) {
       await supabase.from('jobs').update(payload).eq('id', editing.id)
     } else {
       await supabase.from('jobs').insert({ ...payload })
     }
-
     setSaving(false)
     setOpen(false)
     router.refresh()
@@ -122,7 +114,7 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 max-w-full overflow-x-hidden">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 max-w-5xl">
 
       {/* Cabeçalho */}
       <div className="flex items-center justify-between gap-3">
@@ -137,42 +129,73 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
         </Button>
       </div>
 
-      {/* Grid de cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {jobs.map(job => (
-          <div key={job.id} className="bg-white rounded-xl border shadow-sm p-4 space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold truncate">{job.title}</h3>
-                {job.cbo_code && (
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">CBO {job.cbo_code}</p>
-                )}
-                {job.cbo_title && (
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{job.cbo_title}</p>
-                )}
-              </div>
-              <Badge variant={job.is_active ? 'default' : 'secondary'} className="shrink-0">
-                {job.is_active ? 'Ativa' : 'Inativa'}
-              </Badge>
-            </div>
-            {job.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2">{job.description}</p>
+      {/* Tabela */}
+      <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 border-b">
+            <tr>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nome do Cargo</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell w-24">CBO</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Título CBO</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Descrição</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground w-20">Status</th>
+              <th className="px-4 py-3 w-28"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                  Nenhuma vaga cadastrada.{' '}
+                  <button onClick={openCreate} className="text-primary underline">Criar a primeira</button>
+                </td>
+              </tr>
             )}
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => openEdit(job)}>
-                <Pencil className="w-3 h-3 mr-1" />Editar
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                onClick={() => setConfirmDelete(job)}
-              >
-                <Trash2 className="w-3 h-3 mr-1" />Remover
-              </Button>
-            </div>
-          </div>
-        ))}
+            {jobs.map(job => (
+              <tr key={job.id} className="border-b last:border-0 hover:bg-muted/10 transition-colors">
+                <td className="px-4 py-3">
+                  <p className="font-medium">{job.title}</p>
+                  {/* CBO info on mobile */}
+                  {job.cbo_code && (
+                    <p className="text-xs font-mono text-muted-foreground sm:hidden mt-0.5">CBO {job.cbo_code}</p>
+                  )}
+                </td>
+                <td className="px-4 py-3 hidden sm:table-cell">
+                  {job.cbo_code
+                    ? <span className="font-mono text-xs bg-[#f5f5f5] border px-1.5 py-0.5 rounded">{job.cbo_code}</span>
+                    : <span className="text-muted-foreground">—</span>
+                  }
+                </td>
+                <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">
+                  {job.cbo_title || '—'}
+                </td>
+                <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs max-w-xs">
+                  <p className="line-clamp-2">{job.description || '—'}</p>
+                </td>
+                <td className="px-4 py-3">
+                  <Badge variant={job.is_active ? 'default' : 'secondary'} className="text-xs">
+                    {job.is_active ? 'Ativa' : 'Inativa'}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(job)}>
+                      <Pencil className="w-3 h-3 mr-1" />Editar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700 px-2"
+                      onClick={() => setConfirmDelete(job)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* ── Dialog: Nova / Editar Vaga ──────────────────────────── */}
@@ -181,10 +204,9 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Vaga' : 'Nova Vaga'}</DialogTitle>
           </DialogHeader>
-
           <div className="space-y-4">
 
-            {/* 1. Nome do cargo (dado pela empresa) */}
+            {/* Nome do cargo */}
             <div className="space-y-1">
               <Label>Nome do Cargo *</Label>
               <Input
@@ -196,7 +218,7 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
               <p className="text-xs text-muted-foreground">Nome interno da vaga usado pela empresa.</p>
             </div>
 
-            {/* 2. Código CBO */}
+            {/* Código CBO */}
             <div className="space-y-1">
               <Label>Código CBO</Label>
               <div className="flex gap-2">
@@ -225,26 +247,22 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
                   }
                 </Button>
               </div>
-
-              {/* Feedback da busca */}
               {cboStatus === 'found' && (
                 <p className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Cargo encontrado! Título CBO preenchido automaticamente.
+                  <CheckCircle2 className="w-3 h-3" />Cargo encontrado! Título e descrição preenchidos automaticamente.
                 </p>
               )}
               {cboStatus === 'not_found' && (
                 <p className="flex items-center gap-1 text-xs text-amber-600 mt-1">
-                  <XCircle className="w-3 h-3" />
-                  Código não localizado. Verifique o código ou preencha o título manualmente.
+                  <XCircle className="w-3 h-3" />Código não localizado. Verifique ou preencha manualmente.
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                Digite o código e clique na lupa para buscar o cargo automaticamente.
+                Digite o código e pressione Enter ou clique na lupa para buscar.
               </p>
             </div>
 
-            {/* 3. Título do cargo CBO (auto-preenchido, editável) */}
+            {/* Título CBO (auto-preenchido) */}
             <div className="space-y-1">
               <Label>
                 Título do Cargo CBO
@@ -258,12 +276,9 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
                 placeholder="Título oficial conforme CBO 2002"
                 className={`text-base ${cboStatus === 'found' ? 'bg-green-50 border-green-200' : ''}`}
               />
-              <p className="text-xs text-muted-foreground">
-                Título oficial do cargo conforme a Classificação Brasileira de Ocupações.
-              </p>
             </div>
 
-            {/* 4. Descrição do cargo */}
+            {/* Descrição */}
             <div className="space-y-1">
               <Label>Descrição do Cargo</Label>
               <Textarea
@@ -288,25 +303,19 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
       {/* ── Dialog: Confirmação de remoção ──────────────────────── */}
       <Dialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
         <DialogContent className="max-w-sm mx-4 sm:mx-auto">
-          <DialogHeader>
-            <DialogTitle>Remover vaga</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Remover vaga</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             Tem certeza que deseja remover a vaga <strong>{confirmDelete?.title}</strong>?
             Essa ação não pode ser desfeita.
           </p>
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
-            <Button
-              variant="destructive"
-              onClick={() => confirmDelete && handleDelete(confirmDelete)}
-            >
+            <Button variant="destructive" onClick={() => confirmDelete && handleDelete(confirmDelete)}>
               <Trash2 className="w-4 h-4 mr-1" />Remover
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   )
 }
