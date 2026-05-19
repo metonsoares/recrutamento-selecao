@@ -43,14 +43,17 @@ export async function POST(req: NextRequest) {
     } else if (configuredProvider === 'openai') {
       openaiKey = await getOpenAIKey()
     } else {
-      // Auto: try anthropic first, then openai
       anthropicKey = await getAnthropicKey()
       if (!anthropicKey) openaiKey = await getOpenAIKey()
     }
 
-    // ── Build prompt ──────────────────────────────────────────────────────────
+    // ── Candidate info ────────────────────────────────────────────────────────
+    const candidateName = (application.candidates as { full_name?: string } | null)?.full_name ?? ''
+    const candidatePhone = (application.candidates as { phone?: string } | null)?.phone ?? ''
+
     const candidateInfo = `
-Nome: ${(application.candidates as { full_name?: string } | null)?.full_name}
+Nome: ${candidateName}
+Telefone: ${candidatePhone}
 Cidade: ${(application.candidates as { city?: string } | null)?.city}
 Bairro: ${(application.candidates as { neighborhood?: string } | null)?.neighborhood}
 Vaga: ${(application.jobs as { title?: string } | null)?.title || 'Não informada'}
@@ -64,6 +67,71 @@ Nota Cultural: ${application.culture_score ?? 'Não calculada'}
       .map(a => `${(a.culture_questions as { question_text?: string } | null)?.question_text} — Resposta: ${a.selected_option}, Pontos: ${a.score}`)
       .join('\n')
 
+    // ── Company data (full cross-reference) ───────────────────────────────────
+    const desiredBehaviors = Array.isArray(aiSettings?.desired_behaviors)
+      ? (aiSettings.desired_behaviors as string[]).join('\n')
+      : ''
+    const alertBehaviors = Array.isArray(aiSettings?.alert_behaviors)
+      ? (aiSettings.alert_behaviors as string[]).join('\n')
+      : ''
+
+    const companySection = [
+      aiSettings?.mission            ? `Missão: ${aiSettings.mission}` : '',
+      aiSettings?.vision             ? `Visão: ${aiSettings.vision}` : '',
+      aiSettings?.company_culture    ? `Cultura da empresa:\n${aiSettings.company_culture}` : '',
+      aiSettings?.ideal_candidate_profile ? `Perfil ideal do colaborador:\n${aiSettings.ideal_candidate_profile}` : '',
+      desiredBehaviors               ? `Comportamentos desejados:\n${desiredBehaviors}` : '',
+      alertBehaviors                 ? `Comportamentos de alerta (fatores negativos):\n${alertBehaviors}` : '',
+    ].filter(Boolean).join('\n\n')
+
+    // ── Fetch configured search URLs ──────────────────────────────────────────
+    const searchUrlFields = [
+      { url: aiSettings?.search_url_1 as string | null, label: aiSettings?.search_url_1_label as string | null },
+      { url: aiSettings?.search_url_2 as string | null, label: aiSettings?.search_url_2_label as string | null },
+      { url: aiSettings?.search_url_3 as string | null, label: aiSettings?.search_url_3_label as string | null },
+    ]
+
+    const searchResults: string[] = []
+    for (const { url, label } of searchUrlFields) {
+      if (!url) continue
+      const resolved = url
+        .replace(/\{NOME\}/gi, encodeURIComponent(candidateName))
+        .replace(/\{TELEFONE\}/gi, encodeURIComponent(candidatePhone))
+
+      const sectionLabel = label || 'Pesquisa pública'
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 8000)
+        const res = await fetch(resolved, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HRBot/1.0)' },
+        })
+        clearTimeout(timeout)
+
+        if (res.ok) {
+          const html = await res.text()
+          // Strip HTML tags, collapse whitespace, limit to 3000 chars
+          const text = html
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 3000)
+          searchResults.push(`=== ${sectionLabel} (${resolved}) ===\n${text || '(sem conteúdo legível)'}`)
+        } else {
+          searchResults.push(`=== ${sectionLabel} ===\nURL consultada: ${resolved}\n(Página retornou status ${res.status} — não foi possível extrair conteúdo)`)
+        }
+      } catch {
+        searchResults.push(`=== ${sectionLabel} ===\nURL configurada: ${resolved}\n(Não foi possível acessar — verifique se o site permite consulta pública)`)
+      }
+    }
+
+    const searchSection = searchResults.length > 0
+      ? searchResults.join('\n\n')
+      : ''
+
+    // ── Build prompt ──────────────────────────────────────────────────────────
     const prompt = `${aiSettings?.analysis_prompt || 'Você é um analista de RH especializado em recrutamento e seleção.'}
 
 DADOS DO CANDIDATO:
@@ -75,11 +143,16 @@ ${formSummary || 'Não preenchido'}
 TESTE CULTURAL:
 ${cultureSummary || 'Não preenchido'}
 
-CULTURA DA EMPRESA:
-${aiSettings?.company_culture || ''}
+DADOS DA EMPRESA (use para cruzar com o perfil do candidato):
+${companySection || 'Não configurado'}
+${searchSection ? `\nPESQUISA PÚBLICA SOBRE O CANDIDATO:\n${searchSection}` : ''}
 
-PERFIL IDEAL:
-${aiSettings?.ideal_candidate_profile || ''}
+Com base em TODOS os dados acima, analise o candidato considerando:
+1. Compatibilidade cultural com a empresa (missão, visão, cultura, comportamentos desejados vs alertas)
+2. Aderência ao perfil ideal de colaborador
+3. Experiência e qualificações para a vaga
+4. Disponibilidade e localização
+5. Informações públicas encontradas (se houver)
 
 Retorne APENAS um JSON válido com esta estrutura exata:
 {
@@ -109,7 +182,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
+          max_tokens: 1500,
           messages: [{ role: 'user', content: prompt }],
         }),
       })
@@ -128,7 +201,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 1024,
+          max_tokens: 1500,
         }),
       })
       const data = await response.json()

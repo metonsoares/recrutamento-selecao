@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Eye, EyeOff, Key, CheckCircle2, Loader2, ExternalLink,
-  AlertCircle, FileText, MessageSquare, Building2, Bot,
+  AlertCircle, FileText, MessageSquare, Building2, Bot, Search, Info,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,6 +27,12 @@ interface Props {
   whatsappPrompt: string
   companyProvider: Provider | null
   companyPrompt: string
+  searchUrl1: string
+  searchUrl1Label: string
+  searchUrl2: string
+  searchUrl2Label: string
+  searchUrl3: string
+  searchUrl3Label: string
 }
 
 // ─── Provider radio ───────────────────────────────────────────────────────────
@@ -205,6 +211,139 @@ function ServiceCard({
   )
 }
 
+// ─── Search URLs card ─────────────────────────────────────────────────────────
+
+interface SearchUrlEntry {
+  url: string
+  label: string
+}
+
+const URL_HINTS = [
+  { label: 'Processos Trabalhistas', placeholder: 'https://consultapje.trt.jus.br/consultaprocessual/?nome={NOME}' },
+  { label: 'Benefícios Governamentais', placeholder: 'https://portaldatransparencia.gov.br/beneficios/consulta?nomeBeneficiario={NOME}' },
+  { label: 'Redes Sociais / Reputação', placeholder: 'https://www.google.com/search?q={NOME}+site:linkedin.com' },
+]
+
+function SearchUrlsCard({
+  initial,
+}: {
+  initial: SearchUrlEntry[]
+}) {
+  const [entries, setEntries] = useState<SearchUrlEntry[]>(
+    initial.length >= 3
+      ? initial
+      : [
+          initial[0] ?? { url: '', label: '' },
+          initial[1] ?? { url: '', label: '' },
+          initial[2] ?? { url: '', label: '' },
+        ]
+  )
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+
+  function update(index: number, field: keyof SearchUrlEntry, value: string) {
+    setEntries(prev => prev.map((e, i) => i === index ? { ...e, [field]: value } : e))
+    setStatus('idle')
+  }
+
+  async function save() {
+    setSaving(true)
+    setStatus('idle')
+    try {
+      const res = await fetch('/api/admin/ai/save-search-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          search_url_1: entries[0]?.url || null,
+          search_url_1_label: entries[0]?.label || null,
+          search_url_2: entries[1]?.url || null,
+          search_url_2_label: entries[1]?.label || null,
+          search_url_3: entries[2]?.url || null,
+          search_url_3_label: entries[2]?.label || null,
+        }),
+      })
+      setStatus(res.ok ? 'saved' : 'error')
+    } catch {
+      setStatus('error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+          <Search className="w-4 h-4 text-amber-600" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Pesquisa Pública de Candidatos</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Configure até 3 URLs que serão consultadas automaticamente ao analisar cada candidato.
+            A IA receberá o conteúdo dessas páginas para incluir na avaliação.
+          </p>
+        </div>
+      </div>
+
+      {/* Hint */}
+      <div className="flex gap-2 items-start bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700">
+        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <span>
+          Use <code className="bg-blue-100 px-1 rounded font-mono">{'{NOME}'}</code> e{' '}
+          <code className="bg-blue-100 px-1 rounded font-mono">{'{TELEFONE}'}</code> como variáveis —
+          serão substituídas pelos dados do candidato em cada análise.
+          Exemplos: processos trabalhistas, portais de transparência, pesquisa em redes sociais.
+        </span>
+      </div>
+
+      {/* URL fields */}
+      <div className="space-y-3">
+        {entries.map((entry, i) => (
+          <div key={i} className="space-y-1.5">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+              URL {i + 1} — {URL_HINTS[i].label}
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={entry.label}
+                onChange={e => update(i, 'label', e.target.value)}
+                placeholder="Nome / descrição"
+                className="w-[180px] shrink-0 text-sm"
+              />
+              <Input
+                value={entry.url}
+                onChange={e => update(i, 'url', e.target.value)}
+                placeholder={URL_HINTS[i].placeholder}
+                className="flex-1 text-sm font-mono"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Save */}
+      <div className="flex items-center justify-between pt-1">
+        <div>
+          {status === 'saved' && (
+            <p className="flex items-center gap-1 text-xs text-green-600">
+              <CheckCircle2 className="w-3.5 h-3.5" />URLs salvas com sucesso!
+            </p>
+          )}
+          {status === 'error' && (
+            <p className="flex items-center gap-1 text-xs text-red-500">
+              <AlertCircle className="w-3.5 h-3.5" />Erro ao salvar. Tente novamente.
+            </p>
+          )}
+        </div>
+        <Button size="sm" onClick={save} disabled={saving}>
+          {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Salvando...</> : 'Salvar URLs'}
+        </Button>
+      </div>
+    </section>
+  )
+}
+
 // ─── Main form ────────────────────────────────────────────────────────────────
 
 export function IaSettingsForm({
@@ -217,6 +356,12 @@ export function IaSettingsForm({
   whatsappPrompt,
   companyProvider,
   companyPrompt,
+  searchUrl1,
+  searchUrl1Label,
+  searchUrl2,
+  searchUrl2Label,
+  searchUrl3,
+  searchUrl3Label,
 }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
@@ -392,6 +537,14 @@ export function IaSettingsForm({
         }
         hasAnthropicKey={hasAnthropicKey}
         hasOpenaiKey={hasOpenaiKey}
+      />
+
+      <SearchUrlsCard
+        initial={[
+          { url: searchUrl1, label: searchUrl1Label },
+          { url: searchUrl2, label: searchUrl2Label },
+          { url: searchUrl3, label: searchUrl3Label },
+        ]}
       />
 
       <ServiceCard

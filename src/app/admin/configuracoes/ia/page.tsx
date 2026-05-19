@@ -13,6 +13,12 @@ type AiSettingsRow = {
   whatsapp_agent_prompt: string | null
   company_provider: 'anthropic' | 'openai' | null
   company_prompt: string | null
+  search_url_1: string | null
+  search_url_1_label: string | null
+  search_url_2: string | null
+  search_url_2_label: string | null
+  search_url_3: string | null
+  search_url_3_label: string | null
 }
 
 export default async function IaConfigPage() {
@@ -23,7 +29,10 @@ export default async function IaConfigPage() {
       'id, anthropic_api_key_encrypted, openai_api_key_encrypted,' +
       'analysis_provider, analysis_prompt,' +
       'whatsapp_provider, whatsapp_agent_prompt,' +
-      'company_provider, company_prompt'
+      'company_provider, company_prompt,' +
+      'search_url_1, search_url_1_label,' +
+      'search_url_2, search_url_2_label,' +
+      'search_url_3, search_url_3_label'
     )
     .limit(1)
     .maybeSingle() as { data: AiSettingsRow | null }
@@ -39,6 +48,12 @@ export default async function IaConfigPage() {
       whatsappPrompt={settings?.whatsapp_agent_prompt ?? ''}
       companyProvider={settings?.company_provider ?? null}
       companyPrompt={settings?.company_prompt ?? ''}
+      searchUrl1={settings?.search_url_1 ?? ''}
+      searchUrl1Label={settings?.search_url_1_label ?? ''}
+      searchUrl2={settings?.search_url_2 ?? ''}
+      searchUrl2Label={settings?.search_url_2_label ?? ''}
+      searchUrl3={settings?.search_url_3 ?? ''}
+      searchUrl3Label={settings?.search_url_3_label ?? ''}
     />
   )
 }
