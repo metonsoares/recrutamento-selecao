@@ -116,7 +116,7 @@ export async function POST(
 
         const zapiData = await zapiRes.json().catch(() => ({}))
 
-        // Log to whatsapp_logs
+        // Log to whatsapp_logs (ignora erro de log — não é crítico)
         await service.from('whatsapp_logs').insert({
           direction: 'outbound',
           action: 'send_culture_test',
@@ -124,7 +124,7 @@ export async function POST(
           message,
           status: zapiRes.ok ? 'sent' : 'error',
           response_payload: zapiData,
-        }).catch(() => {})
+        })
 
         // Also log in conversation if it exists
         const { data: conv } = await service
@@ -136,7 +136,7 @@ export async function POST(
             direction: 'outbound',
             message_text: message,
             raw_payload: { phone: rawPhone, zapi_status: zapiRes.status, zapi_response: zapiData },
-          }).catch(() => {})
+          })
         }
 
         whatsappSent = zapiRes.ok
