@@ -58,6 +58,29 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
+/** Linha que exibe valor antigo taxado em vermelho + novo valor em verde quando há alteração */
+function ChangedRow({
+  label,
+  value,
+  changes,
+}: {
+  label: string
+  value: React.ReactNode
+  changes: Record<string, { old: string; new: string }> | null
+}) {
+  const diff = changes?.[label] as { old: string; new: string } | undefined
+  if (!diff) return <Row label={label} value={value} />
+  return (
+    <div className="flex justify-between gap-2 text-sm items-start">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-right flex flex-col gap-0.5 items-end">
+        <span className="line-through text-red-500 text-xs leading-tight">{diff.old}</span>
+        <span className="font-semibold text-green-700 leading-tight">{diff.new}</span>
+      </span>
+    </div>
+  )
+}
+
 function ScoreRow({ label, value, color }: { label: string; value: number | null | undefined; color: string }) {
   if (value == null) return <Row label={label} value={null} />
   return (
@@ -230,25 +253,40 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
         {/* Dados Pessoais */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Dados Pessoais</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <Row label="Nome" value={candidate.full_name} />
-            {birthDate && (
-              <Row
-                label="Nascimento"
-                value={`${formatDate(birthDate)}${age != null ? ` (${age} anos)` : ''}`}
-              />
-            )}
-            {cpf !== '—' && <Row label="CPF" value={cpf} />}
-            <Row label="Telefone" value={candidate.phone} />
-            <Row label="E-mail" value={candidate.email} />
-            {addressRaw !== '—' && <Row label="Endereço" value={addressRaw} />}
-            {candidate.neighborhood && <Row label="Bairro" value={candidate.neighborhood} />}
-            {candidate.city && <Row label="Cidade" value={candidate.city} />}
-            <Row label="Cadastro" value={formatDate(candidate.created_at)} />
-          </CardContent>
-        </Card>
+        {(() => {
+          const changes = candidate.data_changes as Record<string, { old: string; new: string }> | null
+          const hasChanges = changes && Object.keys(changes).length > 0
+          return (
+            <Card className={hasChanges ? 'border-orange-300 ring-1 ring-orange-200' : ''}>
+              <CardHeader className="pb-2 flex flex-row items-center gap-2">
+                <CardTitle className="text-sm flex-1">Dados Pessoais</CardTitle>
+                {hasChanges && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
+                    <RefreshCw className="w-3 h-3" />
+                    Atualizado
+                    {candidate.data_updated_at ? ` em ${formatDate(candidate.data_updated_at)}` : ''}
+                  </span>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <ChangedRow label="Nome" value={candidate.full_name} changes={changes} />
+                {birthDate && (
+                  <Row
+                    label="Nascimento"
+                    value={`${formatDate(birthDate)}${age != null ? ` (${age} anos)` : ''}`}
+                  />
+                )}
+                {cpf !== '—' && <Row label="CPF" value={cpf} />}
+                <ChangedRow label="Telefone" value={candidate.phone} changes={changes} />
+                <ChangedRow label="E-mail" value={candidate.email} changes={changes} />
+                {addressRaw !== '—' && <Row label="Endereço" value={addressRaw} />}
+                {candidate.neighborhood && <Row label="Bairro" value={candidate.neighborhood} />}
+                <ChangedRow label="Cidade" value={candidate.city} changes={changes} />
+                <Row label="Cadastro" value={formatDate(candidate.created_at)} />
+              </CardContent>
+            </Card>
+          )
+        })()}
 
         {/* Candidatura Atual */}
         <Card>
@@ -295,36 +333,6 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           </CardContent>
         </Card>
       </div>
-
-      {/* ── Alerta: Dados Atualizados ── */}
-      {candidate.data_changes && Object.keys(candidate.data_changes).length > 0 && (
-        <div className="rounded-xl border-2 border-orange-400 bg-orange-50 p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-orange-600 shrink-0" />
-            <span className="font-bold text-orange-700 text-sm">
-              Cadastro atualizado pelo candidato
-              {candidate.data_updated_at && (
-                <span className="font-normal text-orange-600 ml-2 text-xs">
-                  em {formatDate(candidate.data_updated_at)}
-                </span>
-              )}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {Object.entries(candidate.data_changes).map(([campo, diff]) => {
-              const d = diff as { old: string; new: string }
-              return (
-                <div key={campo} className="flex flex-wrap items-center gap-2 text-sm bg-white rounded-lg px-3 py-2 border border-orange-200">
-                  <span className="text-orange-700 font-medium w-20 shrink-0">{campo}:</span>
-                  <span className="line-through text-red-500 font-medium">{d.old}</span>
-                  <span className="text-orange-500 font-bold">→</span>
-                  <span className="text-green-700 font-semibold">{d.new}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ── Alerta: Processos Judiciais ── */}
       {(() => {
