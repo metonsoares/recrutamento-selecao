@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { normalizePhone, normalizeEmail } from '@/lib/helpers'
+import { normalizePhone, normalizeEmail, generateToken } from '@/lib/helpers'
 
 interface CurriculoPayload {
   full_name: string
@@ -95,15 +95,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Erro ao salvar candidato.' }, { status: 500 })
     }
 
+    // Generate culture test token (valid 24h — candidate completes inline right after)
+    const cultureToken = generateToken()
+    const cultureTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
     // Insert new application
     const { data: newApplication, error: applicationError } = await supabase
       .from('applications')
       .insert({
         candidate_id: newCandidate.id,
         job_id: job_id || null,
-        status: 'novo',
+        status: 'aguardando_teste_cultural',
         source: 'curriculo',
         is_latest: true,
+        culture_test_token: cultureToken,
+        culture_test_token_expires_at: cultureTokenExpiresAt,
       })
       .select('id')
       .single()
@@ -147,7 +153,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, token: cultureToken })
   } catch (err) {
     console.error('Curriculo route error:', err)
     return NextResponse.json({ error: 'Erro interno do servidor.' }, { status: 500 })

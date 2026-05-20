@@ -1,13 +1,19 @@
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { CurriculoForm } from './CurriculoForm'
-import { FormQuestion, FormSection } from '@/types'
+import { FormQuestion, FormSection, CultureQuestion } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CurriculoPage() {
   const supabase = await createSupabaseServiceClient()
 
-  const [{ data: jobs }, { data: questions }, { data: sections }, { data: aiSettings }] = await Promise.all([
+  const [
+    { data: jobs },
+    { data: questions },
+    { data: sections },
+    { data: aiSettings },
+    { data: cultureQuestions },
+  ] = await Promise.all([
     supabase
       .from('jobs')
       .select('id, title')
@@ -29,6 +35,11 @@ export default async function CurriculoPage() {
       .select('mission, vision, company_culture')
       .limit(1)
       .single(),
+    supabase
+      .from('culture_questions')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order'),
   ])
 
   const companyInfo = aiSettings
@@ -44,6 +55,7 @@ export default async function CurriculoPage() {
       questions={(questions as FormQuestion[]) || []}
       sections={(sections as FormSection[]) || []}
       companyInfo={companyInfo}
+      cultureQuestions={(cultureQuestions as CultureQuestion[]) || []}
     />
   )
 }

@@ -4,14 +4,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { FormQuestion, FormSection } from '@/types'
-import { CheckCircle2, AlertCircle, Paperclip, X, Image, FileText, PartyPopper } from 'lucide-react'
+import { FormQuestion, FormSection, CultureQuestion } from '@/types'
+import { CheckCircle2, AlertCircle, Paperclip, X, Image, FileText, PartyPopper, ChevronRight } from 'lucide-react'
 
 interface Props {
   jobs: { id: string; title: string }[]
   questions: FormQuestion[]
   sections: FormSection[]
   companyInfo: { mission: string | null; company_culture: string | null } | null
+  cultureQuestions: CultureQuestion[]
 }
 
 // ─── Masks ────────────────────────────────────────────────────────────────────
@@ -59,22 +60,16 @@ const emptyAddr = (): AddrFields => ({ cep: '', street: '', number: '', neighbor
 interface FileInfo {
   file: File
   error: string | null
-  /** Compression running in background */
   compressing?: boolean
-  /** Upload to server in progress */
   uploading?: boolean
-  /** Upload progress 0-100 */
   uploadPct?: number
-  /** URL returned by server after successful upload */
   uploadedUrl?: string
 }
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024 // 5 MB — server also accepts up to 5 MB
+const MAX_FILE_BYTES = 5 * 1024 * 1024
 
-/** Accepts any image/* type (JPEG, PNG, HEIC, WebP…) plus PDF */
 function isImageFile(file: File) {
   if (file.type.startsWith('image/')) return true
-  // Some mobile browsers return empty MIME type for camera photos — infer from extension
   const ext = file.name.split('.').pop()?.toLowerCase() || ''
   return ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'gif', 'bmp'].includes(ext)
 }
@@ -93,10 +88,6 @@ function formatBytes(b: number) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-/**
- * Wraps compressImage with a timeout so it never hangs indefinitely
- * on mobile browsers that can't decode certain image formats (e.g. HEIC on Android).
- */
 async function compressImageSafe(file: File, maxBytes = MAX_FILE_BYTES): Promise<File> {
   return Promise.race([
     compressImage(file, maxBytes),
@@ -106,7 +97,6 @@ async function compressImageSafe(file: File, maxBytes = MAX_FILE_BYTES): Promise
   ])
 }
 
-/** Compress an image File to JPEG, targeting under maxBytes. */
 async function compressImage(file: File, maxBytes = MAX_FILE_BYTES): Promise<File> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
@@ -114,34 +104,24 @@ async function compressImage(file: File, maxBytes = MAX_FILE_BYTES): Promise<Fil
     img.onload = () => {
       URL.revokeObjectURL(url)
       const canvas = document.createElement('canvas')
-
-      // Start at original dimensions; scale down if needed
       let { naturalWidth: w, naturalHeight: h } = img
-
-      // Max dimension cap to keep file size manageable
       const MAX_DIM = 1920
       if (w > MAX_DIM || h > MAX_DIM) {
         const ratio = Math.min(MAX_DIM / w, MAX_DIM / h)
         w = Math.round(w * ratio)
         h = Math.round(h * ratio)
       }
-
       canvas.width = w
       canvas.height = h
       const ctx = canvas.getContext('2d')!
       ctx.drawImage(img, 0, 0, w, h)
-
-      // Try decreasing quality until under maxBytes
       const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35]
       let idx = 0
-
       function tryQuality() {
         const q = qualities[idx] ?? 0.3
         canvas.toBlob(blob => {
           if (!blob) { reject(new Error('Canvas toBlob falhou')); return }
-
           if (blob.size <= maxBytes || idx >= qualities.length - 1) {
-            // If still too large, scale dimensions down 20% and retry once
             if (blob.size > maxBytes && (w > 200 || h > 200)) {
               w = Math.round(w * 0.75)
               h = Math.round(h * 0.75)
@@ -160,7 +140,6 @@ async function compressImage(file: File, maxBytes = MAX_FILE_BYTES): Promise<Fil
           }
         }, 'image/jpeg', q)
       }
-
       tryQuality()
     }
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Erro ao carregar imagem')) }
@@ -170,20 +149,26 @@ async function compressImage(file: File, maxBytes = MAX_FILE_BYTES): Promise<Fil
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props) {
+export function CurriculoForm({ jobs, questions, sections, companyInfo: _companyInfo, cultureQuestions }: Props) {
+  // ── Currículo state ────────────────────────────────────────────────────────
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [cepStatuses, setCepStatuses] = useState<Record<string, 'idle' | 'checking' | 'valid' | 'invalid'>>({})
   const [cpfErrors, setCpfErrors] = useState<Record<string, boolean>>({})
   const [addrValues, setAddrValues] = useState<Record<string, AddrFields>>({})
   const [fileInfos, setFileInfos] = useState<Record<string, FileInfo | null>>({})
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
-
   const [lgpd, setLgpd] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
+  // ── Flow state ─────────────────────────────────────────────────────────────
+  const [step, setStep] = useState<'form' | 'culture' | 'done'>('form')
+  const [cultureToken, setCultureToken] = useState<string | null>(null)
+  const [cultureAnswers, setCultureAnswers] = useState<Record<string, string>>({})
+  const [cultureSubmitting, setCultureSubmitting] = useState(false)
+  const [cultureError, setCultureError] = useState<string | null>(null)
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
 
   const setAnswer = (id: string, v: string | string[]) =>
     setAnswers(p => ({ ...p, [id]: v }))
@@ -238,28 +223,18 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
       setFileInfos(p => ({ ...p, [id]: { file, error: err } }))
       return
     }
-
-    // Show "uploading" state immediately so the user sees feedback right away
     setFileInfos(p => ({ ...p, [id]: { file, error: null, uploading: true, uploadPct: 0 } }))
-
-    // Try to compress images > 2 MB to JPEG before uploading (reduces upload time and
-    // ensures the server receives a standard JPEG type even for camera photos with empty MIME type)
     let fileToUpload = file
     if (isImageFile(file)) {
       try {
         const compressed = await compressImageSafe(file, 2 * 1024 * 1024)
         fileToUpload = compressed
-        // Update stored file with compressed version
         setFileInfos(p => {
           const cur = p[id]; if (!cur) return p
           return { ...p, [id]: { ...cur, file: fileToUpload } }
         })
-      } catch {
-        // Compression failed or timed out — upload original file
-      }
+      } catch { /* upload original */ }
     }
-
-    // Start the actual upload to the server
     startUpload(id, fileToUpload)
   }
 
@@ -268,16 +243,10 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     if (fileRefs.current[id]) fileRefs.current[id]!.value = ''
   }
 
-  /**
-   * Upload a file to the server via XHR (for real-time progress tracking).
-   * Progress and result are written directly into fileInfos state.
-   */
   function startUpload(id: string, file: File) {
     const fd = new FormData()
     fd.append('file', file)
-
     const xhr = new XMLHttpRequest()
-
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         const pct = Math.min(Math.round((e.loaded / e.total) * 100), 99)
@@ -287,12 +256,10 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         })
       }
     }
-
     xhr.onload = () => {
       try {
         const data = JSON.parse(xhr.responseText)
         if (xhr.status >= 200 && xhr.status < 300 && !data.error) {
-          // ✅ Upload successful — store the URL
           setFileInfos(p => {
             const cur = p[id]; if (!cur) return p
             return { ...p, [id]: { ...cur, uploading: false, uploadPct: 100, uploadedUrl: data.url } }
@@ -310,19 +277,17 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         })
       }
     }
-
     xhr.onerror = () => {
       setFileInfos(p => {
         const cur = p[id]; if (!cur) return p
         return { ...p, [id]: { ...cur, uploading: false, error: 'Falha na conexão. Verifique sua internet e tente novamente.' } }
       })
     }
-
     xhr.open('POST', '/api/public/upload-file')
     xhr.send(fd)
   }
 
-  // ─── Group questions by section ───────────────────────────────────────────
+  // ─── Group questions by section ────────────────────────────────────────────
 
   const sortedSections = [...sections].sort((a, b) => a.sort_order - b.sort_order)
   const usedIds = new Set<string>()
@@ -336,27 +301,19 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     })
     .filter(g => g.qs.length > 0)
 
-  // ─── Submit ───────────────────────────────────────────────────────────────
+  // ─── Step 1: Submit curriculo ──────────────────────────────────────────────
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    // Validate CPF
     const badCPF = questions.find(q => q.field_type === 'cpf' && cpfErrors[q.id])
     if (badCPF) { setError('CPF inválido. Verifique o campo e tente novamente.'); return }
 
-    // Validate files — only check questions actually rendered on the form (in usedIds)
     for (const q of questions.filter(q => q.field_type === 'file_upload' && usedIds.has(q.id))) {
       const fi = fileInfos[q.id]
       if (fi?.error) { setError(`Erro no campo "${q.question_text}": ${fi.error}`); return }
-      if (fi?.uploading) {
-        setError(`Aguarde o upload do campo "${q.question_text}" concluir antes de enviar.`)
-        return
-      }
-      if (q.is_required && !fi?.uploadedUrl) {
-        setError(`O campo "${q.question_text}" é obrigatório. Selecione e aguarde o upload concluir.`)
-        return
-      }
+      if (fi?.uploading) { setError(`Aguarde o upload do campo "${q.question_text}" concluir antes de continuar.`); return }
+      if (q.is_required && !fi?.uploadedUrl) { setError(`O campo "${q.question_text}" é obrigatório.`); return }
     }
 
     if (!lgpd) { setError('Você precisa aceitar os termos de uso de dados para continuar.'); return }
@@ -364,10 +321,8 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     setError(null)
     setSubmitting(true)
 
-    // Build final answers
     const finalAnswers: Record<string, string | string[]> = { ...answers }
 
-    // Serialize address fields (rendered questions only)
     for (const q of questions.filter(q => q.field_type === 'address' && usedIds.has(q.id))) {
       const addr = addrValues[q.id] || emptyAddr()
       if (q.is_required && (!addr.cep || !addr.number || !addr.city)) {
@@ -381,13 +336,11 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         .filter(Boolean).join(' - ')
     }
 
-    // Files are already uploaded — just map the stored URLs into finalAnswers (rendered questions only)
     for (const q of questions.filter(q => q.field_type === 'file_upload' && usedIds.has(q.id))) {
       const fi = fileInfos[q.id]
       if (fi?.uploadedUrl) finalAnswers[q.id] = fi.uploadedUrl
     }
 
-    // Auto-detect candidate identity from dynamic answers
     let full_name = ''
     let phone = ''
     let city = ''
@@ -407,7 +360,6 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         city = val
     }
 
-    // Fallbacks
     if (!full_name) {
       const first = questions.find(q => q.field_type === 'short_text' && finalAnswers[q.id])
       if (first) full_name = (finalAnswers[first.id] as string) || ''
@@ -431,16 +383,63 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         setError(data.error || 'Ocorreu um erro. Tente novamente.')
         setSubmitting(false); return
       }
-      // Show success popup on the same page
-      setSuccess(true)
+
+      // Se não há perguntas culturais, vai direto para tela de sucesso
+      if (!cultureQuestions || cultureQuestions.length === 0) {
+        setStep('done')
+        setSubmitting(false)
+        return
+      }
+
+      setCultureToken(data.token)
+      setStep('culture')
       setSubmitting(false)
+      // Scroll para o topo
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch {
       setError('Erro de conexão. Verifique sua internet e tente novamente.')
       setSubmitting(false)
     }
   }
 
-  // ─── Field renderer ───────────────────────────────────────────────────────
+  // ─── Step 2: Submit teste cultural ────────────────────────────────────────
+
+  async function handleCultureSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (Object.keys(cultureAnswers).length < cultureQuestions.length) {
+      setCultureError('Por favor, responda todas as perguntas antes de enviar.')
+      return
+    }
+
+    if (!cultureToken) {
+      setCultureError('Token inválido. Recarregue a página e tente novamente.')
+      return
+    }
+
+    setCultureError(null)
+    setCultureSubmitting(true)
+
+    try {
+      const res = await fetch('/api/public/culture-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: cultureToken, answers: cultureAnswers }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setCultureError(data.error || 'Erro ao enviar o teste. Tente novamente.')
+        setCultureSubmitting(false)
+        return
+      }
+      setStep('done')
+    } catch {
+      setCultureError('Erro de conexão. Verifique sua internet e tente novamente.')
+      setCultureSubmitting(false)
+    }
+  }
+
+  // ─── Field renderer ────────────────────────────────────────────────────────
 
   function renderField(q: FormQuestion) {
     const sel = 'w-full border border-input rounded-lg px-3 py-2 h-11 text-base bg-background focus:outline-none focus:ring-2 focus:ring-primary/30'
@@ -491,7 +490,6 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
         const checking = addr.status === 'checking'
         return (
           <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            {/* CEP */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">CEP <span className="text-red-500">*</span></label>
               <div className="relative">
@@ -502,12 +500,10 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
               </div>
               {err && <p className="text-xs text-red-500">CEP não encontrado.</p>}
             </div>
-            {/* Endereço */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Endereço <span className="text-red-500">*</span></label>
               <Input type="text" placeholder="Rua, Avenida, Travessa…" required={q.is_required} readOnly={ok && !!addr.street} className={`h-11 text-base bg-white ${ok && addr.street ? 'text-gray-400' : ''}`} value={addr.street} onChange={e => setAddrField(q.id, 'street', e.target.value)} />
             </div>
-            {/* Número + Bairro */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">Número <span className="text-red-500">*</span></label>
@@ -518,7 +514,6 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
                 <Input type="text" placeholder="Bairro" readOnly={ok && !!addr.neighborhood} className={`h-11 text-base bg-white ${ok && addr.neighborhood ? 'text-gray-400' : ''}`} value={addr.neighborhood} onChange={e => setAddrField(q.id, 'neighborhood', e.target.value)} />
               </div>
             </div>
-            {/* Cidade */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Cidade <span className="text-red-500">*</span></label>
               <Input type="text" placeholder="Cidade" required={q.is_required} readOnly={ok && !!addr.city} className={`h-11 text-base bg-white ${ok && addr.city ? 'text-gray-400' : ''}`} value={addr.city} onChange={e => setAddrField(q.id, 'city', e.target.value)} />
@@ -536,7 +531,6 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
 
         return (
           <div className="space-y-2">
-            {/* Hidden file input */}
             <input
               ref={el => { fileRefs.current[q.id] = el }}
               type="file"
@@ -545,26 +539,18 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
               onChange={e => {
                 const f = e.target.files?.[0]
                 if (f) handleFileSelect(q.id, f)
-                // Reset input so the same file can be reselected if user clears and picks again
                 if (fileRefs.current[q.id]) fileRefs.current[q.id]!.value = ''
               }}
             />
-
             {!fi ? (
-              /* ── No file selected yet ── */
-              <button
-                type="button"
-                onClick={() => fileRefs.current[q.id]?.click()}
-                className="w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-6 text-sm text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all cursor-pointer"
-              >
+              <button type="button" onClick={() => fileRefs.current[q.id]?.click()}
+                className="w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-6 text-sm text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all cursor-pointer">
                 <Paperclip className="w-7 h-7 opacity-40" />
                 <span className="font-semibold">Toque aqui para adicionar a foto</span>
                 <span className="text-xs">Tire uma foto com a câmera ou escolha da galeria</span>
                 <span className="text-xs text-muted-foreground/60">JPG, PNG, PDF — máx. 5 MB</span>
               </button>
-
             ) : fi.error ? (
-              /* ── Upload error ── */
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
@@ -573,45 +559,31 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
                     <p className="text-xs text-red-600 mt-0.5">{fi.error}</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => fileRefs.current[q.id]?.click()}
-                  className="w-full py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium transition-colors"
-                >
+                <button type="button" onClick={() => fileRefs.current[q.id]?.click()}
+                  className="w-full py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium transition-colors">
                   Tentar novamente
                 </button>
               </div>
-
             ) : isUploading ? (
-              /* ── Uploading in progress ── */
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
                 <div className="flex items-center gap-3">
-                  {isPDF
-                    ? <FileText className="w-8 h-8 text-blue-500 shrink-0" />
-                    : <Image className="w-8 h-8 text-blue-500 shrink-0" />
-                  }
+                  {isPDF ? <FileText className="w-8 h-8 text-blue-500 shrink-0" /> : <Image className="w-8 h-8 text-blue-500 shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-blue-800 truncate">{fi.file.name}</p>
                     <p className="text-xs text-blue-600">{formatBytes(fi.file.size)}</p>
                   </div>
                 </div>
-                {/* Progress bar */}
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-blue-600 font-medium">
                     <span>Enviando arquivo…</span>
                     <span>{pct}%</span>
                   </div>
                   <div className="w-full bg-blue-100 rounded-full h-3 overflow-hidden">
-                    <div
-                      className="h-3 rounded-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${pct}%` }}
-                    />
+                    <div className="h-3 rounded-full bg-blue-500 transition-all duration-300" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               </div>
-
             ) : uploadDone ? (
-              /* ── Upload complete ✅ ── */
               <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center shrink-0">
@@ -622,24 +594,16 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
                     <p className="text-xs text-green-700 truncate">{fi.file.name}</p>
                     <p className="text-xs text-green-600">{formatBytes(fi.file.size)}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => clearFile(q.id)}
-                    className="p-1.5 text-green-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Remover arquivo"
-                  >
+                  <button type="button" onClick={() => clearFile(q.id)}
+                    className="p-1.5 text-green-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remover arquivo">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => fileRefs.current[q.id]?.click()}
-                  className="text-xs text-green-700 hover:text-green-900 underline underline-offset-2"
-                >
+                <button type="button" onClick={() => fileRefs.current[q.id]?.click()}
+                  className="text-xs text-green-700 hover:text-green-900 underline underline-offset-2">
                   Trocar arquivo
                 </button>
               </div>
-
             ) : null}
           </div>
         )
@@ -728,9 +692,9 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     ))
   }
 
-  // ─── Success overlay ──────────────────────────────────────────────────────
+  // ─── Success screen ────────────────────────────────────────────────────────
 
-  if (success) {
+  if (step === 'done') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center px-4 py-12">
         <div className="bg-white rounded-3xl border border-green-100 shadow-xl p-8 max-w-sm w-full text-center space-y-5 animate-in fade-in zoom-in-95 duration-300">
@@ -740,7 +704,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
           <div className="space-y-2">
             <h2 className="text-xl font-bold text-gray-900">Currículo enviado com sucesso! 🎉</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Recebemos seu currículo com sucesso! Nossa equipe de RH vai analisar seu perfil e entrará em contato em breve. 😊
+              Recebemos seu currículo e suas respostas com sucesso! Nossa equipe de RH vai analisar seu perfil e entrará em contato em breve. 😊
             </p>
           </div>
           <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
@@ -752,18 +716,142 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
     )
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Step 2: Teste Cultural ────────────────────────────────────────────────
+
+  if (step === 'culture') {
+    const totalQ = cultureQuestions.length
+    const answeredQ = Object.keys(cultureAnswers).length
+    const progress = totalQ > 0 ? Math.round((answeredQ / totalQ) * 100) : 0
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-50 py-6 sm:py-8 px-4">
+        <div className="max-w-xl mx-auto space-y-4 sm:space-y-5">
+
+          {/* Step indicator */}
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                <CheckCircle2 className="w-3 h-3 text-white" />
+              </div>
+              <span className="text-green-700 font-medium">Dados pessoais</span>
+            </div>
+            <div className="w-8 h-px bg-gray-300" />
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-xs">2</div>
+              <span className="text-amber-700 font-semibold">Teste Cultural</span>
+            </div>
+          </div>
+
+          {/* Header */}
+          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 space-y-3">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Teste Cultural</h1>
+            <p className="text-sm text-muted-foreground">
+              Responda com sinceridade — não existe resposta certa ou errada. Queremos conhecer você de verdade.
+            </p>
+            <div>
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>{answeredQ}/{totalQ} respondidas</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-amber-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Questions */}
+          <form onSubmit={handleCultureSubmit} className="space-y-3">
+            {cultureQuestions.map((q, idx) => (
+              <div key={q.id} className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+                <p className="text-sm font-medium">
+                  <span className="text-muted-foreground mr-2">{idx + 1}.</span>
+                  {q.question_text}
+                </p>
+                <div className="space-y-2">
+                  {(q.options || []).map((opt, i) => {
+                    const letter = ['A', 'B', 'C', 'D'][i]
+                    const selected = cultureAnswers[q.id] === letter
+                    return (
+                      <label key={letter}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors w-full ${selected ? 'border-amber-400 bg-amber-50' : 'border-border hover:bg-muted/30'}`}>
+                        <input type="radio" name={q.id} value={letter} checked={selected}
+                          onChange={() => setCultureAnswers(prev => ({ ...prev, [q.id]: letter }))}
+                          className="mt-0.5 shrink-0 accent-amber-500" />
+                        <span className="text-sm leading-snug">{opt}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Error */}
+            {cultureError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />{cultureError}
+              </div>
+            )}
+
+            {/* Submit */}
+            <Button
+              type="submit"
+              className="w-full h-12 text-base font-semibold rounded-xl bg-amber-600 hover:bg-amber-700"
+              disabled={cultureSubmitting || answeredQ < totalQ}
+            >
+              {cultureSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Enviando…
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  Enviar Currículo
+                  <ChevronRight className="w-4 h-4" />
+                </span>
+              )}
+            </Button>
+
+            {answeredQ < totalQ && (
+              <p className="text-center text-xs text-muted-foreground pb-2">
+                Responda todas as {totalQ} perguntas para enviar.
+              </p>
+            )}
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Step 1: Formulário ────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 py-6 sm:py-8 px-4">
       <div className="max-w-xl mx-auto space-y-4 sm:space-y-5">
+
+        {/* Step indicator */}
+        {cultureQuestions.length > 0 && (
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xs">1</div>
+              <span className="text-primary font-semibold">Dados pessoais</span>
+            </div>
+            <div className="w-8 h-px bg-gray-300" />
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-xs">2</div>
+              <span className="text-gray-400">Teste Cultural</span>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="text-center">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Cadastre seu Currículo</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleFormSubmit} className="space-y-4">
 
           {/* Sections */}
           {sectionGroups.map(({ section, qs }) => (
@@ -794,8 +882,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
             </div>
           )}
 
-          {/* Submit */}
-          {/* Show a hint if any file upload is still in progress */}
+          {/* Upload hint */}
           {Object.values(fileInfos).some(f => f?.uploading) && (
             <p className="text-center text-xs text-blue-600 font-medium flex items-center justify-center gap-1.5">
               <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
@@ -806,6 +893,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
             </p>
           )}
 
+          {/* Button */}
           <Button
             type="submit"
             className="w-full h-12 text-base font-semibold rounded-xl"
@@ -817,7 +905,12 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo }: Props)
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
-                Enviando currículo…
+                Salvando dados…
+              </span>
+            ) : cultureQuestions.length > 0 ? (
+              <span className="flex items-center gap-2">
+                Próxima etapa
+                <ChevronRight className="w-4 h-4" />
               </span>
             ) : 'Enviar Currículo'}
           </Button>
