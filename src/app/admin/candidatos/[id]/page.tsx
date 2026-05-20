@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { STATUS_LABELS, STATUS_COLORS, CandidateStatus, BackgroundCheckResult } from '@/types'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, formatDateTime } from '@/lib/helpers'
 import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
-import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw } from 'lucide-react'
+import { DeleteCandidateSection } from './delete-candidate-section'
+import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -481,13 +482,23 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         </CardContent>
       </Card>
 
-      {/* ── IP de Registro ── */}
-      {candidate.ip_address && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded-lg px-3 py-2 bg-gray-50">
-          <Globe className="w-3.5 h-3.5 shrink-0" />
-          <span>IP de cadastro: <code className="font-mono">{candidate.ip_address}</code></span>
+      {/* ── IP de Registro + Hora de Cadastro ── */}
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        {candidate.ip_address && (
+          <div className="flex items-center gap-1.5 border rounded-lg px-3 py-2 bg-gray-50">
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span>IP de cadastro: <code className="font-mono">{candidate.ip_address}</code></span>
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 border rounded-lg px-3 py-2 bg-gray-50">
+          <Clock className="w-3.5 h-3.5 shrink-0" />
+          <span>Cadastrado em: <strong className="text-gray-700 font-medium">{formatDateTime(candidate.created_at)}</strong></span>
         </div>
-      )}
+      </div>
+
+      {/* ── Remover Currículo ── */}
+      <DeleteCandidateSection candidateId={id} candidateName={candidate.full_name} />
+
     </div>
   )
 }

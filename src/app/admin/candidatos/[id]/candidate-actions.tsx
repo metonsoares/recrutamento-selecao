@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult } from '@/types'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { Brain, FlaskConical, Eye, CalendarCheck, Trash2, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw } from 'lucide-react'
+import { Brain, FlaskConical, Eye, CalendarCheck, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw } from 'lucide-react'
 import { formatDate } from '@/lib/helpers'
 
 const ALL_STATUSES = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
@@ -302,8 +302,6 @@ export function CandidateActions({
   const [sendingTest, setSendingTest] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
   const [scheduling, setScheduling] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   function showToast(type: 'success' | 'error', message: string, durationMs = 4000) {
@@ -419,23 +417,6 @@ export function CandidateActions({
       router.refresh()
     } finally {
       setScheduling(false)
-    }
-  }
-
-  // ── Remover candidato ───────────────────────────────────────────────────────
-  async function handleDelete() {
-    setDeleting(true)
-    try {
-      const res = await fetch(`/api/admin/candidatos/${candidateId}`, { method: 'DELETE' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        showToast('error', data?.error || 'Erro ao remover candidato.', 5000)
-        setDeleting(false)
-        return
-      }
-      router.push('/admin/candidatos')
-    } finally {
-      setDeleting(false)
     }
   }
 
@@ -613,33 +594,6 @@ export function CandidateActions({
           </Button>
         )}
 
-        {/* Remover */}
-        {!confirmDelete ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-red-500 hover:text-red-700 hover:bg-red-50 ml-auto gap-1"
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2 className="w-4 h-4" />
-            Remover Currículo
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-sm text-red-600 font-medium">Confirmar remoção permanente?</span>
-            <Button
-              size="sm"
-              className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={deleting}
-              onClick={handleDelete}
-            >
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sim, remover'}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>
-              Cancelar
-            </Button>
-          </div>
-        )}
       </div>
     </>
   )
