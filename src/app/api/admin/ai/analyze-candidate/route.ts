@@ -71,7 +71,7 @@ async function runAnalysis(applicationId: string, log: string[]): Promise<{ dbEr
     { data: application, error: appError },
     { data: aiSettings, error: settingsError },
       ] = await Promise.all([
-        supabase.from('applications').select('*, candidates(*), jobs(*)').eq('id', applicationId).single(),
+        supabase.from('applications').select('*, candidates!applications_candidate_id_fkey(*), jobs(*)').eq('id', applicationId).single(),
         supabase.from('ai_settings').select('*').limit(1).single(),
       ])
 
