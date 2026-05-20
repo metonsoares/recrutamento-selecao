@@ -43,7 +43,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
   // Tudo em paralelo: placeholder + dados + chaves de IA
   const [
     placeholderResult,
-    { data: application },
+    { data: application, error: applicationError },
     { data: aiSettings },
     { data: formAnswers },
     { data: cultureAnswers },
@@ -53,7 +53,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     supabase.from('applications')
       .update({ ai_summary: 'Análise em andamento...', updated_at: new Date().toISOString() })
       .eq('id', applicationId),
-    supabase.from('applications').select('*, candidates(*), jobs(*)').eq('id', applicationId).single(),
+    supabase.from('applications').select('*').eq('id', applicationId).single(),
     supabase.from('ai_settings').select('*').limit(1).maybeSingle(),
     supabase.from('form_answers')
       .select('answer_text, form_questions(question_text, field_type, category)')
@@ -67,13 +67,15 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
 
   const elapsed1 = Date.now() - t0
   const placeholderErr = (placeholderResult as { error?: { message: string } | null }).error
-  console.log(`[analyze] parallel done ${elapsed1}ms | placeholder=${placeholderErr ? 'FAIL:' + placeholderErr.message : 'OK'} | app=${!!application} | anthropic=${!!anthropicKey} | openai=${!!openaiKey} | fa=${(formAnswers || []).length} | ca=${(cultureAnswers || []).length}`)
+  console.log(`[analyze] parallel done ${elapsed1}ms | placeholder=${placeholderErr ? 'FAIL:' + placeholderErr.message : 'OK'} | app=${!!application} | appErr=${applicationError ? applicationError.message + ' code=' + applicationError.code : 'none'} | anthropic=${!!anthropicKey} | openai=${!!openaiKey} | fa=${(formAnswers || []).length} | ca=${(cultureAnswers || []).length}`)
 
   if (placeholderErr) {
     return { step: 'placeholder', error: placeholderErr.message }
   }
   if (!application) {
-    return { step: 'no_application', error: 'Application not found: ' + applicationId }
+    const appErrMsg = applicationError ? `${applicationError.message} (code: ${applicationError.code})` : 'unknown'
+    console.error(`[analyze] application not found — id=${applicationId} supabaseError=${appErrMsg}`)
+    return { step: 'no_application', error: `Application not found: ${applicationId} | supabase: ${appErrMsg}` }
   }
 
   // Resolve provider
@@ -83,6 +85,20 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
   const useOpenAI    = provider === 'anthropic' ? null : (!useAnthropic ? openaiKey : null)
 
   console.log(`[analyze] provider=${provider ?? 'auto'} useAnthropic=${!!useAnthropic} useOpenAI=${!!useOpenAI}`)
+
+  // Busca candidato e vaga separadamente (evita embedded select do PostgREST)
+  const app = application as Record<string, unknown>
+  const candidateId = app.candidate_id as string | null
+  const jobId       = app.job_id as string | null
+
+  const [{ data: candidateRow }, { data: jobRow }] = await Promise.all([
+    candidateId
+      ? supabase.from('candidates').select('full_name, phone, email, city, neighborhood').eq('id', candidateId).single()
+      : Promise.resolve({ data: null }),
+    jobId
+      ? supabase.from('jobs').select('title').eq('id', jobId).single()
+      : Promise.resolve({ data: null }),
+  ])
 
   // Extrai dados do candidato
   const allFa = (formAnswers || []) as Array<Record<string, unknown>>
@@ -95,7 +111,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     )
   }
 
-  const cand    = (application as Record<string, unknown>).candidates as Record<string, string> | null
+  const cand    = candidateRow as Record<string, string> | null
   const name    = cand?.full_name ?? ''
   const phone   = cand?.phone ?? ''
   const email   = cand?.email ?? get('email')
@@ -106,14 +122,15 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
   const address = get('address')
 
   // Job title
-  let jobTitle = ((application as Record<string, unknown>).jobs as { title?: string } | null)?.title || ''
+  let jobTitle = (jobRow as { title?: string } | null)?.title || ''
   if (!jobTitle) {
+    // Tenta pegar do formulário (campo job_select pode ser UUID ou texto)
     const raw = get('job_select')
     if (raw) {
       const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
       if (uuidRe.test(raw.trim())) {
-        const { data: jr } = await supabase.from('jobs').select('title').eq('id', raw.trim()).single()
-        jobTitle = (jr as { title?: string } | null)?.title ?? raw
+        const { data: jr } = await supabase.from('jobs').select('title').eq('id', raw.trim()).maybeSingle()
+        jobTitle = (jr as { title?: string } | null)?.title ?? ''
       } else {
         jobTitle = raw
       }
