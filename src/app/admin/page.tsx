@@ -9,15 +9,21 @@ import { DashboardPublicLink } from './dashboard-public-link'
 
 async function getDashboardStats() {
   const supabase = await createSupabaseServerClient()
-  const { data: apps } = await supabase
-    .from('applications')
-    .select('status, final_score, created_at, job_id, jobs(title)')
-    .eq('is_latest', true)
 
   const { data: candidates } = await supabase
     .from('candidates')
     .select('id, created_at')
     .is('deleted_at', null)
+
+  const activeIds = (candidates || []).map(c => c.id)
+
+  const { data: apps } = activeIds.length
+    ? await supabase
+        .from('applications')
+        .select('status, final_score, created_at, job_id, jobs(title), candidate_id')
+        .eq('is_latest', true)
+        .in('candidate_id', activeIds)
+    : { data: [] }
 
   const statusCounts: Record<string, number> = {}
   apps?.forEach(a => {

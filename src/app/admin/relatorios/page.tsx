@@ -6,15 +6,20 @@ import { Badge } from '@/components/ui/badge'
 export default async function RelatoriosPage() {
   const supabase = await createSupabaseServerClient()
 
-  const { data: applications } = await supabase
-    .from('applications')
-    .select('status, final_score, culture_score, experience_score, created_at, job_id, jobs(title)')
-    .eq('is_latest', true)
-
   const { data: candidates } = await supabase
     .from('candidates')
     .select('id, created_at')
     .is('deleted_at', null)
+
+  const activeIds = (candidates || []).map(c => c.id)
+
+  const { data: applications } = activeIds.length
+    ? await supabase
+        .from('applications')
+        .select('status, final_score, culture_score, experience_score, created_at, job_id, jobs(title), candidate_id')
+        .eq('is_latest', true)
+        .in('candidate_id', activeIds)
+    : { data: [] }
 
   const apps = applications || []
   const totalCandidates = candidates?.length || 0

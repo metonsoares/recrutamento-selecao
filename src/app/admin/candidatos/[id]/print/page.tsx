@@ -116,22 +116,6 @@ export default async function PrintPage({ params }: { params: Promise<{ id: stri
         @media print { .no-print { display: none !important; } }
       `}</style>
 
-      {/* Print button */}
-      <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
-        <button
-          onClick={() => window.print()}
-          style={{ background: '#1a5c38', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-        >
-          Imprimir / Salvar PDF
-        </button>
-        <button
-          onClick={() => window.close()}
-          style={{ background: '#6b7280', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13 }}
-        >
-          Fechar
-        </button>
-      </div>
-
       <div style={{ maxWidth: 760, margin: '0 auto', padding: 8 }}>
 
         {/* ── Header ── */}

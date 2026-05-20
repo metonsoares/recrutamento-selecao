@@ -9,7 +9,7 @@ import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Brain, StickyNote, CalendarCheck, Trash2, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
-const ALL_STATUSES = Object.keys(STATUS_LABELS) as CandidateStatus[]
+const ALL_STATUSES = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
 
 // ─── Toast simples ────────────────────────────────────────────────────────────
 

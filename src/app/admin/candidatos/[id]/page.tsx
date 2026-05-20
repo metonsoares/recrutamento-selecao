@@ -7,7 +7,8 @@ import { STATUS_LABELS, STATUS_COLORS, CandidateStatus } from '@/types'
 import { formatDate } from '@/lib/helpers'
 import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
-import { FileDown, Globe } from 'lucide-react'
+import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
+import { FileDown, Globe, ArrowLeft } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -145,22 +146,22 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
 
+      {/* ── Back button ── */}
+      <Link
+        href="/admin/candidatos"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Candidatos
+      </Link>
+
       {/* ── Header ── */}
       <div className="flex items-start gap-4 flex-wrap">
-        {/* Photo 3x4 */}
-        <div className="shrink-0 w-[72px] h-[96px] rounded-lg border-2 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center shadow-sm">
-          {photoUrl !== '—' ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoUrl}
-              alt="Foto do candidato"
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <span className="text-[10px] text-muted-foreground text-center px-1">Sem foto</span>
-          )}
-        </div>
+        {/* Photo 3x4 — clickable popup */}
+        {photoUrl !== '—'
+          ? <PhotoViewer src={photoUrl} name={candidate.full_name} />
+          : <PhotoPlaceholder />
+        }
 
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold leading-tight">{candidate.full_name}</h1>
