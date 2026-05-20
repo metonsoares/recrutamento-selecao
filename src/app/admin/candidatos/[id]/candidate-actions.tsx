@@ -145,13 +145,12 @@ export function CandidateActions({
         return
       }
       setStatus('aguardando_teste_cultural')
-      showToast(
-        'success',
-        data.whatsappSent
-          ? '✅ Teste cultural enviado via WhatsApp!'
-          : '✅ Link do teste gerado! (WhatsApp indisponível)',
-        5000,
-      )
+      if (data.whatsappSent) {
+        showToast('success', '✅ Teste cultural enviado via WhatsApp!', 5000)
+      } else {
+        const errDetail = data.whatsappError ? ` (${data.whatsappError})` : ''
+        showToast('success', `✅ Link do teste gerado! WhatsApp indisponível${errDetail}`, 7000)
+      }
       router.refresh()
     } finally {
       setSendingTest(false)

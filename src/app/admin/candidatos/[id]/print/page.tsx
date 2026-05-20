@@ -118,15 +118,31 @@ export default async function PrintPage({ params }: { params: Promise<{ id: stri
   const birthDate = birthDateRaw !== '—' ? birthDateRaw : null
   const age = birthDate ? calculateAge(birthDate) : null
 
-  // Job title: join first, then form_answer fallback
+  // Job title: join → job_id direto → form_answer job_select (pode ser UUID → lookup)
   let jobTitle = (latestApp?.jobs as { title?: string } | null)?.title ?? null
+
+  if (!jobTitle && latestApp?.job_id) {
+    const { data: jobRow } = await supabase
+      .from('jobs').select('title').eq('id', latestApp.job_id).single()
+    jobTitle = jobRow?.title ?? null
+  }
+
   if (!jobTitle) {
     const jobAns = allFa.find(
       a => (a.form_questions as { field_type?: string } | null)?.field_type === 'job_select'
     )?.answer_text
     if (jobAns) {
       const parsed = parseAnswer(jobAns)
-      if (parsed !== '—') jobTitle = parsed
+      if (parsed && parsed !== '—') {
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        if (uuidRe.test(parsed.trim())) {
+          const { data: jobRow } = await supabase
+            .from('jobs').select('title').eq('id', parsed.trim()).single()
+          jobTitle = jobRow?.title ?? null
+        } else {
+          jobTitle = parsed
+        }
+      }
     }
   }
 

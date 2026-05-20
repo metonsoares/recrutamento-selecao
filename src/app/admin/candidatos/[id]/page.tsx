@@ -105,15 +105,32 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
 
-  // Job title: prefer the join (applications → jobs), fallback to form_answer job_select
+  // Job title: join → job_id direto → form_answer job_select (pode ser UUID → lookup)
   let jobTitle: string | null = (latestApp?.jobs as { title?: string } | null)?.title ?? null
+
+  if (!jobTitle && latestApp?.job_id) {
+    const { data: jobRow } = await supabase
+      .from('jobs').select('title').eq('id', latestApp.job_id).single()
+    jobTitle = jobRow?.title ?? null
+  }
+
   if (!jobTitle) {
     const jobSelectAnswer = (formAnswers || []).find(
       a => (a.form_questions as { field_type?: string } | null)?.field_type === 'job_select'
     )?.answer_text
     if (jobSelectAnswer) {
       const parsed = parseAnswer(jobSelectAnswer)
-      if (parsed !== '—') jobTitle = parsed
+      if (parsed && parsed !== '—') {
+        // Se for UUID, busca o título no banco
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        if (uuidRe.test(parsed.trim())) {
+          const { data: jobRow } = await supabase
+            .from('jobs').select('title').eq('id', parsed.trim()).single()
+          jobTitle = jobRow?.title ?? null
+        } else {
+          jobTitle = parsed
+        }
+      }
     }
   }
 

@@ -1,11 +1,13 @@
-import { NextRequest, NextResponse, after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { calculateFinalScore } from '@/lib/helpers'
 import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 import { AiAnalysisResult } from '@/types'
 
-// ─── Entry point — retorna 200 imediatamente, processa em background ──────────
-// Necessário para evitar timeout de 10s do Vercel (plano Hobby)
+// ─── Entry point ──────────────────────────────────────────────────────────────
+// Executa a análise de forma SÍNCRONA (sem after()).
+// Claude Haiku responde em 2-5s → cabe no limite de 10s do Vercel Hobby.
+// URLs de pesquisa são buscadas em paralelo com timeout de 2s cada.
 
 export async function POST(req: NextRequest) {
   let applicationId = ''
@@ -18,15 +20,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'applicationId required' }, { status: 400 })
   }
 
-  after(async () => {
-    try {
-      await runAnalysis(applicationId)
-    } catch (err) {
-      console.error('[analyze-candidate] unhandled error:', err)
-    }
-  })
+  try {
+    await runAnalysis(applicationId)
+  } catch (err) {
+    console.error('[analyze-candidate] runAnalysis error:', err)
+    // Mesmo com erro, retorna ok para o cliente não ficar em loop
+  }
 
-  return NextResponse.json({ ok: true, status: 'processing' })
+  return NextResponse.json({ ok: true, status: 'done' })
 }
 
 // ─── Helper: parse JSON-stringified answer ────────────────────────────────────
@@ -46,12 +47,9 @@ function parseAnswer(text: string | null | undefined): string {
   } catch { return text }
 }
 
-// ─── Helper: replace URL variables with candidate data ────────────────────────
+// ─── Helper: replace URL variables ────────────────────────────────────────────
 
-function buildSearchUrl(
-  template: string,
-  vars: Record<string, string>,
-): string {
+function buildSearchUrl(template: string, vars: Record<string, string>): string {
   return Object.entries(vars).reduce((url, [key, value]) => {
     return url.replace(new RegExp(`\\{${key}\\}`, 'gi'), encodeURIComponent(value))
   }, template)
@@ -109,30 +107,43 @@ async function runAnalysis(applicationId: string) {
     )
   }
 
-  const candidateName  = (application.candidates as { full_name?: string } | null)?.full_name ?? ''
-  const candidatePhone = (application.candidates as { phone?: string } | null)?.phone ?? ''
-  const candidateEmail = (application.candidates as { email?: string } | null)?.email ?? getByFieldType('email')
-  const candidateCity  = (application.candidates as { city?: string } | null)?.city ?? ''
+  const candidateName   = (application.candidates as { full_name?: string } | null)?.full_name ?? ''
+  const candidatePhone  = (application.candidates as { phone?: string } | null)?.phone ?? ''
+  const candidateEmail  = (application.candidates as { email?: string } | null)?.email ?? getByFieldType('email')
+  const candidateCity   = (application.candidates as { city?: string } | null)?.city ?? ''
   const candidateBairro = (application.candidates as { neighborhood?: string } | null)?.neighborhood ?? ''
-  const candidateCpf   = getByFieldType('cpf')
-  const candidateBirth = getByFieldType('date')
+  const candidateCpf    = getByFieldType('cpf')
+  const candidateBirth  = getByFieldType('date')
   const candidateAddress = getByFieldType('address')
-  // Job title: prefer jobs join, fallback to form_answer with field_type='job_select'
-  const jobTitle =
-    (application.jobs as { title?: string } | null)?.title ||
-    getByFieldType('job_select') ||
-    'Não informada'
+
+  // Job title: prefer jobs join, fallback to job_select form answer (pode ser UUID — faz lookup)
+  let jobTitle = (application.jobs as { title?: string } | null)?.title || ''
+  if (!jobTitle) {
+    const jobSelectRaw = getByFieldType('job_select')
+    if (jobSelectRaw) {
+      // Se parecer UUID, busca o título no banco
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      if (uuidRegex.test(jobSelectRaw.trim())) {
+        const { data: jobRow } = await supabase
+          .from('jobs').select('title').eq('id', jobSelectRaw.trim()).single()
+        jobTitle = jobRow?.title ?? jobSelectRaw
+      } else {
+        jobTitle = jobSelectRaw
+      }
+    }
+  }
+  if (!jobTitle) jobTitle = 'Não informada'
 
   // ── Build candidate info block ────────────────────────────────────────────
   const candidateInfo = [
     `Nome completo: ${candidateName}`,
-    candidateCpf         ? `CPF: ${candidateCpf}` : '',
-    candidateBirth       ? `Data de nascimento: ${candidateBirth}` : '',
-    candidatePhone       ? `Telefone: ${candidatePhone}` : '',
-    candidateEmail       ? `E-mail: ${candidateEmail}` : '',
-    candidateAddress     ? `Endereço: ${candidateAddress}` : '',
-    candidateBairro      ? `Bairro: ${candidateBairro}` : '',
-    candidateCity        ? `Cidade: ${candidateCity}` : '',
+    candidateCpf     ? `CPF: ${candidateCpf}` : '',
+    candidateBirth   ? `Data de nascimento: ${candidateBirth}` : '',
+    candidatePhone   ? `Telefone: ${candidatePhone}` : '',
+    candidateEmail   ? `E-mail: ${candidateEmail}` : '',
+    candidateAddress ? `Endereço: ${candidateAddress}` : '',
+    candidateBairro  ? `Bairro: ${candidateBairro}` : '',
+    candidateCity    ? `Cidade: ${candidateCity}` : '',
     `Vaga de interesse: ${jobTitle}`,
     application.culture_score != null ? `Nota Cultural prévia: ${application.culture_score}` : '',
   ].filter(Boolean).join('\n')
@@ -168,21 +179,14 @@ async function runAnalysis(applicationId: string) {
     aiSettings?.company_culture         ? `• Cultura:\n${aiSettings.company_culture}` : '',
     aiSettings?.ideal_candidate_profile ? `• Perfil ideal do colaborador:\n${aiSettings.ideal_candidate_profile}` : '',
     desiredBehaviors                    ? `• Comportamentos desejados:\n${desiredBehaviors}` : '',
-    alertBehaviors                      ? `• Comportamentos de ALERTA (fatores negativos):\n${alertBehaviors}` : '',
+    alertBehaviors                      ? `• Comportamentos de ALERTA:\n${alertBehaviors}` : '',
   ].filter(Boolean).join('\n\n')
 
-  // ── Search URLs — variables built from ALL personal data ──────────────────
-  // Variables available: {NOME}, {CPF}, {TELEFONE}, {EMAIL}, {DATA_NASCIMENTO},
-  //                      {CIDADE}, {BAIRRO}, {VAGA}
+  // ── Search URLs — busca em PARALELO com timeout de 2s cada ────────────────
   const urlVars: Record<string, string> = {
-    NOME:             candidateName,
-    CPF:              candidateCpf,
-    TELEFONE:         candidatePhone,
-    EMAIL:            candidateEmail,
-    DATA_NASCIMENTO:  candidateBirth,
-    CIDADE:           candidateCity,
-    BAIRRO:           candidateBairro,
-    VAGA:             jobTitle,
+    NOME: candidateName, CPF: candidateCpf, TELEFONE: candidatePhone,
+    EMAIL: candidateEmail, DATA_NASCIMENTO: candidateBirth,
+    CIDADE: candidateCity, BAIRRO: candidateBairro, VAGA: jobTitle,
   }
 
   const searchUrlFields = [
@@ -191,39 +195,37 @@ async function runAnalysis(applicationId: string) {
     { url: aiSettings?.search_url_3 as string | null, label: aiSettings?.search_url_3_label as string | null },
   ]
 
-  const searchResults: string[] = []
-  for (const { url, label } of searchUrlFields) {
-    if (!url) continue
-    const resolved = buildSearchUrl(url, urlVars)
-    const sectionLabel = label || 'Pesquisa pública'
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 6000)
-      const res = await fetch(resolved, {
-        signal: controller.signal,
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HRBot/1.0)' },
+  // Busca paralela, 2s por URL (era sequencial com 6s → até 18s antes)
+  const searchResults = (await Promise.all(
+    searchUrlFields
+      .filter(({ url }) => !!url)
+      .map(async ({ url, label }) => {
+        const resolved = buildSearchUrl(url!, urlVars)
+        const sectionLabel = label || 'Pesquisa pública'
+        try {
+          const ctrl = new AbortController()
+          const t = setTimeout(() => ctrl.abort(), 2000)
+          const res = await fetch(resolved, {
+            signal: ctrl.signal,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HRBot/1.0)' },
+          })
+          clearTimeout(t)
+          if (!res.ok) return null
+          const html = await res.text()
+          const text = html
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ').trim().slice(0, 2000)
+          return text ? `=== ${sectionLabel} ===\n${text}` : null
+        } catch { return null }
       })
-      clearTimeout(timeout)
-      if (res.ok) {
-        const html = await res.text()
-        const text = html
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 2500)
-        if (text) searchResults.push(`=== ${sectionLabel} (${resolved}) ===\n${text}`)
-      }
-    } catch { /* URL inacessível — ignora silenciosamente */ }
-  }
+  )).filter(Boolean) as string[]
 
-  // ── System prompt (role/behavior) ─────────────────────────────────────────
-  // O prompt configurado define o PAPEL da IA (system message)
-  const systemPrompt = aiSettings?.analysis_prompt ||
+  // ── Prompts ───────────────────────────────────────────────────────────────
+  const systemPrompt = (aiSettings?.analysis_prompt as string | null) ||
     'Você é um analista de RH especializado em recrutamento e seleção.'
 
-  // ── User prompt (dados do candidato) ─────────────────────────────────────
   const userPrompt = `
 DADOS PESSOAIS DO CANDIDATO:
 ${candidateInfo}
@@ -235,21 +237,13 @@ TESTE CULTURAL (respostas + pontuações):
 ${cultureSummary || 'Não preenchido'}
 
 DADOS DA EMPRESA (use para avaliar compatibilidade):
-${companySection || '(Não configurado — acesse Configurações → Empresa e Cultura)'}
+${companySection || '(Não configurado)'}
 
 ${searchResults.length ? `PESQUISA PÚBLICA SOBRE O CANDIDATO:\n${searchResults.join('\n\n')}` : ''}
 
 ---
 
-Com base em TODOS os dados acima, analise o candidato considerando:
-1. Compatibilidade cultural com a empresa (missão, visão, comportamentos desejados vs alertas)
-2. Aderência ao perfil ideal de colaborador
-3. Experiência e qualificações para a vaga "${jobTitle}"
-4. Disponibilidade (finais de semana, horários, restrições declaradas)
-5. Localização em relação ao estabelecimento
-6. Informações públicas encontradas (se houver — processos, benefícios, reputação)
-
-Retorne APENAS um JSON válido, sem markdown, sem explicação extra:
+Com base em TODOS os dados acima, analise o candidato e retorne APENAS um JSON válido, sem markdown:
 {
   "resumo_candidato": "2 a 3 frases objetivas sobre o perfil geral",
   "pontos_fortes": ["ponto 1", "ponto 2", "ponto 3"],
@@ -264,13 +258,16 @@ Retorne APENAS um JSON válido, sem markdown, sem explicação extra:
   "vaga_recomendada": "título da vaga recomendada ou a atual"
 }`
 
-  // ── Call AI ───────────────────────────────────────────────────────────────
+  // ── Call AI com timeout de 7s ─────────────────────────────────────────────
   let aiResult: AiAnalysisResult | null = null
 
   if (anthropicKey) {
     try {
+      const ctrl = new AbortController()
+      const t = setTimeout(() => ctrl.abort(), 7000)
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
+        signal: ctrl.signal,
         headers: {
           'x-api-key': anthropicKey,
           'anthropic-version': '2023-06-01',
@@ -278,20 +275,19 @@ Retorne APENAS um JSON válido, sem markdown, sem explicação extra:
         },
         body: JSON.stringify({
           model: 'claude-3-5-haiku-20241022',
-          max_tokens: 1500,
-          system: systemPrompt,                       // ← system prompt = papel da IA
-          messages: [{ role: 'user', content: userPrompt }], // ← dados do candidato
+          max_tokens: 1200,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
         }),
       })
+      clearTimeout(t)
       const data = await response.json()
       if (!response.ok) {
         console.error('[analyze-candidate] Anthropic error:', JSON.stringify(data))
       } else {
         const text = data.content?.[0]?.text || ''
-        const jsonMatch = text.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          try { aiResult = JSON.parse(jsonMatch[0]) } catch { /* ignore */ }
-        }
+        const m = text.match(/\{[\s\S]*\}/)
+        if (m) try { aiResult = JSON.parse(m[0]) } catch { /* ignore */ }
       }
     } catch (e) {
       console.error('[analyze-candidate] Anthropic fetch error:', e)
@@ -300,27 +296,31 @@ Retorne APENAS um JSON válido, sem markdown, sem explicação extra:
 
   if (!aiResult && openaiKey) {
     try {
+      const ctrl = new AbortController()
+      const t = setTimeout(() => ctrl.abort(), 7000)
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
+        signal: ctrl.signal,
         headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: systemPrompt },   // ← system prompt = papel da IA
-            { role: 'user',   content: userPrompt },     // ← dados do candidato
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
           ],
-          max_tokens: 1500,
-          response_format: { type: 'json_object' },      // força JSON puro
+          max_tokens: 1200,
+          response_format: { type: 'json_object' },
         }),
       })
+      clearTimeout(t)
       const data = await response.json()
       if (!response.ok) {
         console.error('[analyze-candidate] OpenAI error:', JSON.stringify(data))
       } else {
         const text = data.choices?.[0]?.message?.content || ''
         try { aiResult = JSON.parse(text) } catch {
-          const jsonMatch = text.match(/\{[\s\S]*\}/)
-          if (jsonMatch) try { aiResult = JSON.parse(jsonMatch[0]) } catch { /* ignore */ }
+          const m = text.match(/\{[\s\S]*\}/)
+          if (m) try { aiResult = JSON.parse(m[0]) } catch { /* ignore */ }
         }
       }
     } catch (e) {
@@ -328,19 +328,19 @@ Retorne APENAS um JSON válido, sem markdown, sem explicação extra:
     }
   }
 
-  // ── Fallback ──────────────────────────────────────────────────────────────
+  // ── Fallback quando não há chave de IA configurada ────────────────────────
   if (!aiResult) {
-    console.warn('[analyze-candidate] No AI result — fallback for application:', applicationId)
+    console.warn('[analyze-candidate] No AI result — using fallback for:', applicationId)
     aiResult = {
-      resumo_candidato: 'Análise manual necessária — verifique as chaves de IA em Configurações → Configuração IA.',
+      resumo_candidato: 'Análise manual necessária — configure uma chave de IA em Configurações → Configuração IA.',
       pontos_fortes: [],
-      pontos_de_atencao: ['Nenhuma IA disponível retornou resultado. Verifique as chaves de API configuradas.'],
+      pontos_de_atencao: ['Nenhuma IA disponível. Verifique as chaves de API configuradas.'],
       compatibilidade_cultural: application.culture_score || 0,
       compatibilidade_com_a_vaga: 50,
       nota_experiencia: 50,
       nota_disponibilidade: 50,
       nota_final: 50,
-      parecer_ia: 'Análise automática indisponível — avalie manualmente.',
+      parecer_ia: 'Configure uma chave de API (Anthropic ou OpenAI) para análise automática.',
       status_sugerido: 'analise_ia_concluida',
       vaga_recomendada: jobTitle,
     }
@@ -352,33 +352,32 @@ Retorne APENAS um JSON válido, sem markdown, sem explicação extra:
     experience:   Number(aiSettings?.experience_weight)   || 0.35,
     availability: Number(aiSettings?.availability_weight) || 0.15,
   }
-
   const finalScore = calculateFinalScore(
     aiResult.compatibilidade_cultural,
     aiResult.nota_experiencia,
     aiResult.nota_disponibilidade,
-    weights
+    weights,
   )
 
   // ── Save to DB ────────────────────────────────────────────────────────────
   const { error: updateError } = await supabase.from('applications').update({
-    ai_summary:          aiResult.resumo_candidato,
-    ai_strengths:        aiResult.pontos_fortes,
-    ai_risks:            aiResult.pontos_de_atencao,
-    ai_recommendation:   aiResult.parecer_ia,
+    ai_summary:           aiResult.resumo_candidato,
+    ai_strengths:         aiResult.pontos_fortes,
+    ai_risks:             aiResult.pontos_de_atencao,
+    ai_recommendation:    aiResult.parecer_ia,
     ai_status_suggestion: aiResult.status_sugerido,
-    ai_raw_response:     aiResult as unknown as Record<string, unknown>,
-    experience_score:    aiResult.nota_experiencia,
-    availability_score:  aiResult.nota_disponibilidade,
-    culture_score:       aiResult.compatibilidade_cultural,
-    final_score:         finalScore,
-    status:              'analise_ia_concluida',
-    updated_at:          new Date().toISOString(),
+    ai_raw_response:      aiResult as unknown as Record<string, unknown>,
+    experience_score:     aiResult.nota_experiencia,
+    availability_score:   aiResult.nota_disponibilidade,
+    culture_score:        aiResult.compatibilidade_cultural,
+    final_score:          finalScore,
+    status:               'analise_ia_concluida',
+    updated_at:           new Date().toISOString(),
   }).eq('id', applicationId)
 
   if (updateError) {
     console.error('[analyze-candidate] DB update error:', updateError)
   } else {
-    console.log(`[analyze-candidate] Done ✓ applicationId=${applicationId} final_score=${finalScore} provider=${anthropicKey ? 'anthropic' : 'openai'}`)
+    console.log(`[analyze-candidate] ✓ done applicationId=${applicationId} score=${finalScore} provider=${anthropicKey ? 'anthropic' : 'openai'}`)
   }
 }
