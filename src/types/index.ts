@@ -72,9 +72,33 @@ export interface Candidate {
   /** Diff das alterações no último re-cadastro: { campo: { old, new } } */
   data_changes: Record<string, { old: string; new: string }> | null
   data_updated_at: string | null
+  background_check_result: BackgroundCheckResult | null
+  background_check_at: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null
+}
+
+export interface BackgroundCheckResult {
+  processos_judiciais: {
+    encontrado: boolean
+    resumo: string
+    detalhes: string[]
+    urls: string[]
+  }
+  beneficios_governamentais: {
+    encontrado: boolean
+    lista: string[]
+    resumo: string
+  }
+  outras_informacoes: {
+    items: string[]
+    resumo: string
+  }
+  parecer_geral: string
+  nivel_risco: 'baixo' | 'medio' | 'alto' | 'nao_determinado'
+  fontes_consultadas: string[]
+  observacoes_tecnicas?: string
 }
 
 export interface Application {
