@@ -117,8 +117,8 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
         jobTitle = (jr as {title?:string}|null)?.title ?? raw
       } else { jobTitle = raw }
     }
-  }
-  if (!jobTitle) jobTitle = 'Não informada'
+    if (!jobTitle) jobTitle = 'Não informada'
+    log.push('jobTitle: ' + jobTitle)
 
   // ── Monta textos do prompt ────────────────────────────────────────────────
   const candidateInfo = [
