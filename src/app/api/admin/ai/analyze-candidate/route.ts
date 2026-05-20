@@ -199,7 +199,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     const fetched = await Promise.all(urlFields.map(async ({ url, label }) => {
       try {
         const ctrl = new AbortController()
-        const t = setTimeout(() => ctrl.abort(), 1500)
+        const t = setTimeout(() => ctrl.abort(), 800)
         const res = await fetch(buildUrl(url!, vars), {
           signal: ctrl.signal,
           headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -235,7 +235,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     `Retorne APENAS JSON valido sem markdown:\n${jsonSchema}`,
   ].filter(Boolean).join('\n\n')
 
-  // Chama IA (timeout 5s)
+  // Chama IA (timeout 25s — geração de JSON leva mais que 5s)
   let aiResult: AiAnalysisResult | null = null
   let aiProvider = 'none'
 
@@ -244,7 +244,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
   if (useAnthropic) {
     try {
       const ctrl = new AbortController()
-      const t = setTimeout(() => ctrl.abort(), 5000)
+      const t = setTimeout(() => ctrl.abort(), 25000)
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         signal: ctrl.signal,
@@ -255,7 +255,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
+          max_tokens: 512,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
         }),
@@ -280,7 +280,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
   if (!aiResult && useOpenAI) {
     try {
       const ctrl = new AbortController()
-      const t = setTimeout(() => ctrl.abort(), 5000)
+      const t = setTimeout(() => ctrl.abort(), 15000)
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         signal: ctrl.signal,
@@ -294,7 +294,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          max_tokens: 1024,
+          max_tokens: 512,
           response_format: { type: 'json_object' },
         }),
       })
