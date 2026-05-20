@@ -197,6 +197,8 @@ export interface WhatsappMessage {
 
 export interface AiSettings {
   id: string
+  company_name: string | null
+  logo_url: string | null
   company_culture: string | null
   mission: string | null
   vision: string | null

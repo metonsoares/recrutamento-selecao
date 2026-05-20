@@ -10,6 +10,7 @@ import {
   Settings2, BrainCircuit,
 } from 'lucide-react'
 import { useState } from 'react'
+import Image from 'next/image'
 
 // ─── Estilos base dos itens ───────────────────────────────────────────────────
 
@@ -36,7 +37,15 @@ const navItems = [
 
 // ─── SidebarContent ───────────────────────────────────────────────────────────
 
-function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
+function SidebarContent({
+  onNavClick,
+  logoUrl,
+  companyName,
+}: {
+  onNavClick?: () => void
+  logoUrl?: string | null
+  companyName?: string | null
+}) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -72,12 +81,25 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* ── Marca ─────────────────────────────────────────────────── */}
       <div className="px-4 py-[14px] border-b border-[#e8e8e8]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#1a1a1a] rounded-lg flex items-center justify-center text-[11px] font-bold text-white shrink-0 tracking-wide">
-            BT
-          </div>
+          {logoUrl ? (
+            <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-[#e8e8e8] bg-white flex items-center justify-center">
+              <Image
+                src={logoUrl}
+                alt={companyName || 'Logo'}
+                width={32}
+                height={32}
+                className="object-contain w-full h-full"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div className="w-8 h-8 bg-[#1a1a1a] rounded-lg flex items-center justify-center text-[11px] font-bold text-white shrink-0 tracking-wide">
+              BT
+            </div>
+          )}
           <div className="leading-tight">
             <p className="text-[14px] font-semibold text-[#333333]">Banco de Talentos</p>
-            <p className="text-[12px] text-[#8a8a8a]">Brownie do Ton</p>
+            <p className="text-[12px] text-[#8a8a8a]">{companyName || 'Brownie do Ton'}</p>
           </div>
         </div>
       </div>
@@ -272,16 +294,35 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
 // ─── AdminNav (mobile + desktop) ─────────────────────────────────────────────
 
-export function AdminNav() {
+export function AdminNav({
+  logoUrl,
+  companyName,
+}: {
+  logoUrl?: string | null
+  companyName?: string | null
+}) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
     <>
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-[#e8e8e8] flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 bg-[#1a1a1a] rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0 tracking-wide">
-            BT
-          </div>
+          {logoUrl ? (
+            <div className="w-7 h-7 rounded-md overflow-hidden shrink-0 border border-[#e8e8e8] bg-white flex items-center justify-center">
+              <Image
+                src={logoUrl}
+                alt={companyName || 'Logo'}
+                width={28}
+                height={28}
+                className="object-contain w-full h-full"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div className="w-7 h-7 bg-[#1a1a1a] rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0 tracking-wide">
+              BT
+            </div>
+          )}
           <span className="text-[14px] font-semibold text-[#333333]">Banco de Talentos</span>
         </div>
         <button
@@ -296,7 +337,7 @@ export function AdminNav() {
       <div className="lg:hidden h-14" />
 
       <aside className="hidden lg:flex w-64 min-h-screen bg-white border-r border-[#e8e8e8] flex-col fixed top-0 left-0 bottom-0 z-30">
-        <SidebarContent />
+        <SidebarContent logoUrl={logoUrl} companyName={companyName} />
       </aside>
 
       {mobileOpen && (
@@ -314,7 +355,7 @@ export function AdminNav() {
             >
               <X className="w-4 h-4" />
             </button>
-            <SidebarContent onNavClick={() => setMobileOpen(false)} />
+            <SidebarContent onNavClick={() => setMobileOpen(false)} logoUrl={logoUrl} companyName={companyName} />
           </aside>
         </div>
       )}

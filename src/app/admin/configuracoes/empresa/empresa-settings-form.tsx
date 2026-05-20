@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { AiSettings } from '@/types'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2, Upload, ImageIcon, CheckCircle2 } from 'lucide-react'
+import Image from 'next/image'
 
 type FieldKey =
   | 'mission'
@@ -62,6 +63,67 @@ function FieldLabel({
 
 export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null }) {
   const router = useRouter()
+
+  // ── Identidade visual ─────────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [companyName, setCompanyName] = useState(settings?.company_name || '')
+  const [logoUrl, setLogoUrl] = useState(settings?.logo_url || '')
+  const [logoPreview, setLogoPreview] = useState<string | null>(settings?.logo_url || null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [savingIdentidade, setSavingIdentidade] = useState(false)
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Show local preview immediately
+    const objectUrl = URL.createObjectURL(file)
+    setLogoPreview(objectUrl)
+    setUploadSuccess(false)
+
+    setUploadingLogo(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/admin/company/upload-logo', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.url) {
+        setLogoUrl(data.url)
+        setLogoPreview(data.url)
+        setUploadSuccess(true)
+        router.refresh()
+      } else {
+        alert(data.error || 'Erro ao fazer upload.')
+        setLogoPreview(settings?.logo_url || null)
+      }
+    } catch {
+      alert('Erro ao enviar imagem.')
+      setLogoPreview(settings?.logo_url || null)
+    } finally {
+      setUploadingLogo(false)
+      // Reset input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  async function handleSaveIdentidade() {
+    setSavingIdentidade(true)
+    const supabase = createSupabaseBrowserClient()
+    const payload = {
+      company_name: companyName.trim() || null,
+      logo_url: logoUrl || null,
+      updated_at: new Date().toISOString(),
+    }
+    if (settings?.id) {
+      await supabase.from('ai_settings').update(payload).eq('id', settings.id)
+    } else {
+      await supabase.from('ai_settings').insert(payload)
+    }
+    setSavingIdentidade(false)
+    router.refresh()
+    alert('Identidade visual salva!')
+  }
 
   // ── Dados da empresa ──────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
@@ -179,6 +241,89 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
           Identidade, cultura e configurações de IA para análise de candidatos
         </p>
       </div>
+
+      {/* ══ SEÇÃO 0: Identidade Visual ══════════════════════════════════════ */}
+      <section className="space-y-5">
+        <h2 className="text-base font-semibold text-[#333333] border-b pb-2">Identidade Visual</h2>
+
+        {/* Logo upload */}
+        <div className="flex flex-col sm:flex-row gap-6 items-start">
+          {/* Preview */}
+          <div className="shrink-0">
+            <p className="text-sm font-medium mb-2">Logomarca</p>
+            <div
+              className="w-24 h-24 rounded-xl border-2 border-dashed border-[#d0d0d0] bg-[#fafafa] flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#aaa] transition-colors relative"
+              onClick={() => fileInputRef.current?.click()}
+              title="Clique para alterar a logo"
+            >
+              {logoPreview ? (
+                <Image
+                  src={logoPreview}
+                  alt="Logo da empresa"
+                  fill
+                  className="object-contain p-1"
+                  unoptimized
+                />
+              ) : (
+                <ImageIcon className="w-8 h-8 text-[#bbb]" />
+              )}
+              {uploadingLogo && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#555]" />
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 text-center">Clique para trocar</p>
+          </div>
+
+          {/* Upload controls */}
+          <div className="flex-1 space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+              onChange={handleLogoChange}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingLogo}
+              className="gap-2"
+            >
+              {uploadingLogo
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</>
+                : <><Upload className="w-4 h-4" />Selecionar imagem</>
+              }
+            </Button>
+            {uploadSuccess && (
+              <p className="flex items-center gap-1.5 text-sm text-green-700">
+                <CheckCircle2 className="w-4 h-4" />Logo atualizada com sucesso!
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Formatos aceitos: JPG, PNG, GIF, WebP, SVG · Máximo 5MB
+              <br />A logo será usada no sidebar, no formulário público e como favicon.
+            </p>
+          </div>
+        </div>
+
+        {/* Company name */}
+        <div>
+          <Label className="text-sm mb-1.5 block">Nome da Empresa</Label>
+          <Input
+            value={companyName}
+            onChange={e => setCompanyName(e.target.value)}
+            placeholder="Ex: Brownie do Ton"
+            className="text-base max-w-sm"
+          />
+        </div>
+
+        <Button onClick={handleSaveIdentidade} disabled={savingIdentidade} className="w-full sm:w-auto">
+          {savingIdentidade ? 'Salvando...' : 'Salvar Identidade Visual'}
+        </Button>
+      </section>
 
       {/* ══ SEÇÃO 1: Empresa ════════════════════════════════════════════════ */}
       <section className="space-y-5">

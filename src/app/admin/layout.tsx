@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AdminNav } from '@/components/admin/sidebar'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -8,9 +8,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
+  // Fetch branding from ai_settings (service client to bypass RLS)
+  const serviceClient = await createSupabaseServiceClient()
+  const { data: brandSettings } = await serviceClient
+    .from('ai_settings')
+    .select('logo_url, company_name')
+    .limit(1)
+    .single()
+
   return (
     <div className="min-h-screen bg-muted/30">
-      <AdminNav />
+      <AdminNav
+        logoUrl={brandSettings?.logo_url ?? null}
+        companyName={brandSettings?.company_name ?? null}
+      />
       <main className="lg:pl-64 min-h-screen">
         {children}
       </main>

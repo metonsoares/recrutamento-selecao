@@ -32,7 +32,7 @@ export default async function CurriculoPage() {
       .order('sort_order'),
     supabase
       .from('ai_settings')
-      .select('mission, vision, company_culture')
+      .select('mission, vision, company_culture, logo_url, company_name')
       .limit(1)
       .single(),
     supabase
@@ -56,6 +56,8 @@ export default async function CurriculoPage() {
       sections={(sections as FormSection[]) || []}
       companyInfo={companyInfo}
       cultureQuestions={(cultureQuestions as CultureQuestion[]) || []}
+      logoUrl={aiSettings?.logo_url ?? null}
+      companyName={aiSettings?.company_name ?? null}
     />
   )
 }

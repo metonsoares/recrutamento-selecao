@@ -13,6 +13,8 @@ interface Props {
   sections: FormSection[]
   companyInfo: { mission: string | null; company_culture: string | null } | null
   cultureQuestions: CultureQuestion[]
+  logoUrl?: string | null
+  companyName?: string | null
 }
 
 // ─── Masks ────────────────────────────────────────────────────────────────────
@@ -149,7 +151,7 @@ async function compressImage(file: File, maxBytes = MAX_FILE_BYTES): Promise<Fil
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CurriculoForm({ jobs, questions, sections, companyInfo: _companyInfo, cultureQuestions }: Props) {
+export function CurriculoForm({ jobs, questions, sections, companyInfo: _companyInfo, cultureQuestions, logoUrl, companyName }: Props) {
   // ── Currículo state ────────────────────────────────────────────────────────
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [cepStatuses, setCepStatuses] = useState<Record<string, 'idle' | 'checking' | 'valid' | 'invalid'>>({})
@@ -851,8 +853,21 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
         )}
 
         {/* Header */}
-        <div className="text-center">
+        <div className="text-center space-y-3">
+          {logoUrl && (
+            <div className="flex justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoUrl}
+                alt={companyName || 'Logo'}
+                className="h-14 w-auto object-contain"
+              />
+            </div>
+          )}
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Cadastre seu Currículo</h1>
+          {companyName && !logoUrl && (
+            <p className="text-sm text-muted-foreground">{companyName}</p>
+          )}
         </div>
 
         <form onSubmit={handleFormSubmit} className="space-y-4">
