@@ -8,7 +8,7 @@ import { formatDate } from '@/lib/helpers'
 import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
-import { FileDown, Globe, ArrowLeft, AlertTriangle } from 'lucide-react'
+import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -295,6 +295,36 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Alerta: Dados Atualizados ── */}
+      {candidate.data_changes && Object.keys(candidate.data_changes).length > 0 && (
+        <div className="rounded-xl border-2 border-orange-400 bg-orange-50 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-5 h-5 text-orange-600 shrink-0" />
+            <span className="font-bold text-orange-700 text-sm">
+              Cadastro atualizado pelo candidato
+              {candidate.data_updated_at && (
+                <span className="font-normal text-orange-600 ml-2 text-xs">
+                  em {formatDate(candidate.data_updated_at)}
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {Object.entries(candidate.data_changes).map(([campo, diff]) => {
+              const d = diff as { old: string; new: string }
+              return (
+                <div key={campo} className="flex flex-wrap items-center gap-2 text-sm bg-white rounded-lg px-3 py-2 border border-orange-200">
+                  <span className="text-orange-700 font-medium w-20 shrink-0">{campo}:</span>
+                  <span className="line-through text-red-500 font-medium">{d.old}</span>
+                  <span className="text-orange-500 font-bold">→</span>
+                  <span className="text-green-700 font-semibold">{d.new}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Alerta: Processos Judiciais ── */}
       {(() => {

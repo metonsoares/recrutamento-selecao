@@ -68,6 +68,10 @@ export interface Candidate {
   lgpd_accepted_at: string | null
   latest_application_id: string | null
   possible_duplicate: boolean
+  cpf: string | null
+  /** Diff das alterações no último re-cadastro: { campo: { old, new } } */
+  data_changes: Record<string, { old: string; new: string }> | null
+  data_updated_at: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null

@@ -6,60 +6,120 @@ interface CurriculoPayload {
   full_name: string
   phone: string
   email?: string
-  city: string
+  city?: string
   neighborhood?: string
+  cpf?: string
   job_id?: string
   lgpd_accepted: boolean
   answers: Record<string, string | string[]>
 }
 
+/** Normaliza CPF removendo máscara para comparação */
+function normalizeCPF(cpf: string): string {
+  return cpf.replace(/\D/g, '')
+}
+
+/** Compara campos e retorna apenas os que mudaram */
+function computeDiff(
+  oldData: Record<string, string>,
+  newData: Record<string, string>,
+): Record<string, { old: string; new: string }> {
+  const diff: Record<string, { old: string; new: string }> = {}
+  for (const key of Object.keys(newData)) {
+    const oldVal = (oldData[key] || '').trim()
+    const newVal = (newData[key] || '').trim()
+    if (oldVal && newVal && oldVal !== newVal) {
+      diff[key] = { old: oldVal, new: newVal }
+    }
+  }
+  return diff
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: CurriculoPayload = await req.json()
-    const { full_name, phone, email, city, neighborhood, job_id, lgpd_accepted, answers } = body
+    const { full_name, phone, email, city, neighborhood, cpf, job_id, lgpd_accepted, answers } = body
 
     if (!full_name?.trim()) return NextResponse.json({ error: 'Nome completo é obrigatório.' }, { status: 400 })
     if (!phone?.trim()) return NextResponse.json({ error: 'Telefone é obrigatório.' }, { status: 400 })
-    if (!city?.trim()) return NextResponse.json({ error: 'Cidade é obrigatória.' }, { status: 400 })
     if (!lgpd_accepted) return NextResponse.json({ error: 'Aceite dos termos LGPD é obrigatório.' }, { status: 400 })
 
     const supabase = await createSupabaseServiceClient()
 
     const phoneNormalized = normalizePhone(phone)
     const emailNormalized = email ? normalizeEmail(email) : null
+    const cpfNormalized = cpf ? normalizeCPF(cpf) : null
 
     const ipAddress =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
       null
 
-    // ── Verificar se telefone já existe (unique constraint) ───────────────────
-    const { data: existingCandidate } = await supabase
-      .from('candidates')
-      .select('id')
-      .eq('phone_normalized', phoneNormalized)
-      .is('deleted_at', null)
-      .maybeSingle()
+    // ── Buscar candidato existente — prioridade: CPF > telefone ──────────────
+    let existingCandidate: { id: string; full_name: string; phone: string | null; email: string | null; city: string | null } | null = null
+
+    if (cpfNormalized) {
+      const { data } = await supabase
+        .from('candidates')
+        .select('id, full_name, phone, email, city')
+        .eq('cpf', cpfNormalized)
+        .is('deleted_at', null)
+        .maybeSingle()
+      existingCandidate = data
+    }
+
+    // Fallback: busca por telefone (se CPF não encontrou nada)
+    if (!existingCandidate) {
+      const { data } = await supabase
+        .from('candidates')
+        .select('id, full_name, phone, email, city')
+        .eq('phone_normalized', phoneNormalized)
+        .is('deleted_at', null)
+        .maybeSingle()
+      existingCandidate = data
+    }
 
     let candidateId: string
 
     if (existingCandidate) {
-      // ── Telefone já cadastrado: atualiza os dados do candidato existente ────
+      // ── Candidato já existe: detecta alterações e atualiza ─────────────────
       candidateId = existingCandidate.id
+
+      // Computa diff dos campos principais
+      const diff = computeDiff(
+        {
+          Nome: existingCandidate.full_name || '',
+          Telefone: existingCandidate.phone || '',
+          'E-mail': existingCandidate.email || '',
+          Cidade: existingCandidate.city || '',
+        },
+        {
+          Nome: full_name.trim(),
+          Telefone: phone.trim(),
+          'E-mail': email?.trim() || '',
+          Cidade: city?.trim() || '',
+        },
+      )
 
       await supabase
         .from('candidates')
         .update({
           full_name: full_name.trim(),
           phone: phone.trim(),
+          phone_normalized: phoneNormalized,
           email: email?.trim() || null,
           email_normalized: emailNormalized,
-          city: city.trim(),
+          city: city?.trim() || null,
           neighborhood: neighborhood?.trim() || null,
+          cpf: cpfNormalized || undefined,
           possible_duplicate: true,
           lgpd_accepted: true,
           lgpd_accepted_at: new Date().toISOString(),
           ip_address: ipAddress,
+          // Salva o diff apenas se houver mudanças reais
+          ...(Object.keys(diff).length > 0
+            ? { data_changes: diff, data_updated_at: new Date().toISOString() }
+            : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('id', candidateId)
@@ -72,7 +132,7 @@ export async function POST(req: NextRequest) {
         .eq('is_latest', true)
 
     } else {
-      // ── Telefone novo: insere candidato ─────────────────────────────────────
+      // ── Novo candidato: insere ─────────────────────────────────────────────
       const { data: newCandidate, error: candidateError } = await supabase
         .from('candidates')
         .insert({
@@ -81,8 +141,9 @@ export async function POST(req: NextRequest) {
           phone_normalized: phoneNormalized,
           email: email?.trim() || null,
           email_normalized: emailNormalized,
-          city: city.trim(),
+          city: city?.trim() || null,
           neighborhood: neighborhood?.trim() || null,
+          cpf: cpfNormalized || null,
           source: 'curriculo',
           lgpd_accepted: true,
           lgpd_accepted_at: new Date().toISOString(),

@@ -345,6 +345,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
     let phone = ''
     let city = ''
     let email = ''
+    let cpf = ''
 
     for (const q of questions) {
       const val = (finalAnswers[q.id] as string) || ''
@@ -354,6 +355,8 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
         phone = val
       if (!email && q.field_type === 'email' && val)
         email = val
+      if (!cpf && q.field_type === 'cpf' && val)
+        cpf = val
       if (!city && q.field_type === 'address' && addrValues[q.id]?.city)
         city = addrValues[q.id].city
       if (!city && /cidade/i.test(q.question_text) && q.field_type === 'short_text' && val)
@@ -374,6 +377,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
           phone: phone || 'Não informado',
           city: city || 'Não informado',
           email: email || undefined,
+          cpf: cpf || undefined,
           lgpd_accepted: true,
           answers: finalAnswers,
         }),
