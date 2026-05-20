@@ -1,34 +1,96 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { STATUS_LABELS, STATUS_COLORS, CandidateStatus } from '@/types'
-import { formatDate, formatDateTime } from '@/lib/helpers'
+import { formatDate } from '@/lib/helpers'
 import { CandidateActions } from './candidate-actions'
+import { CandidateNotesEditor } from './notes-editor'
+import { FileDown, Globe } from 'lucide-react'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const HIDE_FIELD_TYPES = new Set([
+  'date', 'celular', 'email', 'job_select', 'address', 'file_upload', 'cpf', 'cep',
+])
+const HIDE_QUESTION_PATTERNS = [
+  'nome completo', 'endereço', 'bairro', 'cidade', 'telefone',
+  'celular', 'e-mail', 'email', 'vaga de interesse', 'anexe',
+]
+
+function parseAnswer(text: string | null): string {
+  if (!text) return '—'
+  try {
+    const p = JSON.parse(text)
+    if (typeof p === 'string') return p
+    if (Array.isArray(p)) return p.join(', ')
+    if (typeof p === 'object' && p !== null) {
+      const addr = p as Record<string, string>
+      const parts = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city, addr.state].filter(Boolean)
+      return parts.join(', ') || JSON.stringify(p)
+    }
+    return String(p)
+  } catch { return text }
+}
+
+function calculateAge(dateStr: string): number | null {
+  try {
+    const birth = new Date(dateStr)
+    if (isNaN(birth.getTime())) return null
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    if (
+      today.getMonth() < birth.getMonth() ||
+      (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
+    ) age--
+    return age
+  } catch { return null }
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-2 text-sm">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="font-medium text-right">{value || '—'}</span>
+    </div>
+  )
+}
+
+function ScoreRow({ label, value, color }: { label: string; value: number | null | undefined; color: string }) {
+  if (value == null) return <Row label={label} value={null} />
+  return (
+    <div className="flex justify-between gap-2 items-center text-sm">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <div className="flex items-center gap-2">
+        <div className="w-20 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+          <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
+        </div>
+        <span className="font-bold text-right w-10 text-right">{Math.round(value)}%</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function CandidatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createSupabaseServerClient()
 
   const { data: candidate } = await supabase
-    .from('candidates')
-    .select('*')
-    .eq('id', id)
-    .single()
-
+    .from('candidates').select('*').eq('id', id).single()
   if (!candidate) notFound()
 
   const { data: applications } = await supabase
-    .from('applications')
-    .select('*, jobs(title)')
-    .eq('candidate_id', id)
-    .order('created_at', { ascending: false })
+    .from('applications').select('*, jobs(title)')
+    .eq('candidate_id', id).order('created_at', { ascending: false })
 
   const latestApp = applications?.[0]
 
   const { data: formAnswers } = latestApp ? await supabase
     .from('form_answers')
-    .select('*, form_questions(question_text, category)')
+    .select('*, form_questions(question_text, field_type, category)')
     .eq('application_id', latestApp.id) : { data: [] }
 
   const { data: cultureAnswers } = latestApp ? await supabase
@@ -37,19 +99,72 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
     .eq('application_id', latestApp.id) : { data: [] }
 
   const { data: notes } = await supabase
-    .from('admin_notes')
-    .select('*')
-    .eq('candidate_id', id)
+    .from('admin_notes').select('*').eq('candidate_id', id)
     .order('created_at', { ascending: false })
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
+  const jobTitle = (latestApp?.jobs as { title?: string } | null)?.title
+
+  // ── Extract key fields from form_answers ─────────────────────────────────
+  const allFa = formAnswers || []
+
+  const photoUrl = parseAnswer(
+    allFa.find(a => (a.form_questions as { field_type?: string } | null)?.field_type === 'file_upload')?.answer_text ?? null
+  )
+  const cpf = parseAnswer(
+    allFa.find(a => (a.form_questions as { field_type?: string } | null)?.field_type === 'cpf')?.answer_text ?? null
+  )
+  const birthDateRaw = parseAnswer(
+    allFa.find(a => (a.form_questions as { field_type?: string } | null)?.field_type === 'date')?.answer_text ?? null
+  )
+  const addressRaw = parseAnswer(
+    allFa.find(a => (a.form_questions as { field_type?: string } | null)?.field_type === 'address')?.answer_text ?? null
+  )
+
+  const birthDate = birthDateRaw !== '—' ? birthDateRaw : null
+  const age = birthDate ? calculateAge(birthDate) : null
+
+  // ── Filter form answers shown in the experience section ───────────────────
+  const filteredAnswers = allFa.filter(a => {
+    const q = a.form_questions as { question_text?: string; field_type?: string } | null
+    if (!q) return false
+    if (HIDE_FIELD_TYPES.has(q.field_type ?? '')) return false
+    const qLower = (q.question_text ?? '').toLowerCase()
+    if (HIDE_QUESTION_PATTERNS.some(p => qLower.includes(p))) return false
+    return true
+  })
+
+  // ── Score colors ──────────────────────────────────────────────────────────
+  function scoreColor(v: number | null | undefined) {
+    if (v == null) return 'bg-gray-300'
+    if (v >= 70) return 'bg-emerald-500'
+    if (v >= 50) return 'bg-amber-400'
+    return 'bg-red-400'
+  }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{candidate.full_name}</h1>
-          <div className="flex items-center gap-2 mt-1">
+    <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
+
+      {/* ── Header ── */}
+      <div className="flex items-start gap-4 flex-wrap">
+        {/* Photo 3x4 */}
+        <div className="shrink-0 w-[72px] h-[96px] rounded-lg border-2 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center shadow-sm">
+          {photoUrl !== '—' ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photoUrl}
+              alt="Foto do candidato"
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <span className="text-[10px] text-muted-foreground text-center px-1">Sem foto</span>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold leading-tight">{candidate.full_name}</h1>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge className={`text-xs ${STATUS_COLORS[currentStatus]}`}>
               {STATUS_LABELS[currentStatus]}
             </Badge>
@@ -57,44 +172,70 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <Badge variant="outline" className="text-xs">{applications.length} candidaturas</Badge>
             )}
           </div>
+          <CandidateActions candidateId={id} applicationId={latestApp?.id} currentStatus={currentStatus} />
         </div>
-        <CandidateActions candidateId={id} applicationId={latestApp?.id} currentStatus={currentStatus} />
+
+        {/* PDF button */}
+        <Link
+          href={`/admin/candidatos/${id}/print`}
+          target="_blank"
+          className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+        >
+          <FileDown className="w-4 h-4" />
+          Exportar PDF
+        </Link>
       </div>
 
+      {/* ── Cards de resumo ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {/* Dados Pessoais */}
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Dados Pessoais</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Dados Pessoais</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <Row label="Nome" value={candidate.full_name} />
+            {birthDate && (
+              <Row
+                label="Nascimento"
+                value={`${formatDate(birthDate)}${age != null ? ` (${age} anos)` : ''}`}
+              />
+            )}
+            {cpf !== '—' && <Row label="CPF" value={cpf} />}
             <Row label="Telefone" value={candidate.phone} />
             <Row label="E-mail" value={candidate.email} />
-            <Row label="Cidade" value={candidate.city} />
-            <Row label="Bairro" value={candidate.neighborhood} />
-            <Row label="Origem" value={candidate.source} />
-            <Row label="LGPD" value={candidate.lgpd_accepted ? `Aceito em ${formatDate(candidate.lgpd_accepted_at)}` : 'Não aceito'} />
+            {addressRaw !== '—' && <Row label="Endereço" value={addressRaw} />}
+            {candidate.neighborhood && <Row label="Bairro" value={candidate.neighborhood} />}
+            {candidate.city && <Row label="Cidade" value={candidate.city} />}
             <Row label="Cadastro" value={formatDate(candidate.created_at)} />
           </CardContent>
         </Card>
 
+        {/* Candidatura Atual */}
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Candidatura Atual</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Candidatura Atual</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
             {latestApp ? (
               <>
-                <Row label="Vaga" value={(latestApp.jobs as { title?: string } | null)?.title} />
+                <Row label="Vaga" value={jobTitle} />
                 <Row label="Data" value={formatDate(latestApp.created_at)} />
-                <Row label="Nota Cultural" value={latestApp.culture_score != null ? `${latestApp.culture_score.toFixed(0)}/100` : null} />
-                <Row label="Nota Experiência" value={latestApp.experience_score != null ? `${latestApp.experience_score.toFixed(0)}/100` : null} />
-                <Row label="Nota Disponib." value={latestApp.availability_score != null ? `${latestApp.availability_score.toFixed(0)}/100` : null} />
-                <Row label="Nota Final" value={latestApp.final_score != null ? <strong>{latestApp.final_score.toFixed(0)}/100</strong> : null} />
+                <div className="pt-1 space-y-1.5">
+                  <ScoreRow label="Compatib. Cultural" value={latestApp.culture_score} color={scoreColor(latestApp.culture_score)} />
+                  <ScoreRow label="Experiência" value={latestApp.experience_score} color={scoreColor(latestApp.experience_score)} />
+                  <ScoreRow label="Disponibilidade" value={latestApp.availability_score} color={scoreColor(latestApp.availability_score)} />
+                  <div className="border-t pt-1.5">
+                    <ScoreRow label="Nota Final" value={latestApp.final_score} color={scoreColor(latestApp.final_score)} />
+                  </div>
+                </div>
               </>
             ) : (
-              <p className="text-muted-foreground">Sem candidatura</p>
+              <p className="text-sm text-muted-foreground">Sem candidatura</p>
             )}
           </CardContent>
         </Card>
 
+        {/* Parecer da IA */}
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Parecer da IA</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Parecer da IA</CardTitle></CardHeader>
           <CardContent className="text-sm space-y-2">
             {latestApp?.ai_summary ? (
               <>
@@ -103,67 +244,76 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
                   <p className="font-medium text-xs border-t pt-2">{latestApp.ai_recommendation}</p>
                 )}
                 {latestApp.ai_status_suggestion && (
-                  <p className="text-xs text-muted-foreground">Sugestão: {STATUS_LABELS[latestApp.ai_status_suggestion as CandidateStatus] || latestApp.ai_status_suggestion}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Sugestão: {STATUS_LABELS[latestApp.ai_status_suggestion as CandidateStatus] || latestApp.ai_status_suggestion}
+                  </p>
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground">Análise não realizada</p>
+              <p className="text-muted-foreground text-sm">Análise não realizada — use o botão "Analisar IA" acima.</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {(latestApp?.ai_strengths?.length > 0 || latestApp?.ai_risks?.length > 0) && (
+      {/* ── Pontos fortes / atenção ── */}
+      {((latestApp?.ai_strengths as string[])?.length > 0 || (latestApp?.ai_risks as string[])?.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm text-green-700">Pontos Fortes</CardTitle></CardHeader>
-            <CardContent>
-              <ul className="space-y-1">
-                {(latestApp.ai_strengths as string[]).map((p, i) => (
-                  <li key={i} className="text-sm flex gap-2"><span className="text-green-500">✓</span>{p}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm text-amber-700">Pontos de Atenção</CardTitle></CardHeader>
-            <CardContent>
-              <ul className="space-y-1">
-                {(latestApp.ai_risks as string[]).map((p, i) => (
-                  <li key={i} className="text-sm flex gap-2"><span className="text-amber-500">!</span>{p}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          {(latestApp?.ai_strengths as string[])?.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-emerald-700">Pontos Fortes</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="space-y-1">
+                  {(latestApp!.ai_strengths as string[]).map((p, i) => (
+                    <li key={i} className="text-sm flex gap-2"><span className="text-emerald-500 shrink-0">✓</span>{p}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+          {(latestApp?.ai_risks as string[])?.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-amber-700">Pontos de Atenção</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="space-y-1">
+                  {(latestApp!.ai_risks as string[]).map((p, i) => (
+                    <li key={i} className="text-sm flex gap-2"><span className="text-amber-500 shrink-0">!</span>{p}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
-      {formAnswers && formAnswers.length > 0 && (
+      {/* ── Formulário de Experiência (sem dados pessoais) ── */}
+      {filteredAnswers.length > 0 && (
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Formulário de Experiência</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Formulário de Experiência</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {formAnswers.map((a) => (
+            {filteredAnswers.map(a => (
               <div key={a.id} className="text-sm border-b pb-2 last:border-0">
                 <p className="text-muted-foreground text-xs">{(a.form_questions as { question_text?: string } | null)?.question_text}</p>
-                <p className="mt-0.5 font-medium">{a.answer_text || '—'}</p>
+                <p className="mt-0.5 font-medium whitespace-pre-wrap">{parseAnswer(a.answer_text)}</p>
               </div>
             ))}
           </CardContent>
         </Card>
       )}
 
+      {/* ── Teste Cultural ── */}
       {cultureAnswers && cultureAnswers.length > 0 && (
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Teste Cultural</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Teste Cultural</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {cultureAnswers.map((a) => (
+            {cultureAnswers.map(a => (
               <div key={a.id} className="text-sm border-b pb-2 last:border-0 flex justify-between items-start gap-4">
                 <div>
                   <p className="text-muted-foreground text-xs">{(a.culture_questions as { question_text?: string } | null)?.question_text}</p>
                   <p className="mt-0.5">{a.selected_option || '—'}</p>
                   <p className="text-xs text-muted-foreground">{(a.culture_questions as { culture_value?: string } | null)?.culture_value}</p>
                 </div>
-                <span className={`text-sm font-bold shrink-0 ${(a.score || 0) >= 8 ? 'text-green-600' : (a.score || 0) >= 5 ? 'text-amber-600' : 'text-red-600'}`}>
+                <span className={`text-sm font-bold shrink-0 ${(a.score || 0) >= 8 ? 'text-emerald-600' : (a.score || 0) >= 5 ? 'text-amber-600' : 'text-red-600'}`}>
                   {a.score ?? 0}/10
                 </span>
               </div>
@@ -172,16 +322,17 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         </Card>
       )}
 
+      {/* ── Histórico ── */}
       {applications && applications.length > 1 && (
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Histórico de Candidaturas</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Histórico de Candidaturas</CardTitle></CardHeader>
           <CardContent>
             <table className="w-full text-sm">
               <thead><tr className="text-muted-foreground text-xs border-b">
                 <th className="text-left pb-2">Data</th>
                 <th className="text-left pb-2">Vaga</th>
                 <th className="text-left pb-2">Status</th>
-                <th className="text-left pb-2">Nota Final</th>
+                <th className="text-left pb-2">Nota</th>
               </tr></thead>
               <tbody>
                 {applications.map(a => (
@@ -193,7 +344,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
                         {STATUS_LABELS[a.status as CandidateStatus] || a.status}
                       </Badge>
                     </td>
-                    <td className="py-2">{a.final_score != null ? `${(a.final_score as number).toFixed(0)}` : '—'}</td>
+                    <td className="py-2">{a.final_score != null ? `${(a.final_score as number).toFixed(0)}%` : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -202,27 +353,29 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         </Card>
       )}
 
+      {/* ── Observações Internas ── */}
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-sm">Observações Internas</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {notes?.map(n => (
-            <div key={n.id} className="text-sm border-l-2 border-primary/30 pl-3">
-              <p>{n.note}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{formatDateTime(n.created_at)}</p>
-            </div>
-          ))}
-          {!notes?.length && <p className="text-sm text-muted-foreground">Nenhuma observação</p>}
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Observações Internas</CardTitle></CardHeader>
+        <CardContent>
+          <CandidateNotesEditor
+            candidateId={id}
+            applicationId={latestApp?.id}
+            initialNotes={(notes || []).map(n => ({
+              id: n.id as string,
+              note: n.note as string,
+              created_at: n.created_at as string,
+            }))}
+          />
         </CardContent>
       </Card>
-    </div>
-  )
-}
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className="font-medium text-right">{value || '—'}</span>
+      {/* ── IP de Registro ── */}
+      {candidate.ip_address && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded-lg px-3 py-2 bg-gray-50">
+          <Globe className="w-3.5 h-3.5 shrink-0" />
+          <span>IP de cadastro: <code className="font-mono">{candidate.ip_address}</code></span>
+        </div>
+      )}
     </div>
   )
 }

@@ -64,6 +64,12 @@ export async function POST(req: NextRequest) {
         .eq('is_latest', true)
     }
 
+    // Capture client IP address
+    const ipAddress =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      null
+
     // Insert new candidate
     const { data: newCandidate, error: candidateError } = await supabase
       .from('candidates')
@@ -79,6 +85,7 @@ export async function POST(req: NextRequest) {
         lgpd_accepted: true,
         lgpd_accepted_at: new Date().toISOString(),
         possible_duplicate: possibleDuplicate,
+        ip_address: ipAddress,
       })
       .select('id')
       .single()
