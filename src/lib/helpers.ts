@@ -28,14 +28,22 @@ export function encryptToken(text: string): string {
 }
 
 export function decryptToken(encrypted: string): string {
-  const secret = process.env.ENCRYPTION_SECRET || 'default-secret-change-me'
-  const [ivHex, encryptedText] = encrypted.split(':')
-  const iv = Buffer.from(ivHex, 'hex')
-  const key = crypto.scryptSync(secret, 'salt', 32)
-  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv)
-  let decrypted = decipher.update(encryptedText, 'hex', 'utf8')
-  decrypted += decipher.final('utf8')
-  return decrypted
+  try {
+    const secret = process.env.ENCRYPTION_SECRET || 'default-secret-change-me'
+    const colonIdx = encrypted.indexOf(':')
+    if (colonIdx === -1) throw new Error('Invalid encrypted format — missing colon separator')
+    const ivHex = encrypted.slice(0, colonIdx)
+    const encryptedText = encrypted.slice(colonIdx + 1)
+    const iv = Buffer.from(ivHex, 'hex')
+    const key = crypto.scryptSync(secret, 'salt', 32)
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv)
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    return decrypted
+  } catch (err) {
+    console.error('[decryptToken] Failed to decrypt:', err)
+    throw err
+  }
 }
 
 export function calculateCultureScore(

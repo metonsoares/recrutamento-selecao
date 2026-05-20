@@ -290,7 +290,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground text-sm">Análise não realizada — use o botão "Analisar IA" acima.</p>
+              <p className="text-muted-foreground text-sm">Análise não realizada — use o botão &quot;Analisar IA&quot; acima.</p>
             )}
           </CardContent>
         </Card>

@@ -96,35 +96,29 @@ export function CandidateActions({
       const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        showToast('error', data?.error || `Erro ${res.status} ao iniciar análise.`, 6000)
+        showToast('error', data?.error || `Erro ${res.status} ao iniciar análise.`, 8000)
         setAnalyzing(false)
         return
       }
 
-      showToast('success', '⏳ Análise iniciada — aguardando resultado...', 60000)
-
-      // Poll Supabase a cada 3s até ai_summary aparecer (máximo 45s)
-      const supabase = createSupabaseBrowserClient()
-      const maxWait = 45_000
-      const pollInterval = 3_000
-      const startedAt = Date.now()
-
-      while (Date.now() - startedAt < maxWait) {
-        await new Promise(r => setTimeout(r, pollInterval))
-        const { data: app } = await supabase
-          .from('applications')
-          .select('ai_summary')
-          .eq('id', applicationId)
-          .single()
-
-        if (app?.ai_summary) {
-          window.location.reload()
-          return
-        }
+      // Se a rota retornou um erro de etapa específica, mostra para diagnóstico
+      if (data?.error) {
+        showToast('error', `Erro na etapa "${data.step}": ${data.error}`, 10000)
+        setAnalyzing(false)
+        return
       }
 
-      // Tempo esgotado — recarrega mesmo assim (pode ter salvado fallback)
+      // Mostra qual provider foi usado
+      const providerLabel = data?.provider === 'anthropic' ? 'Claude (Anthropic)'
+        : data?.provider === 'openai' ? 'GPT (OpenAI)'
+        : data?.provider === 'fallback' ? 'Fallback (sem chave IA)'
+        : 'IA'
+      showToast('success', `✅ Análise concluída via ${providerLabel}! Recarregando...`, 5000)
+
+      // Pequena pausa e recarrega — o resultado já está salvo no DB
+      await new Promise(r => setTimeout(r, 1500))
       window.location.reload()
+
     } catch (err) {
       console.error('[analyze] fetch error:', err)
       showToast('error', 'Erro de conexão. Verifique sua internet e tente novamente.', 6000)
