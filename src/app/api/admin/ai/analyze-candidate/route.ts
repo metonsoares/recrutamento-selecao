@@ -263,14 +263,20 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
       clearTimeout(t)
       console.log(`[analyze] Anthropic status=${res.status} ${Date.now() - t0}ms`)
       if (res.ok) {
-        const txt = (await res.json()).content?.[0]?.text || ''
+        const body = await res.json()
+        const txt = body.content?.[0]?.text || ''
+        console.log(`[analyze] Anthropic raw (first 300): ${txt.slice(0, 300)}`)
         const m = txt.match(/\{[\s\S]*\}/)
         if (m) {
-          try { aiResult = JSON.parse(m[0]); aiProvider = 'anthropic' } catch { /* ignore */ }
+          try { aiResult = JSON.parse(m[0]); aiProvider = 'anthropic' } catch (je) {
+            console.error('[analyze] JSON parse error:', String(je), 'text:', m[0].slice(0, 200))
+          }
+        } else {
+          console.warn('[analyze] No JSON found in Anthropic response. stop_reason:', body.stop_reason, 'len:', txt.length)
         }
       } else {
         const err = await res.json().catch(() => ({}))
-        console.error('[analyze] Anthropic error:', JSON.stringify(err).slice(0, 200))
+        console.error('[analyze] Anthropic HTTP error:', res.status, JSON.stringify(err).slice(0, 300))
       }
     } catch (e) {
       console.error('[analyze] Anthropic timeout/error:', String(e))
