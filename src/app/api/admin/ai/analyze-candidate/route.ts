@@ -205,7 +205,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     const fetched = await Promise.all(urlFields.map(async ({ url, label }) => {
       try {
         const ctrl = new AbortController()
-        const t = setTimeout(() => ctrl.abort(), 800)
+        const t = setTimeout(() => ctrl.abort(), 3000)
         const res = await fetch(buildUrl(url!, vars), {
           signal: ctrl.signal,
           headers: { 'User-Agent': 'Mozilla/5.0' },
