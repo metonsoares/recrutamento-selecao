@@ -8,7 +8,7 @@ import { formatDate } from '@/lib/helpers'
 import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
-import { FileDown, Globe, ArrowLeft } from 'lucide-react'
+import { FileDown, Globe, ArrowLeft, AlertTriangle } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -296,6 +296,38 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         </Card>
       </div>
 
+      {/* ── Alerta: Processos Judiciais ── */}
+      {(() => {
+        const judicial = latestApp?.ai_judicial_alert as { encontrado?: boolean; itens?: Array<{ fonte?: string; url?: string; descricao?: string }> } | null
+        if (!judicial?.encontrado || !judicial.itens?.length) return null
+        return (
+          <div className="rounded-xl border-2 border-red-400 bg-red-50 p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+              <span className="font-bold text-red-700 text-sm">⚠️ Processos Judiciais Encontrados</span>
+            </div>
+            <ul className="space-y-2 mt-1">
+              {judicial.itens.map((item, i) => (
+                <li key={i} className="text-sm flex flex-col gap-0.5">
+                  <span className="text-red-800 font-medium">{item.descricao || 'Processo encontrado'}</span>
+                  {item.fonte && <span className="text-xs text-red-500 uppercase tracking-wide">{item.fonte}</span>}
+                  {item.url && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-red-600 underline hover:text-red-800 flex items-center gap-1 w-fit"
+                    >
+                      <Globe className="w-3 h-3" />
+                      {item.url.length > 70 ? item.url.slice(0, 70) + '…' : item.url}
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })()}
       {/* ── Pontos fortes / atenção ── */}
       {((latestApp?.ai_strengths as string[])?.length > 0 || (latestApp?.ai_risks as string[])?.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

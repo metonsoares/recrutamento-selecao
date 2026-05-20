@@ -200,15 +200,19 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     { url: s?.search_url_3 as string | null, label: s?.search_url_3_label as string | null },
   ].filter(f => !!f.url)
 
+  // Fetch URLs de pesquisa (paralelo, timeout 3s cada) — guarda URL final p/ referência
   const searchSnippets: string[] = []
+  const searchUrlsUsed: Array<{ label: string; url: string }> = []
+
   if (urlFields.length > 0) {
     const fetched = await Promise.all(urlFields.map(async ({ url, label }) => {
+      const finalUrl = buildUrl(url!, vars)
       try {
         const ctrl = new AbortController()
         const t = setTimeout(() => ctrl.abort(), 3000)
-        const res = await fetch(buildUrl(url!, vars), {
+        const res = await fetch(finalUrl, {
           signal: ctrl.signal,
-          headers: { 'User-Agent': 'Mozilla/5.0' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
         })
         clearTimeout(t)
         if (!res.ok) return null
@@ -218,26 +222,34 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
           .replace(/<[^>]+>/g, ' ')
           .replace(/\s+/g, ' ')
           .trim()
-          .slice(0, 1000)
-        return text ? `=== ${label || 'Pesquisa'} ===\n${text}` : null
+          .slice(0, 1500)
+        if (text) {
+          searchUrlsUsed.push({ label: label || 'Pesquisa', url: finalUrl })
+          return `=== ${label || 'Pesquisa'} (${finalUrl}) ===\n${text}`
+        }
+        return null
       } catch { return null }
     }))
     searchSnippets.push(...(fetched.filter(Boolean) as string[]))
   }
-  console.log(`[analyze] URLs done ${Date.now() - t0}ms`)
+  console.log(`[analyze] URLs done ${Date.now() - t0}ms snippets=${searchSnippets.length}`)
 
   // Prompt
   const systemPrompt = (s?.analysis_prompt as string | null) ||
     'Voce e um analista de RH especializado em recrutamento. Seja objetivo e imparcial.'
 
-  const jsonSchema = `{"resumo_candidato":"2-3 frases sobre o perfil","pontos_fortes":["p1","p2"],"pontos_de_atencao":["p1"],"compatibilidade_cultural":0,"compatibilidade_com_a_vaga":0,"nota_experiencia":0,"nota_disponibilidade":0,"nota_final":0,"parecer_ia":"recomendacao em 1 frase","status_sugerido":"analise_ia_concluida","vaga_recomendada":"${jobTitle}"}`
+  const jsonSchema = `{"resumo_candidato":"2-3 frases sobre o perfil","pontos_fortes":["p1","p2"],"pontos_de_atencao":["p1"],"compatibilidade_cultural":0,"compatibilidade_com_a_vaga":0,"nota_experiencia":0,"nota_disponibilidade":0,"nota_final":0,"parecer_ia":"recomendacao em 1 frase","status_sugerido":"analise_ia_concluida","vaga_recomendada":"${jobTitle}","processos_judiciais":{"encontrado":false,"itens":[{"fonte":"jusbrasil","url":"https://...","descricao":"Tipo do processo encontrado"}]}}`
+
+  const searchInstruction = searchSnippets.length
+    ? `PESQUISA PUBLICA (analise com atencao):\n${searchSnippets.join('\n\n')}\n\nIMPORTANTE: Se encontrar o nome "${name}" em processos judiciais, trabalhistas ou criminais no Jusbrasil, Escavador ou similar, preencha o campo "processos_judiciais.encontrado" como true e liste cada processo em "itens" com a URL de onde foi encontrado. Se nao houver processos, mantenha encontrado=false e itens=[].`
+    : ''
 
   const userPrompt = [
     `CANDIDATO:\n${candidateInfo}`,
     `FORMULARIO:\n${formText}`,
     `TESTE CULTURAL:\n${cultureText}`,
     `EMPRESA:\n${companyParts.join('\n\n') || 'Nao configurado'}`,
-    searchSnippets.length ? `PESQUISA PUBLICA:\n${searchSnippets.join('\n\n')}` : '',
+    searchInstruction,
     `Retorne APENAS JSON valido sem markdown:\n${jsonSchema}`,
   ].filter(Boolean).join('\n\n')
 
@@ -306,7 +318,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          max_tokens: 512,
+          max_tokens: 2048,
           response_format: { type: 'json_object' },
         }),
       })
@@ -366,6 +378,18 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
 
   console.log(`[analyze] saving provider=${aiProvider} score=${finalScore} elapsed=${Date.now() - t0}ms`)
 
+  // Extrai processos judiciais do resultado da IA
+  type JudicialItem = { fonte?: string; url?: string; descricao?: string }
+  type JudicialAlert = { encontrado: boolean; itens: JudicialItem[] }
+  const judicialRaw = (aiResult as unknown as Record<string, unknown>).processos_judiciais as JudicialAlert | undefined
+  const judicialAlert: JudicialAlert = {
+    encontrado: judicialRaw?.encontrado === true,
+    itens: Array.isArray(judicialRaw?.itens) ? judicialRaw!.itens.filter((i: JudicialItem) => i?.url && i.url !== 'https://...') : [],
+  }
+  if (judicialAlert.encontrado) {
+    console.log(`[analyze] PROCESSOS JUDICIAIS encontrados: ${judicialAlert.itens.length}`, JSON.stringify(judicialAlert.itens).slice(0, 300))
+  }
+
   const { error: saveErr } = await supabase.from('applications').update({
     ai_summary:           aiResult.resumo_candidato,
     ai_strengths:         aiResult.pontos_fortes,
@@ -373,6 +397,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     ai_recommendation:    aiResult.parecer_ia,
     ai_status_suggestion: aiResult.status_sugerido,
     ai_raw_response:      aiResult as unknown as Record<string, unknown>,
+    ai_judicial_alert:    judicialAlert,
     experience_score:     aiResult.nota_experiencia,
     availability_score:   aiResult.nota_disponibilidade,
     culture_score:        aiResult.compatibilidade_cultural,
