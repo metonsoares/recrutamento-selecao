@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { calculateFinalScore } from '@/lib/helpers'
-import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
+import { calculateFinalScore, decryptToken } from '@/lib/helpers'
 import { AiAnalysisResult } from '@/types'
 
 export async function POST(req: NextRequest) {
@@ -40,15 +39,13 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
 
   const supabase = await createSupabaseServiceClient()
 
-  // Tudo em paralelo: placeholder + dados + chaves de IA
+  // Tudo em paralelo: placeholder + dados (chaves extraídas do ai_settings depois)
   const [
     placeholderResult,
     { data: application, error: applicationError },
     { data: aiSettings },
     { data: formAnswers },
     { data: cultureAnswers },
-    anthropicKey,
-    openaiKey,
   ] = await Promise.all([
     supabase.from('applications')
       .update({ ai_summary: 'Análise em andamento...', updated_at: new Date().toISOString() })
@@ -61,13 +58,11 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     supabase.from('culture_answers')
       .select('selected_option, score, culture_questions(question_text, culture_value)')
       .eq('application_id', applicationId),
-    getAnthropicKey(),
-    getOpenAIKey(),
   ])
 
   const elapsed1 = Date.now() - t0
   const placeholderErr = (placeholderResult as { error?: { message: string } | null }).error
-  console.log(`[analyze] parallel done ${elapsed1}ms | placeholder=${placeholderErr ? 'FAIL:' + placeholderErr.message : 'OK'} | app=${!!application} | appErr=${applicationError ? applicationError.message + ' code=' + applicationError.code : 'none'} | anthropic=${!!anthropicKey} | openai=${!!openaiKey} | fa=${(formAnswers || []).length} | ca=${(cultureAnswers || []).length}`)
+  console.log(`[analyze] parallel done ${elapsed1}ms | placeholder=${placeholderErr ? 'FAIL:' + placeholderErr.message : 'OK'} | app=${!!application} | appErr=${applicationError ? applicationError.message + ' code=' + applicationError.code : 'none'} | fa=${(formAnswers || []).length} | ca=${(cultureAnswers || []).length}`)
 
   if (placeholderErr) {
     return { step: 'placeholder', error: placeholderErr.message }
@@ -78,13 +73,24 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     return { step: 'no_application', error: `Application not found: ${applicationId} | supabase: ${appErrMsg}` }
   }
 
-  // Resolve provider
+  // Extrai chaves diretamente do ai_settings já buscado (sem queries extras)
   const s = aiSettings as Record<string, unknown> | null
+  function resolveKey(encrypted: unknown): string | null {
+    if (!encrypted) return null
+    try { return decryptToken(encrypted as string) } catch (e) {
+      console.error('[analyze] decryptToken error:', String(e))
+      return null
+    }
+  }
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || resolveKey(s?.anthropic_api_key_encrypted)
+  const openaiKey    = process.env.OPENAI_API_KEY    || resolveKey(s?.openai_api_key_encrypted)
+
+  // Resolve provider
   const provider = (s?.analysis_provider as string | null) ?? null
   const useAnthropic = provider === 'openai' ? null : anthropicKey
   const useOpenAI    = provider === 'anthropic' ? null : (!useAnthropic ? openaiKey : null)
 
-  console.log(`[analyze] provider=${provider ?? 'auto'} useAnthropic=${!!useAnthropic} useOpenAI=${!!useOpenAI}`)
+  console.log(`[analyze] provider=${provider ?? 'auto'} anthropic=${!!anthropicKey} openai=${!!openaiKey} useAnthropic=${!!useAnthropic} useOpenAI=${!!useOpenAI}`)
 
   // Busca candidato e vaga separadamente (evita embedded select do PostgREST)
   const app = application as Record<string, unknown>
@@ -254,7 +260,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-3-5-haiku-20241022',
           max_tokens: 512,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
