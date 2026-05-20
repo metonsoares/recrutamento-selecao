@@ -289,12 +289,17 @@ function SearchUrlsCard({
       {/* Hint */}
       <div className="flex gap-2 items-start bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-        <span>
-          Use <code className="bg-blue-100 px-1 rounded font-mono">{'{NOME}'}</code> e{' '}
-          <code className="bg-blue-100 px-1 rounded font-mono">{'{TELEFONE}'}</code> como variáveis —
-          serão substituídas pelos dados do candidato em cada análise.
-          Exemplos: processos trabalhistas, portais de transparência, pesquisa em redes sociais.
-        </span>
+        <div className="space-y-1.5">
+          <p>Variáveis disponíveis — substituídas pelos dados reais do candidato em cada análise:</p>
+          <div className="flex flex-wrap gap-1">
+            {['{NOME}','{CPF}','{TELEFONE}','{EMAIL}','{DATA_NASCIMENTO}','{CIDADE}','{BAIRRO}','{VAGA}'].map(v => (
+              <code key={v} className="bg-blue-100 px-1.5 py-0.5 rounded font-mono text-[10px]">{v}</code>
+            ))}
+          </div>
+          <p className="text-[11px] text-blue-600">
+            Exemplos de uso: <em>jusbrasil.com.br/busca?q={'{CPF}'}</em> · <em>portaldatransparencia.gov.br/busca?termo={'{NOME}'}</em>
+          </p>
+        </div>
       </div>
 
       {/* URL fields */}
