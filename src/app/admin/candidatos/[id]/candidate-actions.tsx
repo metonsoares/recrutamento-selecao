@@ -3,11 +3,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { Brain, StickyNote, CalendarCheck, Trash2, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Brain, FlaskConical, Eye, CalendarCheck, Trash2, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 const ALL_STATUSES = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
 
@@ -16,7 +15,7 @@ const ALL_STATUSES = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s 
 function Toast({ type, message }: { type: 'success' | 'error'; message: string }) {
   return (
     <div className={[
-      'fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium',
+      'fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium max-w-sm',
       type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white',
     ].join(' ')}>
       {type === 'success'
@@ -34,16 +33,22 @@ export function CandidateActions({
   candidateId,
   applicationId,
   currentStatus,
+  cultureTestDone,
+  cultureScore,
+  cultureAnswersSummary,
 }: {
   candidateId: string
   applicationId?: string
   currentStatus: CandidateStatus
+  cultureTestDone?: boolean
+  cultureScore?: number | null
+  cultureAnswersSummary?: Array<{ question: string; answer: string; score: number }>
 }) {
   const router = useRouter()
   const [status, setStatus] = useState(currentStatus)
-  const [note, setNote] = useState('')
-  const [noteOpen, setNoteOpen] = useState(false)
+  const [cultureOpen, setCultureOpen] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
   const [scheduling, setScheduling] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -73,20 +78,7 @@ export function CandidateActions({
     }
   }
 
-  async function handleAddNote() {
-    if (!note.trim()) return
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('admin_notes').insert({
-      candidate_id: candidateId,
-      application_id: applicationId || null,
-      note: note.trim(),
-    })
-    setNote('')
-    setNoteOpen(false)
-    router.refresh()
-  }
-
-  // ── Analisar IA ─────────────────────────────────────────────────────────────
+  // ── Analisar IA — dispara e faz polling no Supabase ─────────────────────────
   async function handleAnalyzeAI() {
     if (!applicationId) {
       showToast('error', 'Candidato sem candidatura vinculada.')
@@ -109,19 +101,61 @@ export function CandidateActions({
         return
       }
 
-      // A análise roda em background no servidor (evita timeout do Vercel)
-      // Aguardamos ~20s e recarregamos a página com os resultados
-      showToast('success', '⏳ Analisando com IA... a página será atualizada em instantes.', 22000)
+      showToast('success', '⏳ Análise iniciada — aguardando resultado...', 60000)
 
-      await new Promise(r => setTimeout(r, 20000))
+      // Poll Supabase a cada 3s até ai_summary aparecer (máximo 45s)
+      const supabase = createSupabaseBrowserClient()
+      const maxWait = 45_000
+      const pollInterval = 3_000
+      const startedAt = Date.now()
+
+      while (Date.now() - startedAt < maxWait) {
+        await new Promise(r => setTimeout(r, pollInterval))
+        const { data: app } = await supabase
+          .from('applications')
+          .select('ai_summary')
+          .eq('id', applicationId)
+          .single()
+
+        if (app?.ai_summary) {
+          window.location.reload()
+          return
+        }
+      }
+
+      // Tempo esgotado — recarrega mesmo assim (pode ter salvado fallback)
       window.location.reload()
     } catch (err) {
       console.error('[analyze] fetch error:', err)
       showToast('error', 'Erro de conexão. Verifique sua internet e tente novamente.', 6000)
       setAnalyzing(false)
     }
-    // Nota: setAnalyzing(false) não é chamado aqui intencionalmente —
-    // a página recarrega antes via window.location.reload()
+  }
+
+  // ── Enviar Teste Cultural ────────────────────────────────────────────────────
+  async function handleSendCultureTest() {
+    setSendingTest(true)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/send-culture-test`, {
+        method: 'POST',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast('error', data?.error || 'Erro ao enviar teste cultural.', 5000)
+        return
+      }
+      setStatus('aguardando_teste_cultural')
+      showToast(
+        'success',
+        data.whatsappSent
+          ? '✅ Teste cultural enviado via WhatsApp!'
+          : '✅ Link do teste gerado! (WhatsApp indisponível)',
+        5000,
+      )
+      router.refresh()
+    } finally {
+      setSendingTest(false)
+    }
   }
 
   // ── Agendar Entrevista ──────────────────────────────────────────────────────
@@ -161,6 +195,9 @@ export function CandidateActions({
     }
   }
 
+  const scoreColor = (v: number) =>
+    v >= 70 ? 'text-emerald-600' : v >= 50 ? 'text-amber-600' : 'text-red-600'
+
   return (
     <>
       {toast && <Toast type={toast.type} message={toast.message} />}
@@ -196,6 +233,88 @@ export function CandidateActions({
           </Button>
         )}
 
+        {/* Teste Cultural — Enviar ou Visualizar */}
+        {applicationId && (
+          cultureTestDone ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCultureOpen(true)}
+                className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              >
+                <Eye className="w-4 h-4" />
+                Visualizar Teste Cultural
+              </Button>
+
+              {/* Dialog de resultados */}
+              <Dialog open={cultureOpen} onOpenChange={setCultureOpen}>
+                <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Teste Cultural</DialogTitle>
+                  </DialogHeader>
+
+                  {/* Score geral */}
+                  {cultureScore != null && (
+                    <div className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 border mb-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Compatibilidade Cultural</p>
+                        <p className={`text-3xl font-bold ${scoreColor(cultureScore)}`}>
+                          {Math.round(cultureScore)}%
+                        </p>
+                      </div>
+                      <div className="flex-1">
+                        <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${cultureScore >= 70 ? 'bg-emerald-500' : cultureScore >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                            style={{ width: `${cultureScore}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {cultureScore >= 70 ? 'Alta compatibilidade' : cultureScore >= 50 ? 'Compatibilidade moderada' : 'Baixa compatibilidade'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Respostas */}
+                  <div className="space-y-3">
+                    {(cultureAnswersSummary || []).map((a, i) => (
+                      <div key={i} className="text-sm border-b pb-2 last:border-0">
+                        <p className="text-xs text-muted-foreground">{a.question}</p>
+                        <div className="flex items-center justify-between mt-0.5 gap-2">
+                          <p className="font-medium">{a.answer}</p>
+                          <span className={`text-xs font-bold shrink-0 ${scoreColor(a.score * 10)}`}>
+                            {a.score}/10
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {(!cultureAnswersSummary || cultureAnswersSummary.length === 0) && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhuma resposta registrada.
+                      </p>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSendCultureTest}
+              disabled={sendingTest}
+              className="gap-1"
+            >
+              {sendingTest
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</>
+                : <><FlaskConical className="w-4 h-4" />Enviar Teste Cultural</>
+              }
+            </Button>
+          )
+        )}
+
         {/* Agendar Entrevista */}
         {status === 'apto_para_entrevista' && (
           <Button
@@ -210,30 +329,6 @@ export function CandidateActions({
             }
           </Button>
         )}
-
-        {/* Observação via dialog (legacy — mantido) */}
-        <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
-          <DialogTrigger>
-            <Button variant="outline" size="sm" className="gap-1">
-              <StickyNote className="w-4 h-4" />
-              Observação
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar Observação</DialogTitle>
-            </DialogHeader>
-            <Textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="Escreva sua observação aqui..."
-              rows={4}
-            />
-            <Button onClick={handleAddNote} disabled={!note.trim()}>
-              Salvar
-            </Button>
-          </DialogContent>
-        </Dialog>
 
         {/* Remover */}
         {!confirmDelete ? (

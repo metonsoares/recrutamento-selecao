@@ -117,7 +117,11 @@ async function runAnalysis(applicationId: string) {
   const candidateCpf   = getByFieldType('cpf')
   const candidateBirth = getByFieldType('date')
   const candidateAddress = getByFieldType('address')
-  const jobTitle       = (application.jobs as { title?: string } | null)?.title || 'Não informada'
+  // Job title: prefer jobs join, fallback to form_answer with field_type='job_select'
+  const jobTitle =
+    (application.jobs as { title?: string } | null)?.title ||
+    getByFieldType('job_select') ||
+    'Não informada'
 
   // ── Build candidate info block ────────────────────────────────────────────
   const candidateInfo = [

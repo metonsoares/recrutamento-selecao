@@ -104,7 +104,18 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
     .order('created_at', { ascending: false })
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
-  const jobTitle = (latestApp?.jobs as { title?: string } | null)?.title
+
+  // Job title: prefer the join (applications → jobs), fallback to form_answer job_select
+  let jobTitle: string | null = (latestApp?.jobs as { title?: string } | null)?.title ?? null
+  if (!jobTitle) {
+    const jobSelectAnswer = (formAnswers || []).find(
+      a => (a.form_questions as { field_type?: string } | null)?.field_type === 'job_select'
+    )?.answer_text
+    if (jobSelectAnswer) {
+      const parsed = parseAnswer(jobSelectAnswer)
+      if (parsed !== '—') jobTitle = parsed
+    }
+  }
 
   // ── Extract key fields from form_answers ─────────────────────────────────
   const allFa = formAnswers || []
@@ -173,7 +184,18 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <Badge variant="outline" className="text-xs">{applications.length} candidaturas</Badge>
             )}
           </div>
-          <CandidateActions candidateId={id} applicationId={latestApp?.id} currentStatus={currentStatus} />
+          <CandidateActions
+            candidateId={id}
+            applicationId={latestApp?.id}
+            currentStatus={currentStatus}
+            cultureTestDone={(cultureAnswers?.length || 0) > 0}
+            cultureScore={latestApp?.culture_score}
+            cultureAnswersSummary={(cultureAnswers || []).map(a => ({
+              question: (a.culture_questions as { question_text?: string } | null)?.question_text || '',
+              answer: a.selected_option || '',
+              score: a.score || 0,
+            }))}
+          />
         </div>
 
         {/* PDF button */}
