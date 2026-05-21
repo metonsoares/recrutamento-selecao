@@ -149,73 +149,137 @@ async function searchDDG(query: string, sourceLabel: string): Promise<SearchResu
 }
 
 // ─── JusBrasil Direct Fetch ───────────────────────────────────────────────────
+// Tries CPF first (most precise), then full name. Hits multiple endpoints.
 
-async function searchJusBrasil(name: string): Promise<SearchResult> {
+async function searchJusBrasil(name: string, cpf: string | null): Promise<SearchResult> {
   const source = 'JusBrasil'
-  try {
-    // Public process search
-    const url = `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=processos`
-    const res = await fetchWithTimeout(url, {
-      headers: {
-        ...BROWSER_HEADERS,
-        'Referer': 'https://www.jusbrasil.com.br/',
-      },
-    }, 12000)
-
-    if (!res.ok) return { source, snippets: [], urls: [url] }
-
-    const html = await res.text()
-    const text = stripHtml(html)
-
-    // Extract relevant process info
-    const snippets: string[] = []
-
-    // JusBrasil result cards usually contain these keywords near process data
-    const relevant = extractAround(text, /processo|ação|réu|autor|reclamante|reclamado|tribunal|vara|comarca/i, 100, 500, 5)
-    if (relevant.trim().length > 50) snippets.push(relevant.slice(0, 2000))
-
-    // If no relevant content found, take first 1500 chars of visible text
-    if (!snippets.length) {
-      const cleaned = text.replace(/\b(menu|footer|header|navigation|cookie|aceitar)\b.{0,200}/gi, '').slice(0, 1200)
-      if (cleaned.length > 100) snippets.push(cleaned)
-    }
-
-    return { source, snippets, urls: [url] }
-  } catch {
-    return { source, snippets: [], urls: [] }
+  const jusBrasilHeaders = {
+    ...BROWSER_HEADERS,
+    'Referer': 'https://www.jusbrasil.com.br/',
+    'Origin': 'https://www.jusbrasil.com.br',
   }
+
+  // Build query terms: CPF (most precise) + name
+  const cpfFormatted = cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? null
+
+  // All URLs to try in sequence — CPF first, then name variants
+  const endpoints = [
+    // 1. Consulta processual por CPF (mais preciso)
+    ...(cpf ? [
+      `https://www.jusbrasil.com.br/consulta-processual/busca?q=${encodeURIComponent(cpf)}`,
+      `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(cpf)}&s=processos`,
+    ] : []),
+    ...(cpfFormatted ? [
+      `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(cpfFormatted)}&s=processos`,
+    ] : []),
+    // 2. Busca por nome completo entre aspas
+    `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=processos`,
+    `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=jurisprudencia`,
+  ]
+
+  const allSnippets: string[] = []
+  const allUrls: string[] = []
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetchWithTimeout(url, { headers: jusBrasilHeaders }, 12000)
+      allUrls.push(url)
+
+      if (!res.ok) continue
+
+      const html = await res.text()
+
+      // Check if we got a login wall / redirect to login
+      if (html.includes('Faça login') && html.includes('cadastre-se') && html.length < 5000) continue
+
+      const text = stripHtml(html)
+
+      // Extract process numbers (Brazilian format: NNNNNNN-NN.NNNN.N.NN.NNNN)
+      const processNumbers = [...text.matchAll(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g)]
+        .map(m => m[0])
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .slice(0, 10)
+
+      if (processNumbers.length > 0) {
+        allSnippets.push(`Processos encontrados: ${processNumbers.join(', ')}`)
+      }
+
+      // Extract keyword-rich context
+      const judicial = extractAround(
+        text,
+        /processo|ação|réu|autor|reclamante|reclamado|tribunal|vara|comarca|advogado|sentença|audiência|julgamento/i,
+        80, 500, 5,
+      )
+      if (judicial.trim().length > 60) allSnippets.push(judicial.slice(0, 2000))
+
+      // If we got meaningful process data, stop fetching more
+      if (processNumbers.length > 0 || allSnippets.join('').length > 500) break
+
+    } catch { continue }
+  }
+
+  // Dedupe and cap
+  const snippets = [...new Set(allSnippets)].slice(0, 5)
+  const urls = [...new Set(allUrls)].slice(0, 4)
+
+  // Always include the direct process search URL for the AI to reference
+  if (!urls.some(u => u.includes('consulta-processual'))) {
+    const directUrl = cpf
+      ? `https://www.jusbrasil.com.br/consulta-processual/busca?q=${encodeURIComponent(cpf)}`
+      : `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=processos`
+    urls.unshift(directUrl)
+  }
+
+  return { source, snippets, urls }
 }
 
 // ─── Escavador Direct Fetch ───────────────────────────────────────────────────
 
-async function searchEscavador(name: string): Promise<SearchResult> {
+async function searchEscavador(name: string, cpf: string | null): Promise<SearchResult> {
   const source = 'Escavador'
-  try {
-    const url = `https://www.escavador.com/busca?q=${encodeURIComponent(name)}&tipo=pessoas`
-    const res = await fetchWithTimeout(url, {
-      headers: {
-        ...BROWSER_HEADERS,
-        'Referer': 'https://www.escavador.com/',
-      },
-    }, 12000)
-
-    if (!res.ok) return { source, snippets: [], urls: [url] }
-
-    const html = await res.text()
-    const text = stripHtml(html)
-
-    const snippets: string[] = []
-    const relevant = extractAround(text, /processo|ação|envolvido|parte|advogado|criminal|trabalhista|cível/i, 100, 500, 4)
-    if (relevant.trim().length > 50) snippets.push(relevant.slice(0, 1500))
-
-    if (!snippets.length && text.length > 100) {
-      snippets.push(text.slice(0, 1000))
-    }
-
-    return { source, snippets, urls: [url] }
-  } catch {
-    return { source, snippets: [], urls: [] }
+  const escavadorHeaders = {
+    ...BROWSER_HEADERS,
+    'Referer': 'https://www.escavador.com/',
   }
+
+  // Try CPF first (unique identifier), then name
+  const endpoints = [
+    ...(cpf ? [`https://www.escavador.com/busca?q=${encodeURIComponent(cpf)}&tipo=pessoas`] : []),
+    `https://www.escavador.com/busca?q=${encodeURIComponent(`"${name}"`)}&tipo=pessoas`,
+    `https://www.escavador.com/busca?q=${encodeURIComponent(name)}&tipo=processos`,
+  ]
+
+  const allSnippets: string[] = []
+  const allUrls: string[] = []
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetchWithTimeout(url, { headers: escavadorHeaders }, 12000)
+      allUrls.push(url)
+      if (!res.ok) continue
+
+      const html = await res.text()
+      if (html.includes('faça login') && html.length < 5000) continue
+
+      const text = stripHtml(html)
+
+      // Extract process numbers
+      const processNumbers = [...text.matchAll(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g)]
+        .map(m => m[0]).filter((v, i, a) => a.indexOf(v) === i).slice(0, 10)
+      if (processNumbers.length > 0) allSnippets.push(`Processos encontrados: ${processNumbers.join(', ')}`)
+
+      const relevant = extractAround(text, /processo|envolvido|parte|advogado|criminal|trabalhista|cível|tribunal/i, 80, 500, 4)
+      if (relevant.trim().length > 50) allSnippets.push(relevant.slice(0, 1500))
+
+      if (allSnippets.join('').length > 400) break
+    } catch { continue }
+  }
+
+  const snippets = [...new Set(allSnippets)].slice(0, 4)
+  const urls = [...new Set(allUrls)].slice(0, 3)
+  if (!urls.length) urls.push(`https://www.escavador.com/busca?q=${encodeURIComponent(name)}&tipo=pessoas`)
+
+  return { source, snippets, urls }
 }
 
 // ─── Portal da Transparência ──────────────────────────────────────────────────
@@ -279,7 +343,7 @@ Analise TODOS os resultados abaixo com cuidado e produza um relatório completo 
 
 ━━━ DADOS DO CANDIDATO ━━━
 Nome completo: "${candidateName}"
-CPF: ${cpfFormatted}
+CPF: ${cpfFormatted}${cpf ? ' ← usado como chave de busca no JusBrasil e Escavador (identificador único)' : ' (não informado — buscas realizadas apenas por nome)'}
 Cidade: ${city || 'Não informada'}
 
 ━━━ RESULTADOS DAS BUSCAS ━━━
@@ -308,8 +372,10 @@ ${searchBlocks}
 
 4. CRITÉRIOS DE RIGOR:
    - Só afirme como "encontrado" o que tiver evidência EXPLÍCITA nos resultados
-   - Se o nome for comum, indique a incerteza e se o CPF confirma a identidade
-   - Se os sites não retornaram conteúdo útil, declare como "não verificado por limitação técnica"
+   - O CPF é um identificador único — se a busca por CPF retornou resultados, eles são certamente desta pessoa
+   - Se a busca foi feita apenas por nome, avalie se o nome é comum e indique a incerteza
+   - Processos com número no formato NNNNNNN-NN.NNNN.N.NN.NNNN são dados concretos — liste-os
+   - Se os sites retornaram página de login ou sem dados, declare como "não verificado — requer acesso manual"
    - Não invente nem suponha informações — baseie-se apenas no que foi coletado
 
 Retorne APENAS um objeto JSON válido com esta estrutura:
@@ -466,10 +532,10 @@ export async function POST(
       searchGoogle(`"${full_name}"${cpfFormatted ? ` OR "${cpfFormatted}"` : ''} auxílio bolsa dataprev INSS benefício governo`),
       // Google: busca geral sobre a pessoa
       searchGoogle(`"${full_name}"${city ? ` "${city}"` : ''} trabalhista criminal reclamação`),
-      // JusBrasil direto
-      searchJusBrasil(full_name),
-      // Escavador direto
-      searchEscavador(full_name),
+      // JusBrasil direto — usa CPF como chave primária, nome como fallback
+      searchJusBrasil(full_name, cpfClean),
+      // Escavador direto — idem
+      searchEscavador(full_name, cpfClean),
       // Portal da Transparência
       searchTransparencia(full_name, cpfClean),
       // DuckDuckGo: JusBrasil site específico
