@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { BackgroundCheckResult } from '@/types'
+import { scrapeJusBrasilAuthenticated } from '@/lib/jusbrasil-scraper'
+
+// Aumenta o tempo máximo da função serverless para 90s (requer Vercel Pro)
+export const maxDuration = 90
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -8,10 +12,9 @@ interface SearchResult {
   source: string
   snippets: string[]
   urls: string[]
-  rawText?: string
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, ms = 12000): Promise<Response> {
   const ctrl = new AbortController()
@@ -34,252 +37,277 @@ function stripHtml(html: string): string {
     .trim()
 }
 
-// Extracts the first N chars around keyword matches in a large text block
-function extractAround(text: string, keywords: RegExp, charsBefore = 200, charsAfter = 600, maxMatches = 4): string {
+/** Finds up to maxMatches occurrences of a keyword and returns surrounding text */
+function extractAround(text: string, pattern: RegExp, before = 150, after = 500, maxMatches = 5): string {
   const parts: string[] = []
-  const matches = [...text.matchAll(new RegExp(keywords.source, 'gi'))]
-  for (const m of matches.slice(0, maxMatches)) {
-    const start = Math.max(0, (m.index ?? 0) - charsBefore)
-    const end = Math.min(text.length, (m.index ?? 0) + charsAfter)
-    parts.push('...' + text.slice(start, end) + '...')
+  const re = new RegExp(pattern.source, 'gi')
+  let m: RegExpExecArray | null
+  let count = 0
+  while ((m = re.exec(text)) !== null && count < maxMatches) {
+    const start = Math.max(0, m.index - before)
+    const end = Math.min(text.length, m.index + after)
+    parts.push(text.slice(start, end).trim())
+    count++
   }
-  return parts.join('\n')
+  return parts.join('\n---\n')
+}
+
+/** Extracts Brazilian process numbers (NNNNNNN-NN.NNNN.N.NN.NNNN) from text */
+function extractProcessNumbers(text: string): string[] {
+  return [...new Set(
+    [...text.matchAll(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g)].map(m => m[0])
+  )].slice(0, 15)
 }
 
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
   'Accept-Encoding': 'gzip, deflate, br',
   'Cache-Control': 'no-cache',
 }
 
 // ─── Google Search ────────────────────────────────────────────────────────────
+// Returns snippets + ALL urls found (including JusBrasil profile links)
 
-async function searchGoogle(query: string): Promise<SearchResult> {
-  const source = 'Google'
+async function searchGoogle(query: string, label = 'Google'): Promise<SearchResult & { rawHtml?: string }> {
   try {
-    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=br&num=10`
+    const res = await fetchWithTimeout(
+      `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=br&num=10`,
+      {
+        headers: {
+          ...BROWSER_HEADERS,
+          'Referer': 'https://www.google.com.br/',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+        },
+      },
+      14000,
+    )
+    if (!res.ok) return { source: label, snippets: [], urls: [] }
+
+    const html = await res.text()
+
+    // Extract all URLs from Google results (/url?q=<url>&)
+    const urls = [...html.matchAll(/\/url\?q=(https?:\/\/[^&"]+)&/gi)]
+      .map(m => { try { return decodeURIComponent(m[1]) } catch { return m[1] } })
+      .filter(u => !u.includes('google.com') && !u.includes('googleapis'))
+      .filter((u, i, a) => a.indexOf(u) === i)
+      .slice(0, 10)
+
+    const text = stripHtml(html)
+    const snippets: string[] = []
+
+    // Try common Google snippet patterns
+    const p1 = [...html.matchAll(/<div[^>]*class="[^"]*VwiC3b[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)]
+    p1.slice(0, 6).forEach(m => { const t = stripHtml(m[1]).trim(); if (t.length > 30) snippets.push(t) })
+
+    const p2 = [...html.matchAll(/<span[^>]*class="[^"]*MUxGbd[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)]
+    p2.slice(0, 6).forEach(m => { const t = stripHtml(m[1]).trim(); if (t.length > 30) snippets.push(t) })
+
+    // Fallback: extract text near relevant keywords
+    if (snippets.length < 2) {
+      const rel = extractAround(text, /processo|jusbrasil|escavador|auxílio|benefício|trabalhista|criminal/i, 100, 400, 5)
+      if (rel.trim().length > 50) snippets.push(rel.slice(0, 2000))
+    }
+
+    return { source: label, snippets: [...new Set(snippets)].slice(0, 8), urls, rawHtml: html }
+  } catch {
+    return { source: label, snippets: [], urls: [] }
+  }
+}
+
+// ─── Fetch a JusBrasil page (profile or search result) ───────────────────────
+
+async function fetchJusBrasilPage(url: string): Promise<{ snippets: string[]; processNumbers: string[] }> {
+  try {
     const res = await fetchWithTimeout(url, {
       headers: {
         ...BROWSER_HEADERS,
         'Referer': 'https://www.google.com.br/',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
       },
-    }, 14000)
-
-    if (!res.ok) return { source, snippets: [], urls: [] }
+    }, 12000)
+    if (!res.ok) return { snippets: [], processNumbers: [] }
 
     const html = await res.text()
 
-    // Extract organic result URLs — Google embeds them as /url?q=<url>&
-    const urlMatches = [...html.matchAll(/\/url\?q=(https?:\/\/[^&"]+)&/gi)]
-    const urls = urlMatches
-      .map(m => decodeURIComponent(m[1]))
-      .filter(u => !u.includes('google.com') && !u.includes('googleadservices'))
-      .filter((u, i, arr) => arr.indexOf(u) === i) // dedupe
-      .slice(0, 8)
+    // Detect login wall (page too small or contains login CTAs without real content)
+    if (html.length < 3000 && (html.includes('Faça login') || html.includes('cadastre-se'))) {
+      return { snippets: ['Página exige login para visualizar detalhes completos.'], processNumbers: [] }
+    }
 
-    // Extract snippets — try multiple Google patterns
+    const text = stripHtml(html)
+    const processNumbers = extractProcessNumbers(text)
     const snippets: string[] = []
 
-    // Pattern 1: data-content spans
-    const p1 = [...html.matchAll(/<span[^>]*class="[^"]*MUxGbd[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)]
-    p1.forEach(m => { const t = stripHtml(m[1]).trim(); if (t.length > 30) snippets.push(t) })
-
-    // Pattern 2: VwiC3b (Google snippet class)
-    const p2 = [...html.matchAll(/<div[^>]*class="[^"]*VwiC3b[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)]
-    p2.forEach(m => { const t = stripHtml(m[1]).trim(); if (t.length > 30) snippets.push(t) })
-
-    // Pattern 3: generic span with long text (fallback)
-    if (snippets.length < 3) {
-      const text = stripHtml(html)
-      const relevant = extractAround(text, /processo|auxílio|bolsa|jusbrasil|escavador|trabalhista|criminal|cível/i)
-      if (relevant) snippets.push(relevant.slice(0, 1500))
+    if (processNumbers.length > 0) {
+      snippets.push(`Números de processo encontrados: ${processNumbers.join(' | ')}`)
     }
 
+    const relevant = extractAround(
+      text,
+      /processo|ação|réu|autor|reclamante|reclamado|tribunal|vara|comarca|sentença|audiência|advogado/i,
+      80, 500, 6,
+    )
+    if (relevant.trim().length > 60) snippets.push(relevant.slice(0, 2500))
+
+    return { snippets, processNumbers }
+  } catch {
+    return { snippets: [], processNumbers: [] }
+  }
+}
+
+// ─── JusBrasil — autenticado (scraper) + fallback Google ─────────────────────
+// Estratégia primária: login na conta JusBrasil do usuário via Playwright e
+// consulta direta na Consulta Processual por CPF e nome.
+// Fallback: pipeline Google → perfil JusBrasil (sem autenticação).
+
+async function searchJusBrasil(
+  name: string,
+  cpf: string | null,
+  jbCredentials?: { email: string; password: string },
+): Promise<SearchResult> {
+  // ── Tentativa 1: scraper autenticado ────────────────────────────────────────
+  const scraperResult = await scrapeJusBrasilAuthenticated(name, cpf, jbCredentials)
+
+  if (scraperResult.success && scraperResult.content.length > 100) {
+    console.log('[JusBrasil] Scraper autenticado OK')
+    const urls: string[] = [
+      ...(cpf
+        ? [`https://www.jusbrasil.com.br/consulta-processual/?query=${cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`]
+        : []),
+      `https://www.jusbrasil.com.br/consulta-processual/?query=${encodeURIComponent(name)}`,
+    ]
     return {
-      source,
-      snippets: [...new Set(snippets)].slice(0, 8),
+      source: 'JusBrasil (conta autenticada)',
+      snippets: [scraperResult.content],
       urls,
     }
-  } catch {
-    return { source, snippets: [], urls: [] }
-  }
-}
-
-// ─── DuckDuckGo HTML Search ───────────────────────────────────────────────────
-
-async function searchDDG(query: string, sourceLabel: string): Promise<SearchResult> {
-  try {
-    const res = await fetchWithTimeout(
-      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=br-pt`,
-      { headers: { ...BROWSER_HEADERS } },
-      12000,
-    )
-    if (!res.ok) return { source: sourceLabel, snippets: [], urls: [] }
-
-    const html = await res.text()
-
-    const snippets = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)]
-      .map(m => stripHtml(m[1]).trim())
-      .filter(s => s.length > 20)
-      .slice(0, 6)
-
-    const urls = [...html.matchAll(/class="result__url"[^>]*>([\s\S]*?)<\/span>/gi)]
-      .map(m => stripHtml(m[1]).trim())
-      .filter(Boolean)
-      .slice(0, 6)
-
-    // Also extract title text for richer context
-    const titles = [...html.matchAll(/class="result__a"[^>]*>([\s\S]*?)<\/a>/gi)]
-      .map(m => stripHtml(m[1]).trim())
-      .filter(t => t.length > 10)
-      .slice(0, 6)
-
-    // Merge title + snippet for richer context
-    const combined = titles.map((t, i) => [t, snippets[i]].filter(Boolean).join(' — '))
-
-    return { source: sourceLabel, snippets: combined.length ? combined : snippets, urls }
-  } catch {
-    return { source: sourceLabel, snippets: [], urls: [] }
-  }
-}
-
-// ─── JusBrasil Direct Fetch ───────────────────────────────────────────────────
-// Tries CPF first (most precise), then full name. Hits multiple endpoints.
-
-async function searchJusBrasil(name: string, cpf: string | null): Promise<SearchResult> {
-  const source = 'JusBrasil'
-  const jusBrasilHeaders = {
-    ...BROWSER_HEADERS,
-    'Referer': 'https://www.jusbrasil.com.br/',
-    'Origin': 'https://www.jusbrasil.com.br',
   }
 
-  // Build query terms: CPF (most precise) + name
-  const cpfFormatted = cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? null
+  // Loga motivo da falha para o console do servidor
+  if (scraperResult.error) {
+    console.warn('[JusBrasil] Scraper falhou, usando fallback Google:', scraperResult.error)
+  }
 
-  // All URLs to try in sequence — CPF first, then name variants
-  const endpoints = [
-    // 1. Consulta processual por CPF (mais preciso)
-    ...(cpf ? [
-      `https://www.jusbrasil.com.br/consulta-processual/busca?q=${encodeURIComponent(cpf)}`,
-      `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(cpf)}&s=processos`,
-    ] : []),
-    ...(cpfFormatted ? [
-      `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(cpfFormatted)}&s=processos`,
-    ] : []),
-    // 2. Busca por nome completo entre aspas
-    `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=processos`,
-    `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=jurisprudencia`,
-  ]
-
+  // ── Fallback: Google pipeline + fetch direto ─────────────────────────────
   const allSnippets: string[] = []
   const allUrls: string[] = []
 
-  for (const url of endpoints) {
-    try {
-      const res = await fetchWithTimeout(url, { headers: jusBrasilHeaders }, 12000)
-      allUrls.push(url)
-
-      if (!res.ok) continue
-
-      const html = await res.text()
-
-      // Check if we got a login wall / redirect to login
-      if (html.includes('Faça login') && html.includes('cadastre-se') && html.length < 5000) continue
-
-      const text = stripHtml(html)
-
-      // Extract process numbers (Brazilian format: NNNNNNN-NN.NNNN.N.NN.NNNN)
-      const processNumbers = [...text.matchAll(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g)]
-        .map(m => m[0])
-        .filter((v, i, a) => a.indexOf(v) === i)
-        .slice(0, 10)
-
-      if (processNumbers.length > 0) {
-        allSnippets.push(`Processos encontrados: ${processNumbers.join(', ')}`)
-      }
-
-      // Extract keyword-rich context
-      const judicial = extractAround(
-        text,
-        /processo|ação|réu|autor|reclamante|reclamado|tribunal|vara|comarca|advogado|sentença|audiência|julgamento/i,
-        80, 500, 5,
-      )
-      if (judicial.trim().length > 60) allSnippets.push(judicial.slice(0, 2000))
-
-      // If we got meaningful process data, stop fetching more
-      if (processNumbers.length > 0 || allSnippets.join('').length > 500) break
-
-    } catch { continue }
+  if (scraperResult.error) {
+    // Avisa a IA que o acesso autenticado falhou
+    allSnippets.push(`AVISO: Acesso autenticado ao JusBrasil falhou (${scraperResult.error}). Dados abaixo são de busca pública no Google.`)
   }
 
-  // Dedupe and cap
-  const snippets = [...new Set(allSnippets)].slice(0, 5)
-  const urls = [...new Set(allUrls)].slice(0, 4)
+  const googleQueries = [
+    ...(cpf ? [`"${cpf}" jusbrasil`] : []),
+    `"${name}" jusbrasil processos`,
+  ]
 
-  // Always include the direct process search URL for the AI to reference
-  if (!urls.some(u => u.includes('consulta-processual'))) {
-    const directUrl = cpf
-      ? `https://www.jusbrasil.com.br/consulta-processual/busca?q=${encodeURIComponent(cpf)}`
-      : `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=processos`
-    urls.unshift(directUrl)
+  const jbProfileUrls: string[] = []
+
+  const googleResults = await Promise.allSettled(
+    googleQueries.map(q => searchGoogle(q, 'Google → JusBrasil'))
+  )
+
+  for (const r of googleResults) {
+    if (r.status !== 'fulfilled') continue
+    allSnippets.push(...r.value.snippets)
+    allUrls.push(...r.value.urls)
+    const jbUrls = r.value.urls.filter(u =>
+      u.includes('jusbrasil.com.br') &&
+      !u.includes('/busca') &&
+      (u.includes('/processos') || u.includes('/pessoas') || u.includes('/perfil'))
+    )
+    jbProfileUrls.push(...jbUrls)
   }
 
-  return { source, snippets, urls }
+  const directSearchUrls = [
+    ...(cpf ? [
+      `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(cpf)}&s=processos`,
+      `https://www.jusbrasil.com.br/consulta-processual/busca?q=${encodeURIComponent(cpf)}`,
+    ] : []),
+    `https://www.jusbrasil.com.br/busca?q=${encodeURIComponent(`"${name}"`)}&s=processos`,
+  ]
+
+  const uniqueJbUrls = [...new Set(jbProfileUrls)].slice(0, 3)
+  const fetchTargets = uniqueJbUrls.length > 0 ? uniqueJbUrls : directSearchUrls.slice(0, 2)
+
+  const pageFetches = await Promise.allSettled(fetchTargets.map(url => fetchJusBrasilPage(url)))
+  for (const r of pageFetches) {
+    if (r.status !== 'fulfilled') continue
+    allSnippets.push(...r.value.snippets)
+  }
+
+  const finalUrls = [
+    ...new Set([
+      ...fetchTargets,
+      ...allUrls.filter(u => u.includes('jusbrasil.com.br')),
+    ])
+  ].slice(0, 6)
+
+  return {
+    source: 'JusBrasil (busca pública)',
+    snippets: [...new Set(allSnippets)].filter(s => s.length > 20).slice(0, 8),
+    urls: finalUrls,
+  }
 }
 
-// ─── Escavador Direct Fetch ───────────────────────────────────────────────────
+// ─── Escavador — Google pipeline + direct ────────────────────────────────────
 
 async function searchEscavador(name: string, cpf: string | null): Promise<SearchResult> {
-  const source = 'Escavador'
-  const escavadorHeaders = {
-    ...BROWSER_HEADERS,
-    'Referer': 'https://www.escavador.com/',
-  }
-
-  // Try CPF first (unique identifier), then name
-  const endpoints = [
-    ...(cpf ? [`https://www.escavador.com/busca?q=${encodeURIComponent(cpf)}&tipo=pessoas`] : []),
-    `https://www.escavador.com/busca?q=${encodeURIComponent(`"${name}"`)}&tipo=pessoas`,
-    `https://www.escavador.com/busca?q=${encodeURIComponent(name)}&tipo=processos`,
-  ]
-
   const allSnippets: string[] = []
   const allUrls: string[] = []
 
-  for (const url of endpoints) {
-    try {
-      const res = await fetchWithTimeout(url, { headers: escavadorHeaders }, 12000)
-      allUrls.push(url)
-      if (!res.ok) continue
+  // Google to find Escavador profile
+  const googleQueries = [
+    ...(cpf ? [`"${cpf}" escavador`] : []),
+    `"${name}" escavador processos`,
+  ]
 
-      const html = await res.text()
-      if (html.includes('faça login') && html.length < 5000) continue
+  const escProfileUrls: string[] = []
 
-      const text = stripHtml(html)
+  const googleResults = await Promise.allSettled(
+    googleQueries.map(q => searchGoogle(q, 'Google → Escavador'))
+  )
 
-      // Extract process numbers
-      const processNumbers = [...text.matchAll(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g)]
-        .map(m => m[0]).filter((v, i, a) => a.indexOf(v) === i).slice(0, 10)
-      if (processNumbers.length > 0) allSnippets.push(`Processos encontrados: ${processNumbers.join(', ')}`)
-
-      const relevant = extractAround(text, /processo|envolvido|parte|advogado|criminal|trabalhista|cível|tribunal/i, 80, 500, 4)
-      if (relevant.trim().length > 50) allSnippets.push(relevant.slice(0, 1500))
-
-      if (allSnippets.join('').length > 400) break
-    } catch { continue }
+  for (const r of googleResults) {
+    if (r.status !== 'fulfilled') continue
+    allSnippets.push(...r.value.snippets)
+    allUrls.push(...r.value.urls)
+    escProfileUrls.push(...r.value.urls.filter(u => u.includes('escavador.com')))
   }
 
-  const snippets = [...new Set(allSnippets)].slice(0, 4)
-  const urls = [...new Set(allUrls)].slice(0, 3)
-  if (!urls.length) urls.push(`https://www.escavador.com/busca?q=${encodeURIComponent(name)}&tipo=pessoas`)
+  // Direct Escavador fetch (fallback)
+  const directUrl = cpf
+    ? `https://www.escavador.com/busca?q=${encodeURIComponent(cpf)}&tipo=pessoas`
+    : `https://www.escavador.com/busca?q=${encodeURIComponent(`"${name}"`)}&tipo=pessoas`
 
-  return { source, snippets, urls }
+  const fetchTargets = [...new Set(escProfileUrls)].slice(0, 2)
+  if (!fetchTargets.length) fetchTargets.push(directUrl)
+
+  const pageFetches = await Promise.allSettled(fetchTargets.map(async url => {
+    const res = await fetchWithTimeout(url, { headers: { ...BROWSER_HEADERS, 'Referer': 'https://www.google.com.br/' } }, 12000)
+    if (!res.ok) return { snippets: [], processNumbers: [] }
+    const html = await res.text()
+    const text = stripHtml(html)
+    const processNumbers = extractProcessNumbers(text)
+    const snippets: string[] = []
+    if (processNumbers.length > 0) snippets.push(`Processos no Escavador: ${processNumbers.join(' | ')}`)
+    const rel = extractAround(text, /processo|envolvido|parte|criminal|trabalhista|cível/i, 80, 400, 4)
+    if (rel.trim().length > 50) snippets.push(rel.slice(0, 1500))
+    return { snippets, processNumbers }
+  }))
+
+  for (const r of pageFetches) {
+    if (r.status === 'fulfilled') allSnippets.push(...r.value.snippets)
+  }
+
+  return {
+    source: 'Escavador',
+    snippets: [...new Set(allSnippets)].filter(s => s.length > 20).slice(0, 6),
+    urls: [...new Set([...fetchTargets, ...allUrls.filter(u => u.includes('escavador.com'))])].slice(0, 4),
+  }
 }
 
 // ─── Portal da Transparência ──────────────────────────────────────────────────
@@ -287,206 +315,178 @@ async function searchEscavador(name: string, cpf: string | null): Promise<Search
 async function searchTransparencia(name: string, cpf: string | null): Promise<SearchResult> {
   const source = 'Portal da Transparência'
   try {
-    // Try CPF first (more precise), fallback to name
     const termo = cpf
       ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
       : name
-
     const url = `https://portaldatransparencia.gov.br/beneficios/consulta?termo=${encodeURIComponent(termo)}&pagina=1`
-    const res = await fetchWithTimeout(url, {
-      headers: { ...BROWSER_HEADERS },
-    }, 12000)
-
+    const res = await fetchWithTimeout(url, { headers: { ...BROWSER_HEADERS } }, 12000)
     if (!res.ok) return { source, snippets: [], urls: [url] }
-
     const html = await res.text()
     const text = stripHtml(html)
-
-    const snippets: string[] = []
-    const relevant = extractAround(text, /bolsa|benefício|auxílio|bpc|peti|programa|seguro.desemprego|cad[úu]nico/i, 200, 800, 5)
-    if (relevant.trim().length > 50) snippets.push(relevant.slice(0, 2000))
-    else snippets.push(text.slice(0, 1000))
-
-    return { source, snippets, urls: [url] }
+    const rel = extractAround(text, /bolsa|benefício|auxílio|bpc|peti|cad[úu]nico|seguro.desemprego/i, 200, 800, 5)
+    return {
+      source,
+      snippets: rel.trim().length > 50 ? [rel.slice(0, 2000)] : [text.slice(0, 1000)],
+      urls: [url],
+    }
   } catch {
     return { source, snippets: [], urls: [] }
   }
 }
 
-// ─── Build AI Prompt ──────────────────────────────────────────────────────────
+// ─── DuckDuckGo ───────────────────────────────────────────────────────────────
+
+async function searchDDG(query: string, label: string): Promise<SearchResult> {
+  try {
+    const res = await fetchWithTimeout(
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=br-pt`,
+      { headers: { ...BROWSER_HEADERS } },
+      12000,
+    )
+    if (!res.ok) return { source: label, snippets: [], urls: [] }
+    const html = await res.text()
+
+    const titles = [...html.matchAll(/class="result__a"[^>]*>([\s\S]*?)<\/a>/gi)]
+      .map(m => stripHtml(m[1]).trim()).filter(t => t.length > 10).slice(0, 6)
+    const snippets = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)]
+      .map(m => stripHtml(m[1]).trim()).filter(s => s.length > 20).slice(0, 6)
+    const urls = [...html.matchAll(/class="result__url"[^>]*>([\s\S]*?)<\/span>/gi)]
+      .map(m => stripHtml(m[1]).trim()).filter(Boolean).slice(0, 6)
+
+    const combined = titles.map((t, i) => [t, snippets[i]].filter(Boolean).join(' — '))
+    return { source: label, snippets: combined.length ? combined : snippets, urls }
+  } catch {
+    return { source: label, snippets: [], urls: [] }
+  }
+}
+
+// ─── AI Prompt ────────────────────────────────────────────────────────────────
 
 function buildPrompt(
-  candidateName: string,
+  name: string,
   cpf: string | null,
   city: string | null,
   results: SearchResult[],
 ): string {
-  const cpfFormatted = cpf
-    ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-    : 'Não informado'
+  const cpfFormatted = cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? 'Não informado'
+  const usedCpfSearch = !!cpf
 
-  const searchBlocks = results
+  const blocks = results
     .map(r => {
-      const hasData = r.snippets.length > 0 || r.urls.length > 0
-      if (!hasData) return `\n═══ ${r.source.toUpperCase()} ═══\nNenhum resultado obtido desta fonte.\n`
-
-      const urlList = r.urls.length ? `URLs encontradas:\n${r.urls.map(u => `  - ${u}`).join('\n')}` : ''
-      const snippetList = r.snippets.length ? `Conteúdo extraído:\n${r.snippets.map(s => `  "${s}"`).join('\n')}` : ''
-
-      return `\n═══ ${r.source.toUpperCase()} ═══\n${urlList}\n${snippetList}\n`
+      if (!r.snippets.length && !r.urls.length) return `\n═══ ${r.source.toUpperCase()} ═══\nSem dados retornados.\n`
+      const urlBlock = r.urls.length ? `URLs:\n${r.urls.map(u => `  • ${u}`).join('\n')}` : ''
+      const snipBlock = r.snippets.length ? `Conteúdo:\n${r.snippets.map(s => `  "${s}"`).join('\n')}` : ''
+      return `\n═══ ${r.source.toUpperCase()} ═══\n${urlBlock}\n${snipBlock}\n`
     })
     .join('')
 
+  const jbAuthenticated = results.some(r => r.source.includes('autenticada'))
+
   return `Você é um analista especializado em background check para processos seletivos no Brasil.
 
-Analise TODOS os resultados abaixo com cuidado e produza um relatório completo sobre o candidato.
-
-━━━ DADOS DO CANDIDATO ━━━
-Nome completo: "${candidateName}"
-CPF: ${cpfFormatted}${cpf ? ' ← usado como chave de busca no JusBrasil e Escavador (identificador único)' : ' (não informado — buscas realizadas apenas por nome)'}
+━━━ CANDIDATO ━━━
+Nome: "${name}"
+CPF: ${cpfFormatted}${usedCpfSearch ? ' ← identificador único usado na busca (resultados vinculados a este CPF são 100% desta pessoa)' : ' (não disponível — busca por nome pode ter homonímia)'}
 Cidade: ${city || 'Não informada'}
 
-━━━ RESULTADOS DAS BUSCAS ━━━
-${searchBlocks}
+━━━ DADOS COLETADOS ━━━
+${blocks}
 
-━━━ INSTRUÇÕES DE ANÁLISE ━━━
+━━━ INSTRUÇÕES ━━━
 
-1. PROCESSOS JUDICIAIS (JusBrasil, Escavador, TJxxx, TRT, STJ, STF):
-   - Identifique processos cíveis, criminais, trabalhistas, de família, etc.
-   - Mencione número do processo, tribunal, tipo de ação se disponível
-   - Confirme que o nome e/ou CPF correspondem ao candidato pesquisado
-   - Diferencie se o candidato é autor, réu, reclamante ou reclamado
+1. PROCESSOS JUDICIAIS:
+   - Identifique processos cíveis, criminais, trabalhistas, de família, execução fiscal, etc.
+   - Se encontrar números no formato NNNNNNN-NN.NNNN.N.NN.NNNN, liste todos explicitamente
+   - Indique tribunal, vara, tipo de ação e papel (autor/réu/reclamante/reclamado) quando disponível
+   - ${jbAuthenticated ? '✓ JusBrasil consultado com CONTA AUTENTICADA — dados são da consulta processual oficial' : 'JusBrasil acessado via busca pública (sem autenticação)'}
+   - ${usedCpfSearch ? 'CPF foi usado como chave de busca — resultados são definitivamente desta pessoa' : 'Nome pode ter homonímia — avalie se os dados confirmam ser a mesma pessoa'}
 
-2. BENEFÍCIOS GOVERNAMENTAIS (Portal da Transparência, DataPrev, Caixa):
-   - Bolsa Família / CadÚnico
-   - BPC (Benefício de Prestação Continuada)
-   - Seguro Desemprego
-   - Auxílio Brasil, Auxílio Emergencial (COVID)
-   - PETI, ProUni, FIES, outros programas sociais
+2. BENEFÍCIOS GOVERNAMENTAIS:
+   - Bolsa Família / CadÚnico, BPC, Seguro Desemprego, Auxílio Brasil, Auxílio Emergencial, PETI, etc.
+   - Indique se ativo ou histórico (ano) quando disponível
 
-3. OUTRAS INFORMAÇÕES RELEVANTES:
-   - Registros em órgãos públicos (Receita Federal, TJSP, etc.)
-   - Notícias em portais de mídia ou redes sociais relevantes para o cargo
-   - Empresa(s) em que aparece como sócio ou representante
-   - Qualquer outra informação pertinente para a contratação
+3. OUTRAS INFORMAÇÕES:
+   - Sociedade em empresas, notícias relevantes, registros públicos, dívidas ativas
 
-4. CRITÉRIOS DE RIGOR:
-   - Só afirme como "encontrado" o que tiver evidência EXPLÍCITA nos resultados
-   - O CPF é um identificador único — se a busca por CPF retornou resultados, eles são certamente desta pessoa
-   - Se a busca foi feita apenas por nome, avalie se o nome é comum e indique a incerteza
-   - Processos com número no formato NNNNNNN-NN.NNNN.N.NN.NNNN são dados concretos — liste-os
-   - Se os sites retornaram página de login ou sem dados, declare como "não verificado — requer acesso manual"
-   - Não invente nem suponha informações — baseie-se apenas no que foi coletado
+4. RIGOR:
+   - Só afirme como "encontrado: true" se há evidência explícita e concreta nos dados acima
+   - Se o site retornou página de login ou sem resultados, escreva isso no resumo
+   - Não invente — baseie-se APENAS nos dados coletados
 
-Retorne APENAS um objeto JSON válido com esta estrutura:
+Retorne SOMENTE este JSON (sem markdown):
 {
   "processos_judiciais": {
     "encontrado": false,
-    "resumo": "descrição clara em 1-2 frases",
-    "detalhes": ["Processo nº XXXXX — Vara do Trabalho — 2023 (reclamante)", "..."],
+    "resumo": "descrição objetiva",
+    "detalhes": ["Processo 0001234-56.2023.8.19.0004 — TJRJ — Vara do Trabalho (reclamante)", "..."],
     "urls": ["https://www.jusbrasil.com.br/..."]
   },
   "beneficios_governamentais": {
     "encontrado": false,
-    "lista": ["Bolsa Família (ativo)", "Seguro Desemprego (2022)"],
-    "resumo": "descrição clara"
+    "lista": ["Bolsa Família (ativo)", "..."],
+    "resumo": "descrição objetiva"
   },
   "outras_informacoes": {
-    "items": ["Sócia da empresa XYZ Ltda desde 2020", "..."],
-    "resumo": "descrição clara ou 'Nenhuma informação adicional encontrada'"
+    "items": ["Sócia da empresa XYZ desde 2020"],
+    "resumo": "descrição ou 'Nenhuma informação adicional encontrada'"
   },
-  "parecer_geral": "Resumo executivo em 2-3 frases para o recrutador decidir se há riscos",
+  "parecer_geral": "2-3 frases diretas para o recrutador",
   "nivel_risco": "baixo",
-  "fontes_consultadas": ["Google", "JusBrasil", "Escavador", "Portal da Transparência"],
-  "observacoes_tecnicas": "Ex: JusBrasil retornou página de login. Escavador não retornou resultados para este nome."
+  "fontes_consultadas": ["JusBrasil", "Escavador", "Portal da Transparência"],
+  "observacoes_tecnicas": "limitações encontradas, ex: JusBrasil exigiu login"
 }
-
-Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado"
-Retorne SOMENTE o JSON, sem markdown, sem texto adicional.`
+Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado"`
 }
 
 // ─── Call AI ──────────────────────────────────────────────────────────────────
 
-async function callAI(
-  prompt: string,
-  supabase: Awaited<ReturnType<typeof createSupabaseServiceClient>>,
-): Promise<BackgroundCheckResult> {
-  const { data: aiSettings } = await supabase
-    .from('ai_settings')
-    .select('anthropic_api_key_encrypted, openai_api_key_encrypted')
-    .limit(1)
-    .single()
+async function callAI(prompt: string, supabase: Awaited<ReturnType<typeof createSupabaseServiceClient>>): Promise<BackgroundCheckResult> {
+  const { data: s } = await supabase.from('ai_settings').select('anthropic_api_key_encrypted, openai_api_key_encrypted').limit(1).single()
 
-  // Try Anthropic (Haiku — fast and cheap for this task)
-  if (aiSettings?.anthropic_api_key_encrypted) {
+  if (s?.anthropic_api_key_encrypted) {
     try {
-      const res = await fetchWithTimeout(
-        'https://api.anthropic.com/v1/messages',
-        {
-          method: 'POST',
-          headers: {
-            'x-api-key': aiSettings.anthropic_api_key_encrypted,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5',
-            max_tokens: 2000,
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        },
-        35000,
-      )
+      const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': s.anthropic_api_key_encrypted, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] }),
+      }, 35000)
       if (res.ok) {
         const data = await res.json()
         const text: string = data?.content?.[0]?.text || ''
-        const jsonMatch = text.match(/\{[\s\S]*\}/)
-        if (jsonMatch) return JSON.parse(jsonMatch[0]) as BackgroundCheckResult
+        const m = text.match(/\{[\s\S]*\}/)
+        if (m) return JSON.parse(m[0]) as BackgroundCheckResult
       }
-    } catch { /* fallthrough to OpenAI */ }
+    } catch { /* fallthrough */ }
   }
 
-  // Try OpenAI (gpt-4o-mini)
-  if (aiSettings?.openai_api_key_encrypted) {
+  if (s?.openai_api_key_encrypted) {
     try {
-      const res = await fetchWithTimeout(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${aiSettings.openai_api_key_encrypted}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            max_tokens: 2000,
-            response_format: { type: 'json_object' },
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        },
-        35000,
-      )
+      const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${s.openai_api_key_encrypted}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 2000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+      }, 35000)
       if (res.ok) {
         const data = await res.json()
         const text: string = data?.choices?.[0]?.message?.content || ''
-        const jsonMatch = text.match(/\{[\s\S]*\}/)
-        if (jsonMatch) return JSON.parse(jsonMatch[0]) as BackgroundCheckResult
+        const m = text.match(/\{[\s\S]*\}/)
+        if (m) return JSON.parse(m[0]) as BackgroundCheckResult
       }
     } catch { /* fallthrough */ }
   }
 
   return {
-    processos_judiciais: { encontrado: false, resumo: 'Análise indisponível — configure uma chave de IA em Configurações → IA.', detalhes: [], urls: [] },
-    beneficios_governamentais: { encontrado: false, lista: [], resumo: 'Análise indisponível.' },
-    outras_informacoes: { items: [], resumo: 'Análise indisponível.' },
-    parecer_geral: 'Nenhuma chave de IA configurada. Acesse Configurações → Configuração IA para adicionar.',
+    processos_judiciais: { encontrado: false, resumo: 'Chave de IA não configurada.', detalhes: [], urls: [] },
+    beneficios_governamentais: { encontrado: false, lista: [], resumo: 'Chave de IA não configurada.' },
+    outras_informacoes: { items: [], resumo: 'Chave de IA não configurada.' },
+    parecer_geral: 'Configure uma chave de IA em Configurações → Configuração IA para usar este recurso.',
     nivel_risco: 'nao_determinado',
     fontes_consultadas: [],
-    observacoes_tecnicas: 'Nenhuma chave de IA (Anthropic ou OpenAI) configurada.',
+    observacoes_tecnicas: 'Nenhuma chave de IA configurada.',
   }
 }
 
-// ─── Route Handler ────────────────────────────────────────────────────────────
+// ─── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(
   _req: NextRequest,
@@ -495,102 +495,77 @@ export async function POST(
   try {
     const { id } = await params
 
-    // Auth
     const supabaseAuth = await createSupabaseServerClient()
     const { data: { user } } = await supabaseAuth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
 
     const supabase = await createSupabaseServiceClient()
 
-    // Fetch candidate
     const { data: candidate } = await supabase
-      .from('candidates')
-      .select('full_name, cpf, city, phone')
-      .eq('id', id)
-      .single()
-
+      .from('candidates').select('full_name, cpf, city').eq('id', id).single()
     if (!candidate) return NextResponse.json({ error: 'Candidato não encontrado.' }, { status: 404 })
 
     const { full_name, cpf, city } = candidate
     const cpfClean = cpf?.replace(/\D/g, '') || null
     const cpfFormatted = cpfClean?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? null
 
-    // ── Fire all searches in parallel ─────────────────────────────────────────
-    const [
-      googleProcessos,
-      googleBeneficios,
-      googleGeral,
-      jusBrasil,
-      escavador,
-      transparencia,
-      ddgJusBrasil,
-      ddgEscavador,
-    ] = await Promise.allSettled([
-      // Google: processos judiciais com nome exato
-      searchGoogle(`"${full_name}" processos judiciais jusbrasil escavador`),
-      // Google: benefícios e auxílios com CPF ou nome
-      searchGoogle(`"${full_name}"${cpfFormatted ? ` OR "${cpfFormatted}"` : ''} auxílio bolsa dataprev INSS benefício governo`),
-      // Google: busca geral sobre a pessoa
-      searchGoogle(`"${full_name}"${city ? ` "${city}"` : ''} trabalhista criminal reclamação`),
-      // JusBrasil direto — usa CPF como chave primária, nome como fallback
-      searchJusBrasil(full_name, cpfClean),
-      // Escavador direto — idem
+    // ── Credenciais JusBrasil (DB → env var) ──────────────────────────────────
+    const { data: aiSettings } = await supabase
+      .from('ai_settings')
+      .select('jusbrasil_email, jusbrasil_password')
+      .limit(1)
+      .single()
+
+    const jbCredentials =
+      aiSettings?.jusbrasil_email && aiSettings?.jusbrasil_password
+        ? { email: aiSettings.jusbrasil_email, password: aiSettings.jusbrasil_password }
+        : undefined // scraper vai tentar env vars
+
+    // ── Run all searches in parallel ──────────────────────────────────────────
+    // JusBrasil and Escavador each internally run Google + direct fetch (2 phases)
+    // DuckDuckGo and Transparência run independently in parallel
+    const [jusBrasilR, escavadorR, transparenciaR, ddgGeralR] = await Promise.allSettled([
+      searchJusBrasil(full_name, cpfClean, jbCredentials),
       searchEscavador(full_name, cpfClean),
-      // Portal da Transparência
       searchTransparencia(full_name, cpfClean),
-      // DuckDuckGo: JusBrasil site específico
-      searchDDG(`"${full_name}" site:jusbrasil.com.br`, 'DuckDuckGo → JusBrasil'),
-      // DuckDuckGo: Escavador + DataPrev
-      searchDDG(`"${full_name}"${cpfFormatted ? ` OR "${cpfFormatted}"` : ''} site:escavador.com OR site:dataprev.gov.br OR site:mds.gov.br`, 'DuckDuckGo → Escavador/DataPrev'),
+      searchDDG(
+        `"${full_name}"${cpfFormatted ? ` OR "${cpfFormatted}"` : ''} auxílio bolsa dataprev INSS benefício governo`,
+        'DuckDuckGo (benefícios)',
+      ),
     ])
 
-    const allResults: SearchResult[] = [
-      googleProcessos.status    === 'fulfilled' ? googleProcessos.value    : { source: 'Google (processos)',   snippets: [], urls: [] },
-      googleBeneficios.status   === 'fulfilled' ? googleBeneficios.value   : { source: 'Google (benefícios)',  snippets: [], urls: [] },
-      googleGeral.status        === 'fulfilled' ? googleGeral.value        : { source: 'Google (geral)',       snippets: [], urls: [] },
-      jusBrasil.status          === 'fulfilled' ? jusBrasil.value          : { source: 'JusBrasil',            snippets: [], urls: [] },
-      escavador.status          === 'fulfilled' ? escavador.value          : { source: 'Escavador',            snippets: [], urls: [] },
-      transparencia.status      === 'fulfilled' ? transparencia.value      : { source: 'Portal da Transparência', snippets: [], urls: [] },
-      ddgJusBrasil.status       === 'fulfilled' ? ddgJusBrasil.value       : { source: 'DuckDuckGo → JusBrasil',  snippets: [], urls: [] },
-      ddgEscavador.status       === 'fulfilled' ? ddgEscavador.value       : { source: 'DuckDuckGo → Escavador/DataPrev', snippets: [], urls: [] },
+    const results: SearchResult[] = [
+      jusBrasilR.status    === 'fulfilled' ? jusBrasilR.value    : { source: 'JusBrasil',                 snippets: [], urls: [] },
+      escavadorR.status    === 'fulfilled' ? escavadorR.value    : { source: 'Escavador',                  snippets: [], urls: [] },
+      transparenciaR.status=== 'fulfilled' ? transparenciaR.value: { source: 'Portal da Transparência',    snippets: [], urls: [] },
+      ddgGeralR.status     === 'fulfilled' ? ddgGeralR.value     : { source: 'DuckDuckGo (benefícios)',     snippets: [], urls: [] },
     ]
 
-    // Build prompt and get AI analysis
-    const prompt = buildPrompt(full_name, cpfClean, city, allResults)
+    const prompt = buildPrompt(full_name, cpfClean, city, results)
     const result = await callAI(prompt, supabase)
 
-    // Enrich URLs from direct fetches
-    const directUrls = [
-      ...allResults.flatMap(r => r.urls.filter(u =>
-        u.includes('jusbrasil') || u.includes('escavador') || u.includes('dataprev') || u.includes('transparencia')
-      )),
-    ].filter((u, i, a) => a.indexOf(u) === i).slice(0, 6)
+    // Enrich process URLs with what we actually found
+    const allFoundUrls = results.flatMap(r => r.urls.filter(u =>
+      u.includes('jusbrasil') || u.includes('escavador') || u.includes('dataprev')
+    )).filter((u, i, a) => a.indexOf(u) === i).slice(0, 6)
 
-    if (directUrls.length > 0) {
-      result.processos_judiciais.urls = [
-        ...new Set([...(result.processos_judiciais.urls || []), ...directUrls]),
-      ].slice(0, 6)
-    }
+    result.processos_judiciais.urls = [
+      ...new Set([...(result.processos_judiciais.urls || []), ...allFoundUrls])
+    ].slice(0, 6)
 
-    // List which sources actually returned data
-    const activeSources = allResults
+    result.fontes_consultadas = results
       .filter(r => r.snippets.length > 0 || r.urls.length > 0)
       .map(r => r.source)
-    result.fontes_consultadas = activeSources.length > 0 ? activeSources : result.fontes_consultadas
 
-    // Persist to DB
-    await supabase
-      .from('candidates')
-      .update({
-        background_check_result: result,
-        background_check_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
+    await supabase.from('candidates').update({
+      background_check_result: result,
+      background_check_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
 
     return NextResponse.json({ success: true, result })
   } catch (err) {
-    console.error('[background-check] error:', err)
-    return NextResponse.json({ error: 'Erro interno do servidor.' }, { status: 500 })
+    console.error('[background-check]', err)
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
   }
 }
