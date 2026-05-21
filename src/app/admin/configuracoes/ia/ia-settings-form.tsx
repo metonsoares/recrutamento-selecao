@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Eye, EyeOff, Key, CheckCircle2, Loader2, ExternalLink,
   AlertCircle, FileText, MessageSquare, Building2, Bot, Search, Info,
-  Scale, Trash2,
+  Scale, Trash2, Wifi, WifiOff,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -228,8 +228,10 @@ function JusBrasilCredentialsCard({
   const [showPass, setShowPass] = useState(false)
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'saved' | 'error' | 'removed'>('idle')
+  const [testing, setTesting] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'saved' | 'error' | 'removed' | 'test_ok' | 'test_fail'>('idle')
   const [errMsg, setErrMsg] = useState('')
+  const [testMsg, setTestMsg] = useState('')
 
   const isConfigured = !!initialEmail && hasPassword
 
@@ -268,6 +270,28 @@ function JusBrasilCredentialsCard({
       setTimeout(() => window.location.reload(), 600)
     } finally {
       setRemoving(false)
+    }
+  }
+
+  async function testConnection() {
+    setTesting(true)
+    setStatus('idle')
+    setTestMsg('')
+    try {
+      const res = await fetch('/api/admin/ai/test-jusbrasil', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (data?.ok) {
+        setStatus('test_ok')
+        setTestMsg(data.message ?? 'Conexão bem-sucedida!')
+      } else {
+        setStatus('test_fail')
+        setErrMsg(data?.error ?? 'Falha na conexão.')
+      }
+    } catch {
+      setStatus('test_fail')
+      setErrMsg('Erro de rede ao testar.')
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -356,9 +380,27 @@ function JusBrasilCredentialsCard({
           <CheckCircle2 className="w-3.5 h-3.5" />Credenciais removidas.
         </p>
       )}
+      {status === 'test_ok' && (
+        <p className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          <Wifi className="w-3.5 h-3.5 shrink-0" />{testMsg}
+        </p>
+      )}
+      {status === 'test_fail' && (
+        <p className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <WifiOff className="w-3.5 h-3.5 shrink-0" />{errMsg}
+        </p>
+      )}
+
+      {/* Teste em andamento */}
+      {testing && (
+        <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          Abrindo navegador e fazendo login no JusBrasil… pode levar até 30 segundos.
+        </div>
+      )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1 flex-wrap">
         <Button
           size="sm"
           onClick={save}
@@ -369,6 +411,22 @@ function JusBrasilCredentialsCard({
             : isConfigured ? 'Atualizar credenciais' : 'Salvar credenciais'
           }
         </Button>
+
+        {isConfigured && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={testConnection}
+            disabled={testing || saving}
+          >
+            {testing
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Wifi className="w-3.5 h-3.5" />
+            }
+            Testar conexão
+          </Button>
+        )}
 
         {isConfigured && (
           <Button
