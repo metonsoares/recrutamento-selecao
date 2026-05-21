@@ -283,53 +283,6 @@ async function searchEscavador(name: string, cpf: string | null): Promise<Search
   }
 }
 
-// ─── Portal da Transparência ──────────────────────────────────────────────────
-
-async function searchTransparencia(name: string, cpf: string | null): Promise<SearchResult> {
-  const source = 'Portal da Transparência'
-  try {
-    const termo = cpf
-      ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-      : name
-    const url = `https://portaldatransparencia.gov.br/beneficios/consulta?termo=${encodeURIComponent(termo)}&pagina=1`
-    const res = await fetchWithTimeout(url, { headers: { ...BROWSER_HEADERS } }, 10000)
-    if (!res.ok) return { source, snippets: [], urls: [url] }
-    const html = await res.text()
-    const text = stripHtml(html)
-    const rel = extractAround(text, /bolsa|benefício|auxílio|bpc|peti|cad[úu]nico|seguro.desemprego/i, 200, 800, 5)
-    return {
-      source,
-      snippets: rel.trim().length > 50 ? [rel.slice(0, 2000)] : [text.slice(0, 800)],
-      urls: [url],
-    }
-  } catch {
-    return { source, snippets: [], urls: [] }
-  }
-}
-
-// ─── DuckDuckGo ───────────────────────────────────────────────────────────────
-
-async function searchDDG(query: string, label: string): Promise<SearchResult> {
-  try {
-    const res = await fetchWithTimeout(
-      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=br-pt`,
-      { headers: { ...BROWSER_HEADERS } },
-      10000,
-    )
-    if (!res.ok) return { source: label, snippets: [], urls: [] }
-    const html = await res.text()
-    const titles = [...html.matchAll(/class="result__a"[^>]*>([\s\S]*?)<\/a>/gi)]
-      .map(m => stripHtml(m[1]).trim()).filter(t => t.length > 10).slice(0, 5)
-    const snippets = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)]
-      .map(m => stripHtml(m[1]).trim()).filter(s => s.length > 20).slice(0, 5)
-    const urls = [...html.matchAll(/class="result__url"[^>]*>([\s\S]*?)<\/span>/gi)]
-      .map(m => stripHtml(m[1]).trim()).filter(Boolean).slice(0, 5)
-    const combined = titles.map((t, i) => [t, snippets[i]].filter(Boolean).join(' — '))
-    return { source: label, snippets: combined.length ? combined : snippets, urls }
-  } catch {
-    return { source: label, snippets: [], urls: [] }
-  }
-}
 
 // ─── AI Prompt ────────────────────────────────────────────────────────────────
 
@@ -344,63 +297,51 @@ function buildPrompt(name: string, cpf: string | null, city: string | null, resu
     return `\n═══ ${r.source.toUpperCase()} ═══\n${urlBlock}\n${snipBlock}\n`
   }).join('')
 
-  return `Você é um analista especializado em background check para processos seletivos no Brasil.
+  return `Você é um analista especializado em background check judicial para processos seletivos no Brasil.
 
 ━━━ CANDIDATO ━━━
 Nome: "${name}"
-CPF: ${cpfFormatted}${usedCpf ? ' ← CPF usado como chave única (resultados são 100% desta pessoa)' : ' (não informado — busca por nome pode ter homonímia)'}
+CPF: ${cpfFormatted}${usedCpf ? ' ← identificador único — resultados são 100% desta pessoa' : ' (não informado — busca feita por nome, possível homonímia)'}
 Cidade: ${city || 'Não informada'}
 
 ━━━ FONTES CONSULTADAS ━━━
-• DataJud (CNJ): base oficial do Conselho Nacional de Justiça — cobre TODOS os tribunais brasileiros (TJs, TRTs, TRFs, STJ).
-  ${usedCpf ? 'Busca feita por CPF — resultado definitivo e sem ambiguidade.' : 'Busca feita por nome — possível homonímia.'}
-• Escavador: agregador de processos públicos.
-• Portal da Transparência: benefícios sociais do governo federal.
-• DuckDuckGo: busca pública complementar.
+• DataJud (CNJ): API oficial do Conselho Nacional de Justiça — 27 TJs estaduais + 24 TRTs trabalhistas.
+  ${usedCpf ? '✓ Busca por CPF — resultado definitivo, sem ambiguidade.' : 'Busca por nome — pode haver homonímia em nomes comuns.'}
+• Escavador: agregador público de processos judiciais.
 
 ━━━ DADOS COLETADOS ━━━
 ${blocks}
 
 ━━━ INSTRUÇÕES ━━━
 
-1. PROCESSOS JUDICIAIS (DataJud é a fonte primária — dados oficiais do CNJ):
-   - Liste TODOS os processos encontrados no DataJud com número, tribunal, classe, assunto e polo da parte
-   - Classifique: cível, criminal, trabalhista, família, execução fiscal, etc.
-   - ${usedCpf ? 'CPF foi usado na busca — todos os resultados do DataJud são definitivamente desta pessoa' : 'Nome pode ter homonímia — indique se os dados confirmam ser a mesma pessoa'}
+PROCESSOS JUDICIAIS:
+- Liste TODOS os processos encontrados com: número completo, tribunal, classe, assunto e polo (autor/réu/reclamante/reclamado)
+- Classifique o tipo: criminal, trabalhista, cível, família, execução fiscal, etc.
+- ${usedCpf ? 'Resultados do DataJud por CPF são definitivamente desta pessoa.' : 'Verifique se nome e dados confirmam ser a mesma pessoa.'}
+- Se DataJud retornou "Nenhum processo encontrado", registre claramente.
+- Nunca invente ou presuma processos — use APENAS os dados coletados acima.
 
-2. BENEFÍCIOS GOVERNAMENTAIS:
-   - Bolsa Família/CadÚnico, BPC, Seguro Desemprego, Auxílio Brasil, Auxílio Emergencial, PETI, etc.
-   - Indique se ativo ou histórico quando possível
-
-3. OUTRAS INFORMAÇÕES:
-   - Sociedade em empresas, notícias relevantes, registros públicos, dívidas ativas
-
-4. RIGOR:
-   - Só marque "encontrado: true" se há evidência explícita nos dados acima
-   - Se DataJud retornou "Nenhum processo encontrado", registre isso claramente
-   - Nunca invente processos — base-se APENAS nos dados coletados
+RIGOR:
+- "encontrado: true" somente com evidência explícita e concreta
+- Se não há dados suficientes, use nivel_risco: "nao_determinado"
 
 Retorne SOMENTE este JSON (sem markdown):
 {
   "processos_judiciais": {
     "encontrado": false,
-    "resumo": "descrição objetiva com números dos processos se houver",
-    "detalhes": ["Processo 0001234-56.2023.8.26.0001 — TJSP — Procedimento Comum Cível (réu)", "..."],
-    "urls": ["https://..."]
+    "resumo": "descrição objetiva; se houver processos, cite número e tribunal",
+    "detalhes": ["Processo 0001234-56.2023.8.26.0001 — TJSP — Procedimento Comum Cível — réu", "..."],
+    "urls": []
   },
-  "beneficios_governamentais": {
-    "encontrado": false,
-    "lista": ["Bolsa Família (ativo 2024)", "..."],
-    "resumo": "descrição objetiva"
-  },
+  "beneficios_governamentais": { "encontrado": false, "lista": [], "resumo": "Não verificado." },
   "outras_informacoes": {
-    "items": ["Sócia da empresa XYZ desde 2020"],
-    "resumo": "descrição ou 'Nenhuma informação adicional encontrada'"
+    "items": [],
+    "resumo": "Nenhuma informação adicional encontrada."
   },
-  "parecer_geral": "2-3 frases diretas para o recrutador",
+  "parecer_geral": "2-3 frases diretas para o recrutador sobre o resultado da pesquisa judicial",
   "nivel_risco": "baixo",
-  "fontes_consultadas": ["DataJud (CNJ)", "Escavador", "Portal da Transparência"],
-  "observacoes_tecnicas": "ex: nome muito comum, busca por CPF mais precisa, etc."
+  "fontes_consultadas": ["DataJud — CNJ (oficial)", "Escavador"],
+  "observacoes_tecnicas": "ex: CPF não informado — busca por nome pode ter homonímia"
 }
 Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado"`
 }
@@ -522,22 +463,15 @@ export async function POST(
 
     // ── Buscas em paralelo ────────────────────────────────────────────────────
     // DataJud: 51 tribunais em paralelo via HTTP (~2-4s total)
-    // Escavador + Transparência + DDG: buscas independentes em paralelo
-    const [dataJudR, escavadorR, transparenciaR, ddgR] = await Promise.allSettled([
+    // Escavador: busca complementar pública
+    const [dataJudR, escavadorR] = await Promise.allSettled([
       searchDataJud(full_name, cpfClean, datajudKey),
       searchEscavador(full_name, cpfClean),
-      searchTransparencia(full_name, cpfClean),
-      searchDDG(
-        `"${full_name}"${cpfFormatted ? ` OR "${cpfFormatted}"` : ''} auxílio bolsa dataprev INSS benefício governo`,
-        'DuckDuckGo (benefícios)',
-      ),
     ])
 
     const results: SearchResult[] = [
-      dataJudR.status     === 'fulfilled' ? dataJudR.value     : { source: 'DataJud — CNJ (oficial)',    snippets: [], urls: [] },
-      escavadorR.status   === 'fulfilled' ? escavadorR.value   : { source: 'Escavador',                  snippets: [], urls: [] },
-      transparenciaR.status==='fulfilled' ? transparenciaR.value:{ source: 'Portal da Transparência',    snippets: [], urls: [] },
-      ddgR.status         === 'fulfilled' ? ddgR.value         : { source: 'DuckDuckGo (benefícios)',    snippets: [], urls: [] },
+      dataJudR.status   === 'fulfilled' ? dataJudR.value   : { source: 'DataJud — CNJ (oficial)', snippets: [], urls: [] },
+      escavadorR.status === 'fulfilled' ? escavadorR.value : { source: 'Escavador',               snippets: [], urls: [] },
     ]
 
     const prompt = buildPrompt(full_name, cpfClean, city, results)

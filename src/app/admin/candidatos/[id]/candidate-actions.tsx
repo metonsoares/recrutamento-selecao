@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult } from '@/types'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Brain, FlaskConical, Eye, CalendarCheck, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw } from 'lucide-react'
-import { formatDate } from '@/lib/helpers'
+import { formatDateTime } from '@/lib/helpers'
 
 const ALL_STATUSES = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
 
@@ -87,7 +87,7 @@ function BackgroundCheckModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-blue-600" />
@@ -99,7 +99,7 @@ function BackgroundCheckModal({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {checkedAt && (
             <span className="text-xs text-muted-foreground">
-              Última verificação: {formatDate(checkedAt)}
+              Última verificação: {formatDateTime(checkedAt)}
             </span>
           )}
           <Button
@@ -125,9 +125,9 @@ function BackgroundCheckModal({
         {running && !result && (
           <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            <p className="text-sm">Pesquisando em fontes públicas...</p>
+            <p className="text-sm">Consultando DataJud — CNJ...</p>
             <p className="text-xs text-center max-w-xs">
-              Consultando JusBrasil, Escavador, Portal da Transparência e outros sites públicos. Isso pode levar até 30 segundos.
+              Pesquisando em 51 tribunais brasileiros (TJs + TRTs) via API oficial do CNJ. Isso pode levar alguns segundos.
             </p>
           </div>
         )}
@@ -192,31 +192,6 @@ function BackgroundCheckModal({
               )}
             </div>
 
-            {/* Benefícios Governamentais */}
-            <div className={`rounded-xl border p-4 space-y-2 ${result.beneficios_governamentais?.encontrado ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
-              <div className="flex items-center gap-2">
-                {result.beneficios_governamentais?.encontrado
-                  ? <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                  : <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                }
-                <p className="text-sm font-semibold">
-                  Benefícios Governamentais
-                  {result.beneficios_governamentais?.encontrado
-                    ? <span className="ml-2 text-amber-700">Identificado(s)</span>
-                    : <span className="ml-2 text-emerald-600">✓ Nenhum identificado</span>
-                  }
-                </p>
-              </div>
-              <p className="text-sm text-gray-700">{result.beneficios_governamentais?.resumo}</p>
-              {(result.beneficios_governamentais?.lista || []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {result.beneficios_governamentais.lista.map((b, i) => (
-                    <span key={i} className="text-xs bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-medium">{b}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Outras informações */}
             {((result.outras_informacoes?.items || []).length > 0 || result.outras_informacoes?.resumo) && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
@@ -254,14 +229,8 @@ function BackgroundCheckModal({
             )}
 
             <p className="text-[11px] text-muted-foreground border-t pt-2 leading-relaxed">
-              Esta pesquisa é baseada em fontes públicas disponíveis na internet e tem caráter informativo.
+              Dados obtidos via <strong>DataJud — API oficial do CNJ</strong> (Conselho Nacional de Justiça).
               Os resultados devem ser verificados manualmente antes de qualquer decisão.
-              Links diretos: {' '}
-              <a href={`https://www.jusbrasil.com.br/busca?q=${encodeURIComponent('')}`} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">JusBrasil</a>
-              {' · '}
-              <a href={`https://www.escavador.com`} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">Escavador</a>
-              {' · '}
-              <a href="https://portaldatransparencia.gov.br/beneficios" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">Portal da Transparência</a>
             </p>
 
           </div>
