@@ -188,14 +188,7 @@ async function searchDataJud(name: string, cpf: string | null, apiKey: string): 
     processLines.slice(0, 25).forEach(line => snippets.push(line))
   }
 
-  const cpfFmt = cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-  const urls: string[] = [
-    cpf
-      ? `https://www.jusbrasil.com.br/consulta-processual/?query=${encodeURIComponent(cpfFmt ?? cpf)}`
-      : `https://www.jusbrasil.com.br/consulta-processual/?query=${encodeURIComponent(name)}`,
-  ]
-
-  return { source: 'DataJud — CNJ (oficial)', snippets, urls }
+  return { source: 'DataJud — CNJ (oficial)', snippets, urls: [] }
 }
 
 // ─── Escavador ────────────────────────────────────────────────────────────────
@@ -284,6 +277,39 @@ async function searchEscavador(name: string, cpf: string | null): Promise<Search
 }
 
 
+// ─── Fallback sem IA ─────────────────────────────────────────────────────────
+// Quando nenhuma chave de IA está configurada, exibe os dados brutos do DataJud.
+
+function buildFallbackResult(results: SearchResult[]): BackgroundCheckResult {
+  const datajudResult = results.find(r => r.source.includes('DataJud'))
+  const snippets = datajudResult?.snippets ?? []
+
+  // Primeiro snippet é o resumo ("X processo(s) encontrado(s)..." ou "Nenhum processo...")
+  const summaryLine = snippets[0] ?? 'DataJud consultado.'
+  const noProcessos = !snippets.length || summaryLine.includes('Nenhum processo')
+  // Linhas seguintes são os processos formatados (uma por linha)
+  const processLines = noProcessos ? [] : snippets.slice(1)
+
+  return {
+    processos_judiciais: {
+      encontrado: processLines.length > 0,
+      resumo: summaryLine,
+      detalhes: processLines,
+      urls: [],
+    },
+    beneficios_governamentais: { encontrado: false, lista: [], resumo: 'Não verificado.' },
+    outras_informacoes: { items: [], resumo: '' },
+    parecer_geral: processLines.length === 0
+      ? 'Nenhum processo judicial encontrado nos 51 tribunais estaduais e trabalhistas consultados via DataJud (CNJ).'
+      : `${processLines.length} processo(s) encontrado(s) no DataJud. Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.`,
+    nivel_risco: processLines.length === 0 ? 'baixo' : 'nao_determinado',
+    fontes_consultadas: [],
+    observacoes_tecnicas: processLines.length > 0
+      ? 'Configure uma chave de IA para análise inteligente dos processos encontrados.'
+      : 'Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.',
+  }
+}
+
 // ─── AI Prompt ────────────────────────────────────────────────────────────────
 
 function buildPrompt(name: string, cpf: string | null, city: string | null, results: SearchResult[]): string {
@@ -351,7 +377,7 @@ Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado
 async function callAI(
   prompt: string,
   supabase: Awaited<ReturnType<typeof createSupabaseServiceClient>>,
-): Promise<BackgroundCheckResult> {
+): Promise<BackgroundCheckResult | null> {
   // Query própria — não depende de dados externos; usa maybeSingle para não falhar se não houver linha
   const { data: s } = await supabase
     .from('ai_settings')
@@ -415,15 +441,7 @@ async function callAI(
     } catch { /* fallthrough */ }
   }
 
-  return {
-    processos_judiciais: { encontrado: false, resumo: 'Chave de IA não configurada.', detalhes: [], urls: [] },
-    beneficios_governamentais: { encontrado: false, lista: [], resumo: 'Chave de IA não configurada.' },
-    outras_informacoes: { items: [], resumo: 'Chave de IA não configurada.' },
-    parecer_geral: 'Configure uma chave de IA em Configurações → Configuração IA para usar este recurso.',
-    nivel_risco: 'nao_determinado',
-    fontes_consultadas: [],
-    observacoes_tecnicas: 'Nenhuma chave de IA configurada.',
-  }
+  return null
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -475,17 +493,9 @@ export async function POST(
     ]
 
     const prompt = buildPrompt(full_name, cpfClean, city, results)
-    const result = await callAI(prompt, supabase)
-
-    // Enriquece URLs de processos com o que foi encontrado
-    const allFoundUrls = results
-      .flatMap(r => r.urls.filter(u => u.includes('jusbrasil') || u.includes('escavador') || u.includes('datajud') || u.includes('cnj')))
-      .filter((u, i, a) => a.indexOf(u) === i)
-      .slice(0, 6)
-
-    result.processos_judiciais.urls = [
-      ...new Set([...(result.processos_judiciais.urls || []), ...allFoundUrls])
-    ].slice(0, 6)
+    const aiResult = await callAI(prompt, supabase)
+    // Se não há chave de IA, exibe os dados brutos do DataJud diretamente
+    const result: BackgroundCheckResult = aiResult ?? buildFallbackResult(results)
 
     result.fontes_consultadas = results
       .filter(r => r.snippets.length > 0 || r.urls.length > 0)

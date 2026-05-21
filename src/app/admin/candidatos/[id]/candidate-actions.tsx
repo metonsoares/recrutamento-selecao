@@ -87,7 +87,7 @@ function BackgroundCheckModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-blue-600" />
@@ -180,12 +180,12 @@ function BackgroundCheckModal({
                 </ul>
               )}
               {(result.processos_judiciais?.urls || []).length > 0 && (
-                <div className="flex flex-col gap-1 mt-1">
+                <div className="flex flex-col gap-1 mt-1 overflow-hidden">
                   {result.processos_judiciais.urls.map((u, i) => (
                     <a key={i} href={u.startsWith('http') ? u : `https://${u}`} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-blue-600 underline hover:text-blue-800 flex items-center gap-1 w-fit truncate max-w-full">
+                      className="text-xs text-blue-600 underline hover:text-blue-800 flex items-center gap-1 min-w-0 max-w-full">
                       <Globe className="w-3 h-3 shrink-0" />
-                      {u.length > 80 ? u.slice(0, 80) + '…' : u}
+                      <span className="truncate">{u.length > 80 ? u.slice(0, 80) + '…' : u}</span>
                     </a>
                   ))}
                 </div>
