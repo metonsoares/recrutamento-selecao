@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Eye, EyeOff, Key, CheckCircle2, Loader2, ExternalLink,
   AlertCircle, FileText, MessageSquare, Building2, Bot, Search, Info,
-  Scale, Trash2, Wifi, WifiOff,
+  Scale, Trash2,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,8 +34,7 @@ interface Props {
   searchUrl2Label: string
   searchUrl3: string
   searchUrl3Label: string
-  jusBrasilEmail: string | null
-  hasJusBrasilPassword: boolean
+  hasDatajudKey: boolean
 }
 
 // ─── Provider radio ───────────────────────────────────────────────────────────
@@ -214,236 +213,112 @@ function ServiceCard({
   )
 }
 
-// ─── JusBrasil Credentials Card ──────────────────────────────────────────────
+// ─── DataJud Card ─────────────────────────────────────────────────────────────
 
-function JusBrasilCredentialsCard({
-  initialEmail,
-  hasPassword,
-}: {
-  initialEmail: string | null
-  hasPassword: boolean
-}) {
-  const [email, setEmail] = useState(initialEmail ?? '')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
+function DataJudCard({ hasKey }: { hasKey: boolean }) {
+  const [apiKey, setApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'saved' | 'error' | 'removed' | 'test_ok' | 'test_fail'>('idle')
-  const [errMsg, setErrMsg] = useState('')
-  const [testMsg, setTestMsg] = useState('')
-
-  const isConfigured = !!initialEmail && hasPassword
+  const [status, setStatus] = useState<'idle' | 'saved' | 'removed' | 'error'>('idle')
 
   async function save() {
-    if (!email.trim() || !password.trim()) return
-    setSaving(true)
-    setStatus('idle')
+    if (!apiKey.trim()) return
+    setSaving(true); setStatus('idle')
     try {
-      const res = await fetch('/api/admin/ai/save-jusbrasil-credentials', {
+      const res = await fetch('/api/admin/ai/save-datajud-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+        body: JSON.stringify({ key: apiKey.trim() }),
       })
-      if (res.ok) {
-        setStatus('saved')
-        setPassword('')
-        setTimeout(() => window.location.reload(), 800)
-      } else {
-        const d = await res.json().catch(() => ({}))
-        setErrMsg(d?.error ?? 'Erro ao salvar.')
-        setStatus('error')
-      }
-    } catch {
-      setErrMsg('Erro de conexão.')
-      setStatus('error')
-    } finally {
-      setSaving(false)
-    }
+      if (res.ok) { setStatus('saved'); setApiKey(''); setTimeout(() => window.location.reload(), 800) }
+      else setStatus('error')
+    } catch { setStatus('error') }
+    finally { setSaving(false) }
   }
 
   async function remove() {
     setRemoving(true)
-    try {
-      await fetch('/api/admin/ai/save-jusbrasil-credentials', { method: 'DELETE' })
-      setStatus('removed')
-      setTimeout(() => window.location.reload(), 600)
-    } finally {
-      setRemoving(false)
-    }
-  }
-
-  async function testConnection() {
-    setTesting(true)
-    setStatus('idle')
-    setTestMsg('')
-    try {
-      const res = await fetch('/api/admin/ai/test-jusbrasil', { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (data?.ok) {
-        setStatus('test_ok')
-        setTestMsg(data.message ?? 'Conexão bem-sucedida!')
-      } else {
-        setStatus('test_fail')
-        setErrMsg(data?.error ?? 'Falha na conexão.')
-      }
-    } catch {
-      setStatus('test_fail')
-      setErrMsg('Erro de rede ao testar.')
-    } finally {
-      setTesting(false)
-    }
+    await fetch('/api/admin/ai/save-datajud-key', { method: 'DELETE' })
+    setStatus('removed')
+    setTimeout(() => window.location.reload(), 600)
+    setRemoving(false)
   }
 
   return (
     <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
-      {/* Header */}
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
           <Scale className="w-4 h-4 text-blue-600" />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-semibold text-gray-900">Conta JusBrasil</h2>
-            {isConfigured
-              ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">✓ Configurada</span>
-              : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">Não configurada</span>
+            <h2 className="text-sm font-semibold text-gray-900">DataJud — CNJ</h2>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+              ✓ Ativo
+            </span>
+            {hasKey
+              ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Chave própria</span>
+              : <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">Chave pública demo</span>
             }
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            O sistema fará login na sua conta JusBrasil e consultará a{' '}
-            <strong>Consulta Processual</strong> por CPF e nome do candidato, retornando processos
-            judiciais de forma autenticada e completa.
+            API oficial do Conselho Nacional de Justiça — consulta processual em todos os
+            tribunais brasileiros (27 TJs estaduais + 24 TRTs trabalhistas) via HTTP puro.
+            Rápido, gratuito e sem necessidade de login.
           </p>
         </div>
       </div>
 
-      {/* Info box */}
       <div className="flex gap-2 items-start bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-        <div>
+        <div className="space-y-1">
           <p>
-            As credenciais ficam salvas no banco de dados (acesso restrito ao admin).
-            O login é feito automaticamente a cada consulta de background check.
-            Certifique-se de usar uma conta JusBrasil ativa com acesso à Consulta Processual.
+            O sistema já funciona com a <strong>chave pública de demonstração do CNJ</strong>,
+            sem necessidade de cadastro. Para uso intenso, registre uma chave própria em{' '}
+            <a href="http://datajud-wiki.cnj.jus.br" target="_blank" rel="noopener noreferrer"
+              className="underline font-medium">datajud-wiki.cnj.jus.br</a>.
           </p>
         </div>
       </div>
 
-      {/* Form */}
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">E-mail da conta JusBrasil</label>
-          <Input
-            type="email"
-            value={email}
-            onChange={e => { setEmail(e.target.value); setStatus('idle') }}
-            placeholder="seu@email.com"
-            className="text-sm"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">
-            Senha{isConfigured ? ' (deixe em branco para manter a atual)' : ''}
-          </label>
-          <div className="relative">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-gray-700">
+          {hasKey ? 'Substituir chave própria' : 'Chave de API própria'}{' '}
+          <span className="text-muted-foreground font-normal">(opcional)</span>
+        </label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
             <Input
-              type={showPass ? 'text' : 'password'}
-              value={password}
-              onChange={e => { setPassword(e.target.value); setStatus('idle') }}
+              type={showKey ? 'text' : 'password'}
+              value={apiKey}
+              onChange={e => { setApiKey(e.target.value); setStatus('idle') }}
               onKeyDown={e => e.key === 'Enter' && save()}
-              placeholder={isConfigured ? '••••••••' : 'Senha da conta JusBrasil'}
-              className="pr-10 text-sm"
+              placeholder="Cole aqui a chave recebida do CNJ…"
+              className="pr-10 font-mono text-sm"
             />
-            <button type="button" onClick={() => setShowPass(v => !v)}
+            <button type="button" onClick={() => setShowKey(v => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
+          <Button onClick={save} disabled={saving || !apiKey.trim()} size="sm" className="shrink-0">
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Salvar'}
+          </Button>
         </div>
       </div>
 
-      {/* Feedback */}
-      {status === 'saved' && (
-        <p className="flex items-center gap-1 text-xs text-green-600">
-          <CheckCircle2 className="w-3.5 h-3.5" />Credenciais salvas com sucesso!
-        </p>
-      )}
-      {status === 'error' && (
-        <p className="flex items-center gap-1 text-xs text-red-500">
-          <AlertCircle className="w-3.5 h-3.5" />{errMsg}
-        </p>
-      )}
-      {status === 'removed' && (
-        <p className="flex items-center gap-1 text-xs text-gray-500">
-          <CheckCircle2 className="w-3.5 h-3.5" />Credenciais removidas.
-        </p>
-      )}
-      {status === 'test_ok' && (
-        <p className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-          <Wifi className="w-3.5 h-3.5 shrink-0" />{testMsg}
-        </p>
-      )}
-      {status === 'test_fail' && (
-        <p className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          <WifiOff className="w-3.5 h-3.5 shrink-0" />{errMsg}
-        </p>
-      )}
+      {status === 'saved' && <p className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="w-3.5 h-3.5" />Chave salva!</p>}
+      {status === 'removed' && <p className="flex items-center gap-1 text-xs text-gray-500"><CheckCircle2 className="w-3.5 h-3.5" />Chave removida. Usando chave pública.</p>}
+      {status === 'error' && <p className="flex items-center gap-1 text-xs text-red-500"><AlertCircle className="w-3.5 h-3.5" />Erro ao salvar. Tente novamente.</p>}
 
-      {/* Teste em andamento */}
-      {testing && (
-        <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-          Abrindo navegador e fazendo login no JusBrasil… pode levar até 30 segundos.
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex items-center gap-2 pt-1 flex-wrap">
-        <Button
-          size="sm"
-          onClick={save}
-          disabled={saving || !email.trim() || (!password.trim() && !isConfigured)}
-        >
-          {saving
-            ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Salvando...</>
-            : isConfigured ? 'Atualizar credenciais' : 'Salvar credenciais'
-          }
+      {hasKey && (
+        <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50 gap-1"
+          onClick={remove} disabled={removing}>
+          {removing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+          Remover chave própria
         </Button>
-
-        {isConfigured && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={testConnection}
-            disabled={testing || saving}
-          >
-            {testing
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Wifi className="w-3.5 h-3.5" />
-            }
-            Testar conexão
-          </Button>
-        )}
-
-        {isConfigured && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-red-500 hover:text-red-700 hover:bg-red-50 gap-1"
-            onClick={remove}
-            disabled={removing}
-          >
-            {removing
-              ? <Loader2 className="w-3 h-3 animate-spin" />
-              : <Trash2 className="w-3 h-3" />
-            }
-            Remover
-          </Button>
-        )}
-      </div>
+      )}
     </section>
   )
 }
@@ -604,8 +479,7 @@ export function IaSettingsForm({
   searchUrl2Label,
   searchUrl3,
   searchUrl3Label,
-  jusBrasilEmail,
-  hasJusBrasilPassword,
+  hasDatajudKey,
 }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
@@ -783,10 +657,7 @@ export function IaSettingsForm({
         hasOpenaiKey={hasOpenaiKey}
       />
 
-      <JusBrasilCredentialsCard
-        initialEmail={jusBrasilEmail}
-        hasPassword={hasJusBrasilPassword}
-      />
+      <DataJudCard hasKey={hasDatajudKey} />
 
       <SearchUrlsCard
         initial={[

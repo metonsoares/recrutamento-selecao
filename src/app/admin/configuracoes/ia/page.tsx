@@ -19,8 +19,7 @@ type AiSettingsRow = {
   search_url_2_label: string | null
   search_url_3: string | null
   search_url_3_label: string | null
-  jusbrasil_email: string | null
-  jusbrasil_password: string | null
+  datajud_api_key: string | null
 }
 
 export default async function IaConfigPage() {
@@ -35,7 +34,7 @@ export default async function IaConfigPage() {
       'search_url_1, search_url_1_label,' +
       'search_url_2, search_url_2_label,' +
       'search_url_3, search_url_3_label,' +
-      'jusbrasil_email, jusbrasil_password'
+      'datajud_api_key'
     )
     .limit(1)
     .maybeSingle() as { data: AiSettingsRow | null }
@@ -57,8 +56,7 @@ export default async function IaConfigPage() {
       searchUrl2Label={settings?.search_url_2_label ?? ''}
       searchUrl3={settings?.search_url_3 ?? ''}
       searchUrl3Label={settings?.search_url_3_label ?? ''}
-      jusBrasilEmail={settings?.jusbrasil_email ?? null}
-      hasJusBrasilPassword={!!settings?.jusbrasil_password}
+      hasDatajudKey={!!settings?.datajud_api_key}
     />
   )
 }

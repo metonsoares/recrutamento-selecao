@@ -69,8 +69,12 @@ const BROWSER_HEADERS = {
 // Chave pública de demonstração; registre a sua em: https://datajud-wiki.cnj.jus.br/
 
 const DATAJUD_BASE = 'https://api-publica.datajud.cnj.jus.br'
-const DATAJUD_KEY = () =>
-  process.env.DATAJUD_API_KEY || 'cDZHYzlZa0JadVREZDJCendFbzFKdnQ6SkJlTzNjLV9TRENyQVk4Q3JqWTg3UA=='
+// Chave resolvida em runtime: DB → env var → chave pública demo do CNJ
+let _datajudKeyCache: string | null = null
+function DATAJUD_KEY(keyFromDb?: string | null): string {
+  return keyFromDb || _datajudKeyCache || process.env.DATAJUD_API_KEY ||
+    'cDZHYzlZa0JadVREZDJCendFbzFKdnQ6SkJlTzNjLV9TRENyQVk4Q3JqWTg3UA=='
+}
 
 // 27 tribunais estaduais
 const ALL_TJS = [
@@ -96,6 +100,7 @@ interface DataJudProcess {
 async function queryDataJudTribunal(
   tribunal: string,
   query: Record<string, unknown>,
+  apiKey: string,
 ): Promise<DataJudProcess[]> {
   try {
     const res = await fetchWithTimeout(
@@ -103,7 +108,7 @@ async function queryDataJudTribunal(
       {
         method: 'POST',
         headers: {
-          Authorization: `APIKey ${DATAJUD_KEY()}`,
+          Authorization: `APIKey ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ size: 5, query }),
@@ -155,13 +160,13 @@ function formatDataJudProcess(p: DataJudProcess, tribunal: string): string {
   return parts.join(' | ')
 }
 
-async function searchDataJud(name: string, cpf: string | null): Promise<SearchResult> {
+async function searchDataJud(name: string, cpf: string | null, apiKey: string): Promise<SearchResult> {
   const query = buildDataJudQuery(cpf, name)
 
   // Dispara todos os tribunais em paralelo (HTTP puro, ~1-3s total)
   const tribunals = [...ALL_TJS, ...ALL_TRTS]
   const settled = await Promise.allSettled(
-    tribunals.map(t => queryDataJudTribunal(t, query))
+    tribunals.map(t => queryDataJudTribunal(t, query, apiKey))
   )
 
   const processLines: string[] = []
@@ -405,14 +410,8 @@ Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado
 
 async function callAI(
   prompt: string,
-  supabase: Awaited<ReturnType<typeof createSupabaseServiceClient>>,
+  s: { anthropic_api_key_encrypted?: string | null; openai_api_key_encrypted?: string | null } | null,
 ): Promise<BackgroundCheckResult> {
-  const { data: s } = await supabase
-    .from('ai_settings')
-    .select('anthropic_api_key_encrypted, openai_api_key_encrypted')
-    .limit(1)
-    .single()
-
   if (s?.anthropic_api_key_encrypted) {
     try {
       const res = await fetchWithTimeout(
@@ -506,11 +505,20 @@ export async function POST(
     const cpfClean = cpf?.replace(/\D/g, '') || null
     const cpfFormatted = cpfClean?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? null
 
+    // ── Chave DataJud: banco → env var → chave pública demo ───────────────────
+    const { data: aiSettings } = await supabase
+      .from('ai_settings')
+      .select('datajud_api_key, anthropic_api_key_encrypted, openai_api_key_encrypted')
+      .limit(1)
+      .single()
+
+    const datajudKey = DATAJUD_KEY(aiSettings?.datajud_api_key)
+
     // ── Buscas em paralelo ────────────────────────────────────────────────────
     // DataJud: 51 tribunais em paralelo via HTTP (~2-4s total)
     // Escavador + Transparência + DDG: buscas independentes em paralelo
     const [dataJudR, escavadorR, transparenciaR, ddgR] = await Promise.allSettled([
-      searchDataJud(full_name, cpfClean),
+      searchDataJud(full_name, cpfClean, datajudKey),
       searchEscavador(full_name, cpfClean),
       searchTransparencia(full_name, cpfClean),
       searchDDG(
@@ -527,7 +535,7 @@ export async function POST(
     ]
 
     const prompt = buildPrompt(full_name, cpfClean, city, results)
-    const result = await callAI(prompt, supabase)
+    const result = await callAI(prompt, aiSettings)
 
     // Enriquece URLs de processos com o que foi encontrado
     const allFoundUrls = results
