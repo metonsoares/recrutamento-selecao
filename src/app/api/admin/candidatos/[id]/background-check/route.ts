@@ -70,9 +70,8 @@ const BROWSER_HEADERS = {
 
 const DATAJUD_BASE = 'https://api-publica.datajud.cnj.jus.br'
 // Chave resolvida em runtime: DB → env var → chave pública demo do CNJ
-let _datajudKeyCache: string | null = null
 function DATAJUD_KEY(keyFromDb?: string | null): string {
-  return keyFromDb || _datajudKeyCache || process.env.DATAJUD_API_KEY ||
+  return keyFromDb || process.env.DATAJUD_API_KEY ||
     'cDZHYzlZa0JadVREZDJCendFbzFKdnQ6SkJlTzNjLV9TRENyQVk4Q3JqWTg3UA=='
 }
 
@@ -410,8 +409,15 @@ Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado
 
 async function callAI(
   prompt: string,
-  s: { anthropic_api_key_encrypted?: string | null; openai_api_key_encrypted?: string | null } | null,
+  supabase: Awaited<ReturnType<typeof createSupabaseServiceClient>>,
 ): Promise<BackgroundCheckResult> {
+  // Query própria — não depende de dados externos; usa maybeSingle para não falhar se não houver linha
+  const { data: s } = await supabase
+    .from('ai_settings')
+    .select('anthropic_api_key_encrypted, openai_api_key_encrypted')
+    .limit(1)
+    .maybeSingle()
+
   if (s?.anthropic_api_key_encrypted) {
     try {
       const res = await fetchWithTimeout(
@@ -508,9 +514,9 @@ export async function POST(
     // ── Chave DataJud: banco → env var → chave pública demo ───────────────────
     const { data: aiSettings } = await supabase
       .from('ai_settings')
-      .select('datajud_api_key, anthropic_api_key_encrypted, openai_api_key_encrypted')
+      .select('datajud_api_key')
       .limit(1)
-      .single()
+      .maybeSingle()
 
     const datajudKey = DATAJUD_KEY(aiSettings?.datajud_api_key)
 
@@ -535,7 +541,7 @@ export async function POST(
     ]
 
     const prompt = buildPrompt(full_name, cpfClean, city, results)
-    const result = await callAI(prompt, aiSettings)
+    const result = await callAI(prompt, supabase)
 
     // Enriquece URLs de processos com o que foi encontrado
     const allFoundUrls = results
