@@ -123,29 +123,61 @@ async function queryDataJudTribunal(
 }
 
 function buildDataJudQuery(cpf: string | null, name: string): Record<string, unknown> {
-  // IMPORTANTE: partes.cpfCnpj NÃO é pesquisável na API pública DataJud (bloqueado por LGPD).
-  // A busca principal é sempre por nome com operator:"and" — exige todos os termos do nome
-  // (ex: "Eduardo Leite" encontra "Eduardo Guimarães Santos Leite").
-  // O CPF é incluído como cláusula should bônus para o caso de futuras APIs com acesso ampliado.
-  const nameQuery = {
+  // DataJud usa Elasticsearch com o campo `partes` do tipo nested.
+  // Queries sem wrapper `nested` retornam sempre 0 resultados.
+  // Também tentamos a query flat (caso o índice tenha include_in_root).
+  //
+  // Estrutura real de documentos:
+  //   partes[].nome               → nome da parte
+  //   partes[].pessoa.documentos[].tipo   → "CPF" | "CNPJ" | ...
+  //   partes[].pessoa.documentos[].numero → número do documento
+  //
+  // A API pública NÃO indexa CPF para busca direta (LGPD),
+  // mas incluímos as tentativas de CPF como should bônus.
+
+  const cpfFmt = cpf ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null
+
+  // Query de nome — exige todos os tokens do nome no campo partes.nome
+  const nameMatchQuery = {
     match: {
-      'partes.nome': {
-        query: name,
-        operator: 'and', // todos os termos do nome devem estar presentes no campo
-      },
+      'partes.nome': { query: name, operator: 'and' },
     },
   }
 
-  if (!cpf) return nameQuery
+  const shouldClauses: Record<string, unknown>[] = [
+    // ── Nested (partes é nested type — principal) ─────────────────────────────
+    { nested: { path: 'partes', query: nameMatchQuery } },
+    // ── Flat (caso o índice use include_in_root ou object type) ──────────────
+    nameMatchQuery,
+  ]
 
-  const cpfFmt = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  if (cpf && cpfFmt) {
+    // CPF via campo cpfCnpj (variação observada em alguns tribunais)
+    shouldClauses.push(
+      { nested: { path: 'partes', query: { match: { 'partes.cpfCnpj': cpf } } } },
+      { nested: { path: 'partes', query: { match: { 'partes.cpfCnpj': cpfFmt } } } },
+      // CPF via estrutura pessoa.documentos
+      {
+        nested: {
+          path: 'partes',
+          query: {
+            bool: {
+              must: [
+                { match: { 'partes.pessoa.documentos.numero': cpf } },
+              ],
+            },
+          },
+        },
+      },
+      // Versões flat (bônus)
+      { match: { 'partes.cpfCnpj': cpf } },
+      { match: { 'partes.cpfCnpj': cpfFmt } },
+    )
+  }
+
   return {
     bool: {
-      should: [
-        nameQuery,                                        // busca por nome (confiável)
-        { match: { 'partes.cpfCnpj': cpf } },            // CPF sem máscara (tenta, pode não funcionar)
-        { match: { 'partes.cpfCnpj': cpfFmt } },         // CPF com máscara
-      ],
+      should: shouldClauses,
       minimum_should_match: 1,
     },
   }
@@ -343,8 +375,8 @@ Cidade: ${city || 'Não informada'}
 
 ━━━ FONTES CONSULTADAS ━━━
 • DataJud (CNJ): API oficial do Conselho Nacional de Justiça — 27 TJs estaduais + 24 TRTs trabalhistas.
-  Busca realizada por nome ("${name}") com todos os termos obrigatórios.
-  ${usedCpf ? `CPF ${cpfFormatted} informado para confirmação, mas a API pública DataJud não indexa CPF (restrição LGPD) — a busca por nome é a fonte primária.` : 'CPF não informado — busca apenas por nome; homonímia é possível em nomes comuns.'}
+  Busca por nome ("${name}") usando nested query (estrutura obrigatória do DataJud) com todos os termos.
+  ${usedCpf ? `CPF ${cpfFormatted} incluído como critério adicional (nested + flat, via cpfCnpj e pessoa.documentos.numero).` : 'CPF não informado — busca apenas por nome; homonímia é possível em nomes comuns.'}
 • Escavador: agregador público de processos judiciais.
 
 ━━━ DADOS COLETADOS ━━━
