@@ -55,6 +55,7 @@ function BackgroundCheckModal({
   result,
   checkedAt,
   candidateId,
+  candidateCpf,
   onRefresh,
 }: {
   open: boolean
@@ -62,6 +63,7 @@ function BackgroundCheckModal({
   result: BackgroundCheckResult | null
   checkedAt: string | null
   candidateId: string
+  candidateCpf: string | null
   onRefresh: (r: BackgroundCheckResult, at: string) => void
 }) {
   const [running, setRunning] = useState(false)
@@ -86,31 +88,35 @@ function BackgroundCheckModal({
   }
 
   const found = result?.processos_judiciais?.encontrado
+  const cpfFormatted = candidateCpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? null
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 [word-break:break-word]">
-        <DialogHeader className="pb-1">
-          <DialogTitle className="flex items-center gap-2 text-base">
+      {/* max-w-3xl = 768px; flex-col para header fixo + body rolável */}
+      <DialogContent className="w-[95vw] max-w-3xl p-0 gap-0 overflow-hidden flex flex-col max-h-[90vh]">
+
+        {/* ── Cabeçalho fixo ── */}
+        <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
-            Check de Processos e Antecedentes
+            Check de Processos Judiciais
           </DialogTitle>
+          {cpfFormatted && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Pesquisando por CPF:{' '}
+              <span className="font-mono font-semibold text-gray-700">{cpfFormatted}</span>
+            </p>
+          )}
         </DialogHeader>
 
-        {/* Barra de ação */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          {checkedAt && (
-            <span className="text-xs text-muted-foreground">
-              Última verificação: {formatDateTime(checkedAt)}
-            </span>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={runCheck}
-            disabled={running}
-            className="gap-1.5 w-full sm:w-auto"
-          >
+        {/* ── Barra de ação ── */}
+        <div className="px-6 py-3 border-b bg-gray-50 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+          <span className="text-xs text-muted-foreground">
+            {checkedAt
+              ? `Última verificação: ${formatDateTime(checkedAt)}`
+              : 'Nenhuma pesquisa realizada ainda'}
+          </span>
+          <Button size="sm" variant="outline" onClick={runCheck} disabled={running} className="gap-1.5 shrink-0">
             {running
               ? <><Loader2 className="w-4 h-4 animate-spin" />Pesquisando...</>
               : <><RefreshCw className="w-4 h-4" />{result ? 'Refazer pesquisa' : 'Iniciar pesquisa'}</>
@@ -118,134 +124,169 @@ function BackgroundCheckModal({
           </Button>
         </div>
 
-        {err && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
-            {err}
-          </div>
-        )}
+        {/* ── Corpo rolável ── */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 [word-break:break-word]">
 
-        {/* Loading sem resultado anterior */}
-        {running && !result && (
-          <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            <p className="text-sm font-medium">Consultando JusBrasil e Escavador...</p>
-            <p className="text-xs text-center max-w-xs text-gray-500">
-              Pesquisando processos por nome e CPF. Pode levar alguns segundos.
-            </p>
-          </div>
-        )}
-
-        {/* Estado vazio */}
-        {!result && !running && (
-          <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
-            <ShieldCheck className="w-12 h-12 text-gray-300" />
-            <p className="text-sm font-medium">Nenhuma pesquisa realizada ainda</p>
-            <p className="text-xs text-center max-w-xs">
-              Clique em &quot;Iniciar pesquisa&quot; para consultar fontes públicas sobre este candidato.
-            </p>
-          </div>
-        )}
-
-        {/* Resultado */}
-        {result && (
-          <div className="space-y-3">
-
-            {/* Parecer Geral */}
-            <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-semibold text-gray-800">Parecer Geral</p>
-                <div className="shrink-0">
-                  <RiskBadge level={result.nivel_risco} />
-                </div>
-              </div>
-              <p className="text-sm text-gray-700 leading-relaxed break-words">{result.parecer_geral}</p>
+          {err && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {err}
             </div>
+          )}
 
-            {/* Processos Judiciais */}
-            <div className={`rounded-xl border p-4 space-y-2 ${found ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
-              <div className="flex items-start gap-2">
-                {found
-                  ? <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  : <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                }
-                <p className={`text-sm font-semibold min-w-0 break-words ${found ? 'text-red-800' : 'text-emerald-800'}`}>
-                  Processos Judiciais{' '}
-                  {found
-                    ? <span>⚠️ Encontrado(s)</span>
-                    : <span>✓ Nenhum encontrado</span>
-                  }
+          {/* Loading */}
+          {running && !result && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-muted-foreground">
+              <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-gray-700">Consultando fontes públicas...</p>
+                <p className="text-xs mt-1 text-gray-400 max-w-xs">
+                  Pesquisando por CPF em JusBrasil, Escavador e DuckDuckGo.
+                  Pode levar até 30 segundos.
                 </p>
               </div>
-              {result.processos_judiciais?.resumo && (
-                <p className="text-sm text-gray-700 leading-relaxed break-words">{result.processos_judiciais.resumo}</p>
-              )}
+            </div>
+          )}
+
+          {/* Estado vazio */}
+          {!result && !running && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-muted-foreground">
+              <ShieldCheck className="w-16 h-16 text-gray-200" />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-gray-600">Nenhuma pesquisa realizada ainda</p>
+                <p className="text-xs mt-1 text-gray-400 max-w-xs">
+                  Clique em &ldquo;Iniciar pesquisa&rdquo; para consultar fontes públicas de processos judiciais
+                  {cpfFormatted ? ` para o CPF ${cpfFormatted}` : ''}.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Resultado ── */}
+          {result && (
+            <>
+              {/* Banner de status principal */}
+              <div className={`rounded-xl p-5 flex items-start gap-4 border-2 ${
+                found ? 'bg-red-50 border-red-300' : 'bg-emerald-50 border-emerald-300'
+              }`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                  found ? 'bg-red-100' : 'bg-emerald-100'
+                }`}>
+                  {found
+                    ? <ShieldAlert className="w-6 h-6 text-red-600" />
+                    : <ShieldCheck className="w-6 h-6 text-emerald-600" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <p className={`text-base font-bold ${found ? 'text-red-800' : 'text-emerald-800'}`}>
+                      {found ? '⚠️ Processos judiciais encontrados' : '✅ Nenhum processo judicial encontrado'}
+                    </p>
+                    <RiskBadge level={result.nivel_risco} />
+                  </div>
+                  <p className="text-sm leading-relaxed text-gray-700 break-words">
+                    {result.parecer_geral}
+                  </p>
+                </div>
+              </div>
+
+              {/* Processos — cards individuais */}
               {(result.processos_judiciais?.detalhes || []).length > 0 && (
-                <ul className="space-y-1.5 pt-1">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
+                    Processos encontrados
+                  </p>
                   {result.processos_judiciais.detalhes.map((d, i) => (
-                    <li key={i} className="text-sm flex gap-2 text-red-900 leading-relaxed">
-                      <span className="shrink-0 mt-0.5">•</span>
-                      <span className="min-w-0 break-words">{typeof d === 'string' ? d : JSON.stringify(d)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {(result.processos_judiciais?.urls || []).length > 0 && (
-                <div className="flex flex-col gap-1 pt-1">
-                  {result.processos_judiciais.urls.map((u, i) => (
-                    <a key={i} href={u.startsWith('http') ? u : `https://${u}`} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-blue-600 underline hover:text-blue-800 flex items-center gap-1 min-w-0">
-                      <Globe className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{u}</span>
-                    </a>
+                    <div key={i} className="rounded-lg border border-red-200 bg-white px-4 py-3">
+                      <p className="text-sm text-gray-800 leading-relaxed break-words">
+                        {typeof d === 'string' ? d : JSON.stringify(d)}
+                      </p>
+                    </div>
                   ))}
                 </div>
               )}
-            </div>
 
-            {/* Outras informações */}
-            {((result.outras_informacoes?.items || []).length > 0 ||
-              (result.outras_informacoes?.resumo && result.outras_informacoes.resumo.trim())) && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
-                <p className="text-sm font-semibold text-blue-800">Outras Informações Relevantes</p>
-                {result.outras_informacoes?.resumo && (
-                  <p className="text-sm text-gray-700 leading-relaxed">{result.outras_informacoes.resumo}</p>
-                )}
-                {(result.outras_informacoes?.items || []).length > 0 && (
-                  <ul className="space-y-1">
-                    {result.outras_informacoes.items.map((item, i) => (
-                      <li key={i} className="text-sm flex gap-2 text-blue-900">
-                        <span className="shrink-0">•</span>{item}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+              {/* Resumo — quando não há detalhes mas há resumo */}
+              {result.processos_judiciais?.resumo &&
+                (result.processos_judiciais?.detalhes || []).length === 0 && (
+                <div className={`rounded-lg border p-4 text-sm leading-relaxed break-words text-gray-700 ${
+                  found ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'
+                }`}>
+                  {result.processos_judiciais.resumo}
+                </div>
+              )}
 
-            {/* Fontes + rodapé */}
-            <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-3 space-y-2">
-              {(result.fontes_consultadas || []).length > 0 && (
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium mb-1.5">Fontes consultadas:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {result.fontes_consultadas.map((f, i) => (
-                      <span key={i} className="text-xs bg-white border border-gray-300 text-gray-700 px-2 py-0.5 rounded-full">{f}</span>
+              {/* Links para consulta */}
+              {(result.processos_judiciais?.urls || []).length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                    Links para consulta manual:
+                  </p>
+                  <div className="space-y-1">
+                    {result.processos_judiciais.urls.map((u, i) => (
+                      <a
+                        key={i}
+                        href={u.startsWith('http') ? u : `https://${u}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 flex items-start gap-1.5 min-w-0 break-all"
+                      >
+                        <Globe className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>{u}</span>
+                      </a>
                     ))}
                   </div>
                 </div>
               )}
-              {result.observacoes_tecnicas && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 leading-relaxed break-words">
-                  ⚠️ {result.observacoes_tecnicas}
-                </p>
-              )}
-              <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-2">
-                Dados obtidos via <strong>JusBrasil</strong> e <strong>Escavador</strong>. Os resultados devem ser verificados manualmente antes de qualquer decisão.
-              </p>
-            </div>
 
-          </div>
-        )}
+              {/* Outras informações */}
+              {((result.outras_informacoes?.items || []).length > 0 ||
+                result.outras_informacoes?.resumo?.trim()) && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
+                  <p className="text-sm font-semibold text-blue-800">Outras Informações</p>
+                  {result.outras_informacoes?.resumo && (
+                    <p className="text-sm text-gray-700 leading-relaxed break-words">
+                      {result.outras_informacoes.resumo}
+                    </p>
+                  )}
+                  {(result.outras_informacoes?.items || []).length > 0 && (
+                    <ul className="space-y-1">
+                      {result.outras_informacoes.items.map((item, i) => (
+                        <li key={i} className="text-sm flex gap-2 text-blue-900 break-words">
+                          <span className="shrink-0">•</span>
+                          <span className="min-w-0">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {/* Rodapé: fontes + observações técnicas */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-2.5">
+                {(result.fontes_consultadas || []).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-medium">Fontes consultadas:</span>
+                    {result.fontes_consultadas.map((f, i) => (
+                      <span key={i} className="text-xs bg-white border border-gray-300 text-gray-600 px-2 py-0.5 rounded-full">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {result.observacoes_tecnicas && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 leading-relaxed break-words">
+                    ⚠️ {result.observacoes_tecnicas}
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-2">
+                  Dados coletados via <strong>JusBrasil</strong>, <strong>Escavador</strong> e <strong>DuckDuckGo</strong>.
+                  Resultados devem ser verificados manualmente antes de qualquer decisão.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -262,6 +303,7 @@ export function CandidateActions({
   cultureAnswersSummary,
   initialBackgroundCheck,
   initialBackgroundCheckAt,
+  candidateCpf,
 }: {
   candidateId: string
   applicationId?: string
@@ -271,6 +313,7 @@ export function CandidateActions({
   cultureAnswersSummary?: Array<{ question: string; answer: string; score: number }>
   initialBackgroundCheck?: BackgroundCheckResult | null
   initialBackgroundCheckAt?: string | null
+  candidateCpf?: string | null
 }) {
   const router = useRouter()
   const [status, setStatus] = useState(currentStatus)
@@ -413,6 +456,7 @@ export function CandidateActions({
         result={bgCheckResult}
         checkedAt={bgCheckAt}
         candidateId={candidateId}
+        candidateCpf={candidateCpf ?? null}
         onRefresh={(r, at) => { setBgCheckResult(r); setBgCheckAt(at) }}
       />
 
