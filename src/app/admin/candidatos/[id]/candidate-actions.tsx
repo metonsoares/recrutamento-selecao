@@ -89,7 +89,7 @@ function BackgroundCheckModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 [word-break:break-word]">
         <DialogHeader className="pb-1">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
@@ -158,18 +158,18 @@ function BackgroundCheckModal({
                   <RiskBadge level={result.nivel_risco} />
                 </div>
               </div>
-              <p className="text-sm text-gray-700 leading-relaxed">{result.parecer_geral}</p>
+              <p className="text-sm text-gray-700 leading-relaxed break-words">{result.parecer_geral}</p>
             </div>
 
             {/* Processos Judiciais */}
             <div className={`rounded-xl border p-4 space-y-2 ${found ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 {found
-                  ? <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
-                  : <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ? <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  : <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 }
-                <p className={`text-sm font-semibold ${found ? 'text-red-800' : 'text-emerald-800'}`}>
-                  Processos Judiciais&nbsp;
+                <p className={`text-sm font-semibold min-w-0 break-words ${found ? 'text-red-800' : 'text-emerald-800'}`}>
+                  Processos Judiciais{' '}
                   {found
                     ? <span>⚠️ Encontrado(s)</span>
                     : <span>✓ Nenhum encontrado</span>
@@ -177,14 +177,14 @@ function BackgroundCheckModal({
                 </p>
               </div>
               {result.processos_judiciais?.resumo && (
-                <p className="text-sm text-gray-700 leading-relaxed">{result.processos_judiciais.resumo}</p>
+                <p className="text-sm text-gray-700 leading-relaxed break-words">{result.processos_judiciais.resumo}</p>
               )}
               {(result.processos_judiciais?.detalhes || []).length > 0 && (
                 <ul className="space-y-1.5 pt-1">
                   {result.processos_judiciais.detalhes.map((d, i) => (
                     <li key={i} className="text-sm flex gap-2 text-red-900 leading-relaxed">
                       <span className="shrink-0 mt-0.5">•</span>
-                      <span>{typeof d === 'string' ? d : JSON.stringify(d)}</span>
+                      <span className="min-w-0 break-words">{typeof d === 'string' ? d : JSON.stringify(d)}</span>
                     </li>
                   ))}
                 </ul>
@@ -235,7 +235,7 @@ function BackgroundCheckModal({
                 </div>
               )}
               {result.observacoes_tecnicas && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 leading-relaxed">
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 leading-relaxed break-words">
                   ⚠️ {result.observacoes_tecnicas}
                 </p>
               )}

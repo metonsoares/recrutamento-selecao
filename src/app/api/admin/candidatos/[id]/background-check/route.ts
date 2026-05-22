@@ -108,6 +108,54 @@ function extractEscavadorProfileUrls(html: string): string[] {
   ].filter((u, i, a) => a.indexOf(u) === i).slice(0, 2)
 }
 
+/** DuckDuckGo HTML (endpoint sem JS — muito mais acessível de IPs de servidor que Google) */
+async function searchDuckDuckGo(query: string, filterDomain?: string): Promise<{ snippets: string[]; urls: string[] }> {
+  try {
+    const res = await fetchWithTimeout(
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=br-pt`,
+      {
+        headers: {
+          ...BROWSER_HEADERS,
+          Referer: 'https://duckduckgo.com/',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      },
+      8000,
+    )
+    if (!res.ok) return { snippets: [], urls: [] }
+    const html = await res.text()
+
+    // DDG HTML encoda URLs como //duckduckgo.com/l/?uddg=URL_ENCODED
+    const urls: string[] = []
+    const uddgMatches = [...html.matchAll(/uddg=([^&"]+)/gi)]
+    for (const m of uddgMatches) {
+      try {
+        const url = decodeURIComponent(m[1])
+        if (url.startsWith('http') && !url.includes('duckduckgo.com')) {
+          if (!filterDomain || url.includes(filterDomain)) urls.push(url)
+        }
+      } catch { /* skip */ }
+    }
+
+    // Snippets: DDG usa class="result__snippet"
+    const snippets: string[] = []
+    const snipMatches = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)]
+    for (const m of snipMatches.slice(0, 8)) {
+      const t = stripHtml(m[1]).trim()
+      if (t.length > 30) snippets.push(t)
+    }
+    // Fallback: texto livre
+    if (snippets.length < 2) {
+      const text = stripHtml(html)
+      const rel = extractAround(text, /processo|aparece em|escavador|trabalhist|criminal/i, 80, 400, 3)
+      if (rel.trim().length > 50) snippets.push(rel.slice(0, 1200))
+    }
+    return { snippets: [...new Set(snippets)].slice(0, 5), urls: [...new Set(urls)].slice(0, 8) }
+  } catch {
+    return { snippets: [], urls: [] }
+  }
+}
+
 /** Faz fetch via Google e extrai snippets + URLs relevantes */
 async function searchGoogle(query: string, filterDomain?: string): Promise<{ snippets: string[]; urls: string[] }> {
   try {
@@ -208,30 +256,60 @@ async function searchEscavador(name: string, cpf: string | null): Promise<Search
     }
   } catch { /* acesso direto falhou */ }
 
-  // ── Tentativa 2: fallback via Google ─────────────────────────────────────
-  // Quando Escavador bloqueia o IP (ex.: Vercel), Google indexa o conteúdo
-  // e os snippets de busca já contêm "X aparece em Y processos em RJ".
+  // ── Tentativa 2: URL direta de perfil CPF no Escavador ──────────────────
+  // Escavador expõe perfis em URLs previsíveis: /cpf/XXX.XXX.XXX-XX
+  if (!directSucceeded && cpfFmt) {
+    try {
+      const directCpfUrl = `https://www.escavador.com/cpf/${encodeURIComponent(cpfFmt)}`
+      allUrls.push(directCpfUrl)
+      const cpfRes = await fetchWithTimeout(directCpfUrl, {
+        headers: { ...BROWSER_HEADERS, Referer: 'https://www.escavador.com/' },
+      }, 5000)
+      if (cpfRes.ok) {
+        const cpfHtml = await cpfRes.text()
+        const cpfSnips = parseEscavadorPage(cpfHtml)
+        if (cpfSnips.length > 0) {
+          directSucceeded = true
+          allSnippets.push(...cpfSnips)
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  // ── Tentativa 3: fallback via DuckDuckGo + Google (paralelo) ─────────────
+  // DuckDuckGo HTML (html.duckduckgo.com) não exige JS e é muito mais
+  // acessível de IPs de servidor (Vercel) que Google.
+  // Google fica como segunda opção caso DDG também falhe.
   if (!directSucceeded) {
-    const queries = [
-      ...(cpfFmt ? [`"${cpfFmt}" site:escavador.com`] : []),
-      `"${name}" processos escavador`,
+    const fallbackSearches = [
+      // DuckDuckGo — filtrado para Escavador
+      ...(cpfFmt
+        ? [searchDuckDuckGo(`"${cpfFmt}" site:escavador.com`, 'escavador.com')]
+        : []),
+      searchDuckDuckGo(`"${name}" processos escavador`, 'escavador.com'),
+      // DuckDuckGo — busca ampla por processos judiciais
+      searchDuckDuckGo(
+        cpfFmt
+          ? `"${cpfFmt}" processos judiciais Brasil`
+          : `"${name}" processos judiciais antecedentes`
+      ),
+      // Google — mantido como fallback adicional
+      ...(cpfFmt
+        ? [searchGoogle(`"${cpfFmt}" site:escavador.com`, 'escavador.com')]
+        : []),
+      searchGoogle(
+        cpfFmt
+          ? `"${cpfFmt}" processos judiciais`
+          : `"${name}" processos judiciais antecedentes`
+      ),
     ]
-    const googleResults = await Promise.allSettled(
-      queries.map(q => searchGoogle(q, 'escavador.com'))
-    )
-    for (const r of googleResults) {
+
+    const fallbackResults = await Promise.allSettled(fallbackSearches)
+    for (const r of fallbackResults) {
       if (r.status !== 'fulfilled') continue
       allSnippets.push(...r.value.snippets)
       allUrls.push(...r.value.urls)
     }
-
-    // Também tenta Google sem filtro de site para resultados mais amplos
-    const broadResult = await searchGoogle(
-      cpfFmt
-        ? `"${cpfFmt}" processos judiciais`
-        : `"${name}" processos judiciais antecedentes`
-    )
-    allSnippets.push(...broadResult.snippets)
   }
 
   return {
