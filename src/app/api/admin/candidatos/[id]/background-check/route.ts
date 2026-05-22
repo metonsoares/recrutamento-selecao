@@ -110,7 +110,7 @@ async function queryDataJudTribunal(
           Authorization: `APIKey ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ size: 5, query }),
+        body: JSON.stringify({ size: 10, query }),
       },
       8000,
     )
@@ -123,21 +123,32 @@ async function queryDataJudTribunal(
 }
 
 function buildDataJudQuery(cpf: string | null, name: string): Record<string, unknown> {
-  if (cpf) {
-    // CPF é identificador único — resultados são 100% desta pessoa
-    const cpfFmt = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-    return {
-      bool: {
-        should: [
-          { match: { 'partes.cpfCnpj': cpf } },     // sem formatação
-          { match: { 'partes.cpfCnpj': cpfFmt } },  // com formatação
-        ],
-        minimum_should_match: 1,
+  // IMPORTANTE: partes.cpfCnpj NÃO é pesquisável na API pública DataJud (bloqueado por LGPD).
+  // A busca principal é sempre por nome com operator:"and" — exige todos os termos do nome
+  // (ex: "Eduardo Leite" encontra "Eduardo Guimarães Santos Leite").
+  // O CPF é incluído como cláusula should bônus para o caso de futuras APIs com acesso ampliado.
+  const nameQuery = {
+    match: {
+      'partes.nome': {
+        query: name,
+        operator: 'and', // todos os termos do nome devem estar presentes no campo
       },
-    }
+    },
   }
-  // Busca por nome (pode ter homonímia — nome muito comum pode gerar falsos positivos)
-  return { match_phrase: { 'partes.nome': name } }
+
+  if (!cpf) return nameQuery
+
+  const cpfFmt = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  return {
+    bool: {
+      should: [
+        nameQuery,                                        // busca por nome (confiável)
+        { match: { 'partes.cpfCnpj': cpf } },            // CPF sem máscara (tenta, pode não funcionar)
+        { match: { 'partes.cpfCnpj': cpfFmt } },         // CPF com máscara
+      ],
+      minimum_should_match: 1,
+    },
+  }
 }
 
 function formatDataJudProcess(p: DataJudProcess, tribunal: string): string {
@@ -185,7 +196,7 @@ async function searchDataJud(name: string, cpf: string | null, apiKey: string): 
     snippets.push(
       `${processLines.length} processo(s) encontrado(s) no DataJud (CNJ) — fonte oficial:`
     )
-    processLines.slice(0, 25).forEach(line => snippets.push(line))
+    processLines.slice(0, 50).forEach(line => snippets.push(line))
   }
 
   return { source: 'DataJud — CNJ (oficial)', snippets, urls: [] }
@@ -332,7 +343,8 @@ Cidade: ${city || 'Não informada'}
 
 ━━━ FONTES CONSULTADAS ━━━
 • DataJud (CNJ): API oficial do Conselho Nacional de Justiça — 27 TJs estaduais + 24 TRTs trabalhistas.
-  ${usedCpf ? '✓ Busca por CPF — resultado definitivo, sem ambiguidade.' : 'Busca por nome — pode haver homonímia em nomes comuns.'}
+  Busca realizada por nome ("${name}") com todos os termos obrigatórios.
+  ${usedCpf ? `CPF ${cpfFormatted} informado para confirmação, mas a API pública DataJud não indexa CPF (restrição LGPD) — a busca por nome é a fonte primária.` : 'CPF não informado — busca apenas por nome; homonímia é possível em nomes comuns.'}
 • Escavador: agregador público de processos judiciais.
 
 ━━━ DADOS COLETADOS ━━━
@@ -343,7 +355,7 @@ ${blocks}
 PROCESSOS JUDICIAIS:
 - Liste TODOS os processos encontrados com: número completo, tribunal, classe, assunto e polo (autor/réu/reclamante/reclamado)
 - Classifique o tipo: criminal, trabalhista, cível, família, execução fiscal, etc.
-- ${usedCpf ? 'Resultados do DataJud por CPF são definitivamente desta pessoa.' : 'Verifique se nome e dados confirmam ser a mesma pessoa.'}
+- A busca no DataJud é feita por nome; verifique se as partes listadas conferem com "${name}"${usedCpf ? ` ou CPF ${cpfFormatted}` : ''} para confirmar que é o mesmo candidato (evitar homonímia).
 - Se DataJud retornou "Nenhum processo encontrado", registre claramente.
 - Nunca invente ou presuma processos — use APENAS os dados coletados acima.
 
