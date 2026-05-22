@@ -125,9 +125,9 @@ function BackgroundCheckModal({
         {running && !result && (
           <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            <p className="text-sm">Consultando DataJud — CNJ...</p>
+            <p className="text-sm">Consultando JusBrasil e Escavador...</p>
             <p className="text-xs text-center max-w-xs">
-              Pesquisando em 51 tribunais brasileiros (TJs + TRTs) via API oficial do CNJ. Isso pode levar alguns segundos.
+              Pesquisando processos judiciais por nome e CPF nas fontes públicas. Isso pode levar alguns segundos.
             </p>
           </div>
         )}
@@ -229,7 +229,7 @@ function BackgroundCheckModal({
             )}
 
             <p className="text-[11px] text-muted-foreground border-t pt-2 leading-relaxed">
-              Dados obtidos via <strong>DataJud — API oficial do CNJ</strong> (Conselho Nacional de Justiça).
+              Dados obtidos via <strong>JusBrasil</strong> e <strong>Escavador</strong> (fontes públicas de processos judiciais).
               Os resultados devem ser verificados manualmente antes de qualquer decisão.
             </p>
 

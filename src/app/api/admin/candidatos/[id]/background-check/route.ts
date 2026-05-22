@@ -64,174 +64,86 @@ const BROWSER_HEADERS = {
 }
 
 // ─── DataJud — API oficial do CNJ ─────────────────────────────────────────────
-// HTTP puro, gratuito, sem browser, sem login.
-// Cobre todos os tribunais brasileiros (TJs, TRTs, TRFs, STJ, STF...).
-// Chave pública de demonstração; registre a sua em: https://datajud-wiki.cnj.jus.br/
+// NOTA TÉCNICA: A API pública do DataJud (api-publica.datajud.cnj.jus.br)
+// NÃO indexa o campo `partes` (nome/CPF das partes) em nenhum tribunal.
+// Isso é uma restrição de LGPD do endpoint público.
+// O campo `partes` existe no schema mas nunca está presente nos documentos
+// retornados — `exists: {field: "partes"}` retorna 0 resultados em todos os TJs.
+// Portanto: busca por nome/CPF via DataJud público é impossível.
+// Para pesquisa real de partes, usamos JusBrasil + Escavador (veja abaixo).
+// Para consultar processos por número, acesse: https://datajud.cnj.jus.br/
 
-const DATAJUD_BASE = 'https://api-publica.datajud.cnj.jus.br'
-// Chave resolvida em runtime: DB → env var → chave pública demo do CNJ
-function DATAJUD_KEY(keyFromDb?: string | null): string {
-  return keyFromDb || process.env.DATAJUD_API_KEY ||
-    'cDZHYzlZa0JadVREZDJCendFbzFKdnQ6SkJlTzNjLV9TRENyQVk4Q3JqWTg3UA=='
-}
-
-// 27 tribunais estaduais
-const ALL_TJS = [
-  'tjac','tjal','tjam','tjap','tjba','tjce','tjdft','tjes',
-  'tjgo','tjma','tjmg','tjms','tjmt','tjpa','tjpb','tjpe',
-  'tjpi','tjpr','tjrj','tjrn','tjro','tjrr','tjrs','tjsc',
-  'tjse','tjsp','tjto',
-]
-// 24 tribunais do trabalho
-const ALL_TRTS = Array.from({ length: 24 }, (_, i) => `trt${i + 1}`)
-
-interface DataJudProcess {
-  numeroProcesso?: string
-  tribunal?: string
-  classe?: { nome?: string }
-  assuntos?: Array<{ nome?: string }>
-  orgaoJulgador?: { nome?: string }
-  dataAjuizamento?: string
-  grau?: string
-  partes?: Array<{ nome?: string; polo?: string }>
-}
-
-async function queryDataJudTribunal(
-  tribunal: string,
-  query: Record<string, unknown>,
-  apiKey: string,
-): Promise<DataJudProcess[]> {
-  try {
-    const res = await fetchWithTimeout(
-      `${DATAJUD_BASE}/api_publica_${tribunal}/_search`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `APIKey ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ size: 10, query }),
-      },
-      8000,
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    return (data?.hits?.hits ?? []).map((h: { _source: DataJudProcess }) => h._source)
-  } catch {
-    return []
+function searchDataJud(): SearchResult {
+  // Retorna aviso informativo — sem chamadas de rede (campo partes não existe na API pública)
+  return {
+    source: 'DataJud — CNJ (oficial)',
+    snippets: [
+      'A API pública do DataJud/CNJ não indexa nomes ou CPFs das partes (restrição LGPD). ' +
+      'A busca de processos por nome/CPF é feita via JusBrasil e Escavador. ' +
+      'Para consulta por número de processo, acesse datajud.cnj.jus.br.',
+    ],
+    urls: ['https://datajud.cnj.jus.br/'],
   }
 }
 
-function buildDataJudQuery(cpf: string | null, name: string): Record<string, unknown> {
-  // DataJud usa Elasticsearch com o campo `partes` do tipo nested.
-  // Queries sem wrapper `nested` retornam sempre 0 resultados.
-  // Também tentamos a query flat (caso o índice tenha include_in_root).
-  //
-  // Estrutura real de documentos:
-  //   partes[].nome               → nome da parte
-  //   partes[].pessoa.documentos[].tipo   → "CPF" | "CNPJ" | ...
-  //   partes[].pessoa.documentos[].numero → número do documento
-  //
-  // A API pública NÃO indexa CPF para busca direta (LGPD),
-  // mas incluímos as tentativas de CPF como should bônus.
+// ─── JusBrasil ────────────────────────────────────────────────────────────────
+// Maior agregador público de processos judiciais do Brasil.
+// Indexa partes (nome/CPF) e permite busca pública sem login para resultados básicos.
 
+async function searchJusBrasil(name: string, cpf: string | null): Promise<SearchResult> {
   const cpfFmt = cpf ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null
+  const allSnippets: string[] = []
+  const allUrls: string[] = []
 
-  // Query de nome — exige todos os tokens do nome no campo partes.nome
-  const nameMatchQuery = {
-    match: {
-      'partes.nome': { query: name, operator: 'and' },
-    },
+  // Monta as URLs de busca — CPF tem prioridade por ser identificador único
+  const searchTargets: Array<{ url: string; label: string }> = []
+
+  if (cpfFmt) {
+    searchTargets.push({
+      url: `https://www.jusbrasil.com.br/processos/pesquisa?query=${encodeURIComponent(cpfFmt)}`,
+      label: 'JusBrasil CPF',
+    })
   }
+  searchTargets.push({
+    url: `https://www.jusbrasil.com.br/processos/pesquisa?query=${encodeURIComponent(`"${name}"`)}&origem=nome`,
+    label: 'JusBrasil nome',
+  })
 
-  const shouldClauses: Record<string, unknown>[] = [
-    // ── Nested (partes é nested type — principal) ─────────────────────────────
-    { nested: { path: 'partes', query: nameMatchQuery } },
-    // ── Flat (caso o índice use include_in_root ou object type) ──────────────
-    nameMatchQuery,
-  ]
-
-  if (cpf && cpfFmt) {
-    // CPF via campo cpfCnpj (variação observada em alguns tribunais)
-    shouldClauses.push(
-      { nested: { path: 'partes', query: { match: { 'partes.cpfCnpj': cpf } } } },
-      { nested: { path: 'partes', query: { match: { 'partes.cpfCnpj': cpfFmt } } } },
-      // CPF via estrutura pessoa.documentos
-      {
-        nested: {
-          path: 'partes',
-          query: {
-            bool: {
-              must: [
-                { match: { 'partes.pessoa.documentos.numero': cpf } },
-              ],
-            },
-          },
+  const fetches = await Promise.allSettled(
+    searchTargets.map(async ({ url }) => {
+      const res = await fetchWithTimeout(url, {
+        headers: {
+          ...BROWSER_HEADERS,
+          Referer: 'https://www.jusbrasil.com.br/',
         },
-      },
-      // Versões flat (bônus)
-      { match: { 'partes.cpfCnpj': cpf } },
-      { match: { 'partes.cpfCnpj': cpfFmt } },
-    )
+      }, 12000)
+      if (!res.ok) return { snippets: [] as string[], url }
+      const html = await res.text()
+      const text = stripHtml(html)
+      const nums = extractProcessNumbers(text)
+      const snips: string[] = []
+      if (nums.length) snips.push(`Processos no JusBrasil: ${nums.join(' | ')}`)
+      const rel = extractAround(text, /processo|parte|criminal|trabalhista|cível|réu|autor|reclamante|reclamado/i, 80, 500, 4)
+      if (rel.trim().length > 50) snips.push(rel.slice(0, 1500))
+      return { snippets: snips, url }
+    })
+  )
+
+  for (let i = 0; i < fetches.length; i++) {
+    const r = fetches[i]
+    if (r.status === 'fulfilled') {
+      allSnippets.push(...r.value.snippets)
+      allUrls.push(r.value.url)
+    } else {
+      allUrls.push(searchTargets[i].url)
+    }
   }
 
   return {
-    bool: {
-      should: shouldClauses,
-      minimum_should_match: 1,
-    },
+    source: 'JusBrasil',
+    snippets: [...new Set(allSnippets)].filter(s => s.length > 20).slice(0, 6),
+    urls: [...new Set(allUrls)].slice(0, 4),
   }
-}
-
-function formatDataJudProcess(p: DataJudProcess, tribunal: string): string {
-  const parts: string[] = []
-  if (p.numeroProcesso) parts.push(`Processo: ${p.numeroProcesso}`)
-  parts.push(`Tribunal: ${(p.tribunal ?? tribunal).toUpperCase()}`)
-  if (p.grau) parts.push(`Grau: ${p.grau}`)
-  if (p.classe?.nome) parts.push(`Classe: ${p.classe.nome}`)
-  if (p.assuntos?.length) parts.push(`Assunto(s): ${p.assuntos.slice(0, 3).map(a => a.nome).filter(Boolean).join(', ')}`)
-  if (p.orgaoJulgador?.nome) parts.push(`Órgão: ${p.orgaoJulgador.nome}`)
-  if (p.dataAjuizamento) parts.push(`Ajuizamento: ${p.dataAjuizamento.slice(0, 10)}`)
-  if (p.partes?.length) {
-    const partesStr = p.partes.slice(0, 4)
-      .filter(pt => pt.nome)
-      .map(pt => `${pt.nome} [${pt.polo ?? '?'}]`)
-      .join('; ')
-    if (partesStr) parts.push(`Partes: ${partesStr}`)
-  }
-  return parts.join(' | ')
-}
-
-async function searchDataJud(name: string, cpf: string | null, apiKey: string): Promise<SearchResult> {
-  const query = buildDataJudQuery(cpf, name)
-
-  // Dispara todos os tribunais em paralelo (HTTP puro, ~1-3s total)
-  const tribunals = [...ALL_TJS, ...ALL_TRTS]
-  const settled = await Promise.allSettled(
-    tribunals.map(t => queryDataJudTribunal(t, query, apiKey))
-  )
-
-  const processLines: string[] = []
-  settled.forEach((r, i) => {
-    if (r.status !== 'fulfilled' || !r.value.length) return
-    const tribunal = tribunals[i]
-    r.value.forEach(p => processLines.push(formatDataJudProcess(p, tribunal)))
-  })
-
-  const snippets: string[] = []
-  if (processLines.length === 0) {
-    snippets.push(
-      'Nenhum processo encontrado no DataJud (CNJ) para este candidato ' +
-      `nos ${ALL_TJS.length} tribunais estaduais e ${ALL_TRTS.length} tribunais trabalhistas consultados.`
-    )
-  } else {
-    snippets.push(
-      `${processLines.length} processo(s) encontrado(s) no DataJud (CNJ) — fonte oficial:`
-    )
-    processLines.slice(0, 50).forEach(line => snippets.push(line))
-  }
-
-  return { source: 'DataJud — CNJ (oficial)', snippets, urls: [] }
 }
 
 // ─── Escavador ────────────────────────────────────────────────────────────────
@@ -272,11 +184,13 @@ async function searchGoogle(query: string, label = 'Google'): Promise<SearchResu
 }
 
 async function searchEscavador(name: string, cpf: string | null): Promise<SearchResult> {
+  const cpfFmt = cpf ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null
   const allSnippets: string[] = []
   const allUrls: string[] = []
 
+  // Primeiro: Google para encontrar o perfil no Escavador
   const googleResults = await Promise.allSettled([
-    ...(cpf ? [searchGoogle(`"${cpf}" escavador`, 'Google → Escavador')] : []),
+    ...(cpfFmt ? [searchGoogle(`"${cpfFmt}" escavador`, 'Google → Escavador')] : []),
     searchGoogle(`"${name}" escavador processos`, 'Google → Escavador'),
   ])
 
@@ -288,12 +202,21 @@ async function searchEscavador(name: string, cpf: string | null): Promise<Search
     escProfileUrls.push(...r.value.urls.filter(u => u.includes('escavador.com')))
   }
 
-  const directUrl = cpf
-    ? `https://www.escavador.com/busca?q=${encodeURIComponent(cpf)}&tipo=pessoas`
-    : `https://www.escavador.com/busca?q=${encodeURIComponent(`"${name}"`)}&tipo=pessoas`
+  // Segundo: URLs diretas do Escavador por CPF (tentativa prioritária)
+  const directUrls: string[] = []
+  if (cpfFmt) {
+    directUrls.push(
+      `https://www.escavador.com/sobre/${encodeURIComponent(cpfFmt)}`,
+      `https://www.escavador.com/busca?q=${encodeURIComponent(cpfFmt)}&tipo=pessoas`,
+    )
+  } else {
+    directUrls.push(
+      `https://www.escavador.com/busca?q=${encodeURIComponent(`"${name}"`)}&tipo=pessoas`,
+    )
+  }
 
-  const fetchTargets = [...new Set(escProfileUrls)].slice(0, 2)
-  if (!fetchTargets.length) fetchTargets.push(directUrl)
+  // Mescla perfis do Google + URLs diretas (sem duplicatas), limitado a 3 fetches
+  const fetchTargets = [...new Set([...escProfileUrls.slice(0, 1), ...directUrls])].slice(0, 3)
 
   const pageFetches = await Promise.allSettled(fetchTargets.map(async url => {
     const res = await fetchWithTimeout(url, { headers: { ...BROWSER_HEADERS, Referer: 'https://www.google.com.br/' } }, 10000)
@@ -321,33 +244,46 @@ async function searchEscavador(name: string, cpf: string | null): Promise<Search
 
 
 // ─── Fallback sem IA ─────────────────────────────────────────────────────────
-// Quando nenhuma chave de IA está configurada, exibe os dados brutos do DataJud.
+// Quando nenhuma chave de IA está configurada, exibe os dados brutos das fontes.
 
 function buildFallbackResult(results: SearchResult[]): BackgroundCheckResult {
-  const datajudResult = results.find(r => r.source.includes('DataJud'))
-  const snippets = datajudResult?.snippets ?? []
+  // Agrega snippets de todas as fontes que realmente têm dados de processos
+  const processSnippets: string[] = []
+  const allUrls: string[] = []
 
-  // Primeiro snippet é o resumo ("X processo(s) encontrado(s)..." ou "Nenhum processo...")
-  const summaryLine = snippets[0] ?? 'DataJud consultado.'
-  const noProcessos = !snippets.length || summaryLine.includes('Nenhum processo')
-  // Linhas seguintes são os processos formatados (uma por linha)
-  const processLines = noProcessos ? [] : snippets.slice(1)
+  for (const r of results) {
+    if (r.source.includes('DataJud')) continue // DataJud público não tem partes — pula
+    const hasProcess = r.snippets.some(s =>
+      s.toLowerCase().includes('processo') || /\d{7}-\d{2}\.\d{4}/.test(s)
+    )
+    if (hasProcess) {
+      processSnippets.push(...r.snippets.filter(s =>
+        s.toLowerCase().includes('processo') || /\d{7}-\d{2}\.\d{4}/.test(s)
+      ))
+    }
+    allUrls.push(...r.urls)
+  }
+
+  const hasProcesses = processSnippets.length > 0
+  const uniqueUrls = [...new Set(allUrls)].slice(0, 6)
 
   return {
     processos_judiciais: {
-      encontrado: processLines.length > 0,
-      resumo: summaryLine,
-      detalhes: processLines,
-      urls: [],
+      encontrado: hasProcesses,
+      resumo: hasProcesses
+        ? `Processos encontrados via JusBrasil/Escavador.`
+        : 'Nenhum processo encontrado no JusBrasil ou Escavador para este candidato.',
+      detalhes: processSnippets.slice(0, 20),
+      urls: uniqueUrls,
     },
     beneficios_governamentais: { encontrado: false, lista: [], resumo: 'Não verificado.' },
     outras_informacoes: { items: [], resumo: '' },
-    parecer_geral: processLines.length === 0
-      ? 'Nenhum processo judicial encontrado nos 51 tribunais estaduais e trabalhistas consultados via DataJud (CNJ).'
-      : `${processLines.length} processo(s) encontrado(s) no DataJud. Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.`,
-    nivel_risco: processLines.length === 0 ? 'baixo' : 'nao_determinado',
+    parecer_geral: hasProcesses
+      ? `Processos encontrados nas fontes consultadas. Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.`
+      : 'Nenhum processo judicial encontrado no JusBrasil ou Escavador para este candidato.',
+    nivel_risco: hasProcesses ? 'nao_determinado' : 'baixo',
     fontes_consultadas: [],
-    observacoes_tecnicas: processLines.length > 0
+    observacoes_tecnicas: hasProcesses
       ? 'Configure uma chave de IA para análise inteligente dos processos encontrados.'
       : 'Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.',
   }
@@ -374,10 +310,9 @@ CPF: ${cpfFormatted}${usedCpf ? ' ← identificador único — resultados são 1
 Cidade: ${city || 'Não informada'}
 
 ━━━ FONTES CONSULTADAS ━━━
-• DataJud (CNJ): API oficial do Conselho Nacional de Justiça — 27 TJs estaduais + 24 TRTs trabalhistas.
-  Busca por nome ("${name}") usando nested query (estrutura obrigatória do DataJud) com todos os termos.
-  ${usedCpf ? `CPF ${cpfFormatted} incluído como critério adicional (nested + flat, via cpfCnpj e pessoa.documentos.numero).` : 'CPF não informado — busca apenas por nome; homonímia é possível em nomes comuns.'}
-• Escavador: agregador público de processos judiciais.
+• JusBrasil: maior agregador público de processos judiciais do Brasil. Busca por ${usedCpf ? `CPF ${cpfFormatted} (identificador único)` : `nome "${name}"`}.
+• Escavador: agregador público de processos judiciais. Busca por ${usedCpf ? `CPF ${cpfFormatted}` : `nome "${name}"`}.
+• DataJud (CNJ): API oficial do CNJ — não indexa partes (LGPD) no endpoint público; listado para referência.
 
 ━━━ DADOS COLETADOS ━━━
 ${blocks}
@@ -387,8 +322,8 @@ ${blocks}
 PROCESSOS JUDICIAIS:
 - Liste TODOS os processos encontrados com: número completo, tribunal, classe, assunto e polo (autor/réu/reclamante/reclamado)
 - Classifique o tipo: criminal, trabalhista, cível, família, execução fiscal, etc.
-- A busca no DataJud é feita por nome; verifique se as partes listadas conferem com "${name}"${usedCpf ? ` ou CPF ${cpfFormatted}` : ''} para confirmar que é o mesmo candidato (evitar homonímia).
-- Se DataJud retornou "Nenhum processo encontrado", registre claramente.
+- ${usedCpf ? `CPF ${cpfFormatted} foi usado como critério de busca — resultados são do candidato.` : `Verifique se as partes conferem com "${name}" para evitar homonímia.`}
+- Se os dados mostram "Nenhum processo encontrado", registre claramente.
 - Nunca invente ou presuma processos — use APENAS os dados coletados acima.
 
 RIGOR:
@@ -410,7 +345,7 @@ Retorne SOMENTE este JSON (sem markdown):
   },
   "parecer_geral": "2-3 frases diretas para o recrutador sobre o resultado da pesquisa judicial",
   "nivel_risco": "baixo",
-  "fontes_consultadas": ["DataJud — CNJ (oficial)", "Escavador"],
+  "fontes_consultadas": ["JusBrasil", "Escavador"],
   "observacoes_tecnicas": "ex: CPF não informado — busca por nome pode ter homonímia"
 }
 Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado"`
@@ -512,33 +447,26 @@ export async function POST(
 
     const { full_name, cpf, city } = candidate
     const cpfClean = cpf?.replace(/\D/g, '') || null
-    const cpfFormatted = cpfClean?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? null
-
-    // ── Chave DataJud: banco → env var → chave pública demo ───────────────────
-    const { data: aiSettings } = await supabase
-      .from('ai_settings')
-      .select('datajud_api_key')
-      .limit(1)
-      .maybeSingle()
-
-    const datajudKey = DATAJUD_KEY(aiSettings?.datajud_api_key)
 
     // ── Buscas em paralelo ────────────────────────────────────────────────────
-    // DataJud: 51 tribunais em paralelo via HTTP (~2-4s total)
-    // Escavador: busca complementar pública
-    const [dataJudR, escavadorR] = await Promise.allSettled([
-      searchDataJud(full_name, cpfClean, datajudKey),
+    // JusBrasil e Escavador: buscam por nome/CPF (têm partes indexadas)
+    // DataJud: retorna aviso sobre limitação LGPD (sem chamada de rede)
+    const [jusBrasilR, escavadorR] = await Promise.allSettled([
+      searchJusBrasil(full_name, cpfClean),
       searchEscavador(full_name, cpfClean),
     ])
 
+    const dataJudResult = searchDataJud()
+
     const results: SearchResult[] = [
-      dataJudR.status   === 'fulfilled' ? dataJudR.value   : { source: 'DataJud — CNJ (oficial)', snippets: [], urls: [] },
-      escavadorR.status === 'fulfilled' ? escavadorR.value : { source: 'Escavador',               snippets: [], urls: [] },
+      dataJudResult,
+      jusBrasilR.status   === 'fulfilled' ? jusBrasilR.value   : { source: 'JusBrasil', snippets: [], urls: [] },
+      escavadorR.status   === 'fulfilled' ? escavadorR.value   : { source: 'Escavador', snippets: [], urls: [] },
     ]
 
     const prompt = buildPrompt(full_name, cpfClean, city, results)
     const aiResult = await callAI(prompt, supabase)
-    // Se não há chave de IA, exibe os dados brutos do DataJud diretamente
+    // Se não há chave de IA, exibe os dados brutos das fontes diretamente
     const result: BackgroundCheckResult = aiResult ?? buildFallbackResult(results)
 
     result.fontes_consultadas = results
