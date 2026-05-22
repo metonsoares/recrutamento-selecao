@@ -91,33 +91,40 @@ function searchDataJud(): SearchResult {
 // Indexa partes (nome/CPF) e permite busca pública sem login para resultados básicos.
 
 async function searchJusBrasil(name: string, cpf: string | null): Promise<SearchResult> {
+  // JusBrasil bloqueia crawlers no endpoint de pesquisa via Cloudflare (403).
+  // Estratégia: pesquisar via Google para obter snippets + URLs de perfil,
+  // e tentar buscar diretamente os perfis individuais (geralmente não protegidos).
   const cpfFmt = cpf ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null
   const allSnippets: string[] = []
   const allUrls: string[] = []
 
-  // Monta as URLs de busca — CPF tem prioridade por ser identificador único
-  const searchTargets: Array<{ url: string; label: string }> = []
+  // Pesquisa Google → JusBrasil
+  const googleQueries = [
+    ...(cpfFmt ? [`"${cpfFmt}" site:jusbrasil.com.br`] : []),
+    `"${name}" processos site:jusbrasil.com.br`,
+  ]
 
-  if (cpfFmt) {
-    searchTargets.push({
-      url: `https://www.jusbrasil.com.br/processos/pesquisa?query=${encodeURIComponent(cpfFmt)}`,
-      label: 'JusBrasil CPF',
-    })
+  const googleResults = await Promise.allSettled(
+    googleQueries.map(q => searchGoogle(q, 'Google → JusBrasil'))
+  )
+
+  const jbProfileUrls: string[] = []
+  for (const r of googleResults) {
+    if (r.status !== 'fulfilled') continue
+    allSnippets.push(...r.value.snippets)
+    allUrls.push(...r.value.urls)
+    jbProfileUrls.push(...r.value.urls.filter(u =>
+      u.includes('jusbrasil.com.br') && !u.includes('/processos/pesquisa')
+    ))
   }
-  searchTargets.push({
-    url: `https://www.jusbrasil.com.br/processos/pesquisa?query=${encodeURIComponent(`"${name}"`)}&origem=nome`,
-    label: 'JusBrasil nome',
-  })
 
-  const fetches = await Promise.allSettled(
-    searchTargets.map(async ({ url }) => {
+  // Tenta buscar perfis individuais do JusBrasil encontrados pelo Google
+  const profileFetches = await Promise.allSettled(
+    [...new Set(jbProfileUrls)].slice(0, 2).map(async url => {
       const res = await fetchWithTimeout(url, {
-        headers: {
-          ...BROWSER_HEADERS,
-          Referer: 'https://www.jusbrasil.com.br/',
-        },
-      }, 12000)
-      if (!res.ok) return { snippets: [] as string[], url }
+        headers: { ...BROWSER_HEADERS, Referer: 'https://www.google.com.br/' },
+      }, 10000)
+      if (!res.ok) return { snippets: [] as string[] }
       const html = await res.text()
       const text = stripHtml(html)
       const nums = extractProcessNumbers(text)
@@ -125,24 +132,23 @@ async function searchJusBrasil(name: string, cpf: string | null): Promise<Search
       if (nums.length) snips.push(`Processos no JusBrasil: ${nums.join(' | ')}`)
       const rel = extractAround(text, /processo|parte|criminal|trabalhista|cível|réu|autor|reclamante|reclamado/i, 80, 500, 4)
       if (rel.trim().length > 50) snips.push(rel.slice(0, 1500))
-      return { snippets: snips, url }
+      return { snippets: snips }
     })
   )
 
-  for (let i = 0; i < fetches.length; i++) {
-    const r = fetches[i]
-    if (r.status === 'fulfilled') {
-      allSnippets.push(...r.value.snippets)
-      allUrls.push(r.value.url)
-    } else {
-      allUrls.push(searchTargets[i].url)
-    }
+  for (const r of profileFetches) {
+    if (r.status === 'fulfilled') allSnippets.push(...r.value.snippets)
   }
+
+  // Link de pesquisa direto sempre incluído nas URLs exibidas ao admin
+  const directSearchUrl = cpfFmt
+    ? `https://www.jusbrasil.com.br/processos/pesquisa?query=${encodeURIComponent(cpfFmt)}`
+    : `https://www.jusbrasil.com.br/processos/pesquisa?query=${encodeURIComponent(`"${name}"`)}`
 
   return {
     source: 'JusBrasil',
     snippets: [...new Set(allSnippets)].filter(s => s.length > 20).slice(0, 6),
-    urls: [...new Set(allUrls)].slice(0, 4),
+    urls: [...new Set([directSearchUrl, ...allUrls.filter(u => u.includes('jusbrasil.com.br'))])].slice(0, 4),
   }
 }
 
@@ -183,62 +189,100 @@ async function searchGoogle(query: string, label = 'Google'): Promise<SearchResu
   }
 }
 
+/** Extrai snippets e process numbers de uma página do Escavador já fetchada */
+function parseEscavadorPage(html: string): string[] {
+  const text = stripHtml(html)
+  const nums = extractProcessNumbers(text)
+  const snips: string[] = []
+  if (nums.length) snips.push(`Processos no Escavador: ${nums.join(' | ')}`)
+  const rel = extractAround(text, /processo|envolvido|polo|criminal|trabalhista|cível|aparece em/i, 80, 500, 5)
+  if (rel.trim().length > 50) snips.push(rel.slice(0, 1500))
+  return snips
+}
+
+/** Extrai URLs de perfil do Escavador (/cpf/ ou /nomes/ ou /sobre/) de um HTML */
+function extractEscavadorProfileUrls(html: string): string[] {
+  return [
+    ...[...html.matchAll(/href="(https:\/\/www\.escavador\.com\/(?:cpf|nomes|sobre)\/[^"]+)"/g)].map(m => m[1]),
+    ...[...html.matchAll(/href="(\/(?:cpf|nomes|sobre)\/[^"]+)"/g)].map(m => `https://www.escavador.com${m[1]}`),
+  ].filter((u, i, a) => a.indexOf(u) === i).slice(0, 3)
+}
+
 async function searchEscavador(name: string, cpf: string | null): Promise<SearchResult> {
   const cpfFmt = cpf ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null
   const allSnippets: string[] = []
   const allUrls: string[] = []
 
-  // Primeiro: Google para encontrar o perfil no Escavador
-  const googleResults = await Promise.allSettled([
-    ...(cpfFmt ? [searchGoogle(`"${cpfFmt}" escavador`, 'Google → Escavador')] : []),
-    searchGoogle(`"${name}" escavador processos`, 'Google → Escavador'),
+  // ── Etapa 1: Google + busca direta em paralelo ────────────────────────────
+  const busqaUrl = cpfFmt
+    ? `https://www.escavador.com/busca?q=${encodeURIComponent(cpfFmt)}&tipo=pessoas`
+    : `https://www.escavador.com/busca?q=${encodeURIComponent(`"${name}"`)}&tipo=pessoas`
+
+  const [googleR, busqaR] = await Promise.allSettled([
+    // Google: busca CPF + nome no Escavador
+    Promise.all([
+      ...(cpfFmt ? [searchGoogle(`"${cpfFmt}" escavador`, 'Google → Escavador')] : []),
+      searchGoogle(`"${name}" escavador processos`, 'Google → Escavador'),
+    ]),
+    // Busca direta: página de resultados do Escavador por CPF/nome
+    fetchWithTimeout(busqaUrl, {
+      headers: { ...BROWSER_HEADERS, Referer: 'https://www.google.com.br/' },
+    }, 10000),
   ])
 
-  const escProfileUrls: string[] = []
-  for (const r of googleResults) {
-    if (r.status !== 'fulfilled') continue
-    allSnippets.push(...r.value.snippets)
-    allUrls.push(...r.value.urls)
-    escProfileUrls.push(...r.value.urls.filter(u => u.includes('escavador.com')))
+  // Coleta URLs de perfil encontradas pelo Google
+  const escProfileUrlsFromGoogle: string[] = []
+  if (googleR.status === 'fulfilled') {
+    for (const r of googleR.value) {
+      allSnippets.push(...r.snippets)
+      allUrls.push(...r.urls)
+      escProfileUrlsFromGoogle.push(...r.urls.filter(u =>
+        u.includes('escavador.com') && (u.includes('/cpf/') || u.includes('/nomes/') || u.includes('/sobre/'))
+      ))
+    }
   }
 
-  // Segundo: URLs diretas do Escavador por CPF (tentativa prioritária)
-  const directUrls: string[] = []
-  if (cpfFmt) {
-    directUrls.push(
-      `https://www.escavador.com/sobre/${encodeURIComponent(cpfFmt)}`,
-      `https://www.escavador.com/busca?q=${encodeURIComponent(cpfFmt)}&tipo=pessoas`,
-    )
-  } else {
-    directUrls.push(
-      `https://www.escavador.com/busca?q=${encodeURIComponent(`"${name}"`)}&tipo=pessoas`,
-    )
+  // Processa página de busca + extrai perfis linked nela
+  const profileUrlsFromBusca: string[] = []
+  if (busqaR.status === 'fulfilled' && busqaR.value.ok) {
+    const busqaHtml = await busqaR.value.text()
+    allSnippets.push(...parseEscavadorPage(busqaHtml))
+    profileUrlsFromBusca.push(...extractEscavadorProfileUrls(busqaHtml))
+    allUrls.push(busqaUrl)
   }
 
-  // Mescla perfis do Google + URLs diretas (sem duplicatas), limitado a 3 fetches
-  const fetchTargets = [...new Set([...escProfileUrls.slice(0, 1), ...directUrls])].slice(0, 3)
+  // ── Etapa 2: busca perfis de alta qualidade (cpf/nomes/sobre) ─────────────
+  // Prioridade: perfil encontrado na página de busca > Google > URL sobre/ direta
+  const profileTargets = [
+    ...new Set([
+      ...profileUrlsFromBusca,                            // vem da busca → mais preciso
+      ...escProfileUrlsFromGoogle,                        // vem do Google
+      ...(cpfFmt ? [`https://www.escavador.com/sobre/${encodeURIComponent(cpfFmt)}`] : []),
+    ]),
+  ].slice(0, 2)
 
-  const pageFetches = await Promise.allSettled(fetchTargets.map(async url => {
-    const res = await fetchWithTimeout(url, { headers: { ...BROWSER_HEADERS, Referer: 'https://www.google.com.br/' } }, 10000)
-    if (!res.ok) return { snippets: [] as string[] }
-    const html = await res.text()
-    const text = stripHtml(html)
-    const nums = extractProcessNumbers(text)
-    const snips: string[] = []
-    if (nums.length) snips.push(`Processos no Escavador: ${nums.join(' | ')}`)
-    const rel = extractAround(text, /processo|envolvido|parte|criminal|trabalhista|cível/i, 80, 400, 4)
-    if (rel.trim().length > 50) snips.push(rel.slice(0, 1200))
-    return { snippets: snips }
-  }))
+  if (profileTargets.length > 0) {
+    const profileFetches = await Promise.allSettled(
+      profileTargets.map(url =>
+        fetchWithTimeout(url, {
+          headers: { ...BROWSER_HEADERS, Referer: 'https://www.escavador.com/' },
+        }, 10000)
+      )
+    )
 
-  for (const r of pageFetches) {
-    if (r.status === 'fulfilled') allSnippets.push(...r.value.snippets)
+    for (const r of profileFetches) {
+      if (r.status === 'fulfilled' && r.value.ok) {
+        const html = await r.value.text()
+        allSnippets.push(...parseEscavadorPage(html))
+      }
+    }
+    allUrls.push(...profileTargets)
   }
 
   return {
     source: 'Escavador',
-    snippets: [...new Set(allSnippets)].filter(s => s.length > 20).slice(0, 6),
-    urls: [...new Set([...fetchTargets, ...allUrls.filter(u => u.includes('escavador.com'))])].slice(0, 4),
+    snippets: [...new Set(allSnippets)].filter(s => s.length > 20).slice(0, 8),
+    urls: [...new Set(allUrls.filter(u => u.includes('escavador.com')))].slice(0, 4),
   }
 }
 
