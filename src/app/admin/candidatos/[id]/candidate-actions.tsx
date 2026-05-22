@@ -85,18 +85,20 @@ function BackgroundCheckModal({
     }
   }
 
+  const found = result?.processos_judiciais?.encontrado
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-blue-600" />
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+        <DialogHeader className="pb-1">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
             Check de Processos e Antecedentes
           </DialogTitle>
         </DialogHeader>
 
-        {/* Actions bar */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+        {/* Barra de ação */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {checkedAt && (
             <span className="text-xs text-muted-foreground">
               Última verificação: {formatDateTime(checkedAt)}
@@ -107,7 +109,7 @@ function BackgroundCheckModal({
             variant="outline"
             onClick={runCheck}
             disabled={running}
-            className="gap-1.5 ml-auto"
+            className="gap-1.5 w-full sm:w-auto"
           >
             {running
               ? <><Loader2 className="w-4 h-4 animate-spin" />Pesquisando...</>
@@ -122,18 +124,20 @@ function BackgroundCheckModal({
           </div>
         )}
 
+        {/* Loading sem resultado anterior */}
         {running && !result && (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            <p className="text-sm">Consultando JusBrasil e Escavador...</p>
-            <p className="text-xs text-center max-w-xs">
-              Pesquisando processos judiciais por nome e CPF nas fontes públicas. Isso pode levar alguns segundos.
+            <p className="text-sm font-medium">Consultando JusBrasil e Escavador...</p>
+            <p className="text-xs text-center max-w-xs text-gray-500">
+              Pesquisando processos por nome e CPF. Pode levar alguns segundos.
             </p>
           </div>
         )}
 
+        {/* Estado vazio */}
         {!result && !running && (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
             <ShieldCheck className="w-12 h-12 text-gray-300" />
             <p className="text-sm font-medium">Nenhuma pesquisa realizada ainda</p>
             <p className="text-xs text-center max-w-xs">
@@ -142,50 +146,56 @@ function BackgroundCheckModal({
           </div>
         )}
 
+        {/* Resultado */}
         {result && (
-          <div className="space-y-4">
+          <div className="space-y-3">
 
-            {/* Parecer geral */}
+            {/* Parecer Geral */}
             <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-start justify-between gap-3">
                 <p className="text-sm font-semibold text-gray-800">Parecer Geral</p>
-                <RiskBadge level={result.nivel_risco} />
+                <div className="shrink-0">
+                  <RiskBadge level={result.nivel_risco} />
+                </div>
               </div>
               <p className="text-sm text-gray-700 leading-relaxed">{result.parecer_geral}</p>
             </div>
 
             {/* Processos Judiciais */}
-            <div className={`rounded-xl border p-4 space-y-2 ${result.processos_judiciais?.encontrado ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}>
+            <div className={`rounded-xl border p-4 space-y-2 ${found ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
               <div className="flex items-center gap-2">
-                {result.processos_judiciais?.encontrado
+                {found
                   ? <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
                   : <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                 }
-                <p className="text-sm font-semibold">
-                  Processos Judiciais
-                  {result.processos_judiciais?.encontrado
-                    ? <span className="ml-2 text-red-600">⚠️ Encontrado(s)</span>
-                    : <span className="ml-2 text-emerald-600">✓ Nenhum encontrado</span>
+                <p className={`text-sm font-semibold ${found ? 'text-red-800' : 'text-emerald-800'}`}>
+                  Processos Judiciais&nbsp;
+                  {found
+                    ? <span>⚠️ Encontrado(s)</span>
+                    : <span>✓ Nenhum encontrado</span>
                   }
                 </p>
               </div>
-              <p className="text-sm text-gray-700">{result.processos_judiciais?.resumo}</p>
+              {result.processos_judiciais?.resumo && (
+                <p className="text-sm text-gray-700 leading-relaxed">{result.processos_judiciais.resumo}</p>
+              )}
               {(result.processos_judiciais?.detalhes || []).length > 0 && (
-                <ul className="space-y-1 mt-1">
+                <ul className="space-y-1.5 pt-1">
                   {result.processos_judiciais.detalhes.map((d, i) => (
-                    <li key={i} className="text-sm flex gap-2 text-red-800">
-                      <span className="shrink-0">•</span>{d}
+                    <li key={i} className="text-sm flex gap-2 text-red-900 leading-relaxed">
+                      <span className="shrink-0 mt-0.5">•</span>
+                      <span>{typeof d === 'string' ? d : JSON.stringify(d)}</span>
                     </li>
                   ))}
                 </ul>
               )}
               {(result.processos_judiciais?.urls || []).length > 0 && (
-                <div className="flex flex-col gap-1 mt-1 overflow-hidden">
+                <div className="flex flex-col gap-1 pt-1">
                   {result.processos_judiciais.urls.map((u, i) => (
                     <a key={i} href={u.startsWith('http') ? u : `https://${u}`} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-blue-600 underline hover:text-blue-800 flex items-center gap-1 min-w-0 max-w-full">
+                      className="text-xs text-blue-600 underline hover:text-blue-800 flex items-center gap-1 min-w-0">
                       <Globe className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{u.length > 80 ? u.slice(0, 80) + '…' : u}</span>
+                      <span className="truncate">{u}</span>
                     </a>
                   ))}
                 </div>
@@ -193,10 +203,13 @@ function BackgroundCheckModal({
             </div>
 
             {/* Outras informações */}
-            {((result.outras_informacoes?.items || []).length > 0 || result.outras_informacoes?.resumo) && (
+            {((result.outras_informacoes?.items || []).length > 0 ||
+              (result.outras_informacoes?.resumo && result.outras_informacoes.resumo.trim())) && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
                 <p className="text-sm font-semibold text-blue-800">Outras Informações Relevantes</p>
-                <p className="text-sm text-gray-700">{result.outras_informacoes?.resumo}</p>
+                {result.outras_informacoes?.resumo && (
+                  <p className="text-sm text-gray-700 leading-relaxed">{result.outras_informacoes.resumo}</p>
+                )}
                 {(result.outras_informacoes?.items || []).length > 0 && (
                   <ul className="space-y-1">
                     {result.outras_informacoes.items.map((item, i) => (
@@ -209,29 +222,27 @@ function BackgroundCheckModal({
               </div>
             )}
 
-            {/* Fontes consultadas */}
-            {(result.fontes_consultadas || []).length > 0 && (
-              <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Fontes consultadas:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {result.fontes_consultadas.map((f, i) => (
-                    <span key={i} className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded">{f}</span>
-                  ))}
+            {/* Fontes + rodapé */}
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-3 space-y-2">
+              {(result.fontes_consultadas || []).length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium mb-1.5">Fontes consultadas:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {result.fontes_consultadas.map((f, i) => (
+                      <span key={i} className="text-xs bg-white border border-gray-300 text-gray-700 px-2 py-0.5 rounded-full">{f}</span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {/* Aviso técnico */}
-            {result.observacoes_tecnicas && (
-              <p className="text-xs text-muted-foreground italic border-t pt-2">
-                ⚠️ {result.observacoes_tecnicas}
+              )}
+              {result.observacoes_tecnicas && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 leading-relaxed">
+                  ⚠️ {result.observacoes_tecnicas}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-2">
+                Dados obtidos via <strong>JusBrasil</strong> e <strong>Escavador</strong>. Os resultados devem ser verificados manualmente antes de qualquer decisão.
               </p>
-            )}
-
-            <p className="text-[11px] text-muted-foreground border-t pt-2 leading-relaxed">
-              Dados obtidos via <strong>JusBrasil</strong> e <strong>Escavador</strong> (fontes públicas de processos judiciais).
-              Os resultados devem ser verificados manualmente antes de qualquer decisão.
-            </p>
+            </div>
 
           </div>
         )}
