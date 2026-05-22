@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 import { BackgroundCheckResult } from '@/types'
 
 // Tempo máximo adequado para HTTP puro (sem browser)
@@ -397,25 +398,19 @@ Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado
 
 // ─── Call AI ──────────────────────────────────────────────────────────────────
 
-async function callAI(
-  prompt: string,
-  supabase: Awaited<ReturnType<typeof createSupabaseServiceClient>>,
-): Promise<BackgroundCheckResult | null> {
-  // Query própria — não depende de dados externos; usa maybeSingle para não falhar se não houver linha
-  const { data: s } = await supabase
-    .from('ai_settings')
-    .select('anthropic_api_key_encrypted, openai_api_key_encrypted')
-    .limit(1)
-    .maybeSingle()
+async function callAI(prompt: string): Promise<BackgroundCheckResult | null> {
+  // Resolve chaves descriptografadas via utilitário centralizado
+  // (env var → banco descriptografado, em ordem de prioridade)
+  const [anthropicKey, openaiKey] = await Promise.all([getAnthropicKey(), getOpenAIKey()])
 
-  if (s?.anthropic_api_key_encrypted) {
+  if (anthropicKey) {
     try {
       const res = await fetchWithTimeout(
         'https://api.anthropic.com/v1/messages',
         {
           method: 'POST',
           headers: {
-            'x-api-key': s.anthropic_api_key_encrypted,
+            'x-api-key': anthropicKey,
             'anthropic-version': '2023-06-01',
             'content-type': 'application/json',
           },
@@ -433,17 +428,17 @@ async function callAI(
         const m = text.match(/\{[\s\S]*\}/)
         if (m) return JSON.parse(m[0]) as BackgroundCheckResult
       }
-    } catch { /* fallthrough */ }
+    } catch { /* fallthrough to OpenAI */ }
   }
 
-  if (s?.openai_api_key_encrypted) {
+  if (openaiKey) {
     try {
       const res = await fetchWithTimeout(
         'https://api.openai.com/v1/chat/completions',
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${s.openai_api_key_encrypted}`,
+            Authorization: `Bearer ${openaiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -509,7 +504,7 @@ export async function POST(
     ]
 
     const prompt = buildPrompt(full_name, cpfClean, city, results)
-    const aiResult = await callAI(prompt, supabase)
+    const aiResult = await callAI(prompt)
     // Se não há chave de IA, exibe os dados brutos das fontes diretamente
     const result: BackgroundCheckResult = aiResult ?? buildFallbackResult(results)
 
