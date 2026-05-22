@@ -56,8 +56,14 @@ export async function POST(req: NextRequest) {
       null
 
     // ── Buscar candidato existente — prioridade: CPF > telefone ──────────────
-    let existingCandidate: { id: string; full_name: string; phone: string | null; email: string | null; city: string | null } | null = null
+    // Busca em duas passagens: primeiro ativos, depois soft-deleted.
+    // Isso permite reativar candidatos que foram "removidos" (deleted_at preenchido)
+    // sem gerar erro de constraint ao tentar inserir um registro duplicado.
+    type CandidateRow = { id: string; full_name: string; phone: string | null; email: string | null; city: string | null }
+    let existingCandidate: CandidateRow | null = null
+    let wasDeleted = false
 
+    // Passagem 1: candidatos ATIVOS (deleted_at IS NULL)
     if (cpfNormalized) {
       const { data } = await supabase
         .from('candidates')
@@ -67,8 +73,6 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
       existingCandidate = data
     }
-
-    // Fallback: busca por telefone (se CPF não encontrou nada)
     if (!existingCandidate) {
       const { data } = await supabase
         .from('candidates')
@@ -79,14 +83,37 @@ export async function POST(req: NextRequest) {
       existingCandidate = data
     }
 
+    // Passagem 2: candidatos SOFT-DELETED (deleted_at IS NOT NULL)
+    // Permite reativar quem teve a ficha removida via soft-delete
+    if (!existingCandidate) {
+      if (cpfNormalized) {
+        const { data } = await supabase
+          .from('candidates')
+          .select('id, full_name, phone, email, city')
+          .eq('cpf', cpfNormalized)
+          .not('deleted_at', 'is', null)
+          .maybeSingle()
+        if (data) { existingCandidate = data; wasDeleted = true }
+      }
+      if (!existingCandidate) {
+        const { data } = await supabase
+          .from('candidates')
+          .select('id, full_name, phone, email, city')
+          .eq('phone_normalized', phoneNormalized)
+          .not('deleted_at', 'is', null)
+          .maybeSingle()
+        if (data) { existingCandidate = data; wasDeleted = true }
+      }
+    }
+
     let candidateId: string
 
     if (existingCandidate) {
-      // ── Candidato já existe: detecta alterações e atualiza ─────────────────
+      // ── Candidato já existe (ou foi reativado): detecta alterações e atualiza
       candidateId = existingCandidate.id
 
-      // Computa diff dos campos principais
-      const diff = computeDiff(
+      // Computa diff dos campos principais (apenas para candidatos não-reativados)
+      const diff = wasDeleted ? {} : computeDiff(
         {
           Nome: existingCandidate.full_name || '',
           Telefone: existingCandidate.phone || '',
@@ -112,7 +139,8 @@ export async function POST(req: NextRequest) {
           city: city?.trim() || null,
           neighborhood: neighborhood?.trim() || null,
           cpf: cpfNormalized || undefined,
-          possible_duplicate: true,
+          possible_duplicate: !wasDeleted, // reativação não é duplicata
+          deleted_at: null,                // reativa candidatos soft-deleted
           lgpd_accepted: true,
           lgpd_accepted_at: new Date().toISOString(),
           ip_address: ipAddress,
@@ -124,7 +152,7 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', candidateId)
 
-      // Marca candidaturas anteriores como não-latest
+      // Marca candidaturas anteriores como não-latest (inclusive de reativados)
       await supabase
         .from('applications')
         .update({ is_latest: false, updated_at: new Date().toISOString() })
