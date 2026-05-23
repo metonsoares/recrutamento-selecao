@@ -74,10 +74,10 @@ export function calculateFinalScore(
 
 export function formatDate(date: string | null): string {
   if (!date) return '-'
-  return new Date(date).toLocaleDateString('pt-BR')
+  return new Date(date).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
 
 export function formatDateTime(date: string | null): string {
   if (!date) return '-'
-  return new Date(date).toLocaleString('pt-BR')
+  return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
