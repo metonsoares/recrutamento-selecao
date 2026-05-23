@@ -333,15 +333,16 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
 
       {/* ══ Dialog: Editar / Nova pergunta ═══════════════════════════════════ */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0">
+        <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col p-0">
           <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
             <DialogTitle>{editing ? 'Editar Pergunta' : 'Nova Pergunta'}</DialogTitle>
           </DialogHeader>
 
-          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
-            <div className="space-y-1">
-              <Label>Pergunta *</Label>
+            {/* Pergunta */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold">Pergunta *</Label>
               <Textarea
                 value={form.question_text}
                 onChange={e => setForm(f => ({ ...f, question_text: e.target.value }))}
@@ -350,49 +351,76 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
               />
             </div>
 
-            {/* Opções — 2 colunas, Textarea para mostrar texto completo */}
-            <div>
-              <Label className="mb-2 block">Alternativas</Label>
-              <div className="grid grid-cols-2 gap-3">
-                {LETTERS.map(letter => (
-                  <div key={letter} className="bg-[#fafafa] border rounded-lg p-3 space-y-2">
-                    <Label className="text-xs font-bold text-muted-foreground tracking-wide">Opção {letter}</Label>
-                    <Textarea
-                      value={form[`opt${letter}` as keyof typeof form] as string}
-                      onChange={e => setForm(f => ({ ...f, [`opt${letter}`]: e.target.value }))}
-                      placeholder={`Texto da alternativa ${letter}...`}
-                      rows={2}
-                      className="text-sm resize-none"
-                    />
-                    <div className="flex items-center gap-3 pt-1">
-                      <Label className="text-xs text-muted-foreground shrink-0">Pontuação (0-10)</Label>
-                      <Input
-                        type="number" min={0} max={10}
-                        value={form[`score${letter}` as keyof typeof form] as number}
-                        onChange={e => setForm(f => ({ ...f, [`score${letter}`]: Number(e.target.value) }))}
-                        className="w-20 text-center font-bold text-base"
+            {/* Alternativas — lista vertical, cada linha = letra + texto + pontuação */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Alternativas e Pontuações</Label>
+              {LETTERS.map(letter => {
+                const scoreKey = `score${letter}` as keyof typeof form
+                const optKey   = `opt${letter}`   as keyof typeof form
+                const score    = form[scoreKey] as number
+                const scoreClr = score >= 8
+                  ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                  : score >= 5
+                    ? 'bg-amber-100 text-amber-700 border-amber-300'
+                    : 'bg-gray-100 text-gray-500 border-gray-300'
+                return (
+                  <div key={letter} className="flex items-start gap-3 bg-[#fafafa] border rounded-xl p-3">
+                    {/* Letra */}
+                    <div className="shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm flex items-center justify-center mt-1">
+                      {letter}
+                    </div>
+
+                    {/* Texto da alternativa */}
+                    <div className="flex-1 min-w-0">
+                      <Textarea
+                        value={form[optKey] as string}
+                        onChange={e => setForm(f => ({ ...f, [optKey]: e.target.value }))}
+                        placeholder={`Texto da alternativa ${letter}...`}
+                        rows={2}
+                        className="text-sm resize-none w-full"
                       />
                     </div>
+
+                    {/* Pontuação — stepper customizado */}
+                    <div className="shrink-0 flex flex-col items-center gap-1 pt-1">
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Nota</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, [scoreKey]: Math.max(0, score - 1) }))}
+                          className="w-7 h-7 rounded-md border bg-white hover:bg-gray-100 flex items-center justify-center text-base font-bold text-gray-600 transition-colors"
+                        >−</button>
+                        <span className={`w-10 h-8 rounded-md border text-sm font-bold flex items-center justify-center ${scoreClr}`}>
+                          {score}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, [scoreKey]: Math.min(10, score + 1) }))}
+                          className="w-7 h-7 rounded-md border bg-white hover:bg-gray-100 flex items-center justify-center text-base font-bold text-gray-600 transition-colors"
+                        >+</button>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">0 – 10</span>
+                    </div>
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
 
-            {/* Configurações finais */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label>Resposta Ideal</Label>
+            {/* Configurações */}
+            <div className="grid grid-cols-3 gap-3 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Resposta Ideal</Label>
                 <Input
                   value={form.ideal_answer}
                   onChange={e => setForm(f => ({ ...f, ideal_answer: e.target.value.toUpperCase() }))}
                   maxLength={1}
-                  className="text-base font-bold text-center"
+                  className="text-lg font-bold text-center"
                 />
               </div>
-              <div className="space-y-1">
-                <Label>Valor Cultural</Label>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Valor Cultural</Label>
                 <select
-                  className="w-full border rounded-md px-2 py-2 text-sm bg-white"
+                  className="w-full border rounded-md px-2 py-2 text-sm bg-white h-10"
                   value={form.culture_value}
                   onChange={e => setForm(f => ({ ...f, culture_value: e.target.value }))}
                 >
@@ -400,8 +428,8 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
                   {CULTURE_VALUES.map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>
-              <div className="space-y-1">
-                <Label>Ordem</Label>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Ordem</Label>
                 <Input
                   type="number"
                   value={form.sort_order}
@@ -411,7 +439,7 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={form.is_active}
