@@ -120,7 +120,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
 
   const { data: cultureAnswers } = latestApp ? await supabase
     .from('culture_answers')
-    .select('*, culture_questions(question_text, culture_value)')
+    .select('*, culture_questions(question_text, culture_value, options)')
     .eq('application_id', latestApp.id) : { data: [] }
 
   const { data: notes } = await supabase
@@ -231,11 +231,18 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             currentStatus={currentStatus}
             cultureTestDone={(cultureAnswers?.length || 0) > 0}
             cultureScore={latestApp?.culture_score}
-            cultureAnswersSummary={(cultureAnswers || []).map(a => ({
-              question: (a.culture_questions as { question_text?: string } | null)?.question_text || '',
-              answer: a.selected_option || '',
-              score: a.score || 0,
-            }))}
+            cultureAnswersSummary={(cultureAnswers || []).map(a => {
+              const q = a.culture_questions as { question_text?: string; options?: string[] } | null
+              const opts: string[] = (q?.options as string[]) || []
+              const letter = (a.selected_option as string || '').toUpperCase()
+              const idx = ['A', 'B', 'C', 'D'].indexOf(letter)
+              const fullText = idx >= 0 && opts[idx] ? opts[idx] : letter
+              return {
+                question: q?.question_text || '',
+                answer: fullText,
+                score: a.score || 0,
+              }
+            })}
             initialBackgroundCheck={(candidate.background_check_result as BackgroundCheckResult | null) ?? null}
             initialBackgroundCheckAt={candidate.background_check_at ?? null}
             candidateCpf={(candidate.cpf as string | null) ?? null}
@@ -420,18 +427,25 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Teste Cultural</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {cultureAnswers.map(a => (
+            {cultureAnswers.map(a => {
+              const qc = a.culture_questions as { question_text?: string; culture_value?: string; options?: string[] } | null
+              const opts: string[] = (qc?.options as string[]) || []
+              const letter = (a.selected_option as string || '').toUpperCase()
+              const idx = ['A', 'B', 'C', 'D'].indexOf(letter)
+              const fullAnswer = idx >= 0 && opts[idx] ? opts[idx] : letter
+              return (
               <div key={a.id} className="text-sm border-b pb-2 last:border-0 flex justify-between items-start gap-4">
-                <div>
-                  <p className="text-muted-foreground text-xs">{(a.culture_questions as { question_text?: string } | null)?.question_text}</p>
-                  <p className="mt-0.5">{a.selected_option || '—'}</p>
-                  <p className="text-xs text-muted-foreground">{(a.culture_questions as { culture_value?: string } | null)?.culture_value}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-muted-foreground text-xs">{qc?.question_text}</p>
+                  <p className="mt-0.5 font-medium leading-snug">{fullAnswer || '—'}</p>
+                  <p className="text-xs text-muted-foreground">{qc?.culture_value}</p>
                 </div>
                 <span className={`text-sm font-bold shrink-0 ${(a.score || 0) >= 8 ? 'text-emerald-600' : (a.score || 0) >= 5 ? 'text-amber-600' : 'text-red-600'}`}>
                   {a.score ?? 0}/10
                 </span>
               </div>
-            ))}
+              )
+            })}
           </CardContent>
         </Card>
       )}
