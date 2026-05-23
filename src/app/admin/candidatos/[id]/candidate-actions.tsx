@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -304,6 +304,7 @@ export function CandidateActions({
   initialBackgroundCheck,
   initialBackgroundCheckAt,
   candidateCpf,
+  hasExistingAnalysis,
 }: {
   candidateId: string
   applicationId?: string
@@ -314,11 +315,14 @@ export function CandidateActions({
   initialBackgroundCheck?: BackgroundCheckResult | null
   initialBackgroundCheckAt?: string | null
   candidateCpf?: string | null
+  hasExistingAnalysis?: boolean
 }) {
   const router = useRouter()
   const [status, setStatus] = useState(currentStatus)
   const [cultureOpen, setCultureOpen] = useState(false)
   const [bgCheckOpen, setBgCheckOpen] = useState(false)
+  const [confirmReanalyze, setConfirmReanalyze] = useState(false)
+  const bypassConfirm = useRef(false)
   const [bgCheckResult, setBgCheckResult] = useState<BackgroundCheckResult | null>(initialBackgroundCheck ?? null)
   const [bgCheckAt, setBgCheckAt] = useState<string | null>(initialBackgroundCheckAt ?? null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -352,6 +356,11 @@ export function CandidateActions({
 
   // ── Analisar IA — dispara e faz polling no Supabase ─────────────────────────
   async function handleAnalyzeAI() {
+    if (hasExistingAnalysis && !bypassConfirm.current) {
+      setConfirmReanalyze(true)
+      return
+    }
+    bypassConfirm.current = false
     if (!applicationId) {
       showToast('error', 'Candidato sem candidatura vinculada.')
       return
@@ -449,6 +458,31 @@ export function CandidateActions({
   return (
     <>
       {toast && <Toast type={toast.type} message={toast.message} />}
+
+      {/* ── Confirmação de reanálise ── */}
+      <Dialog open={confirmReanalyze} onOpenChange={setConfirmReanalyze}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-amber-500" />
+              Reanalisar candidato?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Este candidato já possui um parecer da IA. Ao continuar, a análise atual será <strong>substituída</strong> por uma nova.
+          </p>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setConfirmReanalyze(false)}>Cancelar</Button>
+            <Button
+              onClick={() => { bypassConfirm.current = true; setConfirmReanalyze(false); handleAnalyzeAI() }}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              <RefreshCw className="w-4 h-4 mr-1.5" />
+              Sim, reanalisar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <BackgroundCheckModal
         open={bgCheckOpen}

@@ -246,6 +246,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             initialBackgroundCheck={(candidate.background_check_result as BackgroundCheckResult | null) ?? null}
             initialBackgroundCheckAt={candidate.background_check_at ?? null}
             candidateCpf={(candidate.cpf as string | null) ?? null}
+            hasExistingAnalysis={!!latestApp?.ai_summary}
           />
         </div>
 

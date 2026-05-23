@@ -295,74 +295,89 @@ Analisa candidatos de forma objetiva, criteriosa e consistente, sempre baseando 
 Nunca inventa informações. Nunca presume experiências não documentadas. Usa linguagem direta e profissional.`
 
   const userPrompt = `
-━━━ DADOS DO CANDIDATO ━━━
+Você é um consultor sênior de Recursos Humanos com 15 anos de experiência em recrutamento e seleção no setor de alimentação e varejo.
+Analise o candidato abaixo de forma objetiva e estruturada, como faria em um relatório profissional de RH.
+
+━━━ DADOS PESSOAIS ━━━
 ${candidateInfo}
 
-━━━ FORMULÁRIO DE EXPERIÊNCIA ━━━
+━━━ FORMULÁRIO DE EXPERIÊNCIA E PERFIL ━━━
 ${formText}
 
-━━━ TESTE CULTURAL ━━━
+━━━ TESTE CULTURAL (respostas e pontuações individuais) ━━━
 ${cultureText}
 
 ━━━ CHECK DE PROCESSOS JUDICIAIS ━━━
 ${bgCheckText}
 
-━━━ EMPRESA / PERFIL IDEAL ━━━
+━━━ PERFIL IDEAL DA EMPRESA / VAGA ━━━
 ${companyParts.join('\n\n') || 'Não configurado'}
 
 ${searchSnippets.length ? `━━━ PESQUISA PÚBLICA ADICIONAL ━━━\n${searchSnippets.join('\n\n')}` : ''}
 
-━━━ INSTRUÇÕES DE AVALIAÇÃO ━━━
-
-Você deve avaliar este candidato cruzando TODOS os dados acima e gerar um parecer de especialista em RH.
+━━━ INSTRUÇÕES OBRIGATÓRIAS ━━━
 
 REGRA ABSOLUTA — COMPATIBILIDADE CULTURAL:
-O score de compatibilidade cultural é FIXO e calculado automaticamente pelo sistema a partir das notas individuais do teste:
-  compatibilidade_cultural = ${realCultureScore}
-Você DEVE retornar exatamente este valor. NÃO altere este número.
+O score cultural é calculado automaticamente pelo sistema. Você DEVE retornar exatamente:
+  "compatibilidade_cultural": ${realCultureScore}
+Não altere este número de forma alguma.
+
+COMO ANALISAR:
+1. Leia TODAS as respostas do formulário de experiência
+2. Leia TODAS as respostas do teste cultural e suas notas individuais
+3. Cruze os dados: o que as respostas de experiência revelam sobre o perfil profissional?
+4. O que as respostas do teste cultural revelam sobre os valores e comportamentos do candidato?
+5. Identifique contradições, pontos fortes reais (com evidência nos dados) e pontos de atenção
+6. Avalie o encaixe com a vaga "${jobTitle}" e com a cultura da empresa
 
 RUBRICA — NOTA DE EXPERIÊNCIA (nota_experiencia, 0 a 100):
-Avalie exclusivamente o que está documentado no formulário de experiência:
-  90-100 → Experiência direta comprovada de 2+ anos na função exata, com empresa e período identificados
-  70-89  → Experiência direta na área com alguma limitação (tempo curto, empresa informal, 1 empresa só)
-  50-69  → Experiência indireta ou em área relacionada / experiência freelance parcialmente documentada
-  30-49  → Experiência muito limitada, vaga ou apenas como autônomo sem documentação suficiente
-  0-29   → Sem experiência relevante ou formulário em branco
+Baseie-se SOMENTE no que está declarado no formulário:
+  90-100 → 2+ anos de experiência direta e comprovada na função ou área, com empresa e período identificados
+  70-89  → Experiência direta na área com alguma limitação (tempo curto, só 1 empresa, informalidade)
+  50-69  → Experiência indireta ou em área relacionada, com parte da documentação
+  30-49  → Experiência muito limitada, vaga, ou só como autônomo sem documentação
+  0-29   → Sem experiência relevante ou formulário em branco/vago
 
 RUBRICA — NOTA DE DISPONIBILIDADE (nota_disponibilidade, 0 a 100):
-Avalie com base no que o candidato declarou no formulário:
-  100    → Disponível imediatamente, sem restrições de horário, finais de semana e feriados
-  80-99  → Disponível imediatamente com pequenas restrições (ex: não pode alguns dias)
-  60-79  → Disponível em até 2 semanas ou com restrições moderadas de horário
-  40-59  → Disponível em 1 mês ou com restrições significativas
-  0-39   → Disponibilidade muito limitada ou não informada
+  100    → Disponível imediatamente, sem restrições de dias ou horário
+  80-99  → Disponível imediatamente com pequenas restrições
+  60-79  → Disponível em até 2 semanas ou com restrições moderadas
+  40-59  → Disponível só em 1 mês ou com restrições significativas
+  0-39   → Disponibilidade muito limitada, não informada, ou incompatível com a vaga
 
 RUBRICA — STATUS SUGERIDO:
-  "apto_para_entrevista"   → nota_final ≥ 65 e sem processos criminais graves
-  "banco_de_talentos"      → nota_final entre 45-64 ou com limitações recuperáveis
-  "reprovado"              → nota_final < 45 ou comportamentos de alerta críticos
-  "analise_ia_concluida"   → quando há dúvida e precisa de avaliação humana
+  "apto_para_entrevista"   → nota_final ≥ 65 E sem processos criminais graves
+  "banco_de_talentos"      → nota_final entre 45-64 OU limitações recuperáveis
+  "reprovado"              → nota_final < 45 OU comportamentos de alerta críticos
+  "analise_ia_concluida"   → quando há dúvida genuína que só entrevista resolve
+
+SOBRE O PARECER (campo "parecer_ia"):
+- Escreva como um especialista de RH escreveria para outro profissional
+- Seja direto e objetivo — sem linguagem genérica
+- Mencione pelo menos 1 resposta específica do formulário ou do teste cultural como evidência
+- Dê uma recomendação clara: contratar / entrevistar / não avançar, com justificativa concisa
+- 2 a 4 frases
 
 SOBRE PROCESSOS JUDICIAIS:
-Se o check de processos indicar processos encontrados, MENCIONE no parecer e nos pontos de atenção.
-Processos criminais ou com MPF Federal devem elevar o nível de atenção obrigatoriamente.
-Processos trabalhistas como reclamante (ex-funcionário que processou empregador anterior) devem ser mencionados mas não são eliminatórios por si só.
+- Se houver processos, mencione no parecer e nos pontos de atenção
+- Processos criminais são eliminatórios
+- Processos trabalhistas como reclamante devem ser mencionados mas não são eliminatórios por si só
 
-Retorne APENAS JSON válido sem markdown, sem texto antes ou depois:
+Retorne APENAS JSON válido, sem markdown, sem texto antes ou depois:
 {
-  "resumo_candidato": "2-3 frases objetivas descrevendo o perfil: quem é, experiência, fit cultural e disponibilidade",
-  "pontos_fortes": ["ponto 1 com dado concreto do formulário/teste", "ponto 2", "ponto 3"],
-  "pontos_de_atencao": ["atenção 1 com dado concreto", "atenção 2"],
+  "resumo_candidato": "2-3 frases descrevendo quem é o candidato com base nos dados: perfil profissional, experiência real, e fit com a vaga",
+  "pontos_fortes": ["evidência concreta do formulário ou teste — mínimo 2, máximo 4"],
+  "pontos_de_atencao": ["evidência concreta do formulário ou teste — mínimo 1"],
   "compatibilidade_cultural": ${realCultureScore},
   "nota_experiencia": 0,
   "nota_disponibilidade": 0,
   "nota_final": 0,
-  "parecer_ia": "Recomendação direta em 1-2 frases para o recrutador, como um especialista em RH falando para outro profissional",
+  "parecer_ia": "Recomendação direta em 2-4 frases com pelo menos 1 dado concreto do formulário ou teste",
   "status_sugerido": "analise_ia_concluida",
   "vaga_recomendada": "${jobTitle}"
 }
 
-IMPORTANTE: nota_final NÃO deve ser calculado por você — o sistema calcula automaticamente. Coloque 0 em nota_final.
+nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
 `
 
   // ── Chama IA ──────────────────────────────────────────────────────────────────
@@ -386,7 +401,7 @@ IMPORTANTE: nota_final NÃO deve ser calculado por você — o sistema calcula a
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 2048,
-          temperature: 0.1, // quase determinístico
+          temperature: 0,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
         }),
@@ -427,7 +442,7 @@ IMPORTANTE: nota_final NÃO deve ser calculado por você — o sistema calcula a
         },
         body: JSON.stringify({
           model: 'gpt-4o-mini',
-          temperature: 0.1, // quase determinístico
+          temperature: 0,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
