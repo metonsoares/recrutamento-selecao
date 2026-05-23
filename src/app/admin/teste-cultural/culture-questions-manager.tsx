@@ -333,45 +333,52 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
 
       {/* ══ Dialog: Editar / Nova pergunta ═══════════════════════════════════ */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
             <DialogTitle>{editing ? 'Editar Pergunta' : 'Nova Pergunta'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
 
             <div className="space-y-1">
               <Label>Pergunta *</Label>
               <Textarea
                 value={form.question_text}
                 onChange={e => setForm(f => ({ ...f, question_text: e.target.value }))}
-                rows={2}
+                rows={3}
                 className="text-base resize-none"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {LETTERS.map(letter => (
-                <div key={letter} className="space-y-2 bg-[#fafafa] border rounded-lg p-3">
-                  <Label className="text-xs font-semibold text-muted-foreground">Opção {letter}</Label>
-                  <Input
-                    value={form[`opt${letter}` as keyof typeof form] as string}
-                    onChange={e => setForm(f => ({ ...f, [`opt${letter}`]: e.target.value }))}
-                    placeholder={`Alternativa ${letter}`}
-                    className="text-sm"
-                  />
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Pontuação (0-10)</Label>
-                    <Input
-                      type="number" min={0} max={10}
-                      value={form[`score${letter}` as keyof typeof form] as number}
-                      onChange={e => setForm(f => ({ ...f, [`score${letter}`]: Number(e.target.value) }))}
-                      className="text-sm text-center font-semibold"
+            {/* Opções — 2 colunas, Textarea para mostrar texto completo */}
+            <div>
+              <Label className="mb-2 block">Alternativas</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {LETTERS.map(letter => (
+                  <div key={letter} className="bg-[#fafafa] border rounded-lg p-3 space-y-2">
+                    <Label className="text-xs font-bold text-muted-foreground tracking-wide">Opção {letter}</Label>
+                    <Textarea
+                      value={form[`opt${letter}` as keyof typeof form] as string}
+                      onChange={e => setForm(f => ({ ...f, [`opt${letter}`]: e.target.value }))}
+                      placeholder={`Texto da alternativa ${letter}...`}
+                      rows={2}
+                      className="text-sm resize-none"
                     />
+                    <div className="flex items-center gap-3 pt-1">
+                      <Label className="text-xs text-muted-foreground shrink-0">Pontuação (0-10)</Label>
+                      <Input
+                        type="number" min={0} max={10}
+                        value={form[`score${letter}` as keyof typeof form] as number}
+                        onChange={e => setForm(f => ({ ...f, [`score${letter}`]: Number(e.target.value) }))}
+                        className="w-20 text-center font-bold text-base"
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
+            {/* Configurações finais */}
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label>Resposta Ideal</Label>
@@ -413,13 +420,13 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
               />
               Pergunta ativa
             </label>
+          </div>
 
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={saving || !form.question_text.trim()}>
-                {saving ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
+          <div className="px-6 py-3 border-t bg-[#f9fafb] flex justify-end gap-2 shrink-0">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving || !form.question_text.trim()}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
