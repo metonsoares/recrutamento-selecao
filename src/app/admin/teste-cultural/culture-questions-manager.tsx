@@ -351,7 +351,7 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
 
             <div className="grid grid-cols-2 gap-3">
               {LETTERS.map(letter => (
-                <div key={letter} className="space-y-1 bg-[#fafafa] border rounded-lg p-3">
+                <div key={letter} className="space-y-2 bg-[#fafafa] border rounded-lg p-3">
                   <Label className="text-xs font-semibold text-muted-foreground">Opção {letter}</Label>
                   <Input
                     value={form[`opt${letter}` as keyof typeof form] as string}
@@ -359,13 +359,13 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
                     placeholder={`Alternativa ${letter}`}
                     className="text-sm"
                   />
-                  <div className="flex items-center gap-1.5">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Pontuação (0-10)</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Pontuação (0-10)</Label>
                     <Input
                       type="number" min={0} max={10}
                       value={form[`score${letter}` as keyof typeof form] as number}
                       onChange={e => setForm(f => ({ ...f, [`score${letter}`]: Number(e.target.value) }))}
-                      className="text-sm w-16"
+                      className="text-sm text-center font-semibold"
                     />
                   </div>
                 </div>
@@ -556,20 +556,20 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
                 {/* Alternativas sugeridas */}
                 <div className="grid grid-cols-2 gap-3">
                   {LETTERS.map(letter => (
-                    <div key={letter} className="space-y-1 bg-[#fafafa] border rounded-lg p-3">
+                    <div key={letter} className="space-y-2 bg-[#fafafa] border rounded-lg p-3">
                       <Label className="text-xs font-semibold text-muted-foreground">Opção {letter}</Label>
                       <Input
                         value={sugForm[`opt${letter}` as keyof typeof sugForm] as string}
                         onChange={e => setSugForm(f => ({ ...f, [`opt${letter}`]: e.target.value }))}
                         className="text-sm"
                       />
-                      <div className="flex items-center gap-1.5">
-                        <Label className="text-xs text-muted-foreground whitespace-nowrap">Pts (0-10)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Pontuação (0-10)</Label>
                         <Input
                           type="number" min={0} max={10}
                           value={sugForm[`score${letter}` as keyof typeof sugForm] as number}
                           onChange={e => setSugForm(f => ({ ...f, [`score${letter}`]: Number(e.target.value) }))}
-                          className="text-sm w-16"
+                          className="text-sm text-center font-semibold"
                         />
                       </div>
                     </div>
