@@ -34,6 +34,32 @@ function buildUrl(template: string, vars: Record<string, string>): string {
 }
 
 /**
+ * Calcula idade a partir de uma string de data.
+ * Aceita formato brasileiro DD/MM/YYYY e ISO YYYY-MM-DD.
+ */
+function calcAge(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null
+  try {
+    let birth: Date
+    const brMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (brMatch) {
+      // DD/MM/YYYY → ano, mês (0-based), dia
+      birth = new Date(Number(brMatch[3]), Number(brMatch[2]) - 1, Number(brMatch[1]))
+    } else {
+      birth = new Date(dateStr)
+    }
+    if (isNaN(birth.getTime())) return null
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    if (
+      today.getMonth() < birth.getMonth() ||
+      (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
+    ) age--
+    return age
+  } catch { return null }
+}
+
+/**
  * Calcula score cultural REAL a partir das respostas do teste.
  * Usa a média das notas individuais (escala 0-10) convertida para 0-100.
  * Este valor é FIXO e não pode ser alterado pela IA.
@@ -164,7 +190,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
   const candidateInfo = [
     `Nome: ${name}`,
     cpf     ? `CPF: ${cpf}` : '',
-    birth   ? `Data de Nascimento: ${birth}` : '',
+    birth   ? `Data de Nascimento: ${birth}${calcAge(birth) !== null ? ` (${calcAge(birth)} anos)` : ''}` : '',
     phone   ? `Telefone: ${phone}` : '',
     email   ? `E-mail: ${email}` : '',
     address ? `Endereço: ${address}` : '',
