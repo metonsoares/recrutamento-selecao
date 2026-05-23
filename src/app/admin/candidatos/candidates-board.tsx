@@ -113,10 +113,11 @@ interface CandidateRow {
   applications?: {
     id: string
     status: string
+    job_id: string | null
     final_score: number | null
     culture_score: number | null
     created_at: string
-    jobs?: { title: string } | null
+    jobs?: { title: string } | { title: string }[] | null
   } | null
 }
 
@@ -147,9 +148,7 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
       })
       .filter(c => {
         if (filterJob === 'all') return true
-        const rj = (c.applications as Record<string, unknown> | null | undefined)?.jobs
-        const title = Array.isArray(rj) ? (rj[0] as { title?: string })?.title : (rj as { title?: string } | null)?.title
-        return title === filterJob
+        return (c.applications as Record<string, unknown> | null | undefined)?.job_id === filterJob
       })
       .sort((a, b) => {
         if (sortBy === 'name') return a.full_name.localeCompare(b.full_name, 'pt-BR')
@@ -221,7 +220,7 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as vagas</SelectItem>
-            {jobs.map(j => <SelectItem key={j.id} value={j.title}>{j.title}</SelectItem>)}
+            {jobs.map(j => <SelectItem key={j.id} value={j.id}>{j.title}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={v => v && setSortBy(v as SortOption)}>

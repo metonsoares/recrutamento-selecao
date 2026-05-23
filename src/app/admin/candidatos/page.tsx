@@ -12,7 +12,7 @@ export default async function CandidatosPage() {
       .select(`
         *,
         applications!latest_application_id (
-          id, status, final_score, culture_score, experience_score,
+          id, status, job_id, final_score, culture_score, experience_score,
           availability_score, ai_summary, created_at,
           jobs ( title )
         )
