@@ -28,6 +28,24 @@ export async function POST(req: NextRequest) {
       await supabase.from('form_answers').insert(rows)
     }
 
+    // Extrai job_id da resposta do campo job_select (se presente)
+    let resolvedJobId: string | null = null
+    const questionIds = Object.keys(answers)
+    if (questionIds.length > 0) {
+      const { data: jobSelectQ } = await supabase
+        .from('form_questions')
+        .select('id')
+        .eq('field_type', 'job_select')
+        .in('id', questionIds)
+        .maybeSingle()
+
+      if (jobSelectQ) {
+        const raw = String(answers[jobSelectQ.id] ?? '').replace(/^"|"$/g, '').trim()
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        if (uuidRe.test(raw)) resolvedJobId = raw
+      }
+    }
+
     const cultureToken = generateToken()
     const cultureExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -35,6 +53,7 @@ export async function POST(req: NextRequest) {
       status: 'experiencia_preenchida',
       culture_test_token: cultureToken,
       culture_test_token_expires_at: cultureExpires,
+      ...(resolvedJobId ? { job_id: resolvedJobId } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', application.id)
 
