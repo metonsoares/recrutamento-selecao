@@ -147,7 +147,8 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
       })
       .filter(c => {
         if (filterJob === 'all') return true
-        const title = (c.applications?.jobs as { title?: string } | null)?.title
+        const rj = (c.applications as Record<string, unknown> | null | undefined)?.jobs
+        const title = Array.isArray(rj) ? (rj[0] as { title?: string })?.title : (rj as { title?: string } | null)?.title
         return title === filterJob
       })
       .sort((a, b) => {
@@ -347,7 +348,11 @@ function CandidateCard({
   onClick: () => void
 }) {
   const { border, badgeClass, label } = scoreStyle(c.applications?.final_score)
-  const jobTitle = (c.applications?.jobs as { title?: string } | null)?.title
+  // Supabase pode retornar jobs como objeto único ou array dependendo do FK — trata ambos
+  const rawJobs = (c.applications as Record<string, unknown> | null | undefined)?.jobs
+  const jobTitle = Array.isArray(rawJobs)
+    ? (rawJobs[0] as { title?: string } | undefined)?.title
+    : (rawJobs as { title?: string } | null)?.title
 
   return (
     <div
