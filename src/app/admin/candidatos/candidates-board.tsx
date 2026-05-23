@@ -372,7 +372,9 @@ function CandidateCard({
           <GripVertical className="w-3 h-3 text-muted-foreground/30 shrink-0 mt-0.5 cursor-grab" />
           <div className="min-w-0">
             <p className="font-semibold text-[13px] text-[#1a1a1a] truncate leading-tight">{c.full_name}</p>
-            <p className="text-[11px] text-muted-foreground truncate">{c.phone || c.email || '—'}</p>
+            {jobTitle && (
+              <p className="text-[11px] text-muted-foreground truncate">{jobTitle}</p>
+            )}
           </div>
         </div>
         {badgeClass && label ? (
@@ -384,11 +386,8 @@ function CandidateCard({
         )}
       </div>
 
-      {/* Vaga + data */}
-      <div className="mt-1.5 pl-5 space-y-0.5">
-        {jobTitle && (
-          <p className="text-[10px] text-muted-foreground truncate">{jobTitle}</p>
-        )}
+      {/* Data */}
+      <div className="mt-1 pl-5">
         <p className="text-[10px] text-muted-foreground">{formatDate(c.created_at)}</p>
       </div>
     </div>
