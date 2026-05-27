@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit,
+  Settings2, BrainCircuit, UserCheck,
 } from 'lucide-react'
 import { useState } from 'react'
 import Image from 'next/image'
@@ -30,7 +30,6 @@ const DEEP_ACTIVE = 'bg-[#e6e6e6] text-[#1a1a1a]'
 
 const navItems = [
   { href: '/admin',            label: 'Dashboard',          icon: LayoutDashboard },
-  { href: '/admin/candidatos', label: 'Candidatos',          icon: Users },
   { href: '/admin/whatsapp',   label: 'Mensagens WhatsApp',  icon: MessageSquare },
   { href: '/admin/relatorios', label: 'Relatórios',           icon: BarChart3 },
 ]
@@ -49,6 +48,9 @@ function SidebarContent({
   const pathname = usePathname()
   const router = useRouter()
 
+  const inCandidatos =
+    pathname.startsWith('/admin/candidatos')
+
   const inCurriculos =
     pathname.startsWith('/admin/secoes') ||
     pathname.startsWith('/admin/formulario') ||
@@ -62,6 +64,7 @@ function SidebarContent({
     pathname.startsWith('/admin/configuracoes/whatsapp') ||
     pathname.startsWith('/admin/configuracoes/ia')
 
+  const [candidatosOpen, setCandidatosOpen] = useState(inCandidatos)
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
@@ -107,12 +110,63 @@ function SidebarContent({
       {/* ── Navegação ─────────────────────────────────────────────── */}
       <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
 
-        {/* Itens principais */}
+        {/* Dashboard */}
+        <Link
+          href="/admin"
+          onClick={go}
+          className={cn(NAV_BASE, pathname === '/admin' ? NAV_ACTIVE : NAV_DEFAULT)}
+        >
+          <LayoutDashboard className="w-[15px] h-[15px] shrink-0 opacity-60" />
+          Dashboard
+        </Link>
+
+        {/* Candidatos ▾ */}
+        <div>
+          <button
+            onClick={() => setCandidatosOpen(o => !o)}
+            className={cn(NAV_BASE, inCandidatos ? NAV_ACTIVE : NAV_DEFAULT)}
+          >
+            <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            <span className="flex-1 text-left">Candidatos</span>
+            <ChevronDown
+              className={cn(
+                'w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200',
+                candidatosOpen && 'rotate-180',
+              )}
+            />
+          </button>
+          {candidatosOpen && (
+            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link
+                href="/admin/candidatos"
+                onClick={go}
+                className={cn(
+                  DEEP_BASE,
+                  pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT,
+                )}
+              >
+                <Users className="w-3 h-3 shrink-0 opacity-50" />
+                Todos os Candidatos
+              </Link>
+              <Link
+                href="/admin/candidatos/contratados"
+                onClick={go}
+                className={cn(
+                  DEEP_BASE,
+                  pathname.startsWith('/admin/candidatos/contratados') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                )}
+              >
+                <UserCheck className="w-3 h-3 shrink-0 opacity-50" />
+                Contratados
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Demais itens */}
         {navItems.map(item => {
           const Icon = item.icon
-          const active = item.href === '/admin'
-            ? pathname === '/admin'
-            : pathname.startsWith(item.href)
+          const active = pathname.startsWith(item.href)
           return (
             <Link
               key={item.href}
