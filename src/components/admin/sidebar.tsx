@@ -9,6 +9,7 @@ import {
   FlaskConical, Zap, Building2, Menu, X, Layers,
   Settings2, BrainCircuit, UserCheck,
 } from 'lucide-react'
+
 import { useState } from 'react'
 import Image from 'next/image'
 
@@ -158,6 +159,17 @@ function SidebarContent({
               >
                 <UserCheck className="w-3 h-3 shrink-0 opacity-50" />
                 Contratados
+              </Link>
+              <Link
+                href="/admin/candidatos/freelancers"
+                onClick={go}
+                className={cn(
+                  DEEP_BASE,
+                  pathname.startsWith('/admin/candidatos/freelancers') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                )}
+              >
+                <Briefcase className="w-3 h-3 shrink-0 opacity-50" />
+                Freelancers
               </Link>
             </div>
           )}

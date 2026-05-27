@@ -71,6 +71,15 @@ const COLUMNS = [
     drop: 'bg-emerald-200 border-emerald-500',
     statuses: ['contratado'],
   },
+  {
+    key: 'freelancer',
+    label: 'Freelancer',
+    targetStatus: 'freelancer' as CandidateStatus,
+    dot: 'bg-sky-500',
+    header: 'bg-sky-50 border-sky-300',
+    drop: 'bg-sky-100 border-sky-400',
+    statuses: ['freelancer'],
+  },
 ] as const
 
 type ColKey = typeof COLUMNS[number]['key']

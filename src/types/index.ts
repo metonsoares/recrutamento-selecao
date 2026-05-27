@@ -13,6 +13,7 @@ export type CandidateStatus =
   | 'reprovado'
   | 'banco_de_talentos'
   | 'contratado'
+  | 'freelancer'
   | 'desistente'
   | 'removido'
 
@@ -31,6 +32,7 @@ export const STATUS_LABELS: Record<CandidateStatus, string> = {
   reprovado: 'Reprovado',
   banco_de_talentos: 'Banco de Talentos',
   contratado: 'Contratado',
+  freelancer: 'Freelancer',
   desistente: 'Desistente',
   removido: 'Removido',
 }
@@ -50,6 +52,7 @@ export const STATUS_COLORS: Record<CandidateStatus, string> = {
   reprovado: 'bg-red-100 text-red-700',
   banco_de_talentos: 'bg-violet-100 text-violet-700',
   contratado: 'bg-green-200 text-green-800',
+  freelancer: 'bg-sky-100 text-sky-700',
   desistente: 'bg-gray-200 text-gray-600',
   removido: 'bg-red-200 text-red-800',
 }
@@ -237,6 +240,17 @@ export interface AiSettings {
   availability_weight: number
   anthropic_api_key_encrypted: string | null
   openai_api_key_encrypted: string | null
+  // Dados fiscais da empresa
+  apelido: string | null
+  cnpj: string | null
+  razao_social: string | null
+  endereco_logradouro: string | null
+  endereco_numero: string | null
+  endereco_complemento: string | null
+  endereco_bairro: string | null
+  endereco_cidade: string | null
+  endereco_estado: string | null
+  endereco_cep: string | null
   created_at: string
   updated_at: string
 }

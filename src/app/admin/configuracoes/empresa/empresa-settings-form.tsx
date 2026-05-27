@@ -8,8 +8,42 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { AiSettings } from '@/types'
-import { Sparkles, Loader2, Upload, ImageIcon, CheckCircle2 } from 'lucide-react'
+import { Sparkles, Loader2, Upload, ImageIcon, CheckCircle2, Search, AlertCircle } from 'lucide-react'
 import Image from 'next/image'
+
+// ─── CNPJ helpers ─────────────────────────────────────────────────────────────
+
+function maskCNPJ(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 14)
+  if (d.length <= 2) return d
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
+}
+
+function validateCNPJ(cnpj: string): boolean {
+  const d = cnpj.replace(/\D/g, '')
+  if (d.length !== 14 || /^(\d)\1+$/.test(d)) return false
+  const calc = (weights: number[]) =>
+    weights.reduce((acc, w, i) => acc + Number(d[i]) * w, 0)
+  const mod = (n: number) => { const r = n % 11; return r < 2 ? 0 : 11 - r }
+  const d1 = mod(calc([5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]))
+  const d2 = mod(calc([6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]))
+  return d1 === Number(d[12]) && d2 === Number(d[13])
+}
+
+interface CNPJData {
+  razao_social: string
+  nome_fantasia?: string
+  logradouro?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  municipio?: string
+  uf?: string
+  cep?: string
+}
 
 type FieldKey =
   | 'mission'
@@ -72,6 +106,83 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [savingIdentidade, setSavingIdentidade] = useState(false)
+
+  // ── Dados fiscais ─────────────────────────────────────────────────────────
+  const [fiscal, setFiscal] = useState({
+    apelido: settings?.apelido || '',
+    cnpj: settings?.cnpj ? maskCNPJ(settings.cnpj) : '',
+    razao_social: settings?.razao_social || '',
+    endereco_logradouro: settings?.endereco_logradouro || '',
+    endereco_numero: settings?.endereco_numero || '',
+    endereco_complemento: settings?.endereco_complemento || '',
+    endereco_bairro: settings?.endereco_bairro || '',
+    endereco_cidade: settings?.endereco_cidade || '',
+    endereco_estado: settings?.endereco_estado || '',
+    endereco_cep: settings?.endereco_cep || '',
+  })
+  const [cnpjStatus, setCnpjStatus] = useState<'idle' | 'loading' | 'found' | 'error'>('idle')
+  const [cnpjError, setCnpjError] = useState<string | null>(null)
+  const [savingFiscal, setSavingFiscal] = useState(false)
+  const [fiscalSaved, setFiscalSaved] = useState(false)
+
+  async function handleCNPJLookup() {
+    const digits = fiscal.cnpj.replace(/\D/g, '')
+    if (digits.length !== 14) { setCnpjError('CNPJ incompleto.'); return }
+    if (!validateCNPJ(digits)) { setCnpjError('CNPJ inválido.'); setCnpjStatus('error'); return }
+    setCnpjError(null)
+    setCnpjStatus('loading')
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`)
+      if (!res.ok) throw new Error('CNPJ não encontrado na Receita Federal.')
+      const data: CNPJData = await res.json()
+      setFiscal(f => ({
+        ...f,
+        razao_social: data.razao_social || f.razao_social,
+        endereco_logradouro: data.logradouro || f.endereco_logradouro,
+        endereco_numero: data.numero || f.endereco_numero,
+        endereco_complemento: data.complemento || f.endereco_complemento,
+        endereco_bairro: data.bairro || f.endereco_bairro,
+        endereco_cidade: data.municipio || f.endereco_cidade,
+        endereco_estado: data.uf || f.endereco_estado,
+        endereco_cep: data.cep ? data.cep.replace(/\D/g, '').replace(/^(\d{5})(\d{3})$/, '$1-$2') : f.endereco_cep,
+      }))
+      setCnpjStatus('found')
+    } catch (err) {
+      setCnpjError(err instanceof Error ? err.message : 'Erro ao consultar a Receita Federal.')
+      setCnpjStatus('error')
+    }
+  }
+
+  async function handleSaveFiscal() {
+    const digits = fiscal.cnpj.replace(/\D/g, '')
+    if (digits.length > 0 && !validateCNPJ(digits)) {
+      setCnpjError('CNPJ inválido. Verifique antes de salvar.'); return
+    }
+    setSavingFiscal(true)
+    setFiscalSaved(false)
+    const supabase = createSupabaseBrowserClient()
+    const payload = {
+      apelido: fiscal.apelido.trim() || null,
+      cnpj: digits || null,
+      razao_social: fiscal.razao_social.trim() || null,
+      endereco_logradouro: fiscal.endereco_logradouro.trim() || null,
+      endereco_numero: fiscal.endereco_numero.trim() || null,
+      endereco_complemento: fiscal.endereco_complemento.trim() || null,
+      endereco_bairro: fiscal.endereco_bairro.trim() || null,
+      endereco_cidade: fiscal.endereco_cidade.trim() || null,
+      endereco_estado: fiscal.endereco_estado.trim() || null,
+      endereco_cep: fiscal.endereco_cep.replace(/\D/g, '') || null,
+      updated_at: new Date().toISOString(),
+    }
+    if (settings?.id) {
+      await supabase.from('ai_settings').update(payload).eq('id', settings.id)
+    } else {
+      await supabase.from('ai_settings').insert(payload)
+    }
+    setSavingFiscal(false)
+    setFiscalSaved(true)
+    router.refresh()
+  }
 
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -323,6 +434,174 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         <Button onClick={handleSaveIdentidade} disabled={savingIdentidade} className="w-full sm:w-auto">
           {savingIdentidade ? 'Salvando...' : 'Salvar Identidade Visual'}
         </Button>
+      </section>
+
+      {/* ══ SEÇÃO 0B: Dados Fiscais ═════════════════════════════════════════ */}
+      <section className="space-y-5">
+        <h2 className="text-base font-semibold text-[#333333] border-b pb-2">Cadastro da Empresa</h2>
+
+        {/* Apelido */}
+        <div>
+          <Label className="text-sm mb-1.5 block">Apelido <span className="text-muted-foreground font-normal">(nome interno)</span></Label>
+          <Input
+            value={fiscal.apelido}
+            onChange={e => setFiscal(f => ({ ...f, apelido: e.target.value }))}
+            placeholder="Ex: Filial Centro"
+            className="text-base max-w-sm"
+          />
+        </div>
+
+        {/* CNPJ + botão buscar */}
+        <div>
+          <Label className="text-sm mb-1.5 block">CNPJ</Label>
+          <div className="flex gap-2 max-w-sm">
+            <div className="relative flex-1">
+              <Input
+                value={fiscal.cnpj}
+                onChange={e => {
+                  const masked = maskCNPJ(e.target.value)
+                  setFiscal(f => ({ ...f, cnpj: masked }))
+                  setCnpjStatus('idle')
+                  setCnpjError(null)
+                }}
+                placeholder="00.000.000/0001-00"
+                className={`text-base pr-8 ${cnpjStatus === 'error' ? 'border-red-400 focus-visible:ring-red-300' : cnpjStatus === 'found' ? 'border-emerald-400 focus-visible:ring-emerald-300' : ''}`}
+                maxLength={18}
+              />
+              {cnpjStatus === 'found' && (
+                <CheckCircle2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+              )}
+              {cnpjStatus === 'error' && (
+                <AlertCircle className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCNPJLookup}
+              disabled={cnpjStatus === 'loading' || fiscal.cnpj.replace(/\D/g, '').length !== 14}
+              className="gap-1.5 shrink-0"
+            >
+              {cnpjStatus === 'loading'
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Buscando...</>
+                : <><Search className="w-4 h-4" />Buscar na Receita</>
+              }
+            </Button>
+          </div>
+          {cnpjError && (
+            <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" />{cnpjError}
+            </p>
+          )}
+          {cnpjStatus === 'found' && (
+            <p className="text-sm text-emerald-700 mt-1 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />Dados preenchidos automaticamente pela Receita Federal.
+            </p>
+          )}
+        </div>
+
+        {/* Razão Social */}
+        <div>
+          <Label className="text-sm mb-1.5 block">Razão Social</Label>
+          <Input
+            value={fiscal.razao_social}
+            onChange={e => setFiscal(f => ({ ...f, razao_social: e.target.value }))}
+            placeholder="Preenchido automaticamente ao buscar o CNPJ"
+            className="text-base"
+          />
+        </div>
+
+        {/* Endereço */}
+        <div className="space-y-3">
+          <Label className="text-sm block">Endereço</Label>
+
+          {/* CEP + Logradouro */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">CEP</Label>
+              <Input
+                value={fiscal.endereco_cep}
+                onChange={e => setFiscal(f => ({ ...f, endereco_cep: e.target.value }))}
+                placeholder="00000-000"
+                className="text-sm"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <Label className="text-xs text-muted-foreground mb-1 block">Logradouro</Label>
+              <Input
+                value={fiscal.endereco_logradouro}
+                onChange={e => setFiscal(f => ({ ...f, endereco_logradouro: e.target.value }))}
+                placeholder="Rua, Avenida..."
+                className="text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Número + Complemento */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Número</Label>
+              <Input
+                value={fiscal.endereco_numero}
+                onChange={e => setFiscal(f => ({ ...f, endereco_numero: e.target.value }))}
+                placeholder="123"
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Complemento</Label>
+              <Input
+                value={fiscal.endereco_complemento}
+                onChange={e => setFiscal(f => ({ ...f, endereco_complemento: e.target.value }))}
+                placeholder="Sala, Andar..."
+                className="text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Bairro + Cidade + Estado */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Bairro</Label>
+              <Input
+                value={fiscal.endereco_bairro}
+                onChange={e => setFiscal(f => ({ ...f, endereco_bairro: e.target.value }))}
+                placeholder="Centro"
+                className="text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs text-muted-foreground mb-1 block">Cidade</Label>
+              <Input
+                value={fiscal.endereco_cidade}
+                onChange={e => setFiscal(f => ({ ...f, endereco_cidade: e.target.value }))}
+                placeholder="Petrópolis"
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Estado</Label>
+              <Input
+                value={fiscal.endereco_estado}
+                onChange={e => setFiscal(f => ({ ...f, endereco_estado: e.target.value }))}
+                placeholder="RJ"
+                maxLength={2}
+                className="text-sm uppercase"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSaveFiscal} disabled={savingFiscal} className="w-full sm:w-auto">
+            {savingFiscal ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : 'Salvar Cadastro da Empresa'}
+          </Button>
+          {fiscalSaved && (
+            <span className="flex items-center gap-1 text-sm text-emerald-700">
+              <CheckCircle2 className="w-4 h-4" />Salvo!
+            </span>
+          )}
+        </div>
       </section>
 
       {/* ══ SEÇÃO 1: Empresa ════════════════════════════════════════════════ */}
