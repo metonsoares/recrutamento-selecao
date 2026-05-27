@@ -2,17 +2,17 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { formatDate } from '@/lib/helpers'
 import { UserCheck, ArrowLeft, Users } from 'lucide-react'
-import { BackgroundCheckResult } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ContratadosPage() {
   const supabase = await createSupabaseServerClient()
 
+  // Busca candidatos com latest_application
   const { data: candidates } = await supabase
     .from('candidates')
     .select(`
-      id, full_name, phone, email, city, photo_url, cpf, created_at,
+      id, full_name, phone, email, city, cpf, created_at,
       applications!latest_application_id (
         id, status, created_at, final_score, culture_score,
         jobs ( title )
@@ -21,7 +21,6 @@ export default async function ContratadosPage() {
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  // Filtra somente contratados
   type AppRow = {
     id: string
     status: string
@@ -37,7 +36,6 @@ export default async function ContratadosPage() {
     phone: string | null
     email: string | null
     city: string | null
-    photo_url: string | null
     cpf: string | null
     created_at: string
     applications: AppRow | AppRow[] | null
@@ -45,14 +43,39 @@ export default async function ContratadosPage() {
 
   const rows = (candidates || []) as CandidateRow[]
 
-  const contratados = rows.filter(c => {
-    const app = Array.isArray(c.applications) ? c.applications[0] : c.applications
-    return app?.status === 'contratado'
-  })
-
   function getApp(c: CandidateRow): AppRow | null {
     if (!c.applications) return null
     return Array.isArray(c.applications) ? c.applications[0] : c.applications
+  }
+
+  // Filtra contratados
+  const contratados = rows.filter(c => getApp(c)?.status === 'contratado')
+
+  // Busca fotos (file_upload) das candidaturas dos contratados
+  const appIds = contratados.map(c => getApp(c)?.id).filter(Boolean) as string[]
+  const photoMap: Record<string, string> = {}
+
+  if (appIds.length > 0) {
+    const { data: photoAnswers } = await supabase
+      .from('form_answers')
+      .select('application_id, answer_text')
+      .in('application_id', appIds)
+      .in('question_id',
+        // sub-select: IDs das perguntas de file_upload
+        (await supabase
+          .from('form_questions')
+          .select('id')
+          .eq('field_type', 'file_upload')
+        ).data?.map(q => q.id) ?? []
+      )
+
+    for (const pa of photoAnswers || []) {
+      if (!photoMap[pa.application_id] && pa.answer_text) {
+        // answer_text é uma JSON string: "\"https://...\""
+        const url = pa.answer_text.replace(/^"|"$/g, '')
+        if (url.startsWith('http')) photoMap[pa.application_id] = url
+      }
+    }
   }
 
   function getJobTitle(app: AppRow | null): string {
@@ -90,7 +113,7 @@ export default async function ContratadosPage() {
         </div>
       </div>
 
-      {/* Vazio */}
+      {/* Estado vazio */}
       {contratados.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
@@ -128,6 +151,7 @@ export default async function ContratadosPage() {
             <tbody className="divide-y divide-gray-100">
               {contratados.map(c => {
                 const app = getApp(c)
+                const photoUrl = app ? photoMap[app.id] : undefined
                 return (
                   <tr
                     key={c.id}
@@ -137,22 +161,22 @@ export default async function ContratadosPage() {
                     {/* Nome + foto */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        {c.photo_url ? (
+                        {photoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={c.photo_url}
+                            src={photoUrl}
                             alt={c.full_name}
-                            className="w-9 h-9 rounded-full object-cover shrink-0 border border-gray-200"
+                            className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
                           />
                         ) : (
-                          <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <span className="text-xs font-bold text-emerald-700">
+                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-bold text-emerald-700">
                               {c.full_name?.charAt(0)?.toUpperCase() || '?'}
                             </span>
                           </div>
                         )}
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate group-hover:text-primary transition-colors">
+                          <p className="font-medium text-gray-900 truncate group-hover:text-emerald-700 transition-colors">
                             {c.full_name}
                           </p>
                           <p className="text-xs text-muted-foreground sm:hidden">
@@ -173,7 +197,9 @@ export default async function ContratadosPage() {
                     <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
                       <div>
                         <p>{c.phone || '—'}</p>
-                        {c.email && <p className="text-xs text-muted-foreground truncate max-w-[160px]">{c.email}</p>}
+                        {c.email && (
+                          <p className="text-xs text-muted-foreground truncate max-w-[160px]">{c.email}</p>
+                        )}
                       </div>
                     </td>
 
