@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import Link from 'next/link'
-import { formatDate } from '@/lib/helpers'
 import { UserCheck, ArrowLeft, Users } from 'lucide-react'
+import { ContratadosTable } from './contratados-table'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +12,7 @@ export default async function ContratadosPage() {
   const { data: candidates } = await supabase
     .from('candidates')
     .select(`
-      id, full_name, phone, email, city, cpf, created_at,
+      id, full_name, phone, email, city, created_at,
       applications!latest_application_id (
         id, status, created_at, final_score, culture_score,
         jobs ( title )
@@ -36,7 +36,6 @@ export default async function ContratadosPage() {
     phone: string | null
     email: string | null
     city: string | null
-    cpf: string | null
     created_at: string
     applications: AppRow | AppRow[] | null
   }
@@ -48,6 +47,12 @@ export default async function ContratadosPage() {
     return Array.isArray(c.applications) ? c.applications[0] : c.applications
   }
 
+  function getJobTitle(app: AppRow | null): string {
+    if (!app?.jobs) return '—'
+    const j = Array.isArray(app.jobs) ? app.jobs[0] : app.jobs
+    return j?.title || '—'
+  }
+
   // Filtra contratados
   const contratados = rows.filter(c => getApp(c)?.status === 'contratado')
 
@@ -56,40 +61,46 @@ export default async function ContratadosPage() {
   const photoMap: Record<string, string> = {}
 
   if (appIds.length > 0) {
-    const { data: photoAnswers } = await supabase
-      .from('form_answers')
-      .select('application_id, answer_text')
-      .in('application_id', appIds)
-      .in('question_id',
-        // sub-select: IDs das perguntas de file_upload
-        (await supabase
-          .from('form_questions')
-          .select('id')
-          .eq('field_type', 'file_upload')
-        ).data?.map(q => q.id) ?? []
-      )
+    const { data: fileQuestions } = await supabase
+      .from('form_questions')
+      .select('id')
+      .eq('field_type', 'file_upload')
 
-    for (const pa of photoAnswers || []) {
-      if (!photoMap[pa.application_id] && pa.answer_text) {
-        // answer_text é uma JSON string: "\"https://...\""
-        const url = pa.answer_text.replace(/^"|"$/g, '')
-        if (url.startsWith('http')) photoMap[pa.application_id] = url
+    const fileQuestionIds = (fileQuestions ?? []).map(q => q.id)
+
+    if (fileQuestionIds.length > 0) {
+      const { data: photoAnswers } = await supabase
+        .from('form_answers')
+        .select('application_id, answer_text')
+        .in('application_id', appIds)
+        .in('question_id', fileQuestionIds)
+
+      for (const pa of photoAnswers || []) {
+        if (!photoMap[pa.application_id] && pa.answer_text) {
+          const url = pa.answer_text.replace(/^"|"$/g, '')
+          if (url.startsWith('http')) photoMap[pa.application_id] = url
+        }
       }
     }
   }
 
-  function getJobTitle(app: AppRow | null): string {
-    if (!app?.jobs) return '—'
-    const j = Array.isArray(app.jobs) ? app.jobs[0] : app.jobs
-    return j?.title || '—'
-  }
-
-  function scoreColor(v: number | null) {
-    if (v == null) return 'text-gray-400'
-    if (v >= 70) return 'text-emerald-600'
-    if (v >= 50) return 'text-amber-600'
-    return 'text-red-500'
-  }
+  // Monta rows serializáveis para o Client Component
+  const tableRows = contratados.map(c => {
+    const app = getApp(c)
+    return {
+      id: c.id,
+      full_name: c.full_name,
+      phone: c.phone,
+      email: c.email,
+      city: c.city,
+      created_at: c.created_at,
+      appId: app?.id ?? null,
+      appStatus: app?.status ?? null,
+      finalScore: app?.final_score ?? null,
+      jobTitle: getJobTitle(app),
+      photoUrl: app ? (photoMap[app.id] ?? null) : null,
+    }
+  })
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
@@ -136,99 +147,7 @@ export default async function ContratadosPage() {
 
       {/* Tabela */}
       {contratados.length > 0 && (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
-                <th className="px-4 py-3 text-left font-medium">Candidato</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Vaga</th>
-                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Contato</th>
-                <th className="px-4 py-3 text-left font-medium hidden lg:table-cell">Cidade</th>
-                <th className="px-4 py-3 text-center font-medium">Nota Final</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Cadastro</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {contratados.map(c => {
-                const app = getApp(c)
-                const photoUrl = app ? photoMap[app.id] : undefined
-                return (
-                  <tr
-                    key={c.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                    onClick={() => { window.location.href = `/admin/candidatos/${c.id}` }}
-                  >
-                    {/* Nome + foto */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {photoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={photoUrl}
-                            alt={c.full_name}
-                            className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <span className="text-sm font-bold text-emerald-700">
-                              {c.full_name?.charAt(0)?.toUpperCase() || '?'}
-                            </span>
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate group-hover:text-emerald-700 transition-colors">
-                            {c.full_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground sm:hidden">
-                            {getJobTitle(app)}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Vaga */}
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {getJobTitle(app)}
-                      </span>
-                    </td>
-
-                    {/* Contato */}
-                    <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
-                      <div>
-                        <p>{c.phone || '—'}</p>
-                        {c.email && (
-                          <p className="text-xs text-muted-foreground truncate max-w-[160px]">{c.email}</p>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Cidade */}
-                    <td className="px-4 py-3 text-gray-600 hidden lg:table-cell">
-                      {c.city || '—'}
-                    </td>
-
-                    {/* Nota final */}
-                    <td className="px-4 py-3 text-center">
-                      {app?.final_score != null ? (
-                        <span className={`text-base font-bold ${scoreColor(app.final_score)}`}>
-                          {Math.round(app.final_score)}%
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
-                    </td>
-
-                    {/* Cadastro */}
-                    <td className="px-4 py-3 text-gray-500 hidden sm:table-cell text-xs">
-                      {formatDate(c.created_at)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ContratadosTable rows={tableRows} />
       )}
     </div>
   )
