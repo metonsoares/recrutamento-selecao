@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export default async function CandidatosPage() {
   const supabase = await createSupabaseServerClient()
 
-  const [{ data: candidates }, { data: jobs }] = await Promise.all([
+  const [{ data: candidates }, { data: jobs }, { data: settings }] = await Promise.all([
     supabase
       .from('candidates')
       .select(`
@@ -20,7 +20,11 @@ export default async function CandidatosPage() {
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     supabase.from('jobs').select('id, title').eq('is_active', true),
+    supabase.from('ai_settings').select('id, kanban_column_order').limit(1).single(),
   ])
 
-  return <CandidatesBoard candidates={candidates || []} jobs={jobs || []} />
+  const columnOrder = (settings?.kanban_column_order as string[] | null) ?? null
+  const settingsId = settings?.id ?? null
+
+  return <CandidatesBoard candidates={candidates || []} jobs={jobs || []} columnOrder={columnOrder} settingsId={settingsId} />
 }

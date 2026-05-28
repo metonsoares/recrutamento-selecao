@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,7 +18,6 @@ const COLUMNS = [
     dot: 'bg-gray-400',
     header: 'bg-gray-50 border-gray-200',
     drop: 'bg-gray-100 border-gray-300',
-    // todos os status "em andamento" caem aqui
     statuses: [
       'novo', 'pre_cadastro_whatsapp',
       'aguardando_formulario_experiencia', 'experiencia_preenchida',
@@ -133,20 +132,105 @@ interface CandidateRow {
 interface Props {
   candidates: CandidateRow[]
   jobs: Array<{ id: string; title: string }>
+  columnOrder?: string[] | null
+  settingsId?: string | null
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function CandidatesBoard({ candidates: initial, jobs }: Props) {
+export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settingsId }: Props) {
   const router = useRouter()
   const [candidates, setCandidates] = useState<CandidateRow[]>(initial)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('date_desc')
   const [filterJob, setFilterJob] = useState('all')
+
+  // ── Drag state (candidatos) ───────────────────────────────────────────────
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null)
 
-  // ── Filtragem + ordenação ────────────────────────────────────────────────
+  // ── Drag state (colunas) ──────────────────────────────────────────────────
+  const [colOrder, setColOrder] = useState<string[]>(() => {
+    if (columnOrder && columnOrder.length > 0) {
+      return [
+        ...columnOrder.filter(k => COLUMNS.some(c => c.key === k)),
+        ...COLUMNS.map(c => c.key).filter(k => !columnOrder.includes(k)),
+      ]
+    }
+    return COLUMNS.map(c => c.key)
+  })
+  const colDragKey = useRef<string | null>(null)
+  const [colDragOverKey, setColDragOverKey] = useState<string | null>(null)
+  const [isDraggingCol, setIsDraggingCol] = useState(false)
+
+  // ── orderedColumns a partir do estado local ───────────────────────────────
+  const orderedColumns = colOrder
+    .map(key => COLUMNS.find(c => c.key === key))
+    .filter((c): c is typeof COLUMNS[number] => c !== undefined)
+
+  // ── Salva ordem das colunas no banco ──────────────────────────────────────
+  async function saveColumnOrder(order: string[]) {
+    const supabase = createSupabaseBrowserClient()
+    if (settingsId) {
+      await supabase
+        .from('ai_settings')
+        .update({ kanban_column_order: order, updated_at: new Date().toISOString() })
+        .eq('id', settingsId)
+    } else {
+      await supabase
+        .from('ai_settings')
+        .insert({ kanban_column_order: order })
+    }
+  }
+
+  // ── Handlers drag de coluna ───────────────────────────────────────────────
+  function onColDragStart(e: React.DragEvent, key: string) {
+    colDragKey.current = key
+    setIsDraggingCol(true)
+    e.dataTransfer.setData('text/column', key)
+    e.dataTransfer.effectAllowed = 'move'
+    e.stopPropagation()
+  }
+
+  function onColDragOver(e: React.DragEvent, key: string) {
+    if (!colDragKey.current) return
+    e.preventDefault()
+    e.stopPropagation()
+    setColDragOverKey(key)
+  }
+
+  function onColDrop(e: React.DragEvent, targetKey: string) {
+    const sourceKey = e.dataTransfer.getData('text/column')
+    if (!sourceKey) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (sourceKey !== targetKey) {
+      setColOrder(prev => {
+        const next = [...prev]
+        const fromIdx = next.indexOf(sourceKey)
+        const toIdx = next.indexOf(targetKey)
+        if (fromIdx !== -1 && toIdx !== -1) {
+          next.splice(fromIdx, 1)
+          next.splice(toIdx, 0, sourceKey)
+        }
+        saveColumnOrder(next)
+        return next
+      })
+    }
+
+    colDragKey.current = null
+    setColDragOverKey(null)
+    setIsDraggingCol(false)
+  }
+
+  function onColDragEnd() {
+    colDragKey.current = null
+    setColDragOverKey(null)
+    setIsDraggingCol(false)
+  }
+
+  // ── Filtragem + ordenação ─────────────────────────────────────────────────
   const getItems = useCallback((statuses: readonly string[]) => {
     return candidates
       .filter(c => statuses.includes(c.applications?.status ?? 'novo'))
@@ -167,21 +251,19 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
       })
   }, [candidates, search, filterJob, sortBy])
 
-  // ── Drag & Drop ──────────────────────────────────────────────────────────
+  // ── Drag & Drop (candidatos) ──────────────────────────────────────────────
   async function handleDrop(candidateId: string, targetStatus: CandidateStatus) {
     const candidate = candidates.find(c => c.id === candidateId)
     const appId = candidate?.applications?.id
     if (!appId) return
     if (candidate?.applications?.status === targetStatus) return
 
-    // Atualização otimista
     setCandidates(prev => prev.map(c =>
       c.id === candidateId && c.applications
         ? { ...c, applications: { ...c.applications, status: targetStatus } }
         : c
     ))
 
-    // Persistir no banco
     const supabase = createSupabaseBrowserClient()
     const { error } = await supabase
       .from('applications')
@@ -189,7 +271,6 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
       .eq('id', appId)
 
     if (error) {
-      // Reverter em caso de erro
       const prevStatus = candidate!.applications!.status
       setCandidates(prev => prev.map(c =>
         c.id === candidateId && c.applications
@@ -199,7 +280,7 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
     }
   }
 
-  const total = COLUMNS.flatMap(col => getItems(col.statuses)).length
+  const total = orderedColumns.flatMap(col => getItems(col.statuses)).length
 
   return (
     <div className="p-4 sm:p-6 flex flex-col h-[calc(100vh-56px)] gap-4">
@@ -265,21 +346,42 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
 
       {/* ── Colunas Kanban ── */}
       <div className="flex gap-3 overflow-x-auto pb-3 flex-1 min-h-0">
-        {COLUMNS.map(col => {
+        {orderedColumns.map(col => {
           const items = getItems(col.statuses)
-          const isOver = dragOverCol === col.key
+          const isCardOver = !isDraggingCol && dragOverCol === col.key
+          const isColOver = isDraggingCol && colDragOverKey === col.key && colDragKey.current !== col.key
+          const isColDragging = colDragKey.current === col.key
 
           return (
             <div
               key={col.key}
-              className="flex flex-col shrink-0 w-[240px]"
-              onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
+              className={[
+                'flex flex-col shrink-0 w-[240px] transition-all duration-150',
+                isColDragging ? 'opacity-40 scale-[0.97]' : '',
+                isColOver ? 'ring-2 ring-primary/40 rounded-xl' : '',
+              ].join(' ')}
+              onDragOver={e => {
+                e.preventDefault()
+                if (isDraggingCol) {
+                  setColDragOverKey(col.key)
+                } else {
+                  setDragOverCol(col.key)
+                }
+              }}
               onDragLeave={e => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                  setDragOverCol(null)
+                  if (isDraggingCol) setColDragOverKey(null)
+                  else setDragOverCol(null)
                 }
               }}
               onDrop={e => {
+                // tenta primeiro drop de coluna
+                const colKey = e.dataTransfer.getData('text/column')
+                if (colKey) {
+                  onColDrop(e, col.key)
+                  return
+                }
+                // senão, drop de candidato
                 e.preventDefault()
                 const id = e.dataTransfer.getData('text/plain')
                 if (id) handleDrop(id, col.targetStatus)
@@ -287,9 +389,23 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
                 setDragId(null)
               }}
             >
-              {/* Cabeçalho da coluna */}
-              <div className={`flex items-center justify-between px-3 py-2 rounded-t-xl border ${col.header}`}>
+              {/* ── Cabeçalho da coluna (arrastável) ── */}
+              <div
+                draggable
+                onDragStart={e => onColDragStart(e, col.key)}
+                onDragOver={e => onColDragOver(e, col.key)}
+                onDrop={e => onColDrop(e, col.key)}
+                onDragEnd={onColDragEnd}
+                title="Arraste para reordenar a coluna"
+                className={[
+                  'flex items-center justify-between px-3 py-2 rounded-t-xl border select-none',
+                  'cursor-grab active:cursor-grabbing',
+                  col.header,
+                  isColOver ? 'border-primary/40' : '',
+                ].join(' ')}
+              >
                 <div className="flex items-center gap-2 min-w-0">
+                  <GripVertical className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${col.dot}`} />
                   <span className="text-[11px] font-semibold text-[#333] truncate">{col.label}</span>
                 </div>
@@ -298,29 +414,26 @@ export function CandidatesBoard({ candidates: initial, jobs }: Props) {
                 </span>
               </div>
 
-              {/* Área de drop */}
+              {/* Área de drop (candidatos) */}
               <div className={[
                 'flex-1 space-y-2 border border-t-0 rounded-b-xl p-2 overflow-y-auto transition-all duration-150',
-                isOver
+                isCardOver
                   ? `${col.drop} border-dashed`
                   : 'bg-[#f8f9fb]',
               ].join(' ')}>
 
-                {/* Placeholder de drop */}
-                {isOver && (
+                {isCardOver && (
                   <div className="border-2 border-dashed border-primary/30 rounded-lg h-14 flex items-center justify-center">
                     <p className="text-xs text-primary/50 font-medium">Solte aqui</p>
                   </div>
                 )}
 
-                {/* Mensagem vazia */}
-                {items.length === 0 && !isOver && (
+                {items.length === 0 && !isCardOver && (
                   <p className="text-center text-xs text-muted-foreground/60 py-8">
                     Nenhum candidato
                   </p>
                 )}
 
-                {/* Cards */}
                 {items.map(c => (
                   <CandidateCard
                     key={c.id}
@@ -356,7 +469,6 @@ function CandidateCard({
   onClick: () => void
 }) {
   const { border, badgeClass, label } = scoreStyle(c.applications?.final_score)
-  // Supabase pode retornar jobs como objeto único ou array dependendo do FK — trata ambos
   const rawJobs = (c.applications as Record<string, unknown> | null | undefined)?.jobs
   const jobTitle = Array.isArray(rawJobs)
     ? (rawJobs[0] as { title?: string } | undefined)?.title
@@ -369,6 +481,7 @@ function CandidateCard({
         e.dataTransfer.setData('text/plain', c.id)
         e.dataTransfer.effectAllowed = 'move'
         onDragStart()
+        e.stopPropagation()
       }}
       onDragEnd={onDragEnd}
       onClick={onClick}
