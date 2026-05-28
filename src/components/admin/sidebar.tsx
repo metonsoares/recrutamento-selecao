@@ -59,7 +59,8 @@ function SidebarContent({
     pathname.startsWith('/admin/teste-cultural')
 
   const inEmpresa =
-    pathname.startsWith('/admin/configuracoes/empresa')
+    pathname.startsWith('/admin/configuracoes/empresa') ||
+    pathname.startsWith('/admin/configuracoes/cadastro-empresa')
 
   const inPlataforma =
     pathname.startsWith('/admin/configuracoes/whatsapp') ||
@@ -264,11 +265,22 @@ function SidebarContent({
                 onClick={go}
                 className={cn(
                   DEEP_BASE,
-                  pathname.startsWith('/admin/configuracoes/empresa') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                  pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT,
                 )}
               >
                 <Building2 className="w-3 h-3 shrink-0 opacity-50" />
                 Dados da Empresa
+              </Link>
+              <Link
+                href="/admin/configuracoes/cadastro-empresa"
+                onClick={go}
+                className={cn(
+                  DEEP_BASE,
+                  pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT,
+                )}
+              >
+                <Building2 className="w-3 h-3 shrink-0 opacity-50" />
+                Cadastro de empresa
               </Link>
             </div>
           )}

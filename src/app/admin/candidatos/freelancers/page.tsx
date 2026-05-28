@@ -51,7 +51,14 @@ export default async function FreelancersPage() {
     return j?.title || '—'
   }
 
-  const freelancers = rows.filter(c => getApp(c)?.status === 'freelancer')
+  // Inclui candidatos com status 'freelancer' OU cuja vaga tem 'freelancer' no título
+  const freelancers = rows.filter(c => {
+    const app = getApp(c)
+    if (!app) return false
+    if (app.status === 'freelancer') return true
+    const title = getJobTitle(app).toLowerCase()
+    return title.includes('freelancer')
+  })
 
   // Busca fotos
   const appIds = freelancers.map(c => getApp(c)?.id).filter(Boolean) as string[]

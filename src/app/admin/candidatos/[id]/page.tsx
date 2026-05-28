@@ -9,6 +9,7 @@ import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
 import { DeleteCandidateSection } from './delete-candidate-section'
+import { EditVagaButton } from './edit-vaga-button'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -126,6 +127,9 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   const { data: notes } = await supabase
     .from('admin_notes').select('*').eq('candidate_id', id)
     .order('created_at', { ascending: false })
+
+  const { data: allJobs } = await supabase
+    .from('jobs').select('id, title').eq('is_active', true).order('title')
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
 
@@ -306,7 +310,12 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           <CardContent className="space-y-2">
             {latestApp ? (
               <>
-                <Row label="Vaga" value={jobTitle} />
+                <EditVagaButton
+                  applicationId={latestApp.id}
+                  currentJobId={latestApp.job_id ?? null}
+                  currentJobTitle={jobTitle}
+                  jobs={allJobs || []}
+                />
                 <Row label="Data" value={formatDate(latestApp.created_at)} />
                 <div className="pt-1 space-y-1.5">
                   <ScoreRow label="Compatib. Cultural" value={latestApp.culture_score} color={scoreColor(latestApp.culture_score)} />
