@@ -23,8 +23,62 @@ export default async function CandidatosPage() {
     supabase.from('ai_settings').select('id, kanban_column_order').limit(1).single(),
   ])
 
+  // ── Fallback: busca vaga a partir das respostas do formulário ──────────────
+  // Para candidatos cujo applications.job_id está null, buscamos a resposta do
+  // campo job_select em form_answers e montamos um mapa appId -> jobTitle.
+  const jobMap = Object.fromEntries((jobs || []).map(j => [j.id, j.title]))
+  const appJobTitleMap: Record<string, string> = {}
+
+  // Coleta appIds que não têm job via FK join
+  type AppLike = { id?: string; job_id?: string | null; jobs?: unknown }
+  const appIdsWithoutJob = (candidates || [])
+    .map(c => {
+      const app = (Array.isArray(c.applications)
+        ? c.applications[0]
+        : c.applications) as AppLike | null
+      if (!app?.id) return null
+      // Se já tem título via join, não precisa de fallback
+      if (app.job_id && app.jobs) return null
+      return app.id as string
+    })
+    .filter((id): id is string => id !== null)
+
+  if (appIdsWithoutJob.length > 0) {
+    // Questões do tipo job_select
+    const { data: jobQs } = await supabase
+      .from('form_questions')
+      .select('id')
+      .eq('field_type', 'job_select')
+
+    const jobQIds = (jobQs || []).map(q => q.id as string)
+
+    if (jobQIds.length > 0) {
+      const { data: jobAnswers } = await supabase
+        .from('form_answers')
+        .select('application_id, answer_text')
+        .in('application_id', appIdsWithoutJob)
+        .in('question_id', jobQIds)
+
+      for (const ans of jobAnswers || []) {
+        const rawId = (ans.answer_text as string | null)?.replace(/^"|"$/g, '') ?? ''
+        const title = jobMap[rawId]
+        if (title && ans.application_id) {
+          appJobTitleMap[ans.application_id as string] = title
+        }
+      }
+    }
+  }
+
   const columnOrder = (settings?.kanban_column_order as string[] | null) ?? null
   const settingsId = settings?.id ?? null
 
-  return <CandidatesBoard candidates={candidates || []} jobs={jobs || []} columnOrder={columnOrder} settingsId={settingsId} />
+  return (
+    <CandidatesBoard
+      candidates={candidates || []}
+      jobs={jobs || []}
+      columnOrder={columnOrder}
+      settingsId={settingsId}
+      appJobTitleMap={appJobTitleMap}
+    />
+  )
 }

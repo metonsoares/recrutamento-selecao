@@ -135,11 +135,12 @@ interface Props {
   jobs: Array<{ id: string; title: string }>
   columnOrder?: string[] | null
   settingsId?: string | null
+  appJobTitleMap?: Record<string, string>
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settingsId }: Props) {
+export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settingsId, appJobTitleMap = {} }: Props) {
   const router = useRouter()
   const [candidates, setCandidates] = useState<CandidateRow[]>(initial)
   const [search, setSearch] = useState('')
@@ -285,8 +286,11 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 
   // ── Migração: preenche job_id a partir de form_answers (roda 1x no mount) ──
   useEffect(() => {
-    fetch('/api/admin/candidatos/fix-job-ids', { method: 'POST' }).catch(() => {})
-  }, [])
+    fetch('/api/admin/candidatos/fix-job-ids', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => { if (data.fixed > 0) router.refresh() })
+      .catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Análise em lote ───────────────────────────────────────────────────────
   const pendingCount = candidates.filter(c => c.applications?.final_score == null).length
@@ -494,6 +498,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
                     key={c.id}
                     candidate={c}
                     isDragging={dragId === c.id}
+                    jobTitleFallback={c.applications?.id ? appJobTitleMap[c.applications.id] : undefined}
                     onDragStart={() => setDragId(c.id)}
                     onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
                     onClick={() => router.push(`/admin/candidatos/${c.id}`)}
@@ -513,21 +518,24 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 function CandidateCard({
   candidate: c,
   isDragging,
+  jobTitleFallback,
   onDragStart,
   onDragEnd,
   onClick,
 }: {
   candidate: CandidateRow
   isDragging: boolean
+  jobTitleFallback?: string
   onDragStart: () => void
   onDragEnd: () => void
   onClick: () => void
 }) {
   const { border, badgeClass, label } = scoreStyle(c.applications?.final_score)
   const rawJobs = (c.applications as Record<string, unknown> | null | undefined)?.jobs
-  const jobTitle = Array.isArray(rawJobs)
+  const jobTitleFromJoin = Array.isArray(rawJobs)
     ? (rawJobs[0] as { title?: string } | undefined)?.title
     : (rawJobs as { title?: string } | null)?.title
+  const jobTitle = jobTitleFromJoin || jobTitleFallback
 
   return (
     <div
