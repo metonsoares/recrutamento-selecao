@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CandidateStatus } from '@/types'
 import { formatDate } from '@/lib/helpers'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { Search, SortAsc, GripVertical } from 'lucide-react'
+import { Search, SortAsc, GripVertical, BrainCircuit, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 // ─── Colunas do Kanban ────────────────────────────────────────────────────────
 
@@ -282,15 +283,64 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 
   const total = orderedColumns.flatMap(col => getItems(col.statuses)).length
 
+  // ── Análise em lote ───────────────────────────────────────────────────────
+  const pendingCount = candidates.filter(c => c.applications?.final_score == null).length
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeMsg, setAnalyzeMsg] = useState<string | null>(null)
+
+  async function handleAnalyzePending() {
+    setAnalyzing(true)
+    setAnalyzeMsg(null)
+    try {
+      const res = await fetch('/api/admin/ai/analyze-pending', { method: 'POST' })
+      const data = await res.json()
+      if (data.queued === 0) {
+        setAnalyzeMsg('Nenhum candidato pendente encontrado.')
+      } else {
+        setAnalyzeMsg(`${data.queued} análise${data.queued !== 1 ? 's' : ''} iniciada${data.queued !== 1 ? 's' : ''}. Os resultados aparecem em instantes.`)
+      }
+    } catch {
+      setAnalyzeMsg('Erro ao iniciar análises.')
+    } finally {
+      setAnalyzing(false)
+      setTimeout(() => setAnalyzeMsg(null), 6000)
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6 flex flex-col h-[calc(100vh-56px)] gap-4">
 
+      {/* Toast de análise em lote */}
+      {analyzeMsg && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium bg-emerald-600 text-white max-w-sm">
+          <BrainCircuit className="w-4 h-4 shrink-0" />
+          {analyzeMsg}
+        </div>
+      )}
+
       {/* Cabeçalho */}
-      <div className="shrink-0">
-        <h1 className="text-xl sm:text-2xl font-bold">Candidatos</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          {total} candidato{total !== 1 ? 's' : ''}{search || filterJob !== 'all' ? ' filtrados' : ' no total'}
-        </p>
+      <div className="shrink-0 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold">Candidatos</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {total} candidato{total !== 1 ? 's' : ''}{search || filterJob !== 'all' ? ' filtrados' : ' no total'}
+          </p>
+        </div>
+        {pendingCount > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleAnalyzePending}
+            disabled={analyzing}
+            className="gap-1.5 shrink-0 mt-0.5 border-purple-300 text-purple-700 hover:bg-purple-50"
+            title="Executar análise IA para todos os candidatos sem pontuação"
+          >
+            {analyzing
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analisando...</>
+              : <><BrainCircuit className="w-3.5 h-3.5" />Analisar pendentes ({pendingCount})</>
+            }
+          </Button>
+        )}
       </div>
 
       {/* Filtros */}

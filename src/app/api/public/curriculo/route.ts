@@ -238,6 +238,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Trigger AI analysis async (fire and forget) — analisa imediatamente ao receber o currículo
+    fetch(`${process.env.APP_URL || 'http://localhost:3000'}/api/admin/ai/analyze-candidate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ applicationId: newApplication.id }),
+    }).catch(() => {})
+
     return NextResponse.json({ success: true, token: cultureToken })
   } catch (err) {
     console.error('Curriculo route error:', err)
