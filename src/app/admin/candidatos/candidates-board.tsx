@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -282,6 +282,11 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
   }
 
   const total = orderedColumns.flatMap(col => getItems(col.statuses)).length
+
+  // ── Migração: preenche job_id a partir de form_answers (roda 1x no mount) ──
+  useEffect(() => {
+    fetch('/api/admin/candidatos/fix-job-ids', { method: 'POST' }).catch(() => {})
+  }, [])
 
   // ── Análise em lote ───────────────────────────────────────────────────────
   const pendingCount = candidates.filter(c => c.applications?.final_score == null).length
