@@ -1,33 +1,31 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { UsuariosManager } from './usuarios-manager'
+
+export const dynamic = 'force-dynamic'
 
 export default async function UsuariosPage() {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [supabase, service] = await Promise.all([
+    createSupabaseServerClient(),
+    createSupabaseServiceClient(),
+  ])
+
+  const [{ data: { user: currentUser } }, { data: usersData }] = await Promise.all([
+    supabase.auth.getUser(),
+    service.auth.admin.listUsers({ perPage: 200 }),
+  ])
+
+  const users = (usersData?.users ?? []).map(u => ({
+    id: u.id,
+    email: u.email ?? '',
+    name: (u.user_metadata?.full_name as string | undefined) ?? '',
+    created_at: u.created_at,
+    last_sign_in: u.last_sign_in_at ?? null,
+  }))
 
   return (
-    <div className="p-6 space-y-5 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold">Usuários Admin</h1>
-        <p className="text-muted-foreground text-sm mt-1">Gerenciamento de acesso ao painel</p>
-      </div>
-
-      <div className="bg-white rounded-xl border shadow-sm p-4">
-        <p className="text-sm font-medium">Usuário atual</p>
-        <p className="text-muted-foreground text-sm mt-1">{user?.email}</p>
-        <p className="text-xs text-muted-foreground mt-1">ID: {user?.id}</p>
-      </div>
-
-      <div className="bg-muted/50 rounded-xl p-4 text-sm text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground">Como adicionar administradores:</p>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>Acesse o painel do Supabase</li>
-          <li>Vá em <strong>Authentication → Users</strong></li>
-          <li>Clique em <strong>Invite User</strong></li>
-          <li>Informe o e-mail do novo administrador</li>
-          <li>O usuário receberá um link para criar a senha</li>
-        </ol>
-        <p className="text-xs">Todos os usuários autenticados têm acesso de administrador por padrão.</p>
-      </div>
-    </div>
+    <UsuariosManager
+      users={users}
+      currentUserId={currentUser?.id ?? ''}
+    />
   )
 }
