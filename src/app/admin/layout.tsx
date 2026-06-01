@@ -8,6 +8,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
+  const role = ((user.user_metadata?.role as string | undefined) === 'recrutador'
+    ? 'recrutador'
+    : 'master') as 'master' | 'recrutador'
+
   // Fetch branding from ai_settings (service client to bypass RLS)
   const serviceClient = await createSupabaseServiceClient()
   const { data: brandSettings } = await serviceClient
@@ -21,6 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminNav
         logoUrl={brandSettings?.logo_url ?? null}
         companyName={brandSettings?.company_name ?? null}
+        role={role}
       />
       <main className="lg:pl-64 min-h-screen">
         {children}

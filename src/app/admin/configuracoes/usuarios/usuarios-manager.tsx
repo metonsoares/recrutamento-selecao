@@ -4,14 +4,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   UserPlus, Pencil, Trash2, Loader2, CheckCircle2,
-  AlertCircle, X, Eye, EyeOff, ShieldCheck, User,
+  AlertCircle, X, Eye, EyeOff, ShieldCheck, User, Crown, UserCog,
 } from 'lucide-react'
 import { formatDate } from '@/lib/helpers'
+
+type UserRole = 'master' | 'recrutador'
 
 interface AdminUser {
   id: string
   email: string
   name: string
+  role: UserRole
   created_at: string
   last_sign_in: string | null
 }
@@ -95,6 +98,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
   const [fName, setFName] = useState('')
   const [fEmail, setFEmail] = useState('')
   const [fPassword, setFPassword] = useState('')
+  const [fRole, setFRole] = useState<UserRole>('recrutador')
   const [fError, setFError] = useState('')
 
   function showToast(type: 'ok' | 'err', msg: string) {
@@ -103,13 +107,13 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
   }
 
   function openCreate() {
-    setFName(''); setFEmail(''); setFPassword(''); setFError('')
+    setFName(''); setFEmail(''); setFPassword(''); setFRole('recrutador'); setFError('')
     setSelected(null)
     setModal('create')
   }
 
   function openEdit(u: AdminUser) {
-    setFName(u.name); setFEmail(u.email); setFPassword(''); setFError('')
+    setFName(u.name); setFEmail(u.email); setFPassword(''); setFRole(u.role); setFError('')
     setSelected(u)
     setModal('edit')
   }
@@ -134,7 +138,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
     const res = await fetch('/api/admin/usuarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: fName, email: fEmail, password: fPassword }),
+      body: JSON.stringify({ name: fName, email: fEmail, password: fPassword, role: fRole }),
     })
     const data = await res.json()
     setSaving(false)
@@ -143,6 +147,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
       id: data.user.id,
       email: data.user.email,
       name: data.user.user_metadata?.full_name || '',
+      role: (data.user.user_metadata?.role as UserRole) || 'recrutador',
       created_at: data.user.created_at,
       last_sign_in: data.user.last_sign_in_at || null,
     }])
@@ -160,7 +165,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
     const res = await fetch(`/api/admin/usuarios/${selected.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: fName, email: fEmail, password: fPassword || undefined }),
+      body: JSON.stringify({ name: fName, email: fEmail, password: fPassword || undefined, role: fRole }),
     })
     const data = await res.json()
     setSaving(false)
@@ -169,6 +174,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
       ...u,
       name: data.user.user_metadata?.full_name || fName,
       email: data.user.email || fEmail,
+      role: (data.user.user_metadata?.role as UserRole) || fRole,
     } : u))
     closeModal()
     showToast('ok', 'Usuário atualizado com sucesso.')
@@ -238,6 +244,17 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                   <p className="text-[14px] font-medium text-gray-900 truncate">
                     {u.name || '—'}
                   </p>
+                  {u.role === 'master' ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                      <Crown className="w-3 h-3" />
+                      Master
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      <UserCog className="w-3 h-3" />
+                      Recrutador
+                    </span>
+                  )}
                   {isMe && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
                       <ShieldCheck className="w-3 h-3" />
@@ -282,25 +299,47 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
           <div className="px-5 py-4 space-y-3">
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Nome</label>
-              <Input
-                value={fName}
-                onChange={e => setFName(e.target.value)}
-                placeholder="Nome completo"
-                autoFocus
-              />
+              <Input value={fName} onChange={e => setFName(e.target.value)} placeholder="Nome completo" autoFocus />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">E-mail *</label>
-              <Input
-                type="email"
-                value={fEmail}
-                onChange={e => setFEmail(e.target.value)}
-                placeholder="email@exemplo.com"
-              />
+              <Input type="email" value={fEmail} onChange={e => setFEmail(e.target.value)} placeholder="email@exemplo.com" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Senha *</label>
               <PasswordInput value={fPassword} onChange={setFPassword} placeholder="Mínimo 6 caracteres" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">Perfil de acesso *</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['master', 'recrutador'] as UserRole[]).map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setFRole(r)}
+                    className={[
+                      'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
+                      fRole === r
+                        ? r === 'master'
+                          ? 'border-amber-400 bg-amber-50'
+                          : 'border-blue-400 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300',
+                    ].join(' ')}
+                  >
+                    <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                      {r === 'master'
+                        ? <Crown className="w-3.5 h-3.5 text-amber-600" />
+                        : <UserCog className="w-3.5 h-3.5 text-blue-600" />}
+                      {r === 'master' ? 'Master' : 'Recrutador'}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">
+                      {r === 'master'
+                        ? 'Acesso total ao sistema'
+                        : 'Visualiza candidatos apenas'}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
             {fError && (
               <p className="text-xs text-red-600 flex items-center gap-1.5">
@@ -335,6 +374,38 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                 Nova senha <span className="text-muted-foreground font-normal">(deixe em branco para não alterar)</span>
               </label>
               <PasswordInput value={fPassword} onChange={setFPassword} placeholder="Nova senha (opcional)" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">Perfil de acesso *</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['master', 'recrutador'] as UserRole[]).map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setFRole(r)}
+                    className={[
+                      'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
+                      fRole === r
+                        ? r === 'master'
+                          ? 'border-amber-400 bg-amber-50'
+                          : 'border-blue-400 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300',
+                    ].join(' ')}
+                  >
+                    <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                      {r === 'master'
+                        ? <Crown className="w-3.5 h-3.5 text-amber-600" />
+                        : <UserCog className="w-3.5 h-3.5 text-blue-600" />}
+                      {r === 'master' ? 'Master' : 'Recrutador'}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">
+                      {r === 'master'
+                        ? 'Acesso total ao sistema'
+                        : 'Visualiza candidatos apenas'}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
             {fError && (
               <p className="text-xs text-red-600 flex items-center gap-1.5">

@@ -7,11 +7,13 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck,
+  Settings2, BrainCircuit, UserCheck, Columns3,
 } from 'lucide-react'
 
 import { useState } from 'react'
 import Image from 'next/image'
+
+type UserRole = 'master' | 'recrutador'
 
 // ─── Estilos base dos itens ───────────────────────────────────────────────────
 
@@ -27,30 +29,25 @@ const DEEP_BASE = 'flex items-center gap-2 px-2.5 h-8 w-full rounded-[6px] text-
 const DEEP_DEFAULT = 'text-[#555555] hover:bg-[#f0f0f0]'
 const DEEP_ACTIVE = 'bg-[#e6e6e6] text-[#1a1a1a]'
 
-// ─── Navegação principal ──────────────────────────────────────────────────────
-
-const navItems = [
-  { href: '/admin',            label: 'Dashboard',          icon: LayoutDashboard },
-  { href: '/admin/whatsapp',   label: 'Mensagens WhatsApp',  icon: MessageSquare },
-  { href: '/admin/relatorios', label: 'Relatórios',           icon: BarChart3 },
-]
-
 // ─── SidebarContent ───────────────────────────────────────────────────────────
 
 function SidebarContent({
   onNavClick,
   logoUrl,
   companyName,
+  role = 'master',
 }: {
   onNavClick?: () => void
   logoUrl?: string | null
   companyName?: string | null
+  role?: UserRole
 }) {
   const pathname = usePathname()
   const router = useRouter()
 
-  const inCandidatos =
-    pathname.startsWith('/admin/candidatos')
+  const isMaster = role === 'master'
+
+  const inCandidatos = pathname.startsWith('/admin/candidatos')
 
   const inCurriculos =
     pathname.startsWith('/admin/secoes') ||
@@ -64,7 +61,8 @@ function SidebarContent({
 
   const inPlataforma =
     pathname.startsWith('/admin/configuracoes/whatsapp') ||
-    pathname.startsWith('/admin/configuracoes/ia')
+    pathname.startsWith('/admin/configuracoes/ia') ||
+    pathname.startsWith('/admin/configuracoes/kanban-colunas')
 
   const [candidatosOpen, setCandidatosOpen] = useState(inCandidatos)
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos)
@@ -142,10 +140,7 @@ function SidebarContent({
               <Link
                 href="/admin/candidatos"
                 onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
+                className={cn(DEEP_BASE, pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT)}
               >
                 <Users className="w-3 h-3 shrink-0 opacity-50" />
                 Todos os Candidatos
@@ -153,10 +148,7 @@ function SidebarContent({
               <Link
                 href="/admin/candidatos/contratados"
                 onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/candidatos/contratados') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
+                className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/contratados') ? DEEP_ACTIVE : DEEP_DEFAULT)}
               >
                 <UserCheck className="w-3 h-3 shrink-0 opacity-50" />
                 Contratados
@@ -164,10 +156,7 @@ function SidebarContent({
               <Link
                 href="/admin/candidatos/freelancers"
                 onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/candidatos/freelancers') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
+                className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/freelancers') ? DEEP_ACTIVE : DEEP_DEFAULT)}
               >
                 <Briefcase className="w-3 h-3 shrink-0 opacity-50" />
                 Freelancers
@@ -176,182 +165,117 @@ function SidebarContent({
           )}
         </div>
 
-        {/* Demais itens */}
-        {navItems.map(item => {
-          const Icon = item.icon
-          const active = pathname.startsWith(item.href)
-          return (
+        {/* ── Itens visíveis apenas para Master ── */}
+        {isMaster && (
+          <>
             <Link
-              key={item.href}
-              href={item.href}
+              href="/admin/whatsapp"
               onClick={go}
-              className={cn(NAV_BASE, active ? NAV_ACTIVE : NAV_DEFAULT)}
+              className={cn(NAV_BASE, pathname.startsWith('/admin/whatsapp') ? NAV_ACTIVE : NAV_DEFAULT)}
             >
-              <Icon className="w-[15px] h-[15px] shrink-0 opacity-60" />
-              {item.label}
+              <MessageSquare className="w-[15px] h-[15px] shrink-0 opacity-60" />
+              Mensagens WhatsApp
             </Link>
-          )
-        })}
 
-        {/* ── Separador: Configurações ───────────────────────────── */}
-        <div className="pt-4 pb-1 px-3">
-          <span className="text-[11px] font-medium text-[#8a8a8a] uppercase tracking-widest select-none">
-            Configurações
-          </span>
-        </div>
+            <Link
+              href="/admin/relatorios"
+              onClick={go}
+              className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}
+            >
+              <BarChart3 className="w-[15px] h-[15px] shrink-0 opacity-60" />
+              Relatórios
+            </Link>
 
-        {/* Configurações Plataforma ▾ */}
-        <div>
-          <button
-            onClick={() => setPlataformaOpen(o => !o)}
-            className={cn(SUB_BASE, inPlataforma ? SUB_ACTIVE : SUB_DEFAULT)}
-          >
-            <Settings2 className="w-[15px] h-[15px] shrink-0 opacity-60" />
-            <span className="flex-1 text-left">Configurações Plataforma</span>
-            <ChevronDown
-              className={cn(
-                'w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200',
-                plataformaOpen && 'rotate-180',
-              )}
-            />
-          </button>
-          {plataformaOpen && (
-            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-              <Link
-                href="/admin/configuracoes/whatsapp"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/configuracoes/whatsapp') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <Zap className="w-3 h-3 shrink-0 opacity-50" />
-                WhatsApp / Z-API
-              </Link>
-              <Link
-                href="/admin/configuracoes/ia"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/configuracoes/ia') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <BrainCircuit className="w-3 h-3 shrink-0 opacity-50" />
-                Configuração IA
-              </Link>
+            {/* ── Separador: Configurações ─────────────────────── */}
+            <div className="pt-4 pb-1 px-3">
+              <span className="text-[11px] font-medium text-[#8a8a8a] uppercase tracking-widest select-none">
+                Configurações
+              </span>
             </div>
-          )}
-        </div>
 
-        {/* Empresa e Cultura ▾ */}
-        <div>
-          <button
-            onClick={() => setEmpresaOpen(o => !o)}
-            className={cn(SUB_BASE, inEmpresa ? SUB_ACTIVE : SUB_DEFAULT)}
-          >
-            <Building2 className="w-[15px] h-[15px] shrink-0 opacity-60" />
-            <span className="flex-1 text-left">Empresa e Cultura</span>
-            <ChevronDown
-              className={cn(
-                'w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200',
-                empresaOpen && 'rotate-180',
+            {/* Configurações Plataforma ▾ */}
+            <div>
+              <button
+                onClick={() => setPlataformaOpen(o => !o)}
+                className={cn(SUB_BASE, inPlataforma ? SUB_ACTIVE : SUB_DEFAULT)}
+              >
+                <Settings2 className="w-[15px] h-[15px] shrink-0 opacity-60" />
+                <span className="flex-1 text-left">Configurações Plataforma</span>
+                <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', plataformaOpen && 'rotate-180')} />
+              </button>
+              {plataformaOpen && (
+                <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+                  <Link href="/admin/configuracoes/whatsapp" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/whatsapp') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Zap className="w-3 h-3 shrink-0 opacity-50" />WhatsApp / Z-API
+                  </Link>
+                  <Link href="/admin/configuracoes/ia" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/ia') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <BrainCircuit className="w-3 h-3 shrink-0 opacity-50" />Configuração IA
+                  </Link>
+                  <Link href="/admin/configuracoes/kanban-colunas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/kanban-colunas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Columns3 className="w-3 h-3 shrink-0 opacity-50" />Ordem das Colunas
+                  </Link>
+                </div>
               )}
-            />
-          </button>
-          {empresaOpen && (
-            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-              <Link
-                href="/admin/configuracoes/empresa"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <Building2 className="w-3 h-3 shrink-0 opacity-50" />
-                Dados da Empresa
-              </Link>
-              <Link
-                href="/admin/configuracoes/cadastro-empresa"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <Building2 className="w-3 h-3 shrink-0 opacity-50" />
-                Cadastro de empresa
-              </Link>
             </div>
-          )}
-        </div>
 
-        {/* Config Currículos ▾ */}
-        <div>
-          <button
-            onClick={() => setCurriculosOpen(o => !o)}
-            className={cn(SUB_BASE, inCurriculos ? SUB_ACTIVE : SUB_DEFAULT)}
-          >
-            <ClipboardList className="w-[15px] h-[15px] shrink-0 opacity-60" />
-            <span className="flex-1 text-left">Config Currículos</span>
-            <ChevronDown
-              className={cn(
-                'w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200',
-                curriculosOpen && 'rotate-180',
+            {/* Empresa e Cultura ▾ */}
+            <div>
+              <button
+                onClick={() => setEmpresaOpen(o => !o)}
+                className={cn(SUB_BASE, inEmpresa ? SUB_ACTIVE : SUB_DEFAULT)}
+              >
+                <Building2 className="w-[15px] h-[15px] shrink-0 opacity-60" />
+                <span className="flex-1 text-left">Empresa e Cultura</span>
+                <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', empresaOpen && 'rotate-180')} />
+              </button>
+              {empresaOpen && (
+                <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+                  <Link href="/admin/configuracoes/empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Building2 className="w-3 h-3 shrink-0 opacity-50" />Dados da Empresa
+                  </Link>
+                  <Link href="/admin/configuracoes/cadastro-empresa" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cadastro de empresa
+                  </Link>
+                </div>
               )}
-            />
-          </button>
-          {curriculosOpen && (
-            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-              <Link
-                href="/admin/secoes"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  (pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario')) ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <Layers className="w-3 h-3 shrink-0 opacity-50" />
-                Seções e Perguntas
-              </Link>
-              <Link
-                href="/admin/vagas"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/vagas') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <Briefcase className="w-3 h-3 shrink-0 opacity-50" />
-                Vagas
-              </Link>
-              <Link
-                href="/admin/teste-cultural"
-                onClick={go}
-                className={cn(
-                  DEEP_BASE,
-                  pathname.startsWith('/admin/teste-cultural') ? DEEP_ACTIVE : DEEP_DEFAULT,
-                )}
-              >
-                <FlaskConical className="w-3 h-3 shrink-0 opacity-50" />
-                Teste Cultural
-              </Link>
             </div>
-          )}
-        </div>
 
-        {/* Usuários */}
-        <Link
-          href="/admin/configuracoes/usuarios"
-          onClick={go}
-          className={cn(
-            SUB_BASE,
-            pathname.startsWith('/admin/configuracoes/usuarios') ? SUB_ACTIVE : SUB_DEFAULT,
-          )}
-        >
-          <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
-          Usuários
-        </Link>
+            {/* Config Currículos ▾ */}
+            <div>
+              <button
+                onClick={() => setCurriculosOpen(o => !o)}
+                className={cn(SUB_BASE, inCurriculos ? SUB_ACTIVE : SUB_DEFAULT)}
+              >
+                <ClipboardList className="w-[15px] h-[15px] shrink-0 opacity-60" />
+                <span className="flex-1 text-left">Config Currículos</span>
+                <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', curriculosOpen && 'rotate-180')} />
+              </button>
+              {curriculosOpen && (
+                <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+                  <Link href="/admin/secoes" onClick={go} className={cn(DEEP_BASE, (pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario')) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Layers className="w-3 h-3 shrink-0 opacity-50" />Seções e Perguntas
+                  </Link>
+                  <Link href="/admin/vagas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/vagas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Briefcase className="w-3 h-3 shrink-0 opacity-50" />Vagas
+                  </Link>
+                  <Link href="/admin/teste-cultural" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/teste-cultural') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <FlaskConical className="w-3 h-3 shrink-0 opacity-50" />Teste Cultural
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Usuários */}
+            <Link
+              href="/admin/configuracoes/usuarios"
+              onClick={go}
+              className={cn(SUB_BASE, pathname.startsWith('/admin/configuracoes/usuarios') ? SUB_ACTIVE : SUB_DEFAULT)}
+            >
+              <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
+              Usuários
+            </Link>
+          </>
+        )}
 
       </nav>
 
@@ -375,9 +299,11 @@ function SidebarContent({
 export function AdminNav({
   logoUrl,
   companyName,
+  role,
 }: {
   logoUrl?: string | null
   companyName?: string | null
+  role?: UserRole
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -387,14 +313,7 @@ export function AdminNav({
         <div className="flex items-center gap-3">
           {logoUrl ? (
             <div className="w-7 h-7 rounded-md overflow-hidden shrink-0 border border-[#e8e8e8] bg-white flex items-center justify-center">
-              <Image
-                src={logoUrl}
-                alt={companyName || 'Logo'}
-                width={28}
-                height={28}
-                className="object-contain w-full h-full"
-                unoptimized
-              />
+              <Image src={logoUrl} alt={companyName || 'Logo'} width={28} height={28} className="object-contain w-full h-full" unoptimized />
             </div>
           ) : (
             <div className="w-7 h-7 bg-[#1a1a1a] rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0 tracking-wide">
@@ -415,16 +334,12 @@ export function AdminNav({
       <div className="lg:hidden h-14" />
 
       <aside className="hidden lg:flex w-64 min-h-screen bg-white border-r border-[#e8e8e8] flex-col fixed top-0 left-0 bottom-0 z-30">
-        <SidebarContent logoUrl={logoUrl} companyName={companyName} />
+        <SidebarContent logoUrl={logoUrl} companyName={companyName} role={role} />
       </aside>
 
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div
-            className="fixed inset-0 bg-black/30 backdrop-blur-[2px]"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} aria-hidden="true" />
           <aside className="relative w-72 max-w-[85vw] bg-white border-r border-[#e8e8e8] flex flex-col h-full shadow-xl animate-in slide-in-from-left duration-200">
             <button
               onClick={() => setMobileOpen(false)}
@@ -433,7 +348,7 @@ export function AdminNav({
             >
               <X className="w-4 h-4" />
             </button>
-            <SidebarContent onNavClick={() => setMobileOpen(false)} logoUrl={logoUrl} companyName={companyName} />
+            <SidebarContent onNavClick={() => setMobileOpen(false)} logoUrl={logoUrl} companyName={companyName} role={role} />
           </aside>
         </div>
       )}

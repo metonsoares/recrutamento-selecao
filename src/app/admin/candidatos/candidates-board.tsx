@@ -136,11 +136,13 @@ interface Props {
   columnOrder?: string[] | null
   settingsId?: string | null
   appJobTitleMap?: Record<string, string>
+  role?: 'master' | 'recrutador'
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settingsId, appJobTitleMap = {} }: Props) {
+export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settingsId, appJobTitleMap = {}, role = 'master' }: Props) {
+  const isMaster = role === 'master'
   const router = useRouter()
   const [candidates, setCandidates] = useState<CandidateRow[]>(initial)
   const [search, setSearch] = useState('')
@@ -187,6 +189,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 
   // ── Handlers drag de coluna ───────────────────────────────────────────────
   function onColDragStart(e: React.DragEvent, key: string) {
+    if (!isMaster) { e.preventDefault(); return }
     colDragKey.current = key
     setIsDraggingCol(true)
     e.dataTransfer.setData('text/column', key)
@@ -255,6 +258,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 
   // ── Drag & Drop (candidatos) ──────────────────────────────────────────────
   async function handleDrop(candidateId: string, targetStatus: CandidateStatus) {
+    if (!isMaster) return  // recrutador: somente visualização
     const candidate = candidates.find(c => c.id === candidateId)
     const appId = candidate?.applications?.id
     if (!appId) return
@@ -335,7 +339,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
             {total} candidato{total !== 1 ? 's' : ''}{search || filterJob !== 'all' ? ' filtrados' : ' no total'}
           </p>
         </div>
-        {pendingCount > 0 && (
+        {isMaster && pendingCount > 0 && (
           <Button
             size="sm"
             variant="outline"
@@ -458,7 +462,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
                 title="Arraste para reordenar a coluna"
                 className={[
                   'flex items-center justify-between px-3 py-2 rounded-t-xl border select-none',
-                  'cursor-grab active:cursor-grabbing',
+                  isMaster ? 'cursor-grab active:cursor-grabbing' : 'cursor-default',
                   col.header,
                   isColOver ? 'border-primary/40' : '',
                 ].join(' ')}

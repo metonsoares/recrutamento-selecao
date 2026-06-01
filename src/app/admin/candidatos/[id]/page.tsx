@@ -104,6 +104,10 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   const { id } = await params
   const supabase = await createSupabaseServerClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const role = ((user?.user_metadata?.role as string | undefined) === 'recrutador' ? 'recrutador' : 'master') as 'master' | 'recrutador'
+  const isMaster = role === 'master'
+
   const { data: candidate } = await supabase
     .from('candidates').select('*').eq('id', id).single()
   if (!candidate) notFound()
@@ -229,7 +233,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <Badge variant="outline" className="text-xs">{applications.length} candidaturas</Badge>
             )}
           </div>
-          <CandidateActions
+          {isMaster && <CandidateActions
             candidateId={id}
             applicationId={latestApp?.id}
             currentStatus={currentStatus}
@@ -251,7 +255,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             initialBackgroundCheckAt={candidate.background_check_at ?? null}
             candidateCpf={(candidate.cpf as string | null) ?? null}
             hasExistingAnalysis={!!latestApp?.ai_summary}
-          />
+          />}
         </div>
 
         {/* PDF button */}
@@ -310,12 +314,16 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           <CardContent className="space-y-2">
             {latestApp ? (
               <>
-                <EditVagaButton
-                  applicationId={latestApp.id}
-                  currentJobId={latestApp.job_id ?? null}
-                  currentJobTitle={jobTitle}
-                  jobs={allJobs || []}
-                />
+                {isMaster ? (
+                  <EditVagaButton
+                    applicationId={latestApp.id}
+                    currentJobId={latestApp.job_id ?? null}
+                    currentJobTitle={jobTitle}
+                    jobs={allJobs || []}
+                  />
+                ) : (
+                  <Row label="Vaga" value={jobTitle} />
+                )}
                 <Row label="Data" value={formatDate(latestApp.created_at)} />
                 <div className="pt-1 space-y-1.5">
                   <ScoreRow label="Compatib. Cultural" value={latestApp.culture_score} color={scoreColor(latestApp.culture_score)} />
@@ -522,7 +530,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* ── Remover Currículo ── */}
-      <DeleteCandidateSection candidateId={id} candidateName={candidate.full_name} />
+      {isMaster && <DeleteCandidateSection candidateId={id} candidateName={candidate.full_name} />}
 
     </div>
   )

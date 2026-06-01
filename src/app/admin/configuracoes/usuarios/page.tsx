@@ -18,6 +18,7 @@ export default async function UsuariosPage() {
     id: u.id,
     email: u.email ?? '',
     name: (u.user_metadata?.full_name as string | undefined) ?? '',
+    role: ((u.user_metadata?.role as string | undefined) === 'recrutador' ? 'recrutador' : 'master') as 'master' | 'recrutador',
     created_at: u.created_at,
     last_sign_in: u.last_sign_in_at ?? null,
   }))
