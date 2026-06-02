@@ -1,24 +1,34 @@
 'use client'
-import { useState } from 'react'
-import { Loader2, Save, CheckCircle2, AlertCircle, Search } from 'lucide-react'
+import { useState, useRef } from 'react'
+import {
+  Loader2, Save, CheckCircle2, AlertCircle, Search,
+  Upload, X, FileText, ImageIcon, Clock,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
+export interface UploadedFile {
+  url: string
+  name: string
+  path: string
+}
+
+export interface DocState {
+  not_applicable: boolean
+  files: UploadedFile[]
+}
+
 export interface AdmissionFormData {
-  // CPF (editável com validação)
   cpf_value: string
-  // Endereço
   address_street: string
   address_number: string
   address_complement: string
   address_bairro: string
   address_city: string
   address_cep: string
-  // Contato
   phone_landline: string
-  // Documentário
   pis: string
   pis_date: string
   identity_number: string
@@ -27,125 +37,123 @@ export interface AdmissionFormData {
   education: string
   union_dues: boolean | null
   transport_benefit: boolean | null
-  // Empregador
   function_title: string
   salary: string
   admission_date: string
   trial_contract: string
-  // Documentos entregues (web only — não vai para PDF)
-  docs: Record<string, boolean>
-  // Salário família
+  docs: Record<string, DocState>
   children_count: string
   alimony: boolean | null
-  // Vale Transporte
   transport_company: string
   transport_count: string
-  // Observações
   notes: string
 }
 
 export interface CandidateAddress {
-  street: string
-  number: string
-  complement: string
-  neighborhood: string
-  city: string
-  cep: string
+  street: string; number: string; complement: string
+  neighborhood: string; city: string; cep: string
 }
 
 interface Candidate {
-  id: string
-  full_name: string
-  phone: string | null
-  email: string | null
-  cpf: string | null
-  city: string | null
-  neighborhood: string | null
+  id: string; full_name: string; phone: string | null; email: string | null
+  cpf: string | null; city: string | null; neighborhood: string | null
   address: CandidateAddress | null
 }
 
 interface Props {
-  candidate: Candidate
-  jobTitle: string | null
-  companyName: string | null
+  candidate: Candidate; jobTitle: string | null; companyName: string | null
   initialData: AdmissionFormData | null
 }
 
-// ─── Documentos ───────────────────────────────────────────────────────────────
+// ─── Docs definition ──────────────────────────────────────────────────────────
 
-const DOCS = [
-  { key: 'carteira_profissional', label: 'Carteira Profissional (folhas de identificação e qualificação)' },
-  { key: 'carteira_digital', label: 'Carteira de Trabalho Digital' },
-  { key: 'foto_3x4', label: '01 Foto 3 × 4' },
-  { key: 'atestado_admissional', label: 'Atestado Admissional (Médico do Trabalho)' },
-  { key: 'cartao_pis', label: 'Cartão de Inscrição no PIS' },
-  { key: 'cpf', label: 'CPF' },
-  { key: 'identidade', label: 'Carteira de Identidade (RG)' },
-  { key: 'titulo_eleitor', label: 'Título de Eleitor' },
-  { key: 'certificado_reservista', label: 'Certificado de Reservista (masc.)' },
-  { key: 'comprovante_escolaridade', label: 'Comprovante de Escolaridade' },
-  { key: 'certidao_civil', label: 'Certidão de Nascimento / Casamento / outros' },
-  { key: 'comprovante_residencia', label: 'Comprovante de Residência' },
-  { key: 'certidao_nascimento_filhos', label: 'Certidão de Nascimento dos filhos' },
-  { key: 'cpf_dependentes', label: 'CPF dos dependentes' },
-  { key: 'carteira_vacinacao', label: 'Carteira de Vacinação (filhos)' },
-  { key: 'declaracao_escolar', label: 'Declaração Escolar dos filhos' },
-  { key: 'pensao_alimenticia', label: 'Decisão Judicial – Pensão Alimentícia' },
+const ALL_DOCS = [
+  { key: 'carteira_profissional',      label: 'Carteira Profissional (folhas de identificação e qualificação)' },
+  { key: 'carteira_digital',           label: 'Carteira de Trabalho Digital' },
+  { key: 'foto_3x4',                   label: '01 Foto 3 × 4' },
+  { key: 'atestado_admissional',       label: 'Atestado Admissional (Médico do Trabalho)' },
+  { key: 'cartao_pis',                 label: 'Cartão de Inscrição no PIS' },
+  { key: 'cpf',                        label: 'CPF' },
+  { key: 'identidade',                 label: 'Carteira de Identidade (RG)' },
+  { key: 'titulo_eleitor',             label: 'Título de Eleitor' },
+  { key: 'certificado_reservista',     label: 'Certificado de Reservista (masc.)' },
+  { key: 'comprovante_escolaridade',   label: 'Comprovante de Escolaridade' },
+  { key: 'certidao_civil',             label: 'Certidão de Nascimento / Casamento / outros' },
+  { key: 'comprovante_residencia',     label: 'Comprovante de Residência' },
+  { key: 'certidao_nascimento_filhos', label: 'Certidão de Nascimento dos filhos', perChild: true },
+  { key: 'cpf_dependentes',            label: 'CPF dos dependentes', perChild: true },
+  { key: 'carteira_vacinacao',         label: 'Carteira de Vacinação (filhos)', perChild: true },
+  { key: 'declaracao_escolar',         label: 'Declaração Escolar dos filhos', perChild: true },
+  { key: 'pensao_alimenticia',         label: 'Decisão Judicial – Pensão Alimentícia' },
 ]
 
 const MARITAL = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável', 'Separado(a)']
 const EDUCATION = ['Fundamental Incompleto', 'Fundamental Completo', 'Médio Incompleto', 'Médio Completo', 'Superior Incompleto', 'Superior Completo', 'Pós-graduação']
 
-// ─── CPF ──────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function maskCPF(v: string): string {
+function maskCPF(v: string) {
   return v.replace(/\D/g, '').slice(0, 11)
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
-
-function validateCPF(cpf: string): boolean {
+function validateCPF(cpf: string) {
   const d = cpf.replace(/\D/g, '')
   if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false
   const calc = (n: number) => {
-    let sum = 0
-    for (let i = 0; i < n; i++) sum += parseInt(d[i]) * (n + 1 - i)
-    const rem = (sum * 10) % 11
-    return rem >= 10 ? 0 : rem
+    let s = 0; for (let i = 0; i < n; i++) s += +d[i] * (n + 1 - i)
+    const r = (s * 10) % 11; return r >= 10 ? 0 : r
   }
-  return calc(9) === parseInt(d[9]) && calc(10) === parseInt(d[10])
+  return calc(9) === +d[9] && calc(10) === +d[10]
 }
 
-// ─── makeEmpty ────────────────────────────────────────────────────────────────
+function maskPIS(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 8) return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 10) return `${d.slice(0, 3)}.${d.slice(3, 8)}.${d.slice(8)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 8)}.${d.slice(8, 10)}-${d.slice(10)}`
+}
 
-function makeEmpty(candidate: Candidate, jobTitle: string | null): AdmissionFormData {
-  const addr = candidate.address
-  const rawCpf = candidate.cpf?.replace(/\D/g, '') ?? ''
-  const maskedCpf = rawCpf ? maskCPF(rawCpf) : ''
+function emptyDoc(): DocState {
+  return { not_applicable: false, files: [] }
+}
+
+function makeEmpty(c: Candidate, jobTitle: string | null): AdmissionFormData {
+  const addr = c.address
+  const rawCpf = c.cpf?.replace(/\D/g, '') ?? ''
   return {
-    cpf_value: maskedCpf,
-    address_street: addr?.street || '',
-    address_number: addr?.number || '',
-    address_complement: addr?.complement || '',
-    address_bairro: addr?.neighborhood || candidate.neighborhood || '',
-    address_city: addr?.city || candidate.city || '',
-    address_cep: addr?.cep || '',
-    phone_landline: '',
-    pis: '', pis_date: '',
-    identity_number: '', identity_date: '',
-    marital_status: '', education: '',
+    cpf_value: rawCpf ? maskCPF(rawCpf) : '',
+    address_street: addr?.street || '', address_number: addr?.number || '',
+    address_complement: addr?.complement || '', address_bairro: addr?.neighborhood || c.neighborhood || '',
+    address_city: addr?.city || c.city || '', address_cep: addr?.cep || '',
+    phone_landline: '', pis: '', pis_date: '',
+    identity_number: '', identity_date: '', marital_status: '', education: '',
     union_dues: null, transport_benefit: null,
-    function_title: jobTitle || '',
-    salary: '', admission_date: '', trial_contract: '45 + 45 dias',
-    docs: Object.fromEntries(DOCS.map(d => [d.key, false])),
+    function_title: jobTitle || '', salary: '', admission_date: '', trial_contract: '45 + 45 dias',
+    docs: Object.fromEntries(ALL_DOCS.map(d => [d.key, emptyDoc()])),
     children_count: '0', alimony: null,
-    transport_company: '', transport_count: '',
-    notes: '',
+    transport_company: '', transport_count: '', notes: '',
   }
 }
 
-// ─── Field helpers ────────────────────────────────────────────────────────────
+function migrateData(data: AdmissionFormData, c: Candidate, jobTitle: string | null): AdmissionFormData {
+  const base = makeEmpty(c, jobTitle)
+  const docs: Record<string, DocState> = {}
+  for (const d of ALL_DOCS) {
+    const saved = data.docs?.[d.key]
+    if (!saved) { docs[d.key] = emptyDoc(); continue }
+    if (typeof saved === 'boolean') {
+      docs[d.key] = { not_applicable: false, files: [] }
+    } else {
+      docs[d.key] = { not_applicable: saved.not_applicable ?? false, files: saved.files ?? [] }
+    }
+  }
+  return { ...base, ...data, cpf_value: data.cpf_value || base.cpf_value, docs }
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
 
 function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -179,21 +187,173 @@ function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boole
   )
 }
 
+// ─── Doc Row ──────────────────────────────────────────────────────────────────
+
+function DocRow({
+  docDef, state, onChange, candidateId, childrenCount,
+}: {
+  docDef: typeof ALL_DOCS[number]
+  state: DocState
+  onChange: (s: DocState) => void
+  candidateId: string
+  childrenCount: number
+}) {
+  const fileRefs = useRef<(HTMLInputElement | null)[]>([])
+  const [uploading, setUploading] = useState<number | null>(null)
+  const [uploadError, setUploadError] = useState('')
+
+  const slots = docDef.perChild ? Math.max(1, childrenCount) : 1
+  const isNA = state.not_applicable
+  const files = state.files ?? []
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>, slotIdx: number) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadError('')
+
+    if (file.size > 4 * 1024 * 1024) {
+      setUploadError('Arquivo excede 4 MB')
+      return
+    }
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png']
+    if (!allowed.includes(file.type)) {
+      setUploadError('Use PDF, JPG ou PNG')
+      return
+    }
+
+    setUploading(slotIdx)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('docKey', docDef.key)
+
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
+        method: 'POST', body: fd,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      // replaces slot if already exists, else appends
+      const newFiles = [...files]
+      newFiles[slotIdx] = { url: data.url, name: file.name, path: data.path }
+      onChange({ ...state, files: newFiles })
+    } catch (err) {
+      setUploadError((err as Error).message || 'Erro no upload')
+    } finally {
+      setUploading(null)
+      if (e.target) e.target.value = ''
+    }
+  }
+
+  async function handleRemove(slotIdx: number) {
+    const f = files[slotIdx]
+    if (f?.path) {
+      await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: f.path }),
+      }).catch(() => {})
+    }
+    const newFiles = [...files]
+    newFiles.splice(slotIdx, 1)
+    onChange({ ...state, files: newFiles })
+  }
+
+  // Overall status
+  let overallStatus: 'na' | 'done' | 'pending'
+  if (isNA) overallStatus = 'na'
+  else if (files.filter(Boolean).length >= slots) overallStatus = 'done'
+  else overallStatus = 'pending'
+
+  return (
+    <div className={`rounded-xl border p-3 transition-all ${isNA ? 'bg-gray-50 border-gray-200' : overallStatus === 'done' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50/50 border-amber-200'}`}>
+      {/* Header row */}
+      <div className="flex items-start gap-2 flex-wrap">
+        {/* Status badge */}
+        <span className={`shrink-0 mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+          isNA        ? 'bg-gray-200 text-gray-500' :
+          overallStatus === 'done' ? 'bg-emerald-100 text-emerald-700' :
+                       'bg-amber-100 text-amber-700'
+        }`}>
+          {isNA ? 'N/A' : overallStatus === 'done' ? <><CheckCircle2 className="w-2.5 h-2.5" />Entregue</> : <><Clock className="w-2.5 h-2.5" />Pendente</>}
+        </span>
+
+        {/* Label */}
+        <span className={`flex-1 text-sm font-medium leading-snug ${isNA ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+          {docDef.label}
+          {docDef.perChild && childrenCount > 1 && <span className="ml-1 text-[10px] text-muted-foreground font-normal">({childrenCount} filhos)</span>}
+        </span>
+
+        {/* N/A checkbox */}
+        <label className="flex items-center gap-1 text-[11px] text-gray-500 cursor-pointer shrink-0">
+          <input type="checkbox" checked={isNA} onChange={e => onChange({ ...state, not_applicable: e.target.checked })} className="accent-gray-400" />
+          Não aplicável
+        </label>
+      </div>
+
+      {/* Upload slots */}
+      {!isNA && (
+        <div className="mt-2 space-y-1.5">
+          {Array.from({ length: slots }, (_, i) => {
+            const uploaded = files[i]
+            return (
+              <div key={i} className="flex items-center gap-2">
+                {docDef.perChild && childrenCount > 1 && (
+                  <span className="text-[10px] text-muted-foreground shrink-0 w-12">Filho {i + 1}</span>
+                )}
+                {uploaded ? (
+                  <div className="flex items-center gap-1.5 flex-1 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
+                    {uploaded.name.endsWith('.pdf')
+                      ? <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      : <ImageIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    }
+                    <a href={uploaded.url} target="_blank" rel="noreferrer"
+                      className="text-[11px] text-emerald-700 hover:underline truncate max-w-[200px]">
+                      {uploaded.name}
+                    </a>
+                    <button onClick={() => handleRemove(i)} className="ml-auto text-gray-400 hover:text-red-500 transition-colors shrink-0">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    disabled={uploading === i}
+                    onClick={() => fileRefs.current[i]?.click()}
+                    className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                  >
+                    {uploading === i
+                      ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</>
+                      : <><Upload className="w-3 h-3" />Anexar arquivo</>
+                    }
+                  </button>
+                )}
+                <input
+                  ref={el => { fileRefs.current[i] = el }}
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  className="hidden"
+                  onChange={e => handleFileSelect(e, i)}
+                />
+              </div>
+            )
+          })}
+          {uploadError && (
+            <p className="text-[11px] text-red-600 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />{uploadError}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData }: Props) {
-  const [form, setForm] = useState<AdmissionFormData>(() => {
-    if (initialData) {
-      // garante cpf_value preenchido se não estava no dado salvo
-      return {
-        ...makeEmpty(candidate, jobTitle),
-        ...initialData,
-        cpf_value: initialData.cpf_value || makeEmpty(candidate, jobTitle).cpf_value,
-      }
-    }
-    return makeEmpty(candidate, jobTitle)
-  })
-
+  const [form, setForm] = useState<AdmissionFormData>(() =>
+    initialData ? migrateData(initialData, candidate, jobTitle) : makeEmpty(candidate, jobTitle)
+  )
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [cpfError, setCpfError] = useState('')
@@ -203,28 +363,21 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
     setForm(prev => ({ ...prev, [key]: val }))
   }
 
-  function setDoc(key: string, val: boolean) {
+  function setDoc(key: string, val: DocState) {
     setForm(prev => ({ ...prev, docs: { ...prev.docs, [key]: val } }))
   }
 
-  // ── CPF ──────────────────────────────────────────────────────────────────
   function handleCpfChange(raw: string) {
     const masked = maskCPF(raw)
     set('cpf_value', masked)
     const digits = masked.replace(/\D/g, '')
-    if (digits.length === 11) {
-      setCpfError(validateCPF(masked) ? '' : 'CPF inválido')
-    } else {
-      setCpfError('')
-    }
+    if (digits.length === 11) setCpfError(validateCPF(masked) ? '' : 'CPF inválido')
+    else setCpfError('')
   }
 
-  // ── CEP lookup (ViaCEP) ───────────────────────────────────────────────────
   async function handleCepChange(raw: string) {
-    const masked = raw.replace(/\D/g, '').slice(0, 8)
-      .replace(/(\d{5})(\d)/, '$1-$2')
+    const masked = raw.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2')
     set('address_cep', masked)
-
     const digits = masked.replace(/\D/g, '')
     if (digits.length === 8) {
       setCepLoading(true)
@@ -240,28 +393,19 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
             address_city: data.localidade || prev.address_city,
           }))
         }
-      } catch { /* ignora erro de rede */ }
+      } catch { /* ignora */ }
       finally { setCepLoading(false) }
     }
   }
 
-  // ── Salvar ────────────────────────────────────────────────────────────────
   async function handleSave() {
     const digits = form.cpf_value.replace(/\D/g, '')
-    if (digits.length > 0 && digits.length < 11) {
-      setCpfError('CPF incompleto')
-      return
-    }
-    if (digits.length === 11 && !validateCPF(form.cpf_value)) {
-      setCpfError('CPF inválido')
-      return
-    }
+    if (digits.length > 0 && digits.length < 11) { setCpfError('CPF incompleto'); return }
+    if (digits.length === 11 && !validateCPF(form.cpf_value)) { setCpfError('CPF inválido'); return }
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidate.id}/admission-form`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -274,9 +418,18 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
     }
   }
 
+  const childrenCount = parseInt(form.children_count) || 0
+  const totalDocs = ALL_DOCS.length
+  const doneCount = ALL_DOCS.filter(d => {
+    const s = form.docs[d.key]
+    if (!s) return false
+    if (s.not_applicable) return true
+    const needed = d.perChild ? Math.max(1, childrenCount) : 1
+    return (s.files?.filter(Boolean).length ?? 0) >= needed
+  }).length
+
   return (
     <>
-      {/* Toast */}
       {toast && (
         <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
           {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -285,72 +438,40 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
       )}
 
       <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
-
         <h2 className="text-xl font-bold text-center text-gray-900 mb-6">Ficha Cadastral</h2>
 
-        {/* ─── DADOS DO FUNCIONÁRIO ─────────────────────────────────────── */}
+        {/* ── Dados do Funcionário ────────────────────────────────────── */}
         <SectionTitle>Dados do Funcionário</SectionTitle>
-
         <div className="grid grid-cols-1 gap-3">
-          {/* Nome — leitura */}
           <Field label="Nome Completo">
-            <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium text-gray-900">
-              {candidate.full_name}
-            </div>
+            <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium">{candidate.full_name}</div>
           </Field>
-
-          {/* CPF — editável com validação */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="CPF">
-              <div className="space-y-1">
-                <Input
-                  value={form.cpf_value}
-                  onChange={e => handleCpfChange(e.target.value)}
-                  placeholder="000.000.000-00"
-                  className={cpfError ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                />
-                {cpfError && (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />{cpfError}
-                  </p>
-                )}
-              </div>
+              <Input value={form.cpf_value} onChange={e => handleCpfChange(e.target.value)} placeholder="000.000.000-00"
+                className={cpfError ? 'border-red-400' : ''} />
+              {cpfError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{cpfError}</p>}
             </Field>
             <Field label="E-mail">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700 truncate">
-                {candidate.email || '—'}
-              </div>
+              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm truncate">{candidate.email || '—'}</div>
             </Field>
           </div>
-
-          {/* Telefones */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Telefone Celular">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
-                {candidate.phone || '—'}
-              </div>
+              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm">{candidate.phone || '—'}</div>
             </Field>
             <Field label="Telefone Fixo">
               <Input value={form.phone_landline} onChange={e => set('phone_landline', e.target.value)} placeholder="(  )      -    " />
             </Field>
           </div>
-
-          {/* CEP + busca automática */}
+          {/* CEP */}
           <div className="grid grid-cols-3 gap-3">
             <Field label={cepLoading ? 'CEP — buscando...' : 'CEP'}>
               <div className="relative">
-                <Input
-                  value={form.address_cep}
-                  onChange={e => handleCepChange(e.target.value)}
-                  placeholder="00000-000"
-                  maxLength={9}
-                />
-                {cepLoading && (
-                  <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-primary" />
-                )}
-                {!cepLoading && (
-                  <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
-                )}
+                <Input value={form.address_cep} onChange={e => handleCepChange(e.target.value)} placeholder="00000-000" maxLength={9} />
+                {cepLoading
+                  ? <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-primary" />
+                  : <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />}
               </div>
             </Field>
             <Field label="Bairro">
@@ -360,8 +481,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <Input value={form.address_city} onChange={e => set('address_city', e.target.value)} placeholder="Cidade" />
             </Field>
           </div>
-
-          {/* Endereço */}
           <div className="grid grid-cols-3 gap-3">
             <Field label="Endereço (logradouro)" className="col-span-2">
               <Input value={form.address_street} onChange={e => set('address_street', e.target.value)} placeholder="Rua, Av., Travessa..." />
@@ -374,10 +493,10 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
             <Input value={form.address_complement} onChange={e => set('address_complement', e.target.value)} placeholder="Apto, Bloco, Casa..." />
           </Field>
 
-          {/* PIS / RG */}
+          {/* PIS */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Nº PIS">
-              <Input value={form.pis} onChange={e => set('pis', e.target.value)} placeholder="000.00000.00-0" />
+              <Input value={form.pis} onChange={e => set('pis', maskPIS(e.target.value))} placeholder="000.00000.00-0" />
             </Field>
             <Field label="Data de Cadastro do PIS">
               <Input type="date" value={form.pis_date} onChange={e => set('pis_date', e.target.value)} />
@@ -391,7 +510,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <Input type="date" value={form.identity_date} onChange={e => set('identity_date', e.target.value)} />
             </Field>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <Field label="Estado Civil">
               <select value={form.marital_status} onChange={e => set('marital_status', e.target.value)}
@@ -408,18 +526,13 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               </select>
             </Field>
           </div>
-
           <div className="grid grid-cols-2 gap-6">
-            <Field label="Mensalidade Sindical?">
-              <YesNo value={form.union_dues} onChange={v => set('union_dues', v)} />
-            </Field>
-            <Field label="Vale Transporte?">
-              <YesNo value={form.transport_benefit} onChange={v => set('transport_benefit', v)} />
-            </Field>
+            <Field label="Mensalidade Sindical?"><YesNo value={form.union_dues} onChange={v => set('union_dues', v)} /></Field>
+            <Field label="Vale Transporte?"><YesNo value={form.transport_benefit} onChange={v => set('transport_benefit', v)} /></Field>
           </div>
         </div>
 
-        {/* ─── DADOS DO EMPREGADOR ──────────────────────────────────────── */}
+        {/* ── Dados do Empregador ─────────────────────────────────────── */}
         <SectionTitle>Dados do Empregador</SectionTitle>
         <div className="grid grid-cols-1 gap-3">
           <Field label="Função / Cargo">
@@ -438,22 +551,28 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           </Field>
         </div>
 
-        {/* ─── DOCUMENTOS (somente web — não vai para PDF) ──────────────── */}
+        {/* ── Documentos ─────────────────────────────────────────────── */}
         <SectionTitle>Documentos Entregues</SectionTitle>
-        <p className="text-[11px] text-muted-foreground mb-2">Esta lista não é incluída no PDF exportado.</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] text-muted-foreground">Esta lista não é incluída no PDF exportado.</p>
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doneCount === totalDocs ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+            {doneCount}/{totalDocs} concluídos
+          </span>
+        </div>
         <div className="space-y-2">
-          {DOCS.map(doc => (
-            <label key={doc.key} className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" checked={!!form.docs[doc.key]} onChange={e => setDoc(doc.key, e.target.checked)}
-                className="w-4 h-4 rounded accent-primary shrink-0" />
-              <span className={`text-sm transition-colors ${form.docs[doc.key] ? 'text-gray-900 line-through decoration-emerald-500' : 'text-gray-600'}`}>
-                {doc.label}
-              </span>
-            </label>
+          {ALL_DOCS.map(doc => (
+            <DocRow
+              key={doc.key}
+              docDef={doc}
+              state={form.docs[doc.key] || emptyDoc()}
+              onChange={s => setDoc(doc.key, s)}
+              candidateId={candidate.id}
+              childrenCount={childrenCount}
+            />
           ))}
         </div>
 
-        {/* ─── SALÁRIO FAMÍLIA ──────────────────────────────────────────── */}
+        {/* ── Salário Família ─────────────────────────────────────────── */}
         <SectionTitle>Salário Família / Dependentes</SectionTitle>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Filhos menores de 14 anos">
@@ -464,7 +583,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           </Field>
         </div>
 
-        {/* ─── VALE TRANSPORTE ─────────────────────────────────────────── */}
+        {/* ── Vale Transporte ──────────────────────────────────────────── */}
         <SectionTitle>Vale Transporte</SectionTitle>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Empresa de Transporte">
@@ -475,33 +594,23 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           </Field>
         </div>
 
-        {/* ─── OBSERVAÇÕES ─────────────────────────────────────────────── */}
+        {/* ── Observações ──────────────────────────────────────────────── */}
         <SectionTitle>Observações</SectionTitle>
-        <textarea
-          value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
-          placeholder="Informações adicionais sobre o funcionário ou admissão..."
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-        />
+        <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
+          placeholder="Informações adicionais..."
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
 
-        {/* ─── Assinaturas ─────────────────────────────────────────────── */}
+        {/* ── Assinaturas ─────────────────────────────────────────────── */}
         <div className="mt-8 pt-4 border-t grid grid-cols-2 gap-8">
-          <div className="text-center space-y-1">
-            <div className="h-10 border-b border-gray-400" />
-            <p className="text-[11px] text-gray-500">Assinatura do Funcionário</p>
-          </div>
-          <div className="text-center space-y-1">
-            <div className="h-10 border-b border-gray-400" />
-            <p className="text-[11px] text-gray-500">Assinatura do Responsável</p>
-          </div>
+          <div className="text-center"><div className="h-10 border-b border-gray-400 mb-1" /><p className="text-[11px] text-gray-500">Assinatura do Funcionário</p></div>
+          <div className="text-center"><div className="h-10 border-b border-gray-400 mb-1" /><p className="text-[11px] text-gray-500">Assinatura do Responsável</p></div>
         </div>
       </div>
 
-      {/* ─── Botão Salvar — ao final da página ───────────────────────────── */}
+      {/* Salvar — final da página */}
       <div className="mt-4 max-w-3xl">
         <Button onClick={handleSave} disabled={saving || !!cpfError} className="gap-1.5 w-full sm:w-auto">
-          {saving
-            ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</>
-            : <><Save className="w-4 h-4" />Salvar ficha</>}
+          {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
         </Button>
       </div>
     </>
