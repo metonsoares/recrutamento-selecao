@@ -396,14 +396,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
         </p>
       </div>
 
-      {/* Print styles */}
-      <style jsx global>{`
-        @media print {
-          body * { visibility: hidden; }
-          .ficha-print, .ficha-print * { visibility: visible; }
-          .ficha-print { position: absolute; left: 0; top: 0; width: 100%; }
-        }
-      `}</style>
     </>
   )
 }
