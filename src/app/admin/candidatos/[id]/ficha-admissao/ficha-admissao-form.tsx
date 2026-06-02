@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Loader2, Save, Printer, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, Save, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -165,10 +165,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
     }
   }
 
-  function handlePrint() {
-    window.print()
-  }
-
   const today = new Date().toLocaleDateString('pt-BR')
 
   return (
@@ -185,10 +181,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
       <div className="flex gap-2 mb-5 print:hidden">
         <Button onClick={handleSave} disabled={saving} className="gap-1.5">
           {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
-        </Button>
-        <Button variant="outline" onClick={handlePrint} className="gap-1.5">
-          <Printer className="w-4 h-4" />
-          Exportar / Imprimir
         </Button>
       </div>
 
