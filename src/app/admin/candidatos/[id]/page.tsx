@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
 import { DeleteCandidateSection } from './delete-candidate-section'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
+import { FichaAdmissaoForm, AdmissionFormData } from './ficha-admissao/ficha-admissao-form'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -101,8 +102,17 @@ function ScoreRow({ label, value, color }: { label: string; value: number | null
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function CandidatePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CandidatePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string>>
+}) {
   const { id } = await params
+  const sp = await searchParams
+  const activeTab: 'curriculo' | 'ficha' = sp.tab === 'ficha' ? 'ficha' : 'curriculo'
+
   const supabase = await createSupabaseServerClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -135,6 +145,11 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
 
   const { data: allJobs } = await supabase
     .from('jobs').select('id, title').eq('is_active', true).order('title')
+
+  // Dados extras para a aba Ficha Admissão
+  const service = await createSupabaseServiceClient()
+  const { data: brand } = await service.from('ai_settings').select('company_name').limit(1).single()
+  const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
 
@@ -234,7 +249,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <Badge variant="outline" className="text-xs">{applications.length} candidaturas</Badge>
             )}
           </div>
-          {isMaster && <CandidateActions
+          {isMaster && activeTab === 'curriculo' && <CandidateActions
             candidateId={id}
             applicationId={latestApp?.id}
             currentStatus={currentStatus}
@@ -259,14 +274,40 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           />}
         </div>
 
+        {/* PDF button — canto superior direito */}
+        <Link
+          href={`/admin/candidatos/${id}/print`}
+          target="_blank"
+          className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+        >
+          <FileDown className="w-4 h-4" />
+          Exportar PDF
+        </Link>
       </div>
 
-      {/* ── Tab navigation ── */}
-      <CandidateTabNav
-        candidateId={id}
-        printUrl={`/admin/candidatos/${id}/print`}
-        hasCpf={!!candidate.cpf}
-      />
+      {/* ── Tabs: Currículo | Ficha Admissão ── */}
+      <CandidateTabNav candidateId={id} />
+
+      {/* ── Aba: Ficha Admissão ── */}
+      {activeTab === 'ficha' && (
+        <FichaAdmissaoForm
+          candidate={{
+            id: candidate.id,
+            full_name: candidate.full_name,
+            phone: (candidate.phone as string | null) ?? null,
+            email: (candidate.email as string | null) ?? null,
+            cpf: (candidate.cpf as string | null) ?? null,
+            city: (candidate.city as string | null) ?? null,
+            neighborhood: (candidate.neighborhood as string | null) ?? null,
+          }}
+          jobTitle={jobTitle}
+          companyName={brand?.company_name ?? null}
+          initialData={admissionForm}
+        />
+      )}
+
+      {/* ── Aba: Currículo ── */}
+      {activeTab === 'curriculo' && <>
 
       {/* ── Cards de resumo ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -530,6 +571,8 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
 
       {/* ── Remover Currículo ── */}
       {isMaster && <DeleteCandidateSection candidateId={id} candidateName={candidate.full_name} />}
+
+      </> /* fim aba Currículo */}
 
     </div>
   )

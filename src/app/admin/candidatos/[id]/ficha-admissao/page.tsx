@@ -56,11 +56,7 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Tabs */}
-      <CandidateTabNav
-        candidateId={id}
-        printUrl={`/admin/candidatos/${id}/print`}
-        hasCpf={!!candidate.cpf}
-      />
+      <CandidateTabNav candidateId={id} />
 
       {/* Form */}
       <FichaAdmissaoForm
