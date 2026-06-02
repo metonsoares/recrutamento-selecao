@@ -12,6 +12,7 @@ import { DeleteCandidateSection } from './delete-candidate-section'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
+import { DocumentosTab } from './documentos-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,7 +112,8 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' = sp.tab === 'ficha' ? 'ficha' : 'curriculo'
+  const activeTab: 'curriculo' | 'ficha' | 'documentos' =
+    sp.tab === 'ficha' ? 'ficha' : sp.tab === 'documentos' ? 'documentos' : 'curriculo'
 
   const supabase = await createSupabaseServerClient()
 
@@ -154,6 +156,7 @@ export default async function CandidatePage({
   ])
   const fichaCompanies = (companiesData || []) as CompanyOption[]
   const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
+  const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
 
@@ -299,17 +302,19 @@ export default async function CandidatePage({
           />}
         </div>
 
-        {/* PDF button — canto superior direito */}
-        <Link
-          href={activeTab === 'ficha'
-            ? `/admin/candidatos/${id}/print-ficha`
-            : `/admin/candidatos/${id}/print`}
-          target="_blank"
-          className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
-        >
-          <FileDown className="w-4 h-4" />
-          Exportar PDF
-        </Link>
+        {/* PDF button — canto superior direito (não exibe na aba Documentos) */}
+        {activeTab !== 'documentos' && (
+          <Link
+            href={activeTab === 'ficha'
+              ? `/admin/candidatos/${id}/print-ficha`
+              : `/admin/candidatos/${id}/print`}
+            target="_blank"
+            className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            Exportar PDF
+          </Link>
+        )}
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
@@ -333,6 +338,11 @@ export default async function CandidatePage({
           initialData={admissionForm}
           companies={fichaCompanies}
         />
+      )}
+
+      {/* ── Aba: Documentos ── */}
+      {activeTab === 'documentos' && (
+        <DocumentosTab candidateId={id} initialDocs={companyDocs} />
       )}
 
       {/* ── Aba: Currículo ── */}
