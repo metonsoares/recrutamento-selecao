@@ -1,8 +1,14 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { CadastroEmpresaForm } from './cadastro-empresa-form'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { CompaniesManager } from './companies-manager'
+
+export const dynamic = 'force-dynamic'
 
 export default async function CadastroEmpresaPage() {
-  const supabase = await createSupabaseServerClient()
-  const { data: settings } = await supabase.from('ai_settings').select('*').limit(1).single()
-  return <CadastroEmpresaForm settings={settings} />
+  const supabase = await createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('companies')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  return <CompaniesManager companies={data || []} />
 }
