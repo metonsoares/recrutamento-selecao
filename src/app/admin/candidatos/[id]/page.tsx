@@ -11,7 +11,7 @@ import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
 import { DeleteCandidateSection } from './delete-candidate-section'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
-import { FichaAdmissaoForm, AdmissionFormData } from './ficha-admissao/ficha-admissao-form'
+import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress } from './ficha-admissao/ficha-admissao-form'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -185,6 +185,27 @@ export default async function CandidatePage({
   // ── Extract key fields from form_answers ─────────────────────────────────
   const allFa = formAnswers || []
 
+  // Endereço a partir de form_answers (field_type = 'address')
+  let parsedAddress: CandidateAddress | null = null
+  const addrAnswer = allFa.find(
+    a => (a.form_questions as { field_type?: string } | null)?.field_type === 'address'
+  )?.answer_text
+  if (addrAnswer) {
+    try {
+      const raw = JSON.parse(addrAnswer as string)
+      if (typeof raw === 'object' && raw !== null) {
+        parsedAddress = {
+          street: raw.street || raw.logradouro || '',
+          number: raw.number || raw.numero || '',
+          complement: raw.complement || raw.complemento || '',
+          neighborhood: raw.neighborhood || raw.bairro || '',
+          city: raw.city || raw.cidade || '',
+          cep: raw.cep || raw.zipCode || '',
+        }
+      }
+    } catch { /* ignora */ }
+  }
+
   const photoUrl = parseAnswer(
     allFa.find(a => (a.form_questions as { field_type?: string } | null)?.field_type === 'file_upload')?.answer_text ?? null
   )
@@ -301,6 +322,7 @@ export default async function CandidatePage({
             cpf: (candidate.cpf as string | null) ?? null,
             city: (candidate.city as string | null) ?? null,
             neighborhood: (candidate.neighborhood as string | null) ?? null,
+            address: parsedAddress,
           }}
           jobTitle={jobTitle}
           companyName={brand?.company_name ?? null}

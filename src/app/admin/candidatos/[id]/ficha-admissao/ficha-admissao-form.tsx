@@ -7,12 +7,18 @@ import { Input } from '@/components/ui/input'
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface AdmissionFormData {
-  // Funcionário
+  // Funcionário — campos editáveis
+  address_street: string
+  address_number: string
+  address_complement: string
+  address_bairro: string
+  address_city: string
+  address_cep: string
+  phone_landline: string
   pis: string
   pis_date: string
   identity_number: string
   identity_date: string
-  phone_landline: string
   marital_status: string
   education: string
   union_dues: boolean | null
@@ -34,6 +40,15 @@ export interface AdmissionFormData {
   notes: string
 }
 
+export interface CandidateAddress {
+  street: string
+  number: string
+  complement: string
+  neighborhood: string
+  city: string
+  cep: string
+}
+
 interface Candidate {
   id: string
   full_name: string
@@ -42,6 +57,7 @@ interface Candidate {
   cpf: string | null
   city: string | null
   neighborhood: string | null
+  address: CandidateAddress | null
 }
 
 interface Props {
@@ -50,6 +66,8 @@ interface Props {
   companyName: string | null
   initialData: AdmissionFormData | null
 }
+
+// ─── Documentos ───────────────────────────────────────────────────────────────
 
 const DOCS = [
   { key: 'carteira_profissional', label: 'Carteira Profissional (folhas de identificação e qualificação)' },
@@ -75,10 +93,17 @@ const MARITAL = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'Uni�
 const EDUCATION = ['Fundamental Incompleto', 'Fundamental Completo', 'Médio Incompleto', 'Médio Completo', 'Superior Incompleto', 'Superior Completo', 'Pós-graduação']
 
 function makeEmpty(candidate: Candidate, jobTitle: string | null): AdmissionFormData {
+  const addr = candidate.address
   return {
+    address_street: addr?.street || '',
+    address_number: addr?.number || '',
+    address_complement: addr?.complement || '',
+    address_bairro: addr?.neighborhood || candidate.neighborhood || '',
+    address_city: addr?.city || candidate.city || '',
+    address_cep: addr?.cep || '',
+    phone_landline: '',
     pis: '', pis_date: '',
     identity_number: '', identity_date: '',
-    phone_landline: '',
     marital_status: '', education: '',
     union_dues: null, transport_benefit: null,
     function_title: jobTitle || '',
@@ -131,7 +156,7 @@ function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boole
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialData }: Props) {
+export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData }: Props) {
   const [form, setForm] = useState<AdmissionFormData>(
     initialData ?? makeEmpty(candidate, jobTitle)
   )
@@ -165,77 +190,34 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
     }
   }
 
-  const today = new Date().toLocaleDateString('pt-BR')
-
   return (
     <>
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium print:hidden ${toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+        <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
           {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           {toast.msg}
         </div>
       )}
 
-      {/* Action buttons (screen only) */}
-      <div className="flex gap-2 mb-5 print:hidden">
-        <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-          {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
-        </Button>
-      </div>
+      {/* ── Documento ── */}
+      <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
 
-      {/* ── Documento imprimível ── */}
-      <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 print:shadow-none print:border-none print:p-0 print:rounded-none max-w-3xl">
+        {/* Título */}
+        <h2 className="text-xl font-bold text-center text-gray-900 mb-6">Ficha Cadastral</h2>
 
-        {/* Cabeçalho da ficha */}
-        <div className="text-center mb-4 space-y-1">
-          <p className="text-[11px] uppercase tracking-widest text-gray-400 font-semibold print:text-black">
-            {companyName || 'Brownie do Ton'}
-          </p>
-          <h1 className="text-lg font-bold tracking-wide text-gray-900">FICHA CADASTRAL PARA ADMISSÃO DE FUNCIONÁRIOS</h1>
-          <p className="text-[12px] text-gray-500 print:text-black">
-            Data do Preenchimento: {today}
-          </p>
-        </div>
-
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-[11px] text-amber-800 text-center mb-4 print:hidden">
-          ⚠️ Contratar empresa de Saúde do Trabalhador c/ Registro Ministério do Trabalho para execução dos ASOs, exames periódicos, PPRA, PCMSO, LTCR etc. e envio ao eSocial.
-        </div>
-
-        {/* ─── DADOS DO CANDIDATO (pré-preenchidos, somente leitura) ─────── */}
+        {/* ─── DADOS DO CANDIDATO ─────────────────────────────────────────── */}
         <SectionTitle>Dados do Funcionário</SectionTitle>
 
         <div className="grid grid-cols-1 gap-3">
+          {/* Nome — leitura */}
           <Field label="Nome Completo">
             <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium text-gray-900">
               {candidate.full_name}
             </div>
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Telefone Celular">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
-                {candidate.phone || '—'}
-              </div>
-            </Field>
-            <Field label="Telefone Fixo">
-              <Input value={form.phone_landline} onChange={e => set('phone_landline', e.target.value)} placeholder="(  )      -    " />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Cidade" className="col-span-2">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
-                {candidate.city || '—'}
-              </div>
-            </Field>
-            <Field label="Bairro">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
-                {candidate.neighborhood || '—'}
-              </div>
-            </Field>
-          </div>
-
+          {/* CPF — leitura */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="CPF">
               <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
@@ -249,6 +231,45 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
             </Field>
           </div>
 
+          {/* Telefones */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Telefone Celular">
+              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
+                {candidate.phone || '—'}
+              </div>
+            </Field>
+            <Field label="Telefone Fixo">
+              <Input value={form.phone_landline} onChange={e => set('phone_landline', e.target.value)} placeholder="(  )      -    " />
+            </Field>
+          </div>
+
+          {/* Endereço */}
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Endereço (logradouro)" className="col-span-2">
+              <Input value={form.address_street} onChange={e => set('address_street', e.target.value)} placeholder="Rua, Av., Travessa..." />
+            </Field>
+            <Field label="Número">
+              <Input value={form.address_number} onChange={e => set('address_number', e.target.value)} placeholder="Nº" />
+            </Field>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="CEP">
+              <Input value={form.address_cep} onChange={e => set('address_cep', e.target.value)} placeholder="00000-000" />
+            </Field>
+            <Field label="Bairro">
+              <Input value={form.address_bairro} onChange={e => set('address_bairro', e.target.value)} placeholder="Bairro" />
+            </Field>
+            <Field label="Cidade">
+              <Input value={form.address_city} onChange={e => set('address_city', e.target.value)} placeholder="Cidade" />
+            </Field>
+          </div>
+          {form.address_complement !== undefined && (
+            <Field label="Complemento">
+              <Input value={form.address_complement} onChange={e => set('address_complement', e.target.value)} placeholder="Apto, Bloco, Casa..." />
+            </Field>
+          )}
+
+          {/* PIS / RG */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Nº PIS">
               <Input value={form.pis} onChange={e => set('pis', e.target.value)} placeholder="000.00000.00-0" />
@@ -257,33 +278,27 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
               <Input type="date" value={form.pis_date} onChange={e => set('pis_date', e.target.value)} />
             </Field>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <Field label="Nº da Identidade (RG)">
               <Input value={form.identity_number} onChange={e => set('identity_number', e.target.value)} placeholder="00.000.000-0" />
             </Field>
-            <Field label="Data de Emissão">
+            <Field label="Data de Emissão (RG)">
               <Input type="date" value={form.identity_date} onChange={e => set('identity_date', e.target.value)} />
             </Field>
           </div>
 
+          {/* Estado Civil / Escolaridade */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Estado Civil">
-              <select
-                value={form.marital_status}
-                onChange={e => set('marital_status', e.target.value)}
-                className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
-              >
+              <select value={form.marital_status} onChange={e => set('marital_status', e.target.value)}
+                className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
                 <option value="">Selecionar...</option>
                 {MARITAL.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </Field>
             <Field label="Grau de Escolaridade">
-              <select
-                value={form.education}
-                onChange={e => set('education', e.target.value)}
-                className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
-              >
+              <select value={form.education} onChange={e => set('education', e.target.value)}
+                className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
                 <option value="">Selecionar...</option>
                 {EDUCATION.map(e => <option key={e} value={e}>{e}</option>)}
               </select>
@@ -325,7 +340,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
 
         <div className="space-y-2">
           {DOCS.map(doc => (
-            <label key={doc.key} className="flex items-center gap-3 cursor-pointer group">
+            <label key={doc.key} className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={!!form.docs[doc.key]}
@@ -344,12 +359,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Filhos menores de 14 anos">
-            <Input
-              type="number"
-              min={0}
-              value={form.children_count}
-              onChange={e => set('children_count', e.target.value)}
-            />
+            <Input type="number" min={0} value={form.children_count} onChange={e => set('children_count', e.target.value)} />
           </Field>
           <Field label="Pensão Alimentícia (decisão judicial)?">
             <YesNo value={form.alimony} onChange={v => set('alimony', v)} />
@@ -389,13 +399,16 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName, initialDat
             <p className="text-[11px] text-gray-500">Assinatura do Responsável</p>
           </div>
         </div>
-
-        {/* Rodapé */}
-        <p className="text-[10px] text-gray-400 text-center mt-4 print:block hidden">
-          Tel. Médico do Trabalho: (24) 2242-0310 – Paulo Bittencourt | Dr. Moreirão: (24) 2243-8608
-        </p>
       </div>
 
+      {/* ─── Botão Salvar — ao final da página ───────────────────────────── */}
+      <div className="mt-4 max-w-3xl">
+        <Button onClick={handleSave} disabled={saving} className="gap-1.5 w-full sm:w-auto">
+          {saving
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</>
+            : <><Save className="w-4 h-4" />Salvar ficha</>}
+        </Button>
+      </div>
     </>
   )
 }
