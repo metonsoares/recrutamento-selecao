@@ -555,7 +555,29 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
             </Field>
           </div>
           <Field label="Contrato de Experiência">
-            <Input value={form.trial_contract} onChange={e => set('trial_contract', e.target.value)} placeholder="Ex: 45 + 45 dias" />
+            <select
+              value={form.trial_contract}
+              onChange={e => set('trial_contract', e.target.value)}
+              className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
+            >
+              <option value="">Selecionar...</option>
+              <option value="15 + 15 dias">15 + 15 dias</option>
+              <option value="30 + 30 dias">30 + 30 dias</option>
+              <option value="45 + 45 dias">45 + 45 dias</option>
+              <option value="30 + 60 dias">30 + 60 dias</option>
+              <option value="Sem experiência">Sem experiência</option>
+            </select>
+          </Field>
+        </div>
+
+        {/* ── Salário Família ─────────────────────────────────────────── */}
+        <SectionTitle>Salário Família / Dependentes</SectionTitle>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Filhos menores de 14 anos">
+            <Input type="number" min={0} value={form.children_count} onChange={e => set('children_count', e.target.value)} />
+          </Field>
+          <Field label="Pensão Alimentícia (decisão judicial)?">
+            <YesNo value={form.alimony} onChange={v => set('alimony', v)} />
           </Field>
         </div>
 
@@ -578,17 +600,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               childrenCount={childrenCount}
             />
           ))}
-        </div>
-
-        {/* ── Salário Família ─────────────────────────────────────────── */}
-        <SectionTitle>Salário Família / Dependentes</SectionTitle>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Filhos menores de 14 anos">
-            <Input type="number" min={0} value={form.children_count} onChange={e => set('children_count', e.target.value)} />
-          </Field>
-          <Field label="Pensão Alimentícia (decisão judicial)?">
-            <YesNo value={form.alimony} onChange={v => set('alimony', v)} />
-          </Field>
         </div>
 
         {/* ── Vale Transporte ──────────────────────────────────────────── */}
