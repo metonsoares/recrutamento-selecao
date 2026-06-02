@@ -1,20 +1,24 @@
 'use client'
 import { useState } from 'react'
-import { Loader2, Save, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, Save, CheckCircle2, AlertCircle, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface AdmissionFormData {
-  // Funcionário — campos editáveis
+  // CPF (editável com validação)
+  cpf_value: string
+  // Endereço
   address_street: string
   address_number: string
   address_complement: string
   address_bairro: string
   address_city: string
   address_cep: string
+  // Contato
   phone_landline: string
+  // Documentário
   pis: string
   pis_date: string
   identity_number: string
@@ -28,7 +32,7 @@ export interface AdmissionFormData {
   salary: string
   admission_date: string
   trial_contract: string
-  // Documentos entregues
+  // Documentos entregues (web only — não vai para PDF)
   docs: Record<string, boolean>
   // Salário família
   children_count: string
@@ -92,9 +96,35 @@ const DOCS = [
 const MARITAL = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável', 'Separado(a)']
 const EDUCATION = ['Fundamental Incompleto', 'Fundamental Completo', 'Médio Incompleto', 'Médio Completo', 'Superior Incompleto', 'Superior Completo', 'Pós-graduação']
 
+// ─── CPF ──────────────────────────────────────────────────────────────────────
+
+function maskCPF(v: string): string {
+  return v.replace(/\D/g, '').slice(0, 11)
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
+function validateCPF(cpf: string): boolean {
+  const d = cpf.replace(/\D/g, '')
+  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false
+  const calc = (n: number) => {
+    let sum = 0
+    for (let i = 0; i < n; i++) sum += parseInt(d[i]) * (n + 1 - i)
+    const rem = (sum * 10) % 11
+    return rem >= 10 ? 0 : rem
+  }
+  return calc(9) === parseInt(d[9]) && calc(10) === parseInt(d[10])
+}
+
+// ─── makeEmpty ────────────────────────────────────────────────────────────────
+
 function makeEmpty(candidate: Candidate, jobTitle: string | null): AdmissionFormData {
   const addr = candidate.address
+  const rawCpf = candidate.cpf?.replace(/\D/g, '') ?? ''
+  const maskedCpf = rawCpf ? maskCPF(rawCpf) : ''
   return {
+    cpf_value: maskedCpf,
     address_street: addr?.street || '',
     address_number: addr?.number || '',
     address_complement: addr?.complement || '',
@@ -141,12 +171,7 @@ function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boole
     <div className="flex gap-3">
       {[true, false].map(v => (
         <label key={String(v)} className="flex items-center gap-1.5 cursor-pointer">
-          <input
-            type="radio"
-            checked={value === v}
-            onChange={() => onChange(v)}
-            className="accent-primary"
-          />
+          <input type="radio" checked={value === v} onChange={() => onChange(v)} className="accent-primary" />
           <span className="text-sm">{v ? 'Sim' : 'Não'}</span>
         </label>
       ))}
@@ -157,11 +182,22 @@ function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boole
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData }: Props) {
-  const [form, setForm] = useState<AdmissionFormData>(
-    initialData ?? makeEmpty(candidate, jobTitle)
-  )
+  const [form, setForm] = useState<AdmissionFormData>(() => {
+    if (initialData) {
+      // garante cpf_value preenchido se não estava no dado salvo
+      return {
+        ...makeEmpty(candidate, jobTitle),
+        ...initialData,
+        cpf_value: initialData.cpf_value || makeEmpty(candidate, jobTitle).cpf_value,
+      }
+    }
+    return makeEmpty(candidate, jobTitle)
+  })
+
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [cpfError, setCpfError] = useState('')
+  const [cepLoading, setCepLoading] = useState(false)
 
   function set<K extends keyof AdmissionFormData>(key: K, val: AdmissionFormData[K]) {
     setForm(prev => ({ ...prev, [key]: val }))
@@ -171,7 +207,55 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
     setForm(prev => ({ ...prev, docs: { ...prev.docs, [key]: val } }))
   }
 
+  // ── CPF ──────────────────────────────────────────────────────────────────
+  function handleCpfChange(raw: string) {
+    const masked = maskCPF(raw)
+    set('cpf_value', masked)
+    const digits = masked.replace(/\D/g, '')
+    if (digits.length === 11) {
+      setCpfError(validateCPF(masked) ? '' : 'CPF inválido')
+    } else {
+      setCpfError('')
+    }
+  }
+
+  // ── CEP lookup (ViaCEP) ───────────────────────────────────────────────────
+  async function handleCepChange(raw: string) {
+    const masked = raw.replace(/\D/g, '').slice(0, 8)
+      .replace(/(\d{5})(\d)/, '$1-$2')
+    set('address_cep', masked)
+
+    const digits = masked.replace(/\D/g, '')
+    if (digits.length === 8) {
+      setCepLoading(true)
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
+        const data = await res.json()
+        if (!data.erro) {
+          setForm(prev => ({
+            ...prev,
+            address_cep: masked,
+            address_street: data.logradouro || prev.address_street,
+            address_bairro: data.bairro || prev.address_bairro,
+            address_city: data.localidade || prev.address_city,
+          }))
+        }
+      } catch { /* ignora erro de rede */ }
+      finally { setCepLoading(false) }
+    }
+  }
+
+  // ── Salvar ────────────────────────────────────────────────────────────────
   async function handleSave() {
+    const digits = form.cpf_value.replace(/\D/g, '')
+    if (digits.length > 0 && digits.length < 11) {
+      setCpfError('CPF incompleto')
+      return
+    }
+    if (digits.length === 11 && !validateCPF(form.cpf_value)) {
+      setCpfError('CPF inválido')
+      return
+    }
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidate.id}/admission-form`, {
@@ -200,13 +284,11 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         </div>
       )}
 
-      {/* ── Documento ── */}
       <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
 
-        {/* Título */}
         <h2 className="text-xl font-bold text-center text-gray-900 mb-6">Ficha Cadastral</h2>
 
-        {/* ─── DADOS DO CANDIDATO ─────────────────────────────────────────── */}
+        {/* ─── DADOS DO FUNCIONÁRIO ─────────────────────────────────────── */}
         <SectionTitle>Dados do Funcionário</SectionTitle>
 
         <div className="grid grid-cols-1 gap-3">
@@ -217,11 +299,21 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
             </div>
           </Field>
 
-          {/* CPF — leitura */}
+          {/* CPF — editável com validação */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="CPF">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
-                {candidate.cpf || '—'}
+              <div className="space-y-1">
+                <Input
+                  value={form.cpf_value}
+                  onChange={e => handleCpfChange(e.target.value)}
+                  placeholder="000.000.000-00"
+                  className={cpfError ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                />
+                {cpfError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />{cpfError}
+                  </p>
+                )}
               </div>
             </Field>
             <Field label="E-mail">
@@ -243,6 +335,32 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
             </Field>
           </div>
 
+          {/* CEP + busca automática */}
+          <div className="grid grid-cols-3 gap-3">
+            <Field label={cepLoading ? 'CEP — buscando...' : 'CEP'}>
+              <div className="relative">
+                <Input
+                  value={form.address_cep}
+                  onChange={e => handleCepChange(e.target.value)}
+                  placeholder="00000-000"
+                  maxLength={9}
+                />
+                {cepLoading && (
+                  <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-primary" />
+                )}
+                {!cepLoading && (
+                  <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
+                )}
+              </div>
+            </Field>
+            <Field label="Bairro">
+              <Input value={form.address_bairro} onChange={e => set('address_bairro', e.target.value)} placeholder="Bairro" />
+            </Field>
+            <Field label="Cidade">
+              <Input value={form.address_city} onChange={e => set('address_city', e.target.value)} placeholder="Cidade" />
+            </Field>
+          </div>
+
           {/* Endereço */}
           <div className="grid grid-cols-3 gap-3">
             <Field label="Endereço (logradouro)" className="col-span-2">
@@ -252,22 +370,9 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <Input value={form.address_number} onChange={e => set('address_number', e.target.value)} placeholder="Nº" />
             </Field>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="CEP">
-              <Input value={form.address_cep} onChange={e => set('address_cep', e.target.value)} placeholder="00000-000" />
-            </Field>
-            <Field label="Bairro">
-              <Input value={form.address_bairro} onChange={e => set('address_bairro', e.target.value)} placeholder="Bairro" />
-            </Field>
-            <Field label="Cidade">
-              <Input value={form.address_city} onChange={e => set('address_city', e.target.value)} placeholder="Cidade" />
-            </Field>
-          </div>
-          {form.address_complement !== undefined && (
-            <Field label="Complemento">
-              <Input value={form.address_complement} onChange={e => set('address_complement', e.target.value)} placeholder="Apto, Bloco, Casa..." />
-            </Field>
-          )}
+          <Field label="Complemento">
+            <Input value={form.address_complement} onChange={e => set('address_complement', e.target.value)} placeholder="Apto, Bloco, Casa..." />
+          </Field>
 
           {/* PIS / RG */}
           <div className="grid grid-cols-2 gap-3">
@@ -287,7 +392,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
             </Field>
           </div>
 
-          {/* Estado Civil / Escolaridade */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Estado Civil">
               <select value={form.marital_status} onChange={e => set('marital_status', e.target.value)}
@@ -317,7 +421,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
 
         {/* ─── DADOS DO EMPREGADOR ──────────────────────────────────────── */}
         <SectionTitle>Dados do Empregador</SectionTitle>
-
         <div className="grid grid-cols-1 gap-3">
           <Field label="Função / Cargo">
             <Input value={form.function_title} onChange={e => set('function_title', e.target.value)} placeholder="Ex: Auxiliar de produção" />
@@ -335,18 +438,14 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           </Field>
         </div>
 
-        {/* ─── DOCUMENTOS ───────────────────────────────────────────────── */}
+        {/* ─── DOCUMENTOS (somente web — não vai para PDF) ──────────────── */}
         <SectionTitle>Documentos Entregues</SectionTitle>
-
+        <p className="text-[11px] text-muted-foreground mb-2">Esta lista não é incluída no PDF exportado.</p>
         <div className="space-y-2">
           {DOCS.map(doc => (
             <label key={doc.key} className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!form.docs[doc.key]}
-                onChange={e => setDoc(doc.key, e.target.checked)}
-                className="w-4 h-4 rounded accent-primary shrink-0"
-              />
+              <input type="checkbox" checked={!!form.docs[doc.key]} onChange={e => setDoc(doc.key, e.target.checked)}
+                className="w-4 h-4 rounded accent-primary shrink-0" />
               <span className={`text-sm transition-colors ${form.docs[doc.key] ? 'text-gray-900 line-through decoration-emerald-500' : 'text-gray-600'}`}>
                 {doc.label}
               </span>
@@ -356,7 +455,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
 
         {/* ─── SALÁRIO FAMÍLIA ──────────────────────────────────────────── */}
         <SectionTitle>Salário Família / Dependentes</SectionTitle>
-
         <div className="grid grid-cols-2 gap-3">
           <Field label="Filhos menores de 14 anos">
             <Input type="number" min={0} value={form.children_count} onChange={e => set('children_count', e.target.value)} />
@@ -368,7 +466,6 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
 
         {/* ─── VALE TRANSPORTE ─────────────────────────────────────────── */}
         <SectionTitle>Vale Transporte</SectionTitle>
-
         <div className="grid grid-cols-2 gap-3">
           <Field label="Empresa de Transporte">
             <Input value={form.transport_company} onChange={e => set('transport_company', e.target.value)} placeholder="Nome da empresa" />
@@ -381,9 +478,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         {/* ─── OBSERVAÇÕES ─────────────────────────────────────────────── */}
         <SectionTitle>Observações</SectionTitle>
         <textarea
-          value={form.notes}
-          onChange={e => set('notes', e.target.value)}
-          rows={3}
+          value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
           placeholder="Informações adicionais sobre o funcionário ou admissão..."
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
@@ -403,7 +498,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
 
       {/* ─── Botão Salvar — ao final da página ───────────────────────────── */}
       <div className="mt-4 max-w-3xl">
-        <Button onClick={handleSave} disabled={saving} className="gap-1.5 w-full sm:w-auto">
+        <Button onClick={handleSave} disabled={saving || !!cpfError} className="gap-1.5 w-full sm:w-auto">
           {saving
             ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</>
             : <><Save className="w-4 h-4" />Salvar ficha</>}

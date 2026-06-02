@@ -5,26 +5,6 @@ import { AdmissionFormData } from '../ficha-admissao/ficha-admissao-form'
 
 export const dynamic = 'force-dynamic'
 
-const DOCS = [
-  { key: 'carteira_profissional', label: 'Carteira Profissional (folhas de identificação e qualificação)' },
-  { key: 'carteira_digital', label: 'Carteira de Trabalho Digital' },
-  { key: 'foto_3x4', label: '01 Foto 3 × 4' },
-  { key: 'atestado_admissional', label: 'Atestado Admissional (Médico do Trabalho)' },
-  { key: 'cartao_pis', label: 'Cartão de Inscrição no PIS' },
-  { key: 'cpf', label: 'CPF' },
-  { key: 'identidade', label: 'Carteira de Identidade (RG)' },
-  { key: 'titulo_eleitor', label: 'Título de Eleitor' },
-  { key: 'certificado_reservista', label: 'Certificado de Reservista (masc.)' },
-  { key: 'comprovante_escolaridade', label: 'Comprovante de Escolaridade' },
-  { key: 'certidao_civil', label: 'Certidão de Nascimento / Casamento / outros' },
-  { key: 'comprovante_residencia', label: 'Comprovante de Residência' },
-  { key: 'certidao_nascimento_filhos', label: 'Certidão de Nascimento dos filhos' },
-  { key: 'cpf_dependentes', label: 'CPF dos dependentes' },
-  { key: 'carteira_vacinacao', label: 'Carteira de Vacinação (filhos)' },
-  { key: 'declaracao_escolar', label: 'Declaração Escolar dos filhos' },
-  { key: 'pensao_alimenticia', label: 'Decisão Judicial – Pensão Alimentícia' },
-]
-
 export default async function PrintFichaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createSupabaseServerClient()
@@ -122,31 +102,37 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="val filled">{candidate.full_name}</div>
         </div>
         <div className="grid2">
-          <div className="field"><label>Telefone Celular</label><div className="val filled">{candidate.phone || '—'}</div></div>
-          <div className="field"><label>Telefone Fixo</label><div className="val filled">{f?.phone_landline || '—'}</div></div>
-        </div>
-        <div className="grid3">
-          <div className="field"><label>Cidade</label><div className="val filled">{candidate.city || '—'}</div></div>
-          <div className="field"><label>Bairro</label><div className="val filled">{(candidate as { neighborhood?: string }).neighborhood || '—'}</div></div>
+          <div className="field"><label>CPF</label><div className="val filled">{f?.cpf_value || (candidate as {cpf?:string}).cpf || '—'}</div></div>
           <div className="field"><label>E-mail</label><div className="val filled">{candidate.email || '—'}</div></div>
         </div>
         <div className="grid2">
-          <div className="field"><label>CPF</label><div className="val filled">{(candidate as { cpf?: string }).cpf || '—'}</div></div>
+          <div className="field"><label>Telefone Celular</label><div className="val filled">{candidate.phone || '—'}</div></div>
+          <div className="field"><label>Telefone Fixo</label><div className="val filled">{f?.phone_landline || '—'}</div></div>
+        </div>
+        <div className="grid2">
+          <div className="field"><label>CEP</label><div className="val filled">{f?.address_cep || '—'}</div></div>
+          <div className="field"><label>Bairro</label><div className="val filled">{f?.address_bairro || (candidate as {neighborhood?:string}).neighborhood || '—'}</div></div>
+        </div>
+        <div className="grid2">
+          <div className="field"><label>Endereço</label><div className="val filled">{[f?.address_street, f?.address_number, f?.address_complement].filter(Boolean).join(', ') || '—'}</div></div>
+          <div className="field"><label>Cidade</label><div className="val filled">{f?.address_city || candidate.city || '—'}</div></div>
+        </div>
+        <div className="grid2">
           <div className="field"><label>Nº PIS</label><div className="val filled">{f?.pis || '—'}</div></div>
-        </div>
-        <div className="grid2">
           <div className="field"><label>Data de Cadastro do PIS</label><div className="val filled">{f?.pis_date || '—'}</div></div>
+        </div>
+        <div className="grid2">
           <div className="field"><label>Nº da Identidade (RG)</label><div className="val filled">{f?.identity_number || '—'}</div></div>
-        </div>
-        <div className="grid2">
           <div className="field"><label>Data de Emissão (RG)</label><div className="val filled">{f?.identity_date || '—'}</div></div>
-          <div className="field"><label>Estado Civil</label><div className="val filled">{f?.marital_status || '—'}</div></div>
         </div>
         <div className="grid2">
+          <div className="field"><label>Estado Civil</label><div className="val filled">{f?.marital_status || '—'}</div></div>
           <div className="field"><label>Grau de Escolaridade</label><div className="val filled">{f?.education || '—'}</div></div>
-          <div className="field"><label>Mensalidade Sindical</label><div className="val filled">{yn(f?.union_dues)}</div></div>
         </div>
-        <div className="field"><label>Vale Transporte</label><div className="val filled">{yn(f?.transport_benefit)}</div></div>
+        <div className="grid2">
+          <div className="field"><label>Mensalidade Sindical</label><div className="val filled">{yn(f?.union_dues)}</div></div>
+          <div className="field"><label>Vale Transporte</label><div className="val filled">{yn(f?.transport_benefit)}</div></div>
+        </div>
 
         {/* ── Dados do Empregador ── */}
         <p className="secao">Dados do Empregador</p>
@@ -159,21 +145,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="field"><label>Contrato de Experiência</label><div className="val filled">{f?.trial_contract || '—'}</div></div>
         </div>
 
-        {/* ── Documentos ── */}
-        <p className="secao">Documentos Entregues</p>
-        <ul className="checkbox-list">
-          {DOCS.map(doc => {
-            const checked = f?.docs?.[doc.key] === true
-            return (
-              <li key={doc.key}>
-                <span className="mark">{checked ? '☑' : '☐'}</span>
-                <span className="label-text" style={{ textDecoration: checked ? 'line-through' : 'none', color: checked ? '#059669' : '#1a1a1a' }}>{doc.label}</span>
-              </li>
-            )
-          })}
-        </ul>
-
-        {/* ── Salário Família ── */}
+        {/* ── Salário Família ── (Documentos removidos do PDF) */}
         <p className="secao">Salário Família / Dependentes</p>
         <div className="grid2">
           <div className="field"><label>Filhos menores de 14 anos</label><div className="val filled">{f?.children_count || '0'}</div></div>
