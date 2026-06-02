@@ -21,6 +21,7 @@ export interface DocState {
 }
 
 export interface AdmissionFormData {
+  selected_company_id: string
   cpf_value: string
   address_street: string
   address_number: string
@@ -60,9 +61,17 @@ interface Candidate {
   address: CandidateAddress | null
 }
 
+export interface CompanyOption {
+  id: string
+  apelido: string | null
+  razao_social: string | null
+  cnpj: string | null
+}
+
 interface Props {
   candidate: Candidate; jobTitle: string | null; companyName: string | null
   initialData: AdmissionFormData | null
+  companies: CompanyOption[]
 }
 
 // ─── Docs definition ──────────────────────────────────────────────────────────
@@ -124,6 +133,7 @@ function makeEmpty(c: Candidate, jobTitle: string | null): AdmissionFormData {
   const addr = c.address
   const rawCpf = c.cpf?.replace(/\D/g, '') ?? ''
   return {
+    selected_company_id: '',
     cpf_value: rawCpf ? maskCPF(rawCpf) : '',
     address_street: addr?.street || '', address_number: addr?.number || '',
     address_complement: addr?.complement || '', address_bairro: addr?.neighborhood || c.neighborhood || '',
@@ -350,7 +360,7 @@ function DocRow({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData }: Props) {
+export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies }: Props) {
   const [form, setForm] = useState<AdmissionFormData>(() =>
     initialData ? migrateData(initialData, candidate, jobTitle) : makeEmpty(candidate, jobTitle)
   )
@@ -448,22 +458,35 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
       <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
         <h2 className="text-xl font-bold text-center text-gray-900 mb-6">Ficha Cadastral</h2>
 
+        {/* ── Empresa contratante ──────────────────────────────────────── */}
+        {companies.length > 0 && (
+          <div className="mb-4">
+            <Field label="Empresa contratante">
+              <select
+                value={form.selected_company_id}
+                onChange={e => set('selected_company_id', e.target.value)}
+                className="h-10 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
+              >
+                <option value="">Selecionar empresa...</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.razao_social || c.apelido || 'Empresa'}{c.cnpj ? ` — ${c.cnpj}` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )}
+
         {/* ── Dados do Funcionário ────────────────────────────────────── */}
         <SectionTitle>Dados do Funcionário</SectionTitle>
         <div className="grid grid-cols-1 gap-3">
           <Field label="Nome Completo">
             <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium">{candidate.full_name}</div>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="CPF">
-              <Input value={form.cpf_value} onChange={e => handleCpfChange(e.target.value)} placeholder="000.000.000-00"
-                className={cpfError ? 'border-red-400' : ''} />
-              {cpfError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{cpfError}</p>}
-            </Field>
-            <Field label="E-mail">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm truncate">{candidate.email || '—'}</div>
-            </Field>
-          </div>
+          <Field label="E-mail">
+            <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm truncate">{candidate.email || '—'}</div>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Telefone Celular">
               <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm">{candidate.phone || '—'}</div>
@@ -518,6 +541,14 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <Input type="date" value={form.identity_date} onChange={e => set('identity_date', e.target.value)} />
             </Field>
           </div>
+          {/* CPF — abaixo do RG */}
+          <Field label="CPF">
+            <div className="space-y-1">
+              <Input value={form.cpf_value} onChange={e => handleCpfChange(e.target.value)} placeholder="000.000.000-00"
+                className={cpfError ? 'border-red-400 focus-visible:ring-red-300' : ''} />
+              {cpfError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{cpfError}</p>}
+            </div>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Estado Civil">
               <select value={form.marital_status} onChange={e => set('marital_status', e.target.value)}

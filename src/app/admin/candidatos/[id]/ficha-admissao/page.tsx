@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { CandidateTabNav } from '../candidate-tab-nav'
-import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress } from './ficha-admissao-form'
+import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,11 +54,11 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
   }
 
   const service = await createSupabaseServiceClient()
-  const { data: brand } = await service
-    .from('ai_settings')
-    .select('company_name')
-    .limit(1)
-    .single()
+  const [{ data: brand }, { data: companiesData }] = await Promise.all([
+    service.from('ai_settings').select('company_name').limit(1).single(),
+    service.from('companies').select('id, apelido, razao_social, cnpj').order('created_at', { ascending: false }),
+  ])
+  const companies = (companiesData || []) as CompanyOption[]
 
   const rawJobs = (app as Record<string, unknown> | null)?.jobs
   const jobTitle = (Array.isArray(rawJobs) ? (rawJobs[0] as { title?: string })?.title : (rawJobs as { title?: string } | null)?.title) ?? null
@@ -95,6 +95,7 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
         jobTitle={jobTitle}
         companyName={brand?.company_name ?? null}
         initialData={admissionForm}
+        companies={companies}
       />
     </div>
   )

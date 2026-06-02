@@ -11,7 +11,7 @@ import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
 import { DeleteCandidateSection } from './delete-candidate-section'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
-import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress } from './ficha-admissao/ficha-admissao-form'
+import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -148,7 +148,11 @@ export default async function CandidatePage({
 
   // Dados extras para a aba Ficha Admissão
   const service = await createSupabaseServiceClient()
-  const { data: brand } = await service.from('ai_settings').select('company_name').limit(1).single()
+  const [{ data: brand }, { data: companiesData }] = await Promise.all([
+    service.from('ai_settings').select('company_name').limit(1).single(),
+    service.from('companies').select('id, apelido, razao_social, cnpj').order('created_at', { ascending: false }),
+  ])
+  const fichaCompanies = (companiesData || []) as CompanyOption[]
   const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
@@ -327,6 +331,7 @@ export default async function CandidatePage({
           jobTitle={jobTitle}
           companyName={brand?.company_name ?? null}
           initialData={admissionForm}
+          companies={fichaCompanies}
         />
       )}
 
