@@ -10,6 +10,7 @@ import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
 import { DeleteCandidateSection } from './delete-candidate-section'
 import { EditVagaButton } from './edit-vaga-button'
+import { CandidateTabNav } from './candidate-tab-nav'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -258,16 +259,14 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           />}
         </div>
 
-        {/* PDF button */}
-        <Link
-          href={`/admin/candidatos/${id}/print`}
-          target="_blank"
-          className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
-        >
-          <FileDown className="w-4 h-4" />
-          Exportar PDF
-        </Link>
       </div>
+
+      {/* ── Tab navigation ── */}
+      <CandidateTabNav
+        candidateId={id}
+        printUrl={`/admin/candidatos/${id}/print`}
+        hasCpf={!!candidate.cpf}
+      />
 
       {/* ── Cards de resumo ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

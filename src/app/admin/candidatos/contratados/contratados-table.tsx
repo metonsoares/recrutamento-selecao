@@ -1,5 +1,7 @@
 'use client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ClipboardList } from 'lucide-react'
 import { formatDate } from '@/lib/helpers'
 
 interface ContratadoRow {
@@ -41,6 +43,7 @@ export function ContratadosTable({ rows }: Props) {
             <th className="px-4 py-3 text-left font-medium hidden lg:table-cell">Cidade</th>
             <th className="px-4 py-3 text-center font-medium">Nota Final</th>
             <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Cadastro</th>
+            <th className="px-4 py-3 text-left font-medium">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -114,6 +117,17 @@ export function ContratadosTable({ rows }: Props) {
               {/* Cadastro */}
               <td className="px-4 py-3 text-gray-500 hidden sm:table-cell text-xs">
                 {formatDate(c.created_at)}
+              </td>
+
+              {/* Ações */}
+              <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                <Link
+                  href={`/admin/candidatos/${c.id}/ficha-admissao`}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap"
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Ficha Admissão
+                </Link>
               </td>
             </tr>
           ))}
