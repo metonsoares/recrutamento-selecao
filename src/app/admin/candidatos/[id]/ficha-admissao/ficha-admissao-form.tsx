@@ -133,7 +133,7 @@ function makeEmpty(c: Candidate, jobTitle: string | null): AdmissionFormData {
     union_dues: null, transport_benefit: null,
     function_title: jobTitle || '', salary: '', admission_date: '', trial_contract: '45 + 45 dias',
     docs: Object.fromEntries(ALL_DOCS.map(d => [d.key, emptyDoc()])),
-    children_count: '0', alimony: null,
+    children_count: '0', alimony: false,
     transport_company: '', transport_count: '', notes: '',
   }
 }
@@ -419,8 +419,16 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
   }
 
   const childrenCount = parseInt(form.children_count) || 0
-  const totalDocs = ALL_DOCS.length
-  const doneCount = ALL_DOCS.filter(d => {
+
+  // Docs visíveis: oculta docs de filhos se sem filhos; oculta pensão se alimony=false
+  const visibleDocs = ALL_DOCS.filter(d => {
+    if (d.perChild && childrenCount === 0) return false
+    if (d.key === 'pensao_alimenticia' && form.alimony === false) return false
+    return true
+  })
+
+  const totalDocs = visibleDocs.length
+  const doneCount = visibleDocs.filter(d => {
     const s = form.docs[d.key]
     if (!s) return false
     if (s.not_applicable) return true
@@ -560,7 +568,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           </span>
         </div>
         <div className="space-y-2">
-          {ALL_DOCS.map(doc => (
+          {visibleDocs.map(doc => (
             <DocRow
               key={doc.key}
               docDef={doc}
