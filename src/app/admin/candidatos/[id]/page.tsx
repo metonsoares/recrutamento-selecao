@@ -13,6 +13,7 @@ import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
 import { DocumentosTab } from './documentos-tab'
+import { AdvertenciasTab } from './advertencias-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,8 +113,8 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'documentos' =
-    sp.tab === 'ficha' ? 'ficha' : sp.tab === 'documentos' ? 'documentos' : 'curriculo'
+  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' =
+    sp.tab === 'ficha' ? 'ficha' : sp.tab === 'documentos' ? 'documentos' : sp.tab === 'advertencias' ? 'advertencias' : 'curriculo'
 
   const supabase = await createSupabaseServerClient()
 
@@ -157,6 +158,13 @@ export default async function CandidatePage({
   const fichaCompanies = (companiesData || []) as CompanyOption[]
   const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
   const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
+
+  // Advertências (somente quando aba ativa, mas barato buscar sempre)
+  const { data: warningsData } = await service
+    .from('warnings')
+    .select('*')
+    .eq('candidate_id', id)
+    .order('occurred_at', { ascending: false })
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
 
@@ -302,8 +310,8 @@ export default async function CandidatePage({
           />}
         </div>
 
-        {/* PDF button — canto superior direito (não exibe na aba Documentos) */}
-        {activeTab !== 'documentos' && (
+        {/* PDF button — canto superior direito (só Currículo e Ficha) */}
+        {(activeTab === 'curriculo' || activeTab === 'ficha') && (
           <Link
             href={activeTab === 'ficha'
               ? `/admin/candidatos/${id}/print-ficha`
@@ -343,6 +351,11 @@ export default async function CandidatePage({
       {/* ── Aba: Documentos ── */}
       {activeTab === 'documentos' && (
         <DocumentosTab candidateId={id} initialDocs={companyDocs} />
+      )}
+
+      {/* ── Aba: Advertências ── */}
+      {activeTab === 'advertencias' && (
+        <AdvertenciasTab candidateId={id} initialWarnings={warningsData || []} />
       )}
 
       {/* ── Aba: Currículo ── */}

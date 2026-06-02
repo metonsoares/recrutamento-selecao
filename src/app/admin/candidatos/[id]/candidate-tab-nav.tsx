@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -10,7 +10,7 @@ interface Props {
 export function CandidateTabNav({ candidateId }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
-  const activeTab = tab === 'ficha' ? 'ficha' : tab === 'documentos' ? 'documentos' : 'curriculo'
+  const activeTab = tab === 'ficha' ? 'ficha' : tab === 'documentos' ? 'documentos' : tab === 'advertencias' ? 'advertencias' : 'curriculo'
 
   const base = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border'
   const active = 'bg-white border-gray-300 shadow-sm text-gray-900'
@@ -38,6 +38,13 @@ export function CandidateTabNav({ candidateId }: Props) {
       >
         <FolderArchive className="w-4 h-4" />
         Documentos
+      </Link>
+      <Link
+        href={`/admin/candidatos/${candidateId}?tab=advertencias`}
+        className={`${base} ${activeTab === 'advertencias' ? active : inactive}`}
+      >
+        <AlertTriangle className="w-4 h-4" />
+        Advertências
       </Link>
     </div>
   )
