@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CandidateStatus } from '@/types'
 import { formatDate } from '@/lib/helpers'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { Search, SortAsc, GripVertical, BrainCircuit, Loader2 } from 'lucide-react'
+import { Search, SortAsc, GripVertical, BrainCircuit, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // ─── Colunas do Kanban ────────────────────────────────────────────────────────
@@ -152,6 +152,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
   // ── Drag state (candidatos) ───────────────────────────────────────────────
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null)
+  const [dropMsg, setDropMsg] = useState<string | null>(null)
 
   // ── Drag state (colunas) ──────────────────────────────────────────────────
   const [colOrder, setColOrder] = useState<string[]>(() => {
@@ -258,11 +259,21 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 
   // ── Drag & Drop (candidatos) ──────────────────────────────────────────────
   async function handleDrop(candidateId: string, targetStatus: CandidateStatus) {
-    if (!isMaster) return  // recrutador: somente visualização
     const candidate = candidates.find(c => c.id === candidateId)
     const appId = candidate?.applications?.id
     if (!appId) return
-    if (candidate?.applications?.status === targetStatus) return
+    const currentStatus = candidate?.applications?.status
+    if (currentStatus === targetStatus) return
+
+    // Recrutador: pode mudar status, MAS não pode mexer em candidatos contratados
+    // (nem mover um candidato PARA contratado). Apenas Master pode.
+    if (!isMaster) {
+      if (currentStatus === 'contratado' || targetStatus === 'contratado') {
+        setDropMsg('Apenas o administrador master pode alterar candidatos contratados.')
+        setTimeout(() => setDropMsg(null), 4000)
+        return
+      }
+    }
 
     setCandidates(prev => prev.map(c =>
       c.id === candidateId && c.applications
@@ -328,6 +339,14 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium bg-emerald-600 text-white max-w-sm">
           <BrainCircuit className="w-4 h-4 shrink-0" />
           {analyzeMsg}
+        </div>
+      )}
+
+      {/* Toast bloqueio de contratado */}
+      {dropMsg && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium bg-amber-600 text-white max-w-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {dropMsg}
         </div>
       )}
 
@@ -497,17 +516,22 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
                   </p>
                 )}
 
-                {items.map(c => (
-                  <CandidateCard
-                    key={c.id}
-                    candidate={c}
-                    isDragging={dragId === c.id}
-                    jobTitleFallback={c.applications?.id ? appJobTitleMap[c.applications.id] : undefined}
-                    onDragStart={() => setDragId(c.id)}
-                    onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
-                    onClick={() => router.push(`/admin/candidatos/${c.id}`)}
-                  />
-                ))}
+                {items.map(c => {
+                  // Recrutador não pode arrastar candidatos contratados
+                  const lockedForRecruiter = !isMaster && c.applications?.status === 'contratado'
+                  return (
+                    <CandidateCard
+                      key={c.id}
+                      candidate={c}
+                      isDragging={dragId === c.id}
+                      draggable={!lockedForRecruiter}
+                      jobTitleFallback={c.applications?.id ? appJobTitleMap[c.applications.id] : undefined}
+                      onDragStart={() => setDragId(c.id)}
+                      onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
+                      onClick={() => router.push(`/admin/candidatos/${c.id}`)}
+                    />
+                  )
+                })}
               </div>
             </div>
           )
@@ -522,6 +546,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 function CandidateCard({
   candidate: c,
   isDragging,
+  draggable = true,
   jobTitleFallback,
   onDragStart,
   onDragEnd,
@@ -529,6 +554,7 @@ function CandidateCard({
 }: {
   candidate: CandidateRow
   isDragging: boolean
+  draggable?: boolean
   jobTitleFallback?: string
   onDragStart: () => void
   onDragEnd: () => void
@@ -543,8 +569,9 @@ function CandidateCard({
 
   return (
     <div
-      draggable
+      draggable={draggable}
       onDragStart={e => {
+        if (!draggable) { e.preventDefault(); return }
         e.dataTransfer.setData('text/plain', c.id)
         e.dataTransfer.effectAllowed = 'move'
         onDragStart()
