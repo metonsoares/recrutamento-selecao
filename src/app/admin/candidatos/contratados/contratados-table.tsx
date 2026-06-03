@@ -1,8 +1,9 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface ContratadoRow {
@@ -29,6 +30,8 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [companyFilter, setCompanyFilter] = useState('all')
+  const [faltaOpen, setFaltaOpen] = useState(false)
+  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
   const filtered = useMemo(() => {
     return rows
@@ -45,6 +48,14 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
 
   return (
     <div className="space-y-3">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+          {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {toast.msg}
+        </div>
+      )}
+
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[220px]">
@@ -57,7 +68,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
           />
         </div>
         <Select value={companyFilter} onValueChange={v => v && setCompanyFilter(v)}>
-          <SelectTrigger className="w-[220px]">
+          <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Empresa" />
           </SelectTrigger>
           <SelectContent>
@@ -65,6 +76,10 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
             {companyOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button onClick={() => setFaltaOpen(true)} className="gap-1.5 shrink-0">
+          <CalendarX className="w-4 h-4" />
+          Inserir faltas
+        </Button>
       </div>
 
       {/* Contador */}
@@ -141,6 +156,157 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Modal Inserir faltas */}
+      {faltaOpen && (
+        <InserirFaltasModal
+          rows={rows}
+          companyOptions={companyOptions}
+          onClose={() => setFaltaOpen(false)}
+          onDone={(n) => { setFaltaOpen(false); setToast({ type: 'ok', msg: `${n} falta${n !== 1 ? 's' : ''} registrada${n !== 1 ? 's' : ''}.` }); setTimeout(() => setToast(null), 4000) }}
+          onError={(m) => { setToast({ type: 'err', msg: m }); setTimeout(() => setToast(null), 4000) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Modal de lançamento de faltas em lote ────────────────────────────────────
+
+function InserirFaltasModal({
+  rows, companyOptions, onClose, onDone, onError,
+}: {
+  rows: ContratadoRow[]
+  companyOptions: string[]
+  onClose: () => void
+  onDone: (count: number) => void
+  onError: (msg: string) => void
+}) {
+  const [company, setCompany] = useState('')
+  const [date, setDate] = useState('')
+  const [kind, setKind] = useState('injustificada')
+  const [days, setDays] = useState('1')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const funcionarios = useMemo(() => {
+    return rows
+      .filter(r => company ? r.companyName === company : false)
+      .sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'))
+  }, [rows, company])
+
+  function toggle(id: string) {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
+
+  async function handleSubmit() {
+    setError('')
+    if (!company) { setError('Selecione a empresa.'); return }
+    if (!date) { setError('Informe a data da falta.'); return }
+    if (selected.size === 0) { setError('Selecione ao menos um funcionário.'); return }
+    setSaving(true)
+    try {
+      const ids = Array.from(selected)
+      const results = await Promise.all(ids.map(id =>
+        fetch(`/api/admin/candidatos/${id}/absences`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ absence_date: date, days: Number(days) || 1, kind }),
+        }).then(r => r.ok)
+      ))
+      const ok = results.filter(Boolean).length
+      if (ok === 0) throw new Error('Falha ao registrar.')
+      onDone(ok)
+    } catch (e) {
+      onError((e as Error).message || 'Erro ao registrar faltas.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="text-base font-semibold text-gray-900">Inserir faltas</h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3 overflow-y-auto">
+          {/* Empresa */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Empresa *</label>
+            <select value={company} onChange={e => { setCompany(e.target.value); setSelected(new Set()) }}
+              className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+              <option value="">Selecionar empresa...</option>
+              {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Data + tipo + dias */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">Data da falta *</label>
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">Tipo</label>
+              <select value={kind} onChange={e => setKind(e.target.value)}
+                className="h-9 w-full border border-gray-300 rounded-md px-2 text-sm bg-white">
+                <option value="injustificada">Injustificada</option>
+                <option value="afastamento">Afastamento</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">Qtd. dias</label>
+              <Input type="number" min={1} value={days} onChange={e => setDays(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Lista de funcionários */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">
+              Funcionários contratados {company && `(${funcionarios.length})`}
+            </label>
+            {!company ? (
+              <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg bg-gray-50">
+                Selecione uma empresa para listar os funcionários.
+              </p>
+            ) : funcionarios.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg bg-gray-50">
+                Nenhum funcionário contratado nesta empresa.
+              </p>
+            ) : (
+              <div className="border rounded-lg divide-y max-h-56 overflow-y-auto">
+                {funcionarios.map(f => (
+                  <label key={f.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                    <input type="checkbox" checked={selected.has(f.id)} onChange={() => toggle(f.id)} className="accent-primary" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{f.full_name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{f.jobTitle}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}
+        </div>
+
+        <div className="flex justify-between items-center gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+          <span className="text-xs text-muted-foreground">{selected.size} selecionado{selected.size !== 1 ? 's' : ''}</span>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+            <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
+              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Inserindo...</> : <><CalendarX className="w-3.5 h-3.5" />Inserir falta</>}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )
