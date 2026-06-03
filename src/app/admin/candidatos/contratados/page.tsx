@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { UserCheck, ArrowLeft, Users } from 'lucide-react'
 import { ContratadosTable } from './contratados-table'
@@ -14,7 +14,7 @@ export default async function ContratadosPage() {
     .select(`
       id, full_name, phone, email, city, created_at,
       applications!latest_application_id (
-        id, status, created_at, final_score, culture_score,
+        id, status, created_at, final_score, culture_score, admission_form,
         jobs ( title )
       )
     `)
@@ -27,6 +27,7 @@ export default async function ContratadosPage() {
     created_at: string
     final_score: number | null
     culture_score: number | null
+    admission_form: { selected_company_id?: string } | null
     jobs: { title: string } | { title: string }[] | null
   }
 
@@ -55,6 +56,16 @@ export default async function ContratadosPage() {
 
   // Filtra contratados
   const contratados = rows.filter(c => getApp(c)?.status === 'contratado')
+
+  // Mapa de empresas (id → apelido / razão social)
+  const service = await createSupabaseServiceClient()
+  const { data: companiesData } = await service
+    .from('companies')
+    .select('id, apelido, razao_social')
+  const companyMap: Record<string, string> = {}
+  for (const co of companiesData || []) {
+    companyMap[co.id] = co.apelido || co.razao_social || 'Empresa'
+  }
 
   // Busca fotos (file_upload) das candidaturas dos contratados
   const appIds = contratados.map(c => getApp(c)?.id).filter(Boolean) as string[]
@@ -87,6 +98,7 @@ export default async function ContratadosPage() {
   // Monta rows serializáveis para o Client Component
   const tableRows = contratados.map(c => {
     const app = getApp(c)
+    const companyId = app?.admission_form?.selected_company_id
     return {
       id: c.id,
       full_name: c.full_name,
@@ -98,9 +110,15 @@ export default async function ContratadosPage() {
       appStatus: app?.status ?? null,
       finalScore: app?.final_score ?? null,
       jobTitle: getJobTitle(app),
+      companyName: companyId ? (companyMap[companyId] ?? null) : null,
       photoUrl: app ? (photoMap[app.id] ?? null) : null,
     }
   })
+
+  // Lista de empresas presentes nos contratados (para o filtro)
+  const companyOptions = Array.from(
+    new Set(tableRows.map(r => r.companyName).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
@@ -147,7 +165,7 @@ export default async function ContratadosPage() {
 
       {/* Tabela */}
       {contratados.length > 0 && (
-        <ContratadosTable rows={tableRows} />
+        <ContratadosTable rows={tableRows} companyOptions={companyOptions} />
       )}
     </div>
   )
