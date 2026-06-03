@@ -64,10 +64,15 @@ function SidebarContent({
     pathname.startsWith('/admin/configuracoes/ia') ||
     pathname.startsWith('/admin/configuracoes/kanban-colunas')
 
+  const inUsuarios =
+    pathname.startsWith('/admin/configuracoes/usuarios') ||
+    pathname.startsWith('/admin/configuracoes/cadastrar-usuarios')
+
   const [candidatosOpen, setCandidatosOpen] = useState(inCandidatos)
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
+  const [usuariosOpen, setUsuariosOpen] = useState(inUsuarios)
 
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient()
@@ -273,15 +278,31 @@ function SidebarContent({
               )}
             </div>
 
-            {/* Usuários */}
-            <Link
-              href="/admin/configuracoes/usuarios"
-              onClick={go}
-              className={cn(SUB_BASE, pathname.startsWith('/admin/configuracoes/usuarios') ? SUB_ACTIVE : SUB_DEFAULT)}
-            >
-              <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
-              Usuários
-            </Link>
+            {/* Usuários ▾ */}
+            <div>
+              <button
+                onClick={() => setUsuariosOpen(o => !o)}
+                className={cn(SUB_BASE, inUsuarios ? SUB_ACTIVE : SUB_DEFAULT)}
+              >
+                <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
+                <span className="flex-1 text-left">Usuários</span>
+                <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', usuariosOpen && 'rotate-180')} />
+              </button>
+              {usuariosOpen && (
+                <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+                  <Link href="/admin/configuracoes/usuarios" onClick={go}
+                    className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <UserCheck className="w-3 h-3 shrink-0 opacity-50" />
+                    Perfil de usuário
+                  </Link>
+                  <Link href="/admin/configuracoes/cadastrar-usuarios" onClick={go}
+                    className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastrar-usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Users className="w-3 h-3 shrink-0 opacity-50" />
+                    Cadastrar Usuários
+                  </Link>
+                </div>
+              )}
+            </div>
           </>
         )}
 
