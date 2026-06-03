@@ -29,6 +29,7 @@ interface Eligible {
 interface Props {
   systemUsers: SystemUser[]
   eligible: Eligible[]
+  companyOptions: string[]
 }
 
 const PERFIS = [
@@ -51,7 +52,7 @@ function genCode(name: string, cpf: string): string {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function CadastrarUsuariosManager({ systemUsers: initial, eligible }: Props) {
+export function CadastrarUsuariosManager({ systemUsers: initial, eligible, companyOptions }: Props) {
   const [users, setUsers] = useState<SystemUser[]>(initial)
   const [available, setAvailable] = useState<Eligible[]>(eligible)
   const [modalOpen, setModalOpen] = useState(false)
@@ -59,21 +60,29 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible }: Pro
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // form
+  const [empresa, setEmpresa] = useState('')
   const [selectedId, setSelectedId] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('123456')
   const [showPwd, setShowPwd] = useState(false)
   const [code, setCode] = useState('')
-  const [empresa, setEmpresa] = useState('')
   const [perfil, setPerfil] = useState('operador')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Colaboradores da empresa selecionada
+  const funcionarios = available.filter(a => empresa ? a.empresa === empresa : false)
+
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
 
   function openModal() {
-    setSelectedId(''); setEmail(''); setPassword('123456'); setCode(''); setEmpresa(''); setPerfil('operador'); setError('')
+    setEmpresa(''); setSelectedId(''); setEmail(''); setPassword('123456'); setCode(''); setPerfil('operador'); setError('')
     setModalOpen(true)
+  }
+
+  function handleCompany(name: string) {
+    setEmpresa(name)
+    setSelectedId(''); setEmail(''); setCode('')
   }
 
   function handleSelect(id: string) {
@@ -82,7 +91,6 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible }: Pro
     if (e) {
       setEmail(e.email)
       setCode(genCode(e.full_name, e.cpf))
-      setEmpresa(e.empresa)
     }
   }
 
@@ -202,15 +210,27 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible }: Pro
               <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
-              {/* Nome completo (dropdown de colaboradores) */}
+              {/* Empresa (dropdown) — primeiro */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Empresa *</label>
+                <select value={empresa} onChange={e => handleCompany(e.target.value)}
+                  className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+                  <option value="">Selecionar empresa...</option>
+                  {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* Nome completo (dropdown de colaboradores da empresa) */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Nome completo *</label>
-                <select value={selectedId} onChange={e => handleSelect(e.target.value)}
-                  className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
-                  <option value="">Selecionar colaborador...</option>
-                  {available.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                <select value={selectedId} onChange={e => handleSelect(e.target.value)} disabled={!empresa}
+                  className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white disabled:opacity-50">
+                  <option value="">{empresa ? 'Selecionar colaborador...' : 'Selecione a empresa primeiro'}</option>
+                  {funcionarios.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
                 </select>
-                {available.length === 0 && <p className="text-[11px] text-muted-foreground">Todos os colaboradores elegíveis já têm usuário.</p>}
+                {empresa && funcionarios.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">Nenhum colaborador disponível nesta empresa.</p>
+                )}
               </div>
 
               {/* Email */}
@@ -236,12 +256,6 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible }: Pro
                 <label className="text-xs font-medium text-gray-600">Código</label>
                 <Input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="Ex: MS1076" className="font-mono" />
                 <p className="text-[11px] text-muted-foreground">Iniciais (nome + sobrenome) + 4 primeiros dígitos do CPF.</p>
-              </div>
-
-              {/* Empresa */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Empresa</label>
-                <Input value={empresa} onChange={e => setEmpresa(e.target.value)} placeholder="Empresa do colaborador" />
               </div>
 
               {/* Perfil */}

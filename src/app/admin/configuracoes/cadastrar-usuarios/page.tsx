@@ -56,5 +56,10 @@ export default async function CadastrarUsuariosPage() {
       }
     })
 
-  return <CadastrarUsuariosManager systemUsers={systemUsers} eligible={eligible} />
+  // Empresas com colaboradores elegíveis (para o dropdown)
+  const companyOptions = Array.from(
+    new Set(eligible.map(e => e.empresa).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  return <CadastrarUsuariosManager systemUsers={systemUsers} eligible={eligible} companyOptions={companyOptions} />
 }
