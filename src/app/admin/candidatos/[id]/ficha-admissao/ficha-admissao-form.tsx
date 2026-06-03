@@ -84,7 +84,7 @@ const ALL_DOCS = [
   { key: 'cpf',                        label: 'CPF' },
   { key: 'identidade',                 label: 'Carteira de Identidade (RG)' },
   { key: 'titulo_eleitor',             label: 'Título de Eleitor' },
-  { key: 'certificado_reservista',     label: 'Certificado de Reservista (masc.)' },
+  { key: 'certificado_reservista',     label: 'Certificado de Reservista' },
   { key: 'comprovante_escolaridade',   label: 'Comprovante de Escolaridade' },
   { key: 'certidao_civil',             label: 'Certidão de Nascimento / Casamento / outros' },
   { key: 'comprovante_residencia',     label: 'Comprovante de Residência' },
