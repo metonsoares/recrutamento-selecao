@@ -2,9 +2,10 @@
 import { useState, useRef } from 'react'
 import {
   Upload, X, FileText, CheckCircle2, AlertCircle, Clock,
-  Loader2, Save,
+  Loader2, Save, Plus, Trash2, GraduationCap, Megaphone, Building2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,12 @@ interface UploadedFile { url: string; name: string; path: string }
 
 interface DocState {
   not_applicable: boolean
+  files: UploadedFile[]
+}
+
+interface CustomDoc {
+  id: string
+  name: string
   files: UploadedFile[]
 }
 
@@ -180,6 +187,130 @@ function DocRow({
   )
 }
 
+// ─── Card de documentos livres (Treinamentos / Circulares) ────────────────────
+
+function CustomDocRow({ item, onChange, onRemove, candidateId }: {
+  item: CustomDoc
+  onChange: (i: CustomDoc) => void
+  onRemove: () => void
+  candidateId: string
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState('')
+  const hasFile = item.files.length > 0
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setErr('')
+    if (file.size > 4 * 1024 * 1024) { setErr('Arquivo excede 4 MB'); return }
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) { setErr('Use PDF, JPG ou PNG'); return }
+    setUploading(true)
+    const fd = new FormData(); fd.append('file', file); fd.append('docKey', 'custom')
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, { method: 'POST', body: fd })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      onChange({ ...item, files: [...item.files, { url: d.url, name: file.name, path: d.path }] })
+    } catch (e) { setErr((e as Error).message || 'Erro no upload') }
+    finally { setUploading(false); if (e.target) e.target.value = '' }
+  }
+
+  function removeFile(idx: number) {
+    const f = item.files[idx]
+    if (f?.path) {
+      fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: f.path }),
+      }).catch(() => {})
+    }
+    const files = [...item.files]; files.splice(idx, 1)
+    onChange({ ...item, files })
+  }
+
+  return (
+    <div className={`rounded-xl border p-3 ${hasFile ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50/60 border-amber-200'}`}>
+      <div className="flex items-center gap-2">
+        <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${hasFile ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+          {hasFile ? <><CheckCircle2 className="w-2.5 h-2.5" />Enviado</> : <><Clock className="w-2.5 h-2.5" />Pendente</>}
+        </span>
+        <Input value={item.name} onChange={e => onChange({ ...item, name: e.target.value })}
+          placeholder="Nome do documento" className="h-8 text-sm flex-1" />
+        <button onClick={onRemove} className="text-gray-400 hover:text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
+      </div>
+      <div className="mt-2 space-y-1.5">
+        {item.files.map((f, i) => (
+          <div key={i} className="flex items-center gap-1.5 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
+            <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+            <a href={f.url} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate max-w-[240px]">{f.name}</a>
+            <button onClick={() => removeFile(i)} className="ml-auto text-gray-400 hover:text-red-500 shrink-0"><X className="w-3 h-3" /></button>
+          </div>
+        ))}
+        <button disabled={uploading} onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
+          {uploading ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</> : <><Upload className="w-3 h-3" />Anexar arquivo</>}
+        </button>
+        <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleFile} />
+        {err && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</p>}
+      </div>
+    </div>
+  )
+}
+
+function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidateId, addLabel }: {
+  title: string
+  subtitle: string
+  icon: React.ElementType
+  items: CustomDoc[]
+  setItems: (fn: (prev: CustomDoc[]) => CustomDoc[]) => void
+  candidateId: string
+  addLabel: string
+}) {
+  function add() {
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())
+    setItems(prev => [...prev, { id, name: '', files: [] }])
+  }
+  const done = items.filter(i => i.files.length > 0).length
+
+  return (
+    <div className="bg-white rounded-2xl border shadow-sm p-5">
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="flex items-center gap-2">
+          <Icon className="w-5 h-5 text-[#333]" />
+          <div>
+            <h2 className="text-base font-bold text-gray-900">{title}</h2>
+            <p className="text-[12px] text-muted-foreground mt-0.5">{subtitle}</p>
+          </div>
+        </div>
+        {items.length > 0 && (
+          <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${done === items.length ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+            {done}/{items.length}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {items.map(item => (
+          <CustomDocRow
+            key={item.id}
+            item={item}
+            candidateId={candidateId}
+            onChange={u => setItems(prev => prev.map(p => p.id === item.id ? u : p))}
+            onRemove={() => setItems(prev => prev.filter(p => p.id !== item.id))}
+          />
+        ))}
+        {items.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">Nenhum item adicionado.</p>
+        )}
+        <button onClick={add}
+          className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-dashed border-gray-300 text-gray-600 hover:border-primary hover:text-primary transition-colors w-full justify-center mt-1">
+          <Plus className="w-4 h-4" />{addLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 interface Props {
@@ -187,8 +318,18 @@ interface Props {
   initialDocs: Record<string, unknown> | null
 }
 
+function initCustom(saved: Record<string, unknown> | null, key: string): CustomDoc[] {
+  const arr = saved?.[key]
+  if (Array.isArray(arr)) {
+    return arr.map(i => ({ id: i.id || String(Math.random()), name: i.name || '', files: i.files || [] }))
+  }
+  return []
+}
+
 export function DocumentosTab({ candidateId, initialDocs }: Props) {
   const [docs, setDocs] = useState<Record<string, DocState>>(() => initDocs(initialDocs))
+  const [treinamentos, setTreinamentos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__treinamentos'))
+  const [circulares, setCirculares] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__circulares'))
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -199,10 +340,11 @@ export function DocumentosTab({ candidateId, initialDocs }: Props) {
   async function handleSave() {
     setSaving(true)
     try {
+      const payload = { ...docs, __treinamentos: treinamentos, __circulares: circulares }
       const res = await fetch(`/api/admin/candidatos/${candidateId}/company-docs`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(docs),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -255,6 +397,28 @@ export function DocumentosTab({ candidateId, initialDocs }: Props) {
           ))}
         </div>
       </div>
+
+      {/* Treinamentos */}
+      <CustomDocsCard
+        title="Treinamentos"
+        subtitle="Certificados e comprovantes de treinamentos realizados"
+        icon={GraduationCap}
+        items={treinamentos}
+        setItems={setTreinamentos}
+        candidateId={candidateId}
+        addLabel="Adicionar treinamento"
+      />
+
+      {/* Circulares */}
+      <CustomDocsCard
+        title="Circulares"
+        subtitle="Comunicados e circulares assinados pelo colaborador"
+        icon={Megaphone}
+        items={circulares}
+        setItems={setCirculares}
+        candidateId={candidateId}
+        addLabel="Adicionar circular"
+      />
 
       {/* Salvar */}
       <Button onClick={handleSave} disabled={saving} className="gap-1.5 w-full sm:w-auto">
