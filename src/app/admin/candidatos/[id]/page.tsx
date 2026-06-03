@@ -14,6 +14,7 @@ import { CandidateTabNav } from './candidate-tab-nav'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
 import { DocumentosTab } from './documentos-tab'
 import { AdvertenciasTab } from './advertencias-tab'
+import { DadosBancariosTab, BankData } from './dados-bancarios-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -113,8 +114,12 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' =
-    sp.tab === 'ficha' ? 'ficha' : sp.tab === 'documentos' ? 'documentos' : sp.tab === 'advertencias' ? 'advertencias' : 'curriculo'
+  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' | 'bancarios' =
+    sp.tab === 'ficha' ? 'ficha'
+    : sp.tab === 'documentos' ? 'documentos'
+    : sp.tab === 'advertencias' ? 'advertencias'
+    : sp.tab === 'bancarios' ? 'bancarios'
+    : 'curriculo'
 
   const supabase = await createSupabaseServerClient()
 
@@ -158,6 +163,7 @@ export default async function CandidatePage({
   const fichaCompanies = (companiesData || []) as CompanyOption[]
   const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
   const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
+  const bankData = (latestApp?.bank_data as BankData | null) ?? null
 
   // Advertências (somente quando aba ativa, mas barato buscar sempre)
   const { data: warningsData } = await service
@@ -167,6 +173,8 @@ export default async function CandidatePage({
     .order('occurred_at', { ascending: false })
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
+  // Aba Dados Bancários: contratado, freelancer, intermitente (aprovado)
+  const showBankTab = ['contratado', 'freelancer', 'aprovado'].includes(currentStatus)
 
   // Job title: join → job_id direto → form_answer job_select (pode ser UUID → lookup)
   let jobTitle: string | null = (latestApp?.jobs as { title?: string } | null)?.title ?? null
@@ -326,7 +334,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} />
+      <CandidateTabNav candidateId={id} showBankTab={showBankTab} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && (
@@ -356,6 +364,11 @@ export default async function CandidatePage({
       {/* ── Aba: Advertências ── */}
       {activeTab === 'advertencias' && (
         <AdvertenciasTab candidateId={id} initialWarnings={warningsData || []} />
+      )}
+
+      {/* ── Aba: Dados Bancários ── */}
+      {activeTab === 'bancarios' && showBankTab && (
+        <DadosBancariosTab candidateId={id} initialData={bankData} />
       )}
 
       {/* ── Aba: Currículo ── */}
