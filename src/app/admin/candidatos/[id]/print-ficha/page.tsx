@@ -170,7 +170,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
         {/* Assinaturas */}
         <div className="assinaturas">
           <div className="assinatura-box"><div className="linha" /><p>Assinatura do Funcionário</p></div>
-          <div className="assinatura-box"><div className="linha" /><p>Assinatura do Responsável</p></div>
+          <div className="assinatura-box"><div className="linha" /><p>Assinatura Empresa</p></div>
         </div>
 
         <p className="rodape">Tel. Médico do Trabalho: (24) 2242-0310 – Paulo Bittencourt | Dr. Moreirão: (24) 2243-8608</p>

@@ -653,7 +653,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         {/* ── Assinaturas ─────────────────────────────────────────────── */}
         <div className="mt-8 pt-4 border-t grid grid-cols-2 gap-8">
           <div className="text-center"><div className="h-10 border-b border-gray-400 mb-1" /><p className="text-[11px] text-gray-500">Assinatura do Funcionário</p></div>
-          <div className="text-center"><div className="h-10 border-b border-gray-400 mb-1" /><p className="text-[11px] text-gray-500">Assinatura do Responsável</p></div>
+          <div className="text-center"><div className="h-10 border-b border-gray-400 mb-1" /><p className="text-[11px] text-gray-500">Assinatura Empresa</p></div>
         </div>
       </div>
 
