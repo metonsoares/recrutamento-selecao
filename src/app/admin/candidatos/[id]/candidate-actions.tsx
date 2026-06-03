@@ -509,6 +509,24 @@ export function CandidateActions({
           </Select>
         )}
 
+        {/* Bloquear Freelancer → status reprovado */}
+        {applicationId && status === 'freelancer' && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={savingStatus}
+            onClick={() => {
+              if (confirm('Bloquear este freelancer? O status passará para "Reprovado".')) {
+                handleStatusChange('reprovado')
+              }
+            }}
+            className="gap-1 border-red-300 text-red-700 hover:bg-red-50"
+          >
+            <ShieldAlert className="w-4 h-4" />
+            Bloquear Freelancer
+          </Button>
+        )}
+
         {/* Analisar IA */}
         {applicationId && (
           <Button
