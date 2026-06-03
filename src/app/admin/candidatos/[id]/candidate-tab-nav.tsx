@@ -5,13 +5,15 @@ import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane,
 
 interface Props {
   candidateId: string
-  /** Exibe abas de colaborador (Dados Bancários, Férias) — contratado, freelancer, intermitente */
+  /** Exibe Dados Bancários — contratado, freelancer, intermitente */
   showBankTab?: boolean
+  /** Exibe Férias — contratado e intermitente (não freelancer) */
+  showVacationTab?: boolean
   /** Exibe Ficha Admissão, Documentos e Advertências — apenas contratado */
   showAdmissionTabs?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showBankTab = false, showAdmissionTabs = true }: Props) {
+export function CandidateTabNav({ candidateId, showBankTab = false, showVacationTab = false, showAdmissionTabs = true }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -63,7 +65,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showAdmissio
           Dados Bancários
         </Link>
       )}
-      {showBankTab && (
+      {showVacationTab && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=ferias`}
           className={`${base} ${activeTab === 'ferias' ? active : inactive}`}

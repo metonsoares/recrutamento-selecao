@@ -178,8 +178,10 @@ export default async function CandidatePage({
   ])
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
-  // Abas de colaborador (Resumo, Dados Bancários, Férias): contratado, freelancer, intermitente
+  // Resumo + Dados Bancários: contratado, freelancer, intermitente
   const showBankTab = ['contratado', 'freelancer', 'aprovado'].includes(currentStatus)
+  // Férias: contratado e intermitente (não freelancer)
+  const showVacationTab = ['contratado', 'aprovado'].includes(currentStatus)
   // Ficha Admissão, Documentos e Advertências: apenas contratado
   const isContratado = currentStatus === 'contratado'
   // Painel enxuto para freelancer/intermitente
@@ -343,7 +345,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showBankTab={showBankTab} showAdmissionTabs={isContratado} />
+      <CandidateTabNav candidateId={id} showBankTab={showBankTab} showVacationTab={showVacationTab} showAdmissionTabs={isContratado} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && isContratado && (
@@ -386,7 +388,7 @@ export default async function CandidatePage({
       )}
 
       {/* ── Aba: Férias ── */}
-      {activeTab === 'ferias' && showBankTab && (
+      {activeTab === 'ferias' && showVacationTab && (
         <FeriasTab
           candidateId={id}
           admissionDate={admissionForm?.admission_date || null}
