@@ -14,7 +14,7 @@ export default async function ContratadosPage() {
     .select(`
       id, full_name, phone, email, city, created_at,
       applications!latest_application_id (
-        id, status, created_at, final_score, culture_score, admission_form,
+        id, status, created_at, final_score, culture_score, admission_form, company_docs,
         jobs ( title )
       )
     `)
@@ -28,6 +28,7 @@ export default async function ContratadosPage() {
     final_score: number | null
     culture_score: number | null
     admission_form: { selected_company_id?: string } | null
+    company_docs: Record<string, { not_applicable?: boolean; files?: unknown[] }> | null
     jobs: { title: string } | { title: string }[] | null
   }
 
@@ -95,6 +96,24 @@ export default async function ContratadosPage() {
     }
   }
 
+  // Documentos da empresa exigidos (mesma lista da aba Documentos)
+  const COMPANY_DOC_KEYS = [
+    'ficha_registro', 'contrato_experiencia', 'contrato_trabalho', 'regulamento_interno',
+    'banco_horas', 'cessao_imagem', 'vale_transporte', 'uniformes_epis',
+    'acrm_geral', 'acrm_escala', 'manipulacao',
+  ]
+
+  function getPendencia(app: AppRow | null): 'ok' | 'pendente' {
+    const docs = app?.company_docs
+    if (!docs) return 'pendente'
+    for (const key of COMPANY_DOC_KEYS) {
+      const s = docs[key]
+      const resolved = s?.not_applicable === true || (s?.files?.length ?? 0) > 0
+      if (!resolved) return 'pendente'
+    }
+    return 'ok'
+  }
+
   // Monta rows serializáveis para o Client Component
   const tableRows = contratados.map(c => {
     const app = getApp(c)
@@ -112,6 +131,7 @@ export default async function ContratadosPage() {
       jobTitle: getJobTitle(app),
       companyName: companyId ? (companyMap[companyId] ?? null) : null,
       photoUrl: app ? (photoMap[app.id] ?? null) : null,
+      pendencia: getPendencia(app),
     }
   })
 

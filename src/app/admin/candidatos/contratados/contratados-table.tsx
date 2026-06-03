@@ -19,6 +19,7 @@ interface ContratadoRow {
   jobTitle: string
   companyName: string | null
   photoUrl: string | null
+  pendencia: 'ok' | 'pendente'
 }
 
 interface Props {
@@ -97,6 +98,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
               <th className="px-4 py-3 text-left font-medium">Empresa</th>
               <th className="px-4 py-3 text-left font-medium">Cargo</th>
               <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Contato</th>
+              <th className="px-4 py-3 text-center font-medium">Pendências</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -145,11 +147,24 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
                   <p>{c.phone || '—'}</p>
                   {c.email && <p className="text-xs text-muted-foreground truncate max-w-[160px]">{c.email}</p>}
                 </td>
+
+                {/* Pendências */}
+                <td className="px-4 py-3 text-center">
+                  {c.pendencia === 'ok' ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                      <CheckCircle2 className="w-3 h-3" />Ok
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                      <AlertCircle className="w-3 h-3" />Pendente
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   Nenhum contratado encontrado com os filtros aplicados.
                 </td>
               </tr>
