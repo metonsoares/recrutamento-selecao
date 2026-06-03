@@ -175,8 +175,12 @@ export default async function CandidatePage({
   ])
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
-  // Aba Dados Bancários: contratado, freelancer, intermitente (aprovado)
+  // Abas de colaborador (Resumo, Dados Bancários, Férias): contratado, freelancer, intermitente
   const showBankTab = ['contratado', 'freelancer', 'aprovado'].includes(currentStatus)
+  // Ficha Admissão, Documentos e Advertências: apenas contratado
+  const isContratado = currentStatus === 'contratado'
+  // Painel enxuto para freelancer/intermitente
+  const minimalResumo = showBankTab && !isContratado
 
   // Job title: join → job_id direto → form_answer job_select (pode ser UUID → lookup)
   let jobTitle: string | null = (latestApp?.jobs as { title?: string } | null)?.title ?? null
@@ -336,10 +340,10 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showBankTab={showBankTab} />
+      <CandidateTabNav candidateId={id} showBankTab={showBankTab} showAdmissionTabs={isContratado} />
 
       {/* ── Aba: Ficha Admissão ── */}
-      {activeTab === 'ficha' && (
+      {activeTab === 'ficha' && isContratado && (
         <FichaAdmissaoForm
           candidate={{
             id: candidate.id,
@@ -359,12 +363,12 @@ export default async function CandidatePage({
       )}
 
       {/* ── Aba: Documentos ── */}
-      {activeTab === 'documentos' && (
+      {activeTab === 'documentos' && isContratado && (
         <DocumentosTab candidateId={id} initialDocs={companyDocs} />
       )}
 
       {/* ── Aba: Advertências ── */}
-      {activeTab === 'advertencias' && (
+      {activeTab === 'advertencias' && isContratado && (
         <AdvertenciasTab candidateId={id} initialWarnings={warningsData || []} />
       )}
 
@@ -404,6 +408,7 @@ export default async function CandidatePage({
             salary={admissionForm?.salary || null}
             registeredAt={candidate.created_at}
             warningsCount={(warningsData || []).length}
+            minimal={minimalResumo}
           />
         </div>
       )}

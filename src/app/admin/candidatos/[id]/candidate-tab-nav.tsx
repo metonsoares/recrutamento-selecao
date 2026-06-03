@@ -7,9 +7,11 @@ interface Props {
   candidateId: string
   /** Exibe abas de colaborador (Dados Bancários, Férias) — contratado, freelancer, intermitente */
   showBankTab?: boolean
+  /** Exibe Ficha Admissão, Documentos e Advertências — apenas contratado */
+  showAdmissionTabs?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showBankTab = false }: Props) {
+export function CandidateTabNav({ candidateId, showBankTab = false, showAdmissionTabs = true }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -33,20 +35,24 @@ export function CandidateTabNav({ candidateId, showBankTab = false }: Props) {
         <FileText className="w-4 h-4" />
         {showBankTab ? 'Resumo' : 'Currículo'}
       </Link>
-      <Link
-        href={`/admin/candidatos/${candidateId}?tab=ficha`}
-        className={`${base} ${activeTab === 'ficha' ? active : inactive}`}
-      >
-        <ClipboardList className="w-4 h-4" />
-        Ficha Admissão
-      </Link>
-      <Link
-        href={`/admin/candidatos/${candidateId}?tab=documentos`}
-        className={`${base} ${activeTab === 'documentos' ? active : inactive}`}
-      >
-        <FolderArchive className="w-4 h-4" />
-        Documentos
-      </Link>
+      {showAdmissionTabs && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=ficha`}
+          className={`${base} ${activeTab === 'ficha' ? active : inactive}`}
+        >
+          <ClipboardList className="w-4 h-4" />
+          Ficha Admissão
+        </Link>
+      )}
+      {showAdmissionTabs && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=documentos`}
+          className={`${base} ${activeTab === 'documentos' ? active : inactive}`}
+        >
+          <FolderArchive className="w-4 h-4" />
+          Documentos
+        </Link>
+      )}
       {showBankTab && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=bancarios`}
@@ -65,13 +71,15 @@ export function CandidateTabNav({ candidateId, showBankTab = false }: Props) {
           Férias
         </Link>
       )}
-      <Link
-        href={`/admin/candidatos/${candidateId}?tab=advertencias`}
-        className={`${base} ${activeTab === 'advertencias' ? active : inactive}`}
-      >
-        <AlertTriangle className="w-4 h-4" />
-        Advertências
-      </Link>
+      {showAdmissionTabs && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=advertencias`}
+          className={`${base} ${activeTab === 'advertencias' ? active : inactive}`}
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Advertências
+        </Link>
+      )}
     </div>
   )
 }

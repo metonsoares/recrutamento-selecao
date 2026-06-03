@@ -19,6 +19,8 @@ interface Props {
   salary: string | null
   registeredAt: string           // created_at
   warningsCount: number
+  /** Versão enxuta (freelancer/intermitente): oculta cargo, admissão, tempo de casa, advertências, salário */
+  minimal?: boolean
 }
 
 // ─── Helpers de tempo ─────────────────────────────────────────────────────────
@@ -45,6 +47,7 @@ export function ResumoColaborador({
   fullName, jobTitle, companyName, statusLabel,
   cpf, phone, email, city, age,
   admissionDate, salary, registeredAt, warningsCount,
+  minimal = false,
 }: Props) {
   const now = new Date()
   const admission = admissionDate ? new Date(admissionDate + 'T00:00:00') : null
@@ -104,7 +107,7 @@ export function ResumoColaborador({
             <p className="text-[11px] uppercase tracking-widest text-emerald-100/80 font-semibold">Colaborador</p>
             <h2 className="text-2xl font-bold leading-tight mt-0.5">{fullName}</h2>
             <div className="flex items-center gap-3 mt-2 text-sm text-emerald-50 flex-wrap">
-              {jobTitle && <span className="flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" />{jobTitle}</span>}
+              {!minimal && jobTitle && <span className="flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" />{jobTitle}</span>}
               {companyName && <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" />{companyName}</span>}
             </div>
           </div>
@@ -114,7 +117,7 @@ export function ResumoColaborador({
         </div>
 
         {/* Métricas rápidas */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+        {!minimal && <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
           <div className="bg-white/10 rounded-xl px-3 py-2.5 backdrop-blur">
             <p className="text-[10px] uppercase tracking-wide text-emerald-100/70">Admissão</p>
             <p className="text-sm font-bold mt-0.5">{admission ? formatDate(admission.toISOString()) : '—'}</p>
@@ -131,7 +134,7 @@ export function ResumoColaborador({
             <p className="text-[10px] uppercase tracking-wide text-emerald-100/70">Salário</p>
             <p className="text-sm font-bold mt-0.5">{salary || '—'}</p>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* ── Aviso de férias ── */}
