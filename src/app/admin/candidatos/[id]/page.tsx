@@ -170,11 +170,12 @@ export default async function CandidatePage({
   const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
   const bankData = (latestApp?.bank_data as BankData | null) ?? null
 
-  // Advertências + Férias + Atestados
-  const [{ data: warningsData }, { data: vacationsData }, { data: certificatesData }] = await Promise.all([
+  // Advertências + Férias + Atestados + Faltas
+  const [{ data: warningsData }, { data: vacationsData }, { data: certificatesData }, { data: absencesData }] = await Promise.all([
     service.from('warnings').select('*').eq('candidate_id', id).order('occurred_at', { ascending: false }),
     service.from('vacations').select('*').eq('candidate_id', id).order('start_date', { ascending: false }),
     service.from('medical_certificates').select('*').eq('candidate_id', id).order('certificate_date', { ascending: false }),
+    service.from('absences').select('*').eq('candidate_id', id).order('absence_date', { ascending: false }),
   ])
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
@@ -393,6 +394,7 @@ export default async function CandidatePage({
           candidateId={id}
           admissionDate={admissionForm?.admission_date || null}
           initialVacations={vacationsData || []}
+          initialAbsences={absencesData || []}
         />
       )}
 

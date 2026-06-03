@@ -23,11 +23,41 @@ interface Vacation {
   created_at: string
 }
 
+interface Absence {
+  id: string
+  absence_date: string
+  days: number
+  kind: 'injustificada' | 'afastamento'
+  comment: string | null
+  created_at: string
+}
+
 interface Props {
   candidateId: string
   admissionDate: string | null
   initialVacations: Vacation[]
+  initialAbsences: Absence[]
 }
+
+// ─── Tabela CLT Art. 130 — desconto de férias por faltas injustificadas ──────
+// faltas → dias de direito a férias
+function descontoPorFaltas(faltas: number): number {
+  if (faltas <= 5) return 0
+  if (faltas <= 14) return 6
+  if (faltas <= 23) return 12
+  if (faltas <= 32) return 18
+  return 30
+}
+
+const TABELA_DESCONTO = [
+  { faixa: 'Até 5 faltas não justificadas', desconto: '0 dias', ref: 'Data de admissão', frac: 'Permitido' },
+  { faixa: '6 a 14 faltas não justificadas', desconto: '6 dias corridos', ref: 'Data de admissão', frac: 'Permitido' },
+  { faixa: '15 a 23 faltas não justificadas', desconto: '12 dias corridos', ref: 'Data de admissão', frac: 'Não permitido' },
+  { faixa: '24 a 32 faltas não justificadas', desconto: '18 dias corridos', ref: 'Data de admissão', frac: 'Não permitido' },
+  { faixa: 'Mais de 32 faltas não justificadas', desconto: '30 dias corridos', ref: 'Data de admissão', frac: 'Não permitido' },
+  { faixa: 'Mais de 180 dias afastado por acidente ou doença', desconto: '30 dias corridos', ref: 'Data de retorno após último afastamento', frac: 'Não permitido' },
+  { faixa: 'Licença não remunerada', desconto: '—', ref: 'Período aquisitivo é retomado após a volta do colaborador', frac: 'Permitido' },
+]
 
 // ─── Helpers de data ──────────────────────────────────────────────────────────
 
@@ -242,13 +272,27 @@ function PeriodRow({ label, value }: { label: string; value: string | null }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function FeriasTab({ candidateId, admissionDate, initialVacations }: Props) {
+export function FeriasTab({ candidateId, admissionDate, initialVacations, initialAbsences }: Props) {
   const [vacations, setVacations] = useState<Vacation[]>(initialVacations)
+  const [absences, setAbsences] = useState<Absence[]>(initialAbsences)
   const [drawer, setDrawer] = useState<'solicitar' | 'historico' | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [tabelaOpen, setTabelaOpen] = useState(false)
+  const [faltaModal, setFaltaModal] = useState(false)
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
+
+  // ── Descontos por faltas (CLT Art. 130) ───────────────────────────────────
+  const faltasInjustificadas = useMemo(
+    () => absences.filter(a => a.kind === 'injustificada').reduce((s, a) => s + (a.days || 0), 0),
+    [absences])
+  const diasAfastamento = useMemo(
+    () => absences.filter(a => a.kind === 'afastamento').reduce((s, a) => s + (a.days || 0), 0),
+    [absences])
+  const descontoFaltas = descontoPorFaltas(faltasInjustificadas)
+  const descontoAfastamento = diasAfastamento > 180 ? 30 : 0
+  const totalDesconto = descontoFaltas + descontoAfastamento
 
   // ── Cálculo CLT ───────────────────────────────────────────────────────────
   const calc = useMemo(() => {
@@ -261,7 +305,7 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations }: Prop
     const periodos = Math.max(0, Math.floor(monthsWorked / 12))
     const totalDireito = periodos * TOTAL_DIAS_PERIODO
     const usados = vacations.reduce((sum, v) => sum + (v.days || 0) + (v.abono_days || 0), 0)
-    const disponivel = totalDireito - usados
+    const disponivel = Math.max(0, totalDireito - usados - totalDesconto)
 
     // Período aquisitivo concluído mais recente
     let aquisitivo: string | null = null
@@ -279,7 +323,7 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations }: Prop
     }
 
     return { periodos, totalDireito, usados, disponivel, limite, aquisitivo }
-  }, [admissionDate, vacations])
+  }, [admissionDate, vacations, totalDesconto])
 
   const periodInfo = {
     admission: admissionDate ? formatDate(admissionDate) : null,
@@ -308,6 +352,23 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations }: Prop
     if (!res.ok) { showToast('err', json.error || 'Erro ao remover.'); return }
     setVacations(prev => prev.filter(v => v.id !== id))
     showToast('ok', 'Registro removido.')
+  }
+
+  async function handleAddFalta(f: { absence_date: string; days: number; kind: string; comment: string }) {
+    const res = await fetch(`/api/admin/candidatos/${candidateId}/absences`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error)
+    setAbsences(prev => [json.absence, ...prev].sort((a, b) => b.absence_date.localeCompare(a.absence_date)))
+    setFaltaModal(false)
+    showToast('ok', 'Falta registrada.')
+  }
+
+  async function handleDeleteFalta(id: string) {
+    if (!confirm('Remover esta falta?')) return
+    const res = await fetch(`/api/admin/candidatos/${candidateId}/absences/${id}`, { method: 'DELETE' })
+    if (res.ok) { setAbsences(prev => prev.filter(a => a.id !== id)); showToast('ok', 'Falta removida.') }
   }
 
   return (
@@ -397,6 +458,78 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations }: Prop
         </table>
       </div>
 
+      {/* ── Seus descontos ── */}
+      <div className="bg-white rounded-2xl border shadow-sm p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-base font-bold text-gray-900">Seus descontos</h3>
+          <Button variant="outline" size="sm" onClick={() => setFaltaModal(true)} className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" />Registrar falta / afastamento
+          </Button>
+        </div>
+
+        <div className="space-y-1.5 text-sm">
+          <p className="text-gray-600">Total de dias descontados: <strong className="text-gray-900">{totalDesconto} dia{totalDesconto !== 1 ? 's' : ''}</strong></p>
+          <p className="text-gray-600">Descontos de ausências injustificadas: <strong className="text-gray-900">{descontoFaltas} dia{descontoFaltas !== 1 ? 's' : ''}</strong> <span className="text-[12px] text-muted-foreground">({faltasInjustificadas} falta{faltasInjustificadas !== 1 ? 's' : ''})</span></p>
+          <p className="text-gray-600">Descontos de afastamentos: <strong className="text-gray-900">{descontoAfastamento} dias</strong> <span className="text-[12px] text-muted-foreground">({diasAfastamento} dia{diasAfastamento !== 1 ? 's' : ''} afastado)</span></p>
+          <p className="text-gray-600 pt-1">Saldo disponível de férias: <strong className="text-emerald-700">{calc.disponivel} dias</strong></p>
+        </div>
+
+        {/* Lista de faltas */}
+        {absences.length > 0 && (
+          <div className="border-t pt-3 space-y-1.5">
+            {absences.map(a => (
+              <div key={a.id} className="flex items-center gap-2 text-[13px]">
+                <span className="text-gray-500 w-24 shrink-0">{formatDate(a.absence_date)}</span>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${a.kind === 'afastamento' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {a.kind === 'afastamento' ? 'Afastamento' : 'Falta injust.'}
+                </span>
+                <span className="text-gray-700">{a.days} dia{a.days !== 1 ? 's' : ''}</span>
+                {a.comment && <span className="text-muted-foreground truncate flex-1">— {a.comment}</span>}
+                <button onClick={() => handleDeleteFalta(a.id)} className="ml-auto text-gray-300 hover:text-red-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tabela de cálculo de descontos (referência) */}
+        <div className="border-t pt-3">
+          <button onClick={() => setTabelaOpen(o => !o)} className="flex items-center justify-between w-full text-left">
+            <div>
+              <p className="text-sm font-bold text-gray-900">Tabela de cálculo de descontos</p>
+              <p className="text-[12px] text-muted-foreground">Regras de desconto do saldo de férias de acordo com as ausências.</p>
+            </div>
+            <span className="text-gray-400 text-xs">{tabelaOpen ? '▲' : '▼'}</span>
+          </button>
+          {tabelaOpen && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-[12px] border rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-gray-50 text-muted-foreground">
+                    <th className="px-3 py-2 text-left font-medium">Quantidade de dias</th>
+                    <th className="px-3 py-2 text-left font-medium">Desconto no saldo de férias</th>
+                    <th className="px-3 py-2 text-left font-medium">Referência do período aquisitivo</th>
+                    <th className="px-3 py-2 text-left font-medium">Fracionamento</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {TABELA_DESCONTO.map((r, i) => (
+                    <tr key={i} className="text-gray-700">
+                      <td className="px-3 py-2">{r.faixa}</td>
+                      <td className="px-3 py-2">{r.desconto}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{r.ref}</td>
+                      <td className="px-3 py-2"><span className={r.frac === 'Permitido' ? 'text-emerald-700' : 'text-gray-500'}>{r.frac}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal registrar falta */}
+      {faltaModal && <FaltaModal onSave={handleAddFalta} onClose={() => setFaltaModal(false)} />}
+
       {/* Drawers */}
       {drawer === 'solicitar' && (
         <VacationFormDrawer
@@ -418,6 +551,68 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations }: Prop
           onClose={() => setDrawer(null)}
         />
       )}
+    </div>
+  )
+}
+
+// ─── Modal de registro de falta/afastamento ───────────────────────────────────
+
+function FaltaModal({ onSave, onClose }: { onSave: (f: { absence_date: string; days: number; kind: string; comment: string }) => Promise<void>; onClose: () => void }) {
+  const [absence_date, setDate] = useState('')
+  const [days, setDays] = useState('1')
+  const [kind, setKind] = useState('injustificada')
+  const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit() {
+    if (!absence_date) { setError('Informe a data.'); return }
+    setSaving(true); setError('')
+    try {
+      await onSave({ absence_date, days: Number(days) || 1, kind, comment })
+    } catch (e) { setError((e as Error).message || 'Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="text-base font-semibold text-gray-900">Registrar falta / afastamento</h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Tipo</label>
+            <select value={kind} onChange={e => setKind(e.target.value)} className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+              <option value="injustificada">Falta não justificada</option>
+              <option value="afastamento">Afastamento (acidente/doença)</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">Data {kind === 'afastamento' ? 'de início' : ''} *</label>
+              <Input type="date" value={absence_date} onChange={e => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">Qtd. de dias</label>
+              <Input type="number" min={1} value={days} onChange={e => setDays(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Observação (opcional)</label>
+            <textarea value={comment} onChange={e => setComment(e.target.value)} rows={2}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button onClick={submit} disabled={saving} className="gap-1.5">
+            {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />Registrar</>}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
