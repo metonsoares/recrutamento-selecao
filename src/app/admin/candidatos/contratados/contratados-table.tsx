@@ -1,9 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ClipboardList, Search } from 'lucide-react'
-import { formatDate } from '@/lib/helpers'
+import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -25,13 +23,6 @@ interface ContratadoRow {
 interface Props {
   rows: ContratadoRow[]
   companyOptions: string[]
-}
-
-function scoreColor(v: number | null) {
-  if (v == null) return 'text-gray-400'
-  if (v >= 70) return 'text-emerald-600'
-  if (v >= 50) return 'text-amber-600'
-  return 'text-red-500'
 }
 
 export function ContratadosTable({ rows, companyOptions }: Props) {
@@ -91,8 +82,6 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
               <th className="px-4 py-3 text-left font-medium">Empresa</th>
               <th className="px-4 py-3 text-left font-medium">Cargo</th>
               <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Contato</th>
-              <th className="px-4 py-3 text-center font-medium hidden sm:table-cell">Nota</th>
-              <th className="px-4 py-3 text-center font-medium">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -141,29 +130,11 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
                   <p>{c.phone || '—'}</p>
                   {c.email && <p className="text-xs text-muted-foreground truncate max-w-[160px]">{c.email}</p>}
                 </td>
-
-                {/* Nota */}
-                <td className="px-4 py-3 text-center hidden sm:table-cell">
-                  {c.finalScore != null
-                    ? <span className={`text-base font-bold ${scoreColor(c.finalScore)}`}>{Math.round(c.finalScore)}%</span>
-                    : <span className="text-xs text-gray-300">—</span>}
-                </td>
-
-                {/* Ações */}
-                <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
-                  <Link
-                    href={`/admin/candidatos/${c.id}/ficha-admissao`}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap"
-                  >
-                    <ClipboardList className="w-3.5 h-3.5" />
-                    Ficha Admissão
-                  </Link>
-                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   Nenhum contratado encontrado com os filtros aplicados.
                 </td>
               </tr>
