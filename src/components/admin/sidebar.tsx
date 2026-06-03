@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, Columns3, CalendarClock, UserMinus,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -47,31 +47,29 @@ function SidebarContent({
 
   const isMaster = role === 'master'
 
-  const inCandidatos = pathname.startsWith('/admin/candidatos')
-
-  const inCurriculos =
-    pathname.startsWith('/admin/secoes') ||
-    pathname.startsWith('/admin/formulario') ||
-    pathname.startsWith('/admin/vagas') ||
-    pathname.startsWith('/admin/teste-cultural')
-
+  // ── Grupos ────────────────────────────────────────────────────────────────
+  const COLAB_PATHS = ['/admin/candidatos/contratados', '/admin/candidatos/intermitentes', '/admin/candidatos/freelancers', '/admin/candidatos/desligados']
+  const inColaboradores = COLAB_PATHS.some(p => pathname.startsWith(p))
+  const inCurriculos = !inColaboradores && pathname.startsWith('/admin/candidatos')
+  const inConfigCurriculos =
+    pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario') ||
+    pathname.startsWith('/admin/vagas') || pathname.startsWith('/admin/teste-cultural')
   const inEmpresa =
     pathname.startsWith('/admin/configuracoes/empresa') ||
     pathname.startsWith('/admin/configuracoes/cadastro-empresa')
-
-  const inPlataforma =
-    pathname.startsWith('/admin/configuracoes/whatsapp') ||
-    pathname.startsWith('/admin/configuracoes/ia') ||
-    pathname.startsWith('/admin/configuracoes/kanban-colunas')
-
   const inUsuarios =
     pathname.startsWith('/admin/configuracoes/usuarios') ||
     pathname.startsWith('/admin/configuracoes/cadastrar-usuarios')
+  const inPlataforma =
+    pathname.startsWith('/admin/configuracoes/whatsapp') ||
+    pathname.startsWith('/admin/configuracoes/ia') ||
+    inEmpresa || inUsuarios
 
-  const [candidatosOpen, setCandidatosOpen] = useState(inCandidatos)
-  const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos)
-  const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
+  const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos || inConfigCurriculos)
+  const [configCurriculosOpen, setConfigCurriculosOpen] = useState(inConfigCurriculos)
+  const [colaboradoresOpen, setColaboradoresOpen] = useState(inColaboradores)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
+  const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
   const [usuariosOpen, setUsuariosOpen] = useState(inUsuarios)
 
   async function handleLogout() {
@@ -125,62 +123,64 @@ function SidebarContent({
           Dashboard
         </Link>
 
-        {/* Candidatos ▾ */}
+        {/* Currículos ▾ */}
         <div>
-          <button
-            onClick={() => setCandidatosOpen(o => !o)}
-            className={cn(NAV_BASE, inCandidatos ? NAV_ACTIVE : NAV_DEFAULT)}
-          >
-            <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
+          <button onClick={() => setCurriculosOpen(o => !o)} className={cn(NAV_BASE, inCurriculos || inConfigCurriculos ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <ClipboardList className="w-[15px] h-[15px] shrink-0 opacity-60" />
             <span className="flex-1 text-left">Currículos</span>
-            <ChevronDown
-              className={cn(
-                'w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200',
-                candidatosOpen && 'rotate-180',
-              )}
-            />
+            <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', curriculosOpen && 'rotate-180')} />
           </button>
-          {candidatosOpen && (
+          {curriculosOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-              <Link
-                href="/admin/candidatos"
-                onClick={go}
-                className={cn(DEEP_BASE, pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT)}
-              >
-                <Users className="w-3 h-3 shrink-0 opacity-50" />
-                Candidatos
+              <Link href="/admin/candidatos" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <Users className="w-3 h-3 shrink-0 opacity-50" />Candidatos
               </Link>
-              <Link
-                href="/admin/candidatos/contratados"
-                onClick={go}
-                className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/contratados') ? DEEP_ACTIVE : DEEP_DEFAULT)}
-              >
-                <UserCheck className="w-3 h-3 shrink-0 opacity-50" />
-                Contratados
+              {isMaster && (
+                <div>
+                  <button onClick={() => setConfigCurriculosOpen(o => !o)} className={cn(DEEP_BASE, inConfigCurriculos ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Settings2 className="w-3 h-3 shrink-0 opacity-50" />
+                    <span className="flex-1 text-left">Configurações</span>
+                    <ChevronDown className={cn('w-3 h-3 shrink-0 opacity-40 transition-transform duration-200', configCurriculosOpen && 'rotate-180')} />
+                  </button>
+                  {configCurriculosOpen && (
+                    <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
+                      <Link href="/admin/secoes" onClick={go} className={cn(DEEP_BASE, (pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario')) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                        <Layers className="w-3 h-3 shrink-0 opacity-50" />Seções e perguntas
+                      </Link>
+                      <Link href="/admin/vagas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/vagas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                        <Briefcase className="w-3 h-3 shrink-0 opacity-50" />Vagas
+                      </Link>
+                      <Link href="/admin/teste-cultural" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/teste-cultural') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                        <FlaskConical className="w-3 h-3 shrink-0 opacity-50" />Teste cultural
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Colaboradores ▾ */}
+        <div>
+          <button onClick={() => setColaboradoresOpen(o => !o)} className={cn(NAV_BASE, inColaboradores ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <UserCheck className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            <span className="flex-1 text-left">Colaboradores</span>
+            <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', colaboradoresOpen && 'rotate-180')} />
+          </button>
+          {colaboradoresOpen && (
+            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link href="/admin/candidatos/contratados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/contratados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <UserCheck className="w-3 h-3 shrink-0 opacity-50" />Contratados
               </Link>
-              <Link
-                href="/admin/candidatos/freelancers"
-                onClick={go}
-                className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/freelancers') ? DEEP_ACTIVE : DEEP_DEFAULT)}
-              >
-                <Briefcase className="w-3 h-3 shrink-0 opacity-50" />
-                Freelancers
+              <Link href="/admin/candidatos/intermitentes" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/intermitentes') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <CalendarClock className="w-3 h-3 shrink-0 opacity-50" />Intermitentes
               </Link>
-              <Link
-                href="/admin/candidatos/intermitentes"
-                onClick={go}
-                className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/intermitentes') ? DEEP_ACTIVE : DEEP_DEFAULT)}
-              >
-                <CalendarClock className="w-3 h-3 shrink-0 opacity-50" />
-                Intermitentes
+              <Link href="/admin/candidatos/freelancers" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/freelancers') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <Briefcase className="w-3 h-3 shrink-0 opacity-50" />Freelancers
               </Link>
-              <Link
-                href="/admin/candidatos/desligados"
-                onClick={go}
-                className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/desligados') ? DEEP_ACTIVE : DEEP_DEFAULT)}
-              >
-                <UserMinus className="w-3 h-3 shrink-0 opacity-50" />
-                Desligados
+              <Link href="/admin/candidatos/desligados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/desligados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <UserMinus className="w-3 h-3 shrink-0 opacity-50" />Desligados
               </Link>
             </div>
           )}
@@ -189,20 +189,12 @@ function SidebarContent({
         {/* ── Itens visíveis apenas para Master ── */}
         {isMaster && (
           <>
-            <Link
-              href="/admin/whatsapp"
-              onClick={go}
-              className={cn(NAV_BASE, pathname.startsWith('/admin/whatsapp') ? NAV_ACTIVE : NAV_DEFAULT)}
-            >
+            <Link href="/admin/whatsapp" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/whatsapp') ? NAV_ACTIVE : NAV_DEFAULT)}>
               <MessageSquare className="w-[15px] h-[15px] shrink-0 opacity-60" />
               Mensagens WhatsApp
             </Link>
 
-            <Link
-              href="/admin/relatorios"
-              onClick={go}
-              className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}
-            >
+            <Link href="/admin/relatorios" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}>
               <BarChart3 className="w-[15px] h-[15px] shrink-0 opacity-60" />
               Relatórios
             </Link>
@@ -214,14 +206,11 @@ function SidebarContent({
               </span>
             </div>
 
-            {/* Configurações Plataforma ▾ */}
+            {/* Configurações da plataforma ▾ */}
             <div>
-              <button
-                onClick={() => setPlataformaOpen(o => !o)}
-                className={cn(SUB_BASE, inPlataforma ? SUB_ACTIVE : SUB_DEFAULT)}
-              >
+              <button onClick={() => setPlataformaOpen(o => !o)} className={cn(SUB_BASE, inPlataforma ? SUB_ACTIVE : SUB_DEFAULT)}>
                 <Settings2 className="w-[15px] h-[15px] shrink-0 opacity-60" />
-                <span className="flex-1 text-left">Configurações Plataforma</span>
+                <span className="flex-1 text-left">Configurações da plataforma</span>
                 <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', plataformaOpen && 'rotate-180')} />
               </button>
               {plataformaOpen && (
@@ -232,82 +221,44 @@ function SidebarContent({
                   <Link href="/admin/configuracoes/ia" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/ia') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                     <BrainCircuit className="w-3 h-3 shrink-0 opacity-50" />Configuração IA
                   </Link>
-                  <Link href="/admin/configuracoes/kanban-colunas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/kanban-colunas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <Columns3 className="w-3 h-3 shrink-0 opacity-50" />Ordem das Colunas
-                  </Link>
-                </div>
-              )}
-            </div>
 
-            {/* Empresa e Cultura ▾ */}
-            <div>
-              <button
-                onClick={() => setEmpresaOpen(o => !o)}
-                className={cn(SUB_BASE, inEmpresa ? SUB_ACTIVE : SUB_DEFAULT)}
-              >
-                <Building2 className="w-[15px] h-[15px] shrink-0 opacity-60" />
-                <span className="flex-1 text-left">Empresa e Cultura</span>
-                <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', empresaOpen && 'rotate-180')} />
-              </button>
-              {empresaOpen && (
-                <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-                  <Link href="/admin/configuracoes/empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <Building2 className="w-3 h-3 shrink-0 opacity-50" />Dados da Empresa
-                  </Link>
-                  <Link href="/admin/configuracoes/cadastro-empresa" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cadastro de empresa
-                  </Link>
-                </div>
-              )}
-            </div>
+                  {/* Empresa ▾ */}
+                  <div>
+                    <button onClick={() => setEmpresaOpen(o => !o)} className={cn(DEEP_BASE, inEmpresa ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                      <Building2 className="w-3 h-3 shrink-0 opacity-50" />
+                      <span className="flex-1 text-left">Empresa</span>
+                      <ChevronDown className={cn('w-3 h-3 shrink-0 opacity-40 transition-transform duration-200', empresaOpen && 'rotate-180')} />
+                    </button>
+                    {empresaOpen && (
+                      <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
+                        <Link href="/admin/configuracoes/cadastro-empresa" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                          <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cadastro de empresa
+                        </Link>
+                        <Link href="/admin/configuracoes/empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                          <Building2 className="w-3 h-3 shrink-0 opacity-50" />Dados da empresa
+                        </Link>
+                      </div>
+                    )}
+                  </div>
 
-            {/* Config Currículos ▾ */}
-            <div>
-              <button
-                onClick={() => setCurriculosOpen(o => !o)}
-                className={cn(SUB_BASE, inCurriculos ? SUB_ACTIVE : SUB_DEFAULT)}
-              >
-                <ClipboardList className="w-[15px] h-[15px] shrink-0 opacity-60" />
-                <span className="flex-1 text-left">Config Currículos</span>
-                <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', curriculosOpen && 'rotate-180')} />
-              </button>
-              {curriculosOpen && (
-                <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-                  <Link href="/admin/secoes" onClick={go} className={cn(DEEP_BASE, (pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario')) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <Layers className="w-3 h-3 shrink-0 opacity-50" />Seções e Perguntas
-                  </Link>
-                  <Link href="/admin/vagas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/vagas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <Briefcase className="w-3 h-3 shrink-0 opacity-50" />Vagas
-                  </Link>
-                  <Link href="/admin/teste-cultural" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/teste-cultural') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <FlaskConical className="w-3 h-3 shrink-0 opacity-50" />Teste Cultural
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Usuários ▾ */}
-            <div>
-              <button
-                onClick={() => setUsuariosOpen(o => !o)}
-                className={cn(SUB_BASE, inUsuarios ? SUB_ACTIVE : SUB_DEFAULT)}
-              >
-                <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
-                <span className="flex-1 text-left">Usuários</span>
-                <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', usuariosOpen && 'rotate-180')} />
-              </button>
-              {usuariosOpen && (
-                <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-                  <Link href="/admin/configuracoes/usuarios" onClick={go}
-                    className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <UserCheck className="w-3 h-3 shrink-0 opacity-50" />
-                    Perfil de usuário
-                  </Link>
-                  <Link href="/admin/configuracoes/cadastrar-usuarios" onClick={go}
-                    className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastrar-usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <Users className="w-3 h-3 shrink-0 opacity-50" />
-                    Cadastrar Usuários
-                  </Link>
+                  {/* Usuários ▾ */}
+                  <div>
+                    <button onClick={() => setUsuariosOpen(o => !o)} className={cn(DEEP_BASE, inUsuarios ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                      <Users className="w-3 h-3 shrink-0 opacity-50" />
+                      <span className="flex-1 text-left">Usuários</span>
+                      <ChevronDown className={cn('w-3 h-3 shrink-0 opacity-40 transition-transform duration-200', usuariosOpen && 'rotate-180')} />
+                    </button>
+                    {usuariosOpen && (
+                      <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
+                        <Link href="/admin/configuracoes/usuarios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                          <UserCheck className="w-3 h-3 shrink-0 opacity-50" />Perfil de usuário
+                        </Link>
+                        <Link href="/admin/configuracoes/cadastrar-usuarios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastrar-usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                          <Users className="w-3 h-3 shrink-0 opacity-50" />Cadastro de usuários
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
