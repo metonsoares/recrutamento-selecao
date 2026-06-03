@@ -30,7 +30,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false }: Props) {
         className={`${base} ${activeTab === 'curriculo' ? active : inactive}`}
       >
         <FileText className="w-4 h-4" />
-        Currículo
+        {showBankTab ? 'Resumo' : 'Currículo'}
       </Link>
       <Link
         href={`/admin/candidatos/${candidateId}?tab=ficha`}

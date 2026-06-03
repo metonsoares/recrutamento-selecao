@@ -15,6 +15,7 @@ import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption }
 import { DocumentosTab } from './documentos-tab'
 import { AdvertenciasTab } from './advertencias-tab'
 import { DadosBancariosTab, BankData } from './dados-bancarios-tab'
+import { ResumoColaborador } from './resumo-colaborador'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -371,8 +372,31 @@ export default async function CandidatePage({
         <DadosBancariosTab candidateId={id} initialData={bankData} />
       )}
 
-      {/* ── Aba: Currículo ── */}
+      {/* ── Aba: Resumo/Currículo ── */}
       {activeTab === 'curriculo' && <>
+
+      {/* Painel do colaborador (contratado / intermitente) */}
+      {showBankTab && (
+        <div className="mb-5">
+          <ResumoColaborador
+            fullName={candidate.full_name}
+            jobTitle={jobTitle}
+            companyName={fichaCompanies.find(c => c.id === admissionForm?.selected_company_id)?.apelido
+              ?? fichaCompanies.find(c => c.id === admissionForm?.selected_company_id)?.razao_social
+              ?? null}
+            statusLabel={STATUS_LABELS[currentStatus]}
+            cpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)}
+            phone={candidate.phone as string | null}
+            email={candidate.email as string | null}
+            city={candidate.city as string | null}
+            age={age}
+            admissionDate={admissionForm?.admission_date || null}
+            salary={admissionForm?.salary || null}
+            registeredAt={candidate.created_at}
+            warningsCount={(warningsData || []).length}
+          />
+        </div>
+      )}
 
       {/* ── Cards de resumo ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
