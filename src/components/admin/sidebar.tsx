@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -185,6 +185,14 @@ function SidebarContent({
             </div>
           )}
         </div>
+
+        {/* Documentos empresa */}
+        {isMaster && (
+          <Link href="/admin/documentos-empresa" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/documentos-empresa') ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <FolderArchive className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            Documentos empresa
+          </Link>
+        )}
 
         {/* ── Itens visíveis apenas para Master ── */}
         {isMaster && (
