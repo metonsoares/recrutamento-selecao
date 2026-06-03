@@ -132,7 +132,7 @@ function SidebarContent({
             className={cn(NAV_BASE, inCandidatos ? NAV_ACTIVE : NAV_DEFAULT)}
           >
             <Users className="w-[15px] h-[15px] shrink-0 opacity-60" />
-            <span className="flex-1 text-left">Candidatos</span>
+            <span className="flex-1 text-left">Currículos</span>
             <ChevronDown
               className={cn(
                 'w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200',
@@ -148,7 +148,7 @@ function SidebarContent({
                 className={cn(DEEP_BASE, pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT)}
               >
                 <Users className="w-3 h-3 shrink-0 opacity-50" />
-                Todos os Candidatos
+                Candidatos
               </Link>
               <Link
                 href="/admin/candidatos/contratados"
