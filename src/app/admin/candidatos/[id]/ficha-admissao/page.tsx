@@ -39,7 +39,13 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
     if (addrAns?.answer_text) {
       try {
         const raw = JSON.parse(addrAns.answer_text as string)
-        if (typeof raw === 'object' && raw !== null) {
+        if (Array.isArray(raw)) {
+          // Formato do formulário de cadastro: [street, number, neighborhood, city, cep]
+          parsedAddress = {
+            street: raw[0] || '', number: raw[1] || '', complement: '',
+            neighborhood: raw[2] || '', city: raw[3] || '', cep: raw[4] || '',
+          }
+        } else if (typeof raw === 'object' && raw !== null) {
           parsedAddress = {
             street: raw.street || raw.logradouro || '',
             number: raw.number || raw.numero || '',
