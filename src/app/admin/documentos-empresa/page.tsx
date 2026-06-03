@@ -5,10 +5,14 @@ export const dynamic = 'force-dynamic'
 
 export default async function DocumentosEmpresaPage() {
   const supabase = await createSupabaseServiceClient()
-  const { data } = await supabase
-    .from('company_files')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const [{ data: files }, { data: companiesData }] = await Promise.all([
+    supabase.from('company_files').select('*').order('created_at', { ascending: false }),
+    supabase.from('companies').select('apelido, razao_social').order('apelido'),
+  ])
 
-  return <DocumentosEmpresaManager files={data || []} />
+  const companyOptions = (companiesData || [])
+    .map(c => c.apelido || c.razao_social || '')
+    .filter(Boolean)
+
+  return <DocumentosEmpresaManager files={files || []} companyOptions={companyOptions} />
 }

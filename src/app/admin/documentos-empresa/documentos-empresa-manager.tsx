@@ -12,23 +12,29 @@ interface CompanyFile {
   id: string
   name: string
   category: string | null
+  empresa: string | null
   file_url: string | null
   file_name: string | null
   file_path: string | null
   created_at: string
 }
 
-interface Props { files: CompanyFile[] }
+interface Props { files: CompanyFile[]; companyOptions: string[] }
 
-export function DocumentosEmpresaManager({ files: initial }: Props) {
+const TIPOS = ['Contratos', 'Políticas', 'Modelos', 'Treinamentos', 'Circulares', 'Fiscais', 'Outros']
+
+export function DocumentosEmpresaManager({ files: initial, companyOptions }: Props) {
   const [files, setFiles] = useState<CompanyFile[]>(initial)
   const [search, setSearch] = useState('')
+  const [empresaFilter, setEmpresaFilter] = useState('all')
+  const [tipoFilter, setTipoFilter] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // form
   const [name, setName] = useState('')
+  const [empresa, setEmpresa] = useState('')
   const [category, setCategory] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
@@ -37,16 +43,17 @@ export function DocumentosEmpresaManager({ files: initial }: Props) {
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
 
-  function openModal() { setName(''); setCategory(''); setFile(null); setError(''); setModalOpen(true) }
+  function openModal() { setName(''); setEmpresa(''); setCategory(''); setFile(null); setError(''); setModalOpen(true) }
 
   async function handleSave() {
     setError('')
+    if (!empresa) { setError('Selecione a empresa.'); return }
     if (!name.trim()) { setError('Informe o nome do documento.'); return }
     if (!file) { setError('Anexe um arquivo.'); return }
     if (file.size > 10 * 1024 * 1024) { setError('Arquivo excede 10 MB.'); return }
     setSaving(true)
     const fd = new FormData()
-    fd.append('file', file); fd.append('name', name); fd.append('category', category)
+    fd.append('file', file); fd.append('name', name); fd.append('category', category); fd.append('empresa', empresa)
     try {
       const res = await fetch('/api/admin/company-files', { method: 'POST', body: fd })
       const data = await res.json()
@@ -70,11 +77,15 @@ export function DocumentosEmpresaManager({ files: initial }: Props) {
     showToast('ok', 'Documento removido.')
   }
 
-  const filtered = files.filter(f =>
-    !search.trim() ||
-    f.name.toLowerCase().includes(search.toLowerCase()) ||
-    (f.category || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = files
+    .filter(f => empresaFilter === 'all' || f.empresa === empresaFilter)
+    .filter(f => tipoFilter === 'all' || f.category === tipoFilter)
+    .filter(f =>
+      !search.trim() ||
+      f.name.toLowerCase().includes(search.toLowerCase()) ||
+      (f.category || '').toLowerCase().includes(search.toLowerCase()) ||
+      (f.empresa || '').toLowerCase().includes(search.toLowerCase())
+    )
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
@@ -99,10 +110,22 @@ export function DocumentosEmpresaManager({ files: initial }: Props) {
         </Button>
       </div>
 
-      {/* Busca */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Buscar documento..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Buscar documento..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <select value={empresaFilter} onChange={e => setEmpresaFilter(e.target.value)}
+          className="h-9 border border-gray-300 rounded-md px-3 text-sm bg-white min-w-[180px]">
+          <option value="all">Todas as empresas</option>
+          {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={tipoFilter} onChange={e => setTipoFilter(e.target.value)}
+          className="h-9 border border-gray-300 rounded-md px-3 text-sm bg-white min-w-[160px]">
+          <option value="all">Todos os tipos</option>
+          {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
       </div>
 
       {/* Tabela */}
@@ -111,7 +134,8 @@ export function DocumentosEmpresaManager({ files: initial }: Props) {
           <thead>
             <tr className="border-b bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
               <th className="px-4 py-3 text-left font-medium">Documento</th>
-              <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Categoria</th>
+              <th className="px-4 py-3 text-left font-medium">Empresa</th>
+              <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Tipo</th>
               <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Adicionado</th>
               <th className="px-4 py-3 text-right font-medium">Ações</th>
             </tr>
@@ -129,6 +153,11 @@ export function DocumentosEmpresaManager({ files: initial }: Props) {
                     </a>
                   ) : <span className="text-gray-700">{f.name}</span>}
                 </td>
+                <td className="px-4 py-3">
+                  {f.empresa ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">{f.empresa}</span>
+                  ) : <span className="text-xs text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{f.category || '—'}</td>
                 <td className="px-4 py-3 text-gray-500 hidden md:table-cell text-xs">{formatDate(f.created_at)}</td>
                 <td className="px-4 py-3 text-right">
@@ -140,7 +169,7 @@ export function DocumentosEmpresaManager({ files: initial }: Props) {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
                 <FolderArchive className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                 Nenhum documento cadastrado.
               </td></tr>
@@ -159,12 +188,24 @@ export function DocumentosEmpresaManager({ files: initial }: Props) {
             </div>
             <div className="px-5 py-4 space-y-3">
               <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Empresa *</label>
+                <select value={empresa} onChange={e => setEmpresa(e.target.value)}
+                  className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+                  <option value="">Selecionar empresa...</option>
+                  {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Nome do documento *</label>
                 <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Modelo de Contrato de Trabalho" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Categoria (opcional)</label>
-                <Input value={category} onChange={e => setCategory(e.target.value)} placeholder="Ex: Contratos, Políticas, Modelos" />
+                <label className="text-xs font-medium text-gray-600">Tipo de documento</label>
+                <select value={category} onChange={e => setCategory(e.target.value)}
+                  className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+                  <option value="">Selecionar tipo...</option>
+                  {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Arquivo * (PDF, DOC, JPG, PNG — até 10 MB)</label>

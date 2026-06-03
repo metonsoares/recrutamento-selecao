@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null
     const name = (formData.get('name') as string | null)?.trim()
     const category = (formData.get('category') as string | null)?.trim() || null
+    const empresa = (formData.get('empresa') as string | null)?.trim() || null
 
     if (!name) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
     if (!file) return NextResponse.json({ error: 'Arquivo é obrigatório.' }, { status: 400 })
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('company_files')
-      .insert({ name, category, file_url: urlData.publicUrl, file_name: file.name, file_path: path })
+      .insert({ name, category, empresa, file_url: urlData.publicUrl, file_name: file.name, file_path: path })
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
