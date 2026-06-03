@@ -525,9 +525,8 @@ export function CandidateActions({
           </Button>
         )}
 
-        {/* Teste Cultural — Enviar ou Visualizar */}
+        {/* Teste Cultural — sempre Visualizar (preenchido no cadastro) */}
         {applicationId && (
-          cultureTestDone ? (
             <>
               <Button
                 variant="outline"
@@ -591,20 +590,6 @@ export function CandidateActions({
                 </DialogContent>
               </Dialog>
             </>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSendCultureTest}
-              disabled={sendingTest}
-              className="gap-1"
-            >
-              {sendingTest
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</>
-                : <><FlaskConical className="w-4 h-4" />Enviar Teste Cultural</>
-              }
-            </Button>
-          )
         )}
 
         {/* Check Processos */}
