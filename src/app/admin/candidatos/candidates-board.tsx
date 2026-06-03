@@ -566,6 +566,7 @@ function CandidateCard({
     ? (rawJobs[0] as { title?: string } | undefined)?.title
     : (rawJobs as { title?: string } | null)?.title
   const jobTitle = jobTitleFromJoin || jobTitleFallback
+  const isReprovado = c.applications?.status === 'reprovado'
 
   return (
     <div
@@ -580,7 +581,8 @@ function CandidateCard({
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={[
-        'bg-white border border-l-4 rounded-lg px-3 py-2.5 shadow-sm',
+        'border border-l-4 rounded-lg px-3 py-2.5 shadow-sm',
+        isReprovado ? 'bg-red-50 hover:bg-red-100/70' : 'bg-white',
         'hover:shadow-md transition-all select-none cursor-pointer',
         border,
         isDragging ? 'opacity-40 scale-95 rotate-1' : 'opacity-100',
