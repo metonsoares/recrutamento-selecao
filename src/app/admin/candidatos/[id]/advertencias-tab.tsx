@@ -263,7 +263,15 @@ export function AdvertenciasTab({ candidateId, initialWarnings }: Props) {
                 <tr key={w.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(w.occurred_at)}</td>
                   <td className="px-4 py-3 text-gray-700">
-                    <p className="line-clamp-2">{w.reason}</p>
+                    {w.file_url ? (
+                      <a href={w.file_url} target="_blank" rel="noreferrer"
+                        className="line-clamp-2 text-emerald-700 hover:underline cursor-pointer font-medium"
+                        title="Abrir arquivo da advertência">
+                        {w.reason}
+                      </a>
+                    ) : (
+                      <p className="line-clamp-2">{w.reason}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {w.file_url ? (
