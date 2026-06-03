@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -20,6 +20,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showAdmissio
     : tab === 'advertencias' ? 'advertencias'
     : tab === 'bancarios' ? 'bancarios'
     : tab === 'ferias' ? 'ferias'
+    : tab === 'atestados' ? 'atestados'
     : 'curriculo'
 
   const base = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border'
@@ -78,6 +79,15 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showAdmissio
         >
           <AlertTriangle className="w-4 h-4" />
           Advertências
+        </Link>
+      )}
+      {showAdmissionTabs && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=atestados`}
+          className={`${base} ${activeTab === 'atestados' ? active : inactive}`}
+        >
+          <Stethoscope className="w-4 h-4" />
+          Atestados
         </Link>
       )}
     </div>

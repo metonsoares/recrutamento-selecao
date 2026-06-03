@@ -17,6 +17,7 @@ import { AdvertenciasTab } from './advertencias-tab'
 import { DadosBancariosTab, BankData } from './dados-bancarios-tab'
 import { ResumoColaborador } from './resumo-colaborador'
 import { FeriasTab } from './ferias-tab'
+import { AtestadosTab } from './atestados-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -116,12 +117,13 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' =
+  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' =
     sp.tab === 'ficha' ? 'ficha'
     : sp.tab === 'documentos' ? 'documentos'
     : sp.tab === 'advertencias' ? 'advertencias'
     : sp.tab === 'bancarios' ? 'bancarios'
     : sp.tab === 'ferias' ? 'ferias'
+    : sp.tab === 'atestados' ? 'atestados'
     : 'curriculo'
 
   const supabase = await createSupabaseServerClient()
@@ -168,10 +170,11 @@ export default async function CandidatePage({
   const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
   const bankData = (latestApp?.bank_data as BankData | null) ?? null
 
-  // Advertências + Férias
-  const [{ data: warningsData }, { data: vacationsData }] = await Promise.all([
+  // Advertências + Férias + Atestados
+  const [{ data: warningsData }, { data: vacationsData }, { data: certificatesData }] = await Promise.all([
     service.from('warnings').select('*').eq('candidate_id', id).order('occurred_at', { ascending: false }),
     service.from('vacations').select('*').eq('candidate_id', id).order('start_date', { ascending: false }),
+    service.from('medical_certificates').select('*').eq('candidate_id', id).order('certificate_date', { ascending: false }),
   ])
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
@@ -370,6 +373,11 @@ export default async function CandidatePage({
       {/* ── Aba: Advertências ── */}
       {activeTab === 'advertencias' && isContratado && (
         <AdvertenciasTab candidateId={id} initialWarnings={warningsData || []} />
+      )}
+
+      {/* ── Aba: Atestados ── */}
+      {activeTab === 'atestados' && isContratado && (
+        <AtestadosTab candidateId={id} initialCertificates={certificatesData || []} />
       )}
 
       {/* ── Aba: Dados Bancários ── */}
