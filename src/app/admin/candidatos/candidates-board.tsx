@@ -46,7 +46,7 @@ const COLUMNS = [
   },
   {
     key: 'aprovado',
-    label: 'Aprovado',
+    label: 'Intermitentes',
     targetStatus: 'aprovado' as CandidateStatus,
     dot: 'bg-emerald-500',
     header: 'bg-emerald-50 border-emerald-200',

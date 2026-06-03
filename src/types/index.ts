@@ -28,7 +28,7 @@ export const STATUS_LABELS: Record<CandidateStatus, string> = {
   apto_para_entrevista: 'Apto para Entrevista',
   entrevista_agendada: 'Entrevista Agendada',
   entrevistado: 'Entrevistado',
-  aprovado: 'Aprovado',
+  aprovado: 'Intermitentes',
   reprovado: 'Reprovado',
   banco_de_talentos: 'Banco de Talentos',
   contratado: 'Contratado',

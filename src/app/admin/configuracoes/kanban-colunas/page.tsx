@@ -8,7 +8,7 @@ export const DEFAULT_COLUMNS = [
   { key: 'novo',      label: 'Novo Currículo',        dot: 'bg-gray-400' },
   { key: 'apto',      label: 'Apto para Entrevista',  dot: 'bg-blue-500' },
   { key: 'agendada',  label: 'Entrevista Agendada',   dot: 'bg-purple-500' },
-  { key: 'aprovado',  label: 'Aprovado',               dot: 'bg-emerald-500' },
+  { key: 'aprovado',  label: 'Intermitentes',          dot: 'bg-emerald-500' },
   { key: 'reprovado', label: 'Reprovado',              dot: 'bg-red-400' },
   { key: 'contratado',label: 'Contratado',             dot: 'bg-[#1a5c38]' },
   { key: 'freelancer',label: 'Freelancer',             dot: 'bg-sky-500' },
