@@ -179,12 +179,15 @@ export default async function CandidatePage({
   ])
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
+  const isContratado = currentStatus === 'contratado'
   // Resumo + Dados Bancários: contratado, freelancer, intermitente
   const showBankTab = ['contratado', 'freelancer', 'aprovado'].includes(currentStatus)
-  // Férias: contratado e intermitente (não freelancer)
-  const showVacationTab = ['contratado', 'aprovado'].includes(currentStatus)
-  // Ficha Admissão, Documentos e Advertências: apenas contratado
-  const isContratado = currentStatus === 'contratado'
+  // Ficha Admissão + Documentos: contratado e intermitente
+  const showFichaDocs = ['contratado', 'aprovado'].includes(currentStatus)
+  // Férias: apenas contratado
+  const showVacationTab = isContratado
+  // Advertências + Atestados: apenas contratado
+  const showRecords = isContratado
   // Painel enxuto para freelancer/intermitente
   const minimalResumo = showBankTab && !isContratado
 
@@ -352,10 +355,10 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showBankTab={showBankTab} showVacationTab={showVacationTab} showAdmissionTabs={isContratado} />
+      <CandidateTabNav candidateId={id} showBankTab={showBankTab} showVacationTab={showVacationTab} showFichaDocs={showFichaDocs} showRecords={showRecords} />
 
       {/* ── Aba: Ficha Admissão ── */}
-      {activeTab === 'ficha' && isContratado && (
+      {activeTab === 'ficha' && showFichaDocs && (
         <FichaAdmissaoForm
           candidate={{
             id: candidate.id,
@@ -375,17 +378,17 @@ export default async function CandidatePage({
       )}
 
       {/* ── Aba: Documentos ── */}
-      {activeTab === 'documentos' && isContratado && (
+      {activeTab === 'documentos' && showFichaDocs && (
         <DocumentosTab candidateId={id} initialDocs={companyDocs} />
       )}
 
       {/* ── Aba: Advertências ── */}
-      {activeTab === 'advertencias' && isContratado && (
+      {activeTab === 'advertencias' && showRecords && (
         <AdvertenciasTab candidateId={id} initialWarnings={warningsData || []} />
       )}
 
       {/* ── Aba: Atestados ── */}
-      {activeTab === 'atestados' && isContratado && (
+      {activeTab === 'atestados' && showRecords && (
         <AtestadosTab candidateId={id} initialCertificates={certificatesData || []} />
       )}
 

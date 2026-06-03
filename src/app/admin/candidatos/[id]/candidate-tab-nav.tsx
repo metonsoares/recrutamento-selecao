@@ -7,13 +7,15 @@ interface Props {
   candidateId: string
   /** Exibe Dados Bancários — contratado, freelancer, intermitente */
   showBankTab?: boolean
-  /** Exibe Férias — contratado e intermitente (não freelancer) */
+  /** Exibe Férias — apenas contratado */
   showVacationTab?: boolean
-  /** Exibe Ficha Admissão, Documentos e Advertências — apenas contratado */
-  showAdmissionTabs?: boolean
+  /** Exibe Ficha Admissão e Documentos — contratado e intermitente */
+  showFichaDocs?: boolean
+  /** Exibe Advertências e Atestados — apenas contratado */
+  showRecords?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showBankTab = false, showVacationTab = false, showAdmissionTabs = true }: Props) {
+export function CandidateTabNav({ candidateId, showBankTab = false, showVacationTab = false, showFichaDocs = true, showRecords = true }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -38,7 +40,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showVacation
         <FileText className="w-4 h-4" />
         {showBankTab ? 'Resumo' : 'Currículo'}
       </Link>
-      {showAdmissionTabs && (
+      {showFichaDocs && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=ficha`}
           className={`${base} ${activeTab === 'ficha' ? active : inactive}`}
@@ -47,7 +49,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showVacation
           Ficha Admissão
         </Link>
       )}
-      {showAdmissionTabs && (
+      {showFichaDocs && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=documentos`}
           className={`${base} ${activeTab === 'documentos' ? active : inactive}`}
@@ -74,7 +76,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showVacation
           Férias
         </Link>
       )}
-      {showAdmissionTabs && (
+      {showRecords && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=advertencias`}
           className={`${base} ${activeTab === 'advertencias' ? active : inactive}`}
@@ -83,7 +85,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showVacation
           Advertências
         </Link>
       )}
-      {showAdmissionTabs && (
+      {showRecords && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=atestados`}
           className={`${base} ${activeTab === 'atestados' ? active : inactive}`}
