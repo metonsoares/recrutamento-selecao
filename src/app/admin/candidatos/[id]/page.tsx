@@ -16,6 +16,7 @@ import { DocumentosTab } from './documentos-tab'
 import { AdvertenciasTab } from './advertencias-tab'
 import { DadosBancariosTab, BankData } from './dados-bancarios-tab'
 import { ResumoColaborador } from './resumo-colaborador'
+import { FeriasTab } from './ferias-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -115,11 +116,12 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' | 'bancarios' =
+  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' =
     sp.tab === 'ficha' ? 'ficha'
     : sp.tab === 'documentos' ? 'documentos'
     : sp.tab === 'advertencias' ? 'advertencias'
     : sp.tab === 'bancarios' ? 'bancarios'
+    : sp.tab === 'ferias' ? 'ferias'
     : 'curriculo'
 
   const supabase = await createSupabaseServerClient()
@@ -166,12 +168,11 @@ export default async function CandidatePage({
   const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
   const bankData = (latestApp?.bank_data as BankData | null) ?? null
 
-  // Advertências (somente quando aba ativa, mas barato buscar sempre)
-  const { data: warningsData } = await service
-    .from('warnings')
-    .select('*')
-    .eq('candidate_id', id)
-    .order('occurred_at', { ascending: false })
+  // Advertências + Férias
+  const [{ data: warningsData }, { data: vacationsData }] = await Promise.all([
+    service.from('warnings').select('*').eq('candidate_id', id).order('occurred_at', { ascending: false }),
+    service.from('vacations').select('*').eq('candidate_id', id).order('start_date', { ascending: false }),
+  ])
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
   // Aba Dados Bancários: contratado, freelancer, intermitente (aprovado)
@@ -370,6 +371,15 @@ export default async function CandidatePage({
       {/* ── Aba: Dados Bancários ── */}
       {activeTab === 'bancarios' && showBankTab && (
         <DadosBancariosTab candidateId={id} initialData={bankData} />
+      )}
+
+      {/* ── Aba: Férias ── */}
+      {activeTab === 'ferias' && showBankTab && (
+        <FeriasTab
+          candidateId={id}
+          admissionDate={admissionForm?.admission_date || null}
+          initialVacations={vacationsData || []}
+        />
       )}
 
       {/* ── Aba: Resumo/Currículo ── */}

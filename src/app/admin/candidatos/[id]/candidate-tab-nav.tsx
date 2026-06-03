@@ -1,11 +1,11 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane } from 'lucide-react'
 
 interface Props {
   candidateId: string
-  /** Exibe a aba Dados Bancários (contratado, freelancer, intermitente) */
+  /** Exibe abas de colaborador (Dados Bancários, Férias) — contratado, freelancer, intermitente */
   showBankTab?: boolean
 }
 
@@ -17,6 +17,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false }: Props) {
     : tab === 'documentos' ? 'documentos'
     : tab === 'advertencias' ? 'advertencias'
     : tab === 'bancarios' ? 'bancarios'
+    : tab === 'ferias' ? 'ferias'
     : 'curriculo'
 
   const base = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border'
@@ -53,6 +54,15 @@ export function CandidateTabNav({ candidateId, showBankTab = false }: Props) {
         >
           <Landmark className="w-4 h-4" />
           Dados Bancários
+        </Link>
+      )}
+      {showBankTab && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=ferias`}
+          className={`${base} ${activeTab === 'ferias' ? active : inactive}`}
+        >
+          <Plane className="w-4 h-4" />
+          Férias
         </Link>
       )}
       <Link
