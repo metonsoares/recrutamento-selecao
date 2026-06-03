@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, Columns3, CalendarClock,
+  Settings2, BrainCircuit, UserCheck, Columns3, CalendarClock, UserMinus,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -173,6 +173,14 @@ function SidebarContent({
               >
                 <CalendarClock className="w-3 h-3 shrink-0 opacity-50" />
                 Intermitentes
+              </Link>
+              <Link
+                href="/admin/candidatos/desligados"
+                onClick={go}
+                className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/desligados') ? DEEP_ACTIVE : DEEP_DEFAULT)}
+              >
+                <UserMinus className="w-3 h-3 shrink-0 opacity-50" />
+                Desligados
               </Link>
             </div>
           )}

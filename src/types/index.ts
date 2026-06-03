@@ -15,6 +15,7 @@ export type CandidateStatus =
   | 'contratado'
   | 'freelancer'
   | 'desistente'
+  | 'desligado'
   | 'removido'
 
 export const STATUS_LABELS: Record<CandidateStatus, string> = {
@@ -34,6 +35,7 @@ export const STATUS_LABELS: Record<CandidateStatus, string> = {
   contratado: 'Contratado',
   freelancer: 'Freelancer',
   desistente: 'Desistente',
+  desligado: 'Desligado',
   removido: 'Removido',
 }
 
@@ -54,6 +56,7 @@ export const STATUS_COLORS: Record<CandidateStatus, string> = {
   contratado: 'bg-green-200 text-green-800',
   freelancer: 'bg-sky-100 text-sky-700',
   desistente: 'bg-gray-200 text-gray-600',
+  desligado: 'bg-rose-100 text-rose-700',
   removido: 'bg-red-200 text-red-800',
 }
 
