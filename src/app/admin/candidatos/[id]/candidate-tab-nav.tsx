@@ -5,6 +5,8 @@ import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane,
 
 interface Props {
   candidateId: string
+  /** Renomeia a 1ª aba para "Resumo" (colaboradores) */
+  showResumo?: boolean
   /** Exibe Dados Bancários — contratado, freelancer, intermitente */
   showBankTab?: boolean
   /** Exibe Férias — apenas contratado */
@@ -15,7 +17,7 @@ interface Props {
   showRecords?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showBankTab = false, showVacationTab = false, showFichaDocs = true, showRecords = true }: Props) {
+export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFichaDocs = true, showRecords = true }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -38,7 +40,7 @@ export function CandidateTabNav({ candidateId, showBankTab = false, showVacation
         className={`${base} ${activeTab === 'curriculo' ? active : inactive}`}
       >
         <FileText className="w-4 h-4" />
-        {showBankTab ? 'Resumo' : 'Currículo'}
+        {showResumo ? 'Resumo' : 'Currículo'}
       </Link>
       {showFichaDocs && (
         <Link

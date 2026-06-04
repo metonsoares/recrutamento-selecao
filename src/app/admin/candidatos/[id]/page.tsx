@@ -180,16 +180,18 @@ export default async function CandidatePage({
 
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
   const isContratado = currentStatus === 'contratado'
-  // Resumo + Dados Bancários: contratado, freelancer, intermitente
+  // Painel Resumo (faixa de colaborador) + aba renomeada para "Resumo"
+  const showResumoPanel = ['contratado', 'freelancer', 'aprovado', 'em_contrato'].includes(currentStatus)
+  // Dados Bancários: contratado, freelancer, intermitente
   const showBankTab = ['contratado', 'freelancer', 'aprovado'].includes(currentStatus)
-  // Ficha Admissão + Documentos: contratado e intermitente
-  const showFichaDocs = ['contratado', 'aprovado'].includes(currentStatus)
+  // Ficha Admissão + Documentos: contratado, intermitente, em contrato
+  const showFichaDocs = ['contratado', 'aprovado', 'em_contrato'].includes(currentStatus)
   // Férias: apenas contratado
   const showVacationTab = isContratado
   // Advertências + Atestados: apenas contratado
   const showRecords = isContratado
-  // Painel enxuto para freelancer/intermitente
-  const minimalResumo = showBankTab && !isContratado
+  // Painel enxuto (não-contratado)
+  const minimalResumo = showResumoPanel && !isContratado
 
   // Job title: join → job_id direto → form_answer job_select (pode ser UUID → lookup)
   let jobTitle: string | null = (latestApp?.jobs as { title?: string } | null)?.title ?? null
@@ -355,7 +357,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showBankTab={showBankTab} showVacationTab={showVacationTab} showFichaDocs={showFichaDocs} showRecords={showRecords} />
+      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFichaDocs={showFichaDocs} showRecords={showRecords} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && showFichaDocs && (
@@ -410,8 +412,8 @@ export default async function CandidatePage({
       {/* ── Aba: Resumo/Currículo ── */}
       {activeTab === 'curriculo' && <>
 
-      {/* Painel do colaborador (contratado / intermitente) */}
-      {showBankTab && (
+      {/* Painel do colaborador (contratado / intermitente / freelancer / em contrato) */}
+      {showResumoPanel && (
         <div className="mb-5">
           <ResumoColaborador
             fullName={candidate.full_name}
