@@ -35,6 +35,7 @@ interface Props {
   searchUrl3: string
   searchUrl3Label: string
   hasDatajudKey: boolean
+  hasEscavadorKey: boolean
 }
 
 // ─── Provider radio ───────────────────────────────────────────────────────────
@@ -480,11 +481,30 @@ export function IaSettingsForm({
   searchUrl3,
   searchUrl3Label,
   hasDatajudKey,
+  hasEscavadorKey,
 }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
   const [showAnthropicKey, setShowAnthropicKey] = useState(false)
   const [showOpenaiKey, setShowOpenaiKey] = useState(false)
+  const [escavadorKey, setEscavadorKey] = useState('')
+  const [showEscavadorKey, setShowEscavadorKey] = useState(false)
+  const [savingEscavador, setSavingEscavador] = useState(false)
+  const [escavadorStatus, setEscavadorStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+
+  async function saveEscavador() {
+    if (!escavadorKey.trim()) return
+    setSavingEscavador(true); setEscavadorStatus('idle')
+    try {
+      const res = await fetch('/api/admin/ai/save-escavador-key', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: escavadorKey.trim() }),
+      })
+      if (res.ok) { setEscavadorStatus('saved'); setEscavadorKey(''); setTimeout(() => window.location.reload(), 800) }
+      else setEscavadorStatus('error')
+    } catch { setEscavadorStatus('error') }
+    finally { setSavingEscavador(false) }
+  }
   const [savingProvider, setSavingProvider] = useState<Provider | null>(null)
   const [statusMap, setStatusMap] = useState<Record<Provider, KeyStatus>>({ anthropic: 'idle', openai: 'idle' })
 
@@ -625,6 +645,48 @@ export function IaSettingsForm({
             <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer"
               className="underline text-violet-600 hover:text-violet-800 inline-flex items-center gap-0.5">
               platform.openai.com <ExternalLink className="w-3 h-3" />
+            </a>
+          </p>
+        </div>
+
+        {/* Escavador */}
+        <div className="space-y-2 border-t pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Escavador</p>
+              <p className="text-xs text-muted-foreground">Consulta de processos e dados públicos (antecedentes).</p>
+            </div>
+            {hasEscavadorKey
+              ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0">✓ Configurada</Badge>
+              : <Badge variant="secondary" className="shrink-0">Não configurada</Badge>
+            }
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showEscavadorKey ? 'text' : 'password'}
+                value={escavadorKey}
+                onChange={e => { setEscavadorKey(e.target.value); setEscavadorStatus('idle') }}
+                onKeyDown={e => e.key === 'Enter' && saveEscavador()}
+                placeholder="Token de API do Escavador"
+                className="pr-10 font-mono text-sm"
+              />
+              <button type="button" onClick={() => setShowEscavadorKey(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showEscavadorKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <Button onClick={saveEscavador} disabled={savingEscavador || !escavadorKey.trim()} className="shrink-0">
+              {savingEscavador ? <Loader2 className="w-4 h-4 animate-spin" /> : hasEscavadorKey ? 'Substituir' : 'Salvar'}
+            </Button>
+          </div>
+          {escavadorStatus === 'saved' && <p className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="w-3 h-3" />Chave salva!</p>}
+          {escavadorStatus === 'error' && <p className="text-xs text-red-500">Erro ao salvar. Tente novamente.</p>}
+          <p className="text-xs text-muted-foreground">
+            Obtenha em{' '}
+            <a href="https://api.escavador.com/" target="_blank" rel="noopener noreferrer"
+              className="underline text-violet-600 hover:text-violet-800 inline-flex items-center gap-0.5">
+              escavador.com <ExternalLink className="w-3 h-3" />
             </a>
           </p>
         </div>
