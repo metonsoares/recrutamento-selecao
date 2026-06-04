@@ -13,10 +13,11 @@ interface Props {
   companyName: string | null
   questions: Question[]
   funcionarios: { id: string; full_name: string }[]
+  lockedCandidate?: { id: string; full_name: string } | null
 }
 
-export function PesquisaForm({ token, title, description, companyName, questions, funcionarios }: Props) {
-  const [candidateId, setCandidateId] = useState('')
+export function PesquisaForm({ token, title, description, companyName, questions, funcionarios, lockedCandidate }: Props) {
+  const [candidateId, setCandidateId] = useState(lockedCandidate?.id || '')
   const [answers, setAnswers] = useState<Record<string, number | string>>({})
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
@@ -68,7 +69,12 @@ export function PesquisaForm({ token, title, description, companyName, questions
           <p className="text-[12px] text-emerald-700 mt-3">Pesquisa de clima organizacional — sua opinião é importante.</p>
         </div>
 
-        {funcionarios.length > 0 && (
+        {lockedCandidate ? (
+          <div className="bg-white rounded-2xl border shadow-sm p-5 space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Respondendo como</label>
+            <p className="text-sm font-semibold text-gray-900">{lockedCandidate.full_name}</p>
+          </div>
+        ) : funcionarios.length > 0 && (
           <div className="bg-white rounded-2xl border shadow-sm p-5 space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Identifique-se *</label>
             <select value={candidateId} onChange={e => setCandidateId(e.target.value)}

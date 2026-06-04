@@ -24,6 +24,7 @@ import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
 import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
+import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -123,7 +124,7 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'registros' =
+  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'clima' | 'registros' =
     sp.tab === 'ficha' ? 'ficha'
     : sp.tab === 'contrato' ? 'contrato'
     : sp.tab === 'documentos' ? 'documentos'
@@ -134,6 +135,7 @@ export default async function CandidatePage({
     : sp.tab === 'contracheques' ? 'contracheques'
     : sp.tab === 'folhas-ponto' ? 'folhas-ponto'
     : sp.tab === 'asos' ? 'asos'
+    : sp.tab === 'clima' ? 'clima'
     : sp.tab === 'registros' ? 'registros'
     : 'curriculo'
 
@@ -193,6 +195,35 @@ export default async function CandidatePage({
   const contracheques = (empFilesData || []).filter(f => f.kind === 'contracheque') as EmployeeFile[]
   const folhasPonto = (empFilesData || []).filter(f => f.kind === 'folha_ponto') as EmployeeFile[]
 
+  // ── Pesquisas de clima (atribuições + respostas + lista para dropdown) ─────
+  const [{ data: climateAssignData }, { data: climateRespData }, { data: allSurveysData }] = await Promise.all([
+    service.from('climate_assignments').select('id, survey_id, created_at, climate_surveys(title, token)').eq('candidate_id', id),
+    service.from('climate_responses').select('id, survey_id, created_at, total_score, max_score').eq('candidate_id', id).order('created_at', { ascending: false }),
+    service.from('climate_surveys').select('id, title, token').order('created_at', { ascending: false }),
+  ])
+  const respBySurvey: Record<string, { id: string; created_at: string; total_score: number | null; max_score: number | null }> = {}
+  for (const r of climateRespData || []) {
+    if (!respBySurvey[r.survey_id as string]) {
+      respBySurvey[r.survey_id as string] = {
+        id: r.id as string, created_at: r.created_at as string,
+        total_score: (r.total_score as number | null) ?? null, max_score: (r.max_score as number | null) ?? null,
+      }
+    }
+  }
+  const climateAssignments: ClimateAssignment[] = (climateAssignData || []).map(a => {
+    const s = a.climate_surveys as { title?: string; token?: string } | null
+    return {
+      id: a.id as string,
+      survey_id: a.survey_id as string,
+      title: s?.title || 'Pesquisa',
+      token: s?.token || '',
+      created_at: a.created_at as string,
+      response: respBySurvey[a.survey_id as string] ?? null,
+    }
+  })
+  const climateSurveyOptions: SurveyOption[] = (allSurveysData || []).map(s => ({ id: s.id as string, title: s.title as string, token: s.token as string }))
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+
   // ── Linha cronológica do colaborador ──────────────────────────────────────
   const admForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
   const timeline: { date: string; label: string; type: string }[] = [
@@ -233,6 +264,8 @@ export default async function CandidatePage({
   const showAso = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
   // Registros: apenas contratado
   const showRegistros = isContratado
+  // Pesquisas de clima: colaboradores (contratado, freelancer, em contrato, intermitente, desligado)
+  const showClima = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
   // Painel completo para contratado e desligado; enxuto para os demais
   const minimalResumo = showResumoPanel && !isContratado && !isDesligado
 
@@ -415,7 +448,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showRegistros={showRegistros} />
+      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showClima={showClima} showRegistros={showRegistros} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && showFicha && (
@@ -480,6 +513,17 @@ export default async function CandidatePage({
       {activeTab === 'folhas-ponto' && showPayroll && (
         <EmployeeFilesTab candidateId={id} kind="folha_ponto" title="Folhas de ponto"
           referenceLabel="Competência (mês/ano)" insertLabel="Inserir arquivo" initialFiles={folhasPonto} />
+      )}
+
+      {/* ── Aba: Pesquisas de clima ── */}
+      {activeTab === 'clima' && showClima && (
+        <PesquisasClimaTab
+          candidateId={id}
+          isMaster={isMaster}
+          appUrl={appUrl}
+          surveys={climateSurveyOptions}
+          initialAssignments={climateAssignments}
+        />
       )}
 
       {/* ── Aba: Registros ── */}

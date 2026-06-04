@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays, HeartPulse, History } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays, HeartPulse, History, MessageSquareHeart } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -25,9 +25,11 @@ interface Props {
   showAso?: boolean
   /** Exibe Registros — apenas contratado */
   showRegistros?: boolean
+  /** Exibe Pesquisas de clima — colaboradores */
+  showClima?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false, showAso = false, showRegistros = false }: Props) {
+export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false, showAso = false, showRegistros = false, showClima = false }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -41,6 +43,7 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
     : tab === 'contracheques' ? 'contracheques'
     : tab === 'folhas-ponto' ? 'folhas-ponto'
     : tab === 'asos' ? 'asos'
+    : tab === 'clima' ? 'clima'
     : tab === 'registros' ? 'registros'
     : 'curriculo'
 
@@ -145,6 +148,15 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
         >
           <HeartPulse className="w-4 h-4" />
           ASOs
+        </Link>
+      )}
+      {showClima && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=clima`}
+          className={`${base} ${activeTab === 'clima' ? active : inactive}`}
+        >
+          <MessageSquareHeart className="w-4 h-4" />
+          Pesquisas de clima
         </Link>
       )}
       {showRegistros && (
