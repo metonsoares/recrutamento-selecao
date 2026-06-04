@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Loader2, Check, AlertCircle, X, Plus, Trash2, Copy } from 'lucide-react'
+import { Loader2, Check, AlertCircle, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 interface Props { candidateId: string }
 
@@ -19,7 +18,9 @@ function WhatsAppIcon() {
   )
 }
 
-function weekdayOf(date: string) { return new Date(`${date}T12:00:00Z`).getUTCDay() }
+const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+function pad(n: number) { return String(n).padStart(2, '0') }
+function ymd(y: number, m: number, d: number) { return `${y}-${pad(m + 1)}-${pad(d)}` }
 
 export function InviteInterviewButton({ candidateId }: Props) {
   const [open, setOpen] = useState(false)
@@ -30,7 +31,9 @@ export function InviteInterviewButton({ candidateId }: Props) {
   const [interviewerId, setInterviewerId] = useState('')
   const [locationId, setLocationId] = useState('')
   const [dates, setDates] = useState<string[]>([])
-  const [dateInput, setDateInput] = useState('')
+  const today = new Date()
+  const [viewY, setViewY] = useState(today.getFullYear())
+  const [viewM, setViewM] = useState(today.getMonth())
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [doneLink, setDoneLink] = useState('')
@@ -50,14 +53,22 @@ export function InviteInterviewButton({ candidateId }: Props) {
   const selectedInterviewer = interviewers.find(i => i.id === interviewerId)
   const availableWeekdays = new Set((selectedInterviewer?.windows || []).map(w => Number(w.weekday)))
 
-  function addDate() {
-    if (!dateInput) return
-    if (!availableWeekdays.has(weekdayOf(dateInput))) {
-      setError(`O entrevistador não atende em ${WEEKDAYS[weekdayOf(dateInput)]}. Escolha um dia da janela dele.`)
-      return
-    }
-    if (!dates.includes(dateInput)) setDates(p => [...p, dateInput].sort())
-    setDateInput(''); setError('')
+  const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate())
+
+  // Células do calendário do mês em exibição
+  const firstWeekday = new Date(Date.UTC(viewY, viewM, 1)).getUTCDay()
+  const daysInMonth = new Date(Date.UTC(viewY, viewM + 1, 0)).getUTCDate()
+  const cells: ({ day: number; date: string; weekday: number } | null)[] = []
+  for (let i = 0; i < firstWeekday; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, date: ymd(viewY, viewM, d), weekday: new Date(Date.UTC(viewY, viewM, d)).getUTCDay() })
+
+  function prevMonth() { if (viewM === 0) { setViewY(viewY - 1); setViewM(11) } else setViewM(viewM - 1) }
+  function nextMonth() { if (viewM === 11) { setViewY(viewY + 1); setViewM(0) } else setViewM(viewM + 1) }
+  const atFirstMonth = viewY === today.getFullYear() && viewM === today.getMonth()
+
+  function toggleDay(date: string) {
+    setError('')
+    setDates(p => p.includes(date) ? p.filter(x => x !== date) : [...p, date].sort())
   }
 
   async function send() {
@@ -77,7 +88,7 @@ export function InviteInterviewButton({ candidateId }: Props) {
   }
 
   function close() {
-    setOpen(false); setInterviewerId(''); setLocationId(''); setDates([]); setDateInput(''); setError(''); setDoneLink('')
+    setOpen(false); setInterviewerId(''); setLocationId(''); setDates([]); setError(''); setDoneLink('')
   }
 
   const base = 'shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-1.5 transition-colors'
@@ -133,22 +144,46 @@ export function InviteInterviewButton({ candidateId }: Props) {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-600">Dias disponíveis *</label>
-                    <div className="flex gap-2">
-                      <Input type="date" value={dateInput} onChange={e => setDateInput(e.target.value)} className="h-9 flex-1" disabled={!interviewerId} />
-                      <Button type="button" variant="outline" onClick={addDate} disabled={!interviewerId || !dateInput} className="h-9 gap-1"><Plus className="w-4 h-4" />Adicionar</Button>
-                    </div>
-                    {selectedInterviewer && <p className="text-[11px] text-muted-foreground">Só é possível adicionar dias em que o entrevistador atende.</p>}
-                    <div className="space-y-1">
-                      {dates.map(d => (
-                        <div key={d} className="flex items-center gap-2 border rounded-lg px-3 py-1.5">
-                          <span className="text-sm text-gray-800 capitalize flex-1">
-                            {new Date(`${d}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: 'UTC' })}
-                          </span>
-                          <button onClick={() => setDates(p => p.filter(x => x !== d))} className="text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <label className="text-xs font-medium text-gray-600">Dias disponíveis * {dates.length > 0 && <span className="text-emerald-600 font-semibold">({dates.length} selecionado{dates.length !== 1 ? 's' : ''})</span>}</label>
+                    {!interviewerId ? (
+                      <p className="text-[12px] text-muted-foreground border rounded-lg px-3 py-3 text-center">Selecione um entrevistador para ver os dias disponíveis.</p>
+                    ) : availableWeekdays.size === 0 ? (
+                      <p className="text-[12px] text-amber-600 border border-amber-200 bg-amber-50 rounded-lg px-3 py-3">Este entrevistador não tem janelas configuradas.</p>
+                    ) : (
+                      <div className="border rounded-xl p-3">
+                        {/* Navegação do mês */}
+                        <div className="flex items-center justify-between mb-2">
+                          <button type="button" onClick={prevMonth} disabled={atFirstMonth}
+                            className="p-1 rounded-md hover:bg-gray-100 text-gray-500 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
+                          <span className="text-sm font-semibold text-gray-800">{MONTHS[viewM]} {viewY}</span>
+                          <button type="button" onClick={nextMonth} className="p-1 rounded-md hover:bg-gray-100 text-gray-500"><ChevronRight className="w-4 h-4" /></button>
                         </div>
-                      ))}
-                    </div>
+                        {/* Cabeçalho dos dias da semana */}
+                        <div className="grid grid-cols-7 gap-1 mb-1">
+                          {WEEKDAYS.map(d => <div key={d} className="text-center text-[10px] font-medium text-gray-400">{d}</div>)}
+                        </div>
+                        {/* Grade */}
+                        <div className="grid grid-cols-7 gap-1">
+                          {cells.map((c, i) => {
+                            if (!c) return <div key={i} />
+                            const isAvailable = availableWeekdays.has(c.weekday)
+                            const isPast = c.date < todayStr
+                            const selectable = isAvailable && !isPast
+                            const selected = dates.includes(c.date)
+                            return (
+                              <button key={i} type="button" disabled={!selectable} onClick={() => toggleDay(c.date)}
+                                className={`h-8 rounded-md text-[12px] font-medium transition-colors ${
+                                  selected ? 'bg-emerald-600 text-white'
+                                  : selectable ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                  : 'text-gray-300 cursor-not-allowed'}`}>
+                                {c.day}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-2">Dias em verde são os que o entrevistador atende. Toque para selecionar um ou mais.</p>
+                      </div>
+                    )}
                   </div>
 
                   {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}
