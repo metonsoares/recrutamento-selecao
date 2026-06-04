@@ -182,8 +182,8 @@ export default async function CandidatePage({
   const isContratado = currentStatus === 'contratado'
   // Painel Resumo (faixa de colaborador) + aba renomeada para "Resumo"
   const showResumoPanel = ['contratado', 'freelancer', 'aprovado', 'em_contrato'].includes(currentStatus)
-  // Dados Bancários: contratado, freelancer, intermitente
-  const showBankTab = ['contratado', 'freelancer', 'aprovado'].includes(currentStatus)
+  // Dados Bancários: contratado, freelancer, intermitente, em contrato
+  const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato'].includes(currentStatus)
   // Ficha Admissão + Documentos: contratado, intermitente, em contrato
   const showFichaDocs = ['contratado', 'aprovado', 'em_contrato'].includes(currentStatus)
   // Férias: apenas contratado
