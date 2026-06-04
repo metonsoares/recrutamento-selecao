@@ -3,7 +3,7 @@ import mammoth from 'mammoth'
 import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 
 export const runtime = 'nodejs'
-export const maxDuration = 45
+export const maxDuration = 60
 
 function genId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()) }
 
@@ -70,38 +70,46 @@ function normalize(parsed: unknown): ParsedSurvey | null {
   return { title: String(p.title ?? '').trim(), description: String(p.description ?? '').trim(), questions }
 }
 
+async function fetchTimeout(url: string, opts: RequestInit, ms: number): Promise<Response> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), ms)
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }) }
+  finally { clearTimeout(t) }
+}
+
 async function interpretWithAI(text: string): Promise<ParsedSurvey | null> {
   const prompt = buildAiPrompt(text)
   const anthropicKey = await getAnthropicKey()
   const openaiKey = await getOpenAIKey()
+  const TIMEOUT = 50000
 
   if (anthropicKey) {
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetchTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 3000, messages: [{ role: 'user', content: prompt }] }),
-      })
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 8000, messages: [{ role: 'user', content: prompt }] }),
+      }, TIMEOUT)
       if (res.ok) {
         const d = await res.json()
         const t: string = d?.content?.[0]?.text || ''
         const m = t.match(/\{[\s\S]*\}/)
-        if (m) return normalize(JSON.parse(m[0]))
+        if (m) { const n = normalize(JSON.parse(m[0])); if (n) return n }
       }
     } catch { /* fallback */ }
   }
   if (openaiKey) {
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetchTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 3000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
-      })
+        body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 8000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+      }, TIMEOUT)
       if (res.ok) {
         const d = await res.json()
         const t: string = d?.choices?.[0]?.message?.content || ''
         const m = t.match(/\{[\s\S]*\}/)
-        if (m) return normalize(JSON.parse(m[0]))
+        if (m) { const n = normalize(JSON.parse(m[0])); if (n) return n }
       }
     } catch { /* fallback */ }
   }

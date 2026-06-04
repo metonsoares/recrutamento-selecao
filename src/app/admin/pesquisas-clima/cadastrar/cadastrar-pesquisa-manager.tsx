@@ -59,16 +59,24 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
     const fd = new FormData(); fd.append('file', f)
     try {
       const res = await fetch('/api/admin/climate-surveys/parse-docx', { method: 'POST', body: fd })
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error)
+      const raw = await res.text()
+      let d: { error?: string; title?: string; description?: string; questions?: unknown[] }
+      try { d = JSON.parse(raw) } catch {
+        throw new Error(res.status === 504 || res.status === 408
+          ? 'O processamento demorou demais. Tente um arquivo menor ou tente novamente.'
+          : 'Não foi possível processar o arquivo. Tente novamente.')
+      }
+      if (!res.ok) throw new Error(d.error || 'Erro ao importar.')
       if (d.title && !title.trim()) setTitle(d.title)
       if (d.description && !description.trim()) setDescription(d.description)
-      type PQ = { id: string; text: string; type: 'texto' | 'multipla'; options: { text: string; weight: number }[] }
-      setQuestions((d.questions as PQ[]).map(q => ({
+      type PQ = { id?: string; text: string; type: 'texto' | 'multipla'; options?: { text: string; weight: number }[] }
+      const qs = (d.questions || []) as PQ[]
+      if (qs.length === 0) throw new Error('Nenhuma pergunta identificada no arquivo.')
+      setQuestions(qs.map(q => ({
         id: q.id || genId(), text: q.text, type: q.type,
         options: (q.options || []).map(o => ({ text: o.text, weight: String(o.weight ?? 0) })),
       })))
-      showToast('ok', `${d.questions.length} pergunta(s) importada(s) do arquivo.`)
+      showToast('ok', `${qs.length} pergunta(s) importada(s) do arquivo.`)
     } catch (err) { setError((err as Error).message || 'Erro ao importar arquivo.') }
     finally { setImporting(false); if (e.target) e.target.value = '' }
   }
