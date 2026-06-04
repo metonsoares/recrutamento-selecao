@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 
 interface QuestionOption { text: string; weight: number }
-interface Question { id: string; text: string; options: QuestionOption[] }
+interface Question { id: string; text: string; type?: 'texto' | 'multipla'; options: QuestionOption[] }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
@@ -14,8 +14,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       .from('climate_surveys').select('id, questions, active').eq('token', token).maybeSingle()
     if (!survey || !survey.active) return NextResponse.json({ error: 'Pesquisa indisponível.' }, { status: 404 })
 
-    // Calcula pontuação a partir dos pesos das opções escolhidas
+    // Todas as perguntas são de preenchimento obrigatório
     const questions = (survey.questions as Question[]) || []
+    const faltando = questions.some(q => {
+      const a = answers?.[q.id]
+      if (q.type === 'texto') return a == null || !String(a).trim()
+      return a == null
+    })
+    if (faltando) return NextResponse.json({ error: 'Responda todas as perguntas.' }, { status: 400 })
+
+    // Calcula pontuação a partir dos pesos das opções escolhidas
     let total = 0, max = 0
     for (const q of questions) {
       const weights = q.options.map(o => Number(o.weight) || 0)

@@ -81,7 +81,7 @@ export function PesquisaForm({ token, title, description, companyName, questions
 
         {questions.map((q, i) => (
           <div key={q.id} className="bg-white rounded-2xl border shadow-sm p-5 space-y-2.5">
-            <p className="text-sm font-semibold text-gray-900">{i + 1}. {q.text}</p>
+            <p className="text-sm font-semibold text-gray-900">{i + 1}. {q.text} <span className="text-red-500">*</span></p>
             {q.type === 'texto' ? (
               <textarea
                 value={typeof answers[q.id] === 'string' ? (answers[q.id] as string) : ''}
