@@ -247,8 +247,16 @@ async function searchEscavadorAPI(name: string, cpf: string | null, token: strin
     if (res.status === 401 || res.status === 403) {
       return { source: 'Escavador (API)', snippets: ['Falha de autenticação na API do Escavador. Verifique a chave em Configuração de IA.'], urls: [] }
     }
+    if (res.status === 402) {
+      return { source: 'Escavador (API)', snippets: ['A consulta ao Escavador requer créditos/plano ativo (HTTP 402). Verifique o saldo da sua conta em escavador.com.'], urls: [] }
+    }
+    if (res.status === 404) {
+      return { source: 'Escavador (API)', snippets: ['Nenhum processo encontrado na base do Escavador para este envolvido.'], urls: [] }
+    }
     if (!res.ok) {
-      return { source: 'Escavador (API)', snippets: [`API do Escavador retornou erro ${res.status}.`], urls: [] }
+      let detail = ''
+      try { const j = await res.json(); detail = j?.message || j?.error || '' } catch { /* ignore */ }
+      return { source: 'Escavador (API)', snippets: [`API do Escavador retornou erro ${res.status}${detail ? ': ' + detail : ''}.`], urls: [] }
     }
 
     const data = await res.json()
@@ -431,21 +439,21 @@ function buildFallbackResult(results: SearchResult[]): BackgroundCheckResult {
     processos_judiciais: {
       encontrado: hasProcesses,
       resumo: hasProcesses
-        ? `Processos encontrados via JusBrasil/Escavador.`
-        : 'Nenhum processo encontrado no JusBrasil ou Escavador para este candidato.',
+        ? `Processos encontrados na consulta ao Escavador.`
+        : 'Nenhum processo encontrado no Escavador para este candidato.',
       detalhes: processSnippets.slice(0, 20),
       urls: uniqueUrls,
     },
     beneficios_governamentais: { encontrado: false, lista: [], resumo: 'Não verificado.' },
     outras_informacoes: { items: [], resumo: '' },
     parecer_geral: hasProcesses
-      ? `Processos encontrados nas fontes consultadas. Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.`
-      : 'Nenhum processo judicial encontrado no JusBrasil ou Escavador para este candidato.',
+      ? `Processos encontrados no Escavador. Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.`
+      : 'Nenhum processo judicial encontrado no Escavador para este candidato.',
     nivel_risco: hasProcesses ? 'nao_determinado' : 'baixo',
-    fontes_consultadas: [],
+    fontes_consultadas: ['Escavador'],
     observacoes_tecnicas: hasProcesses
       ? 'Configure uma chave de IA para análise inteligente dos processos encontrados.'
-      : 'Configure uma chave de IA em Configurações → Configuração IA para análise detalhada.',
+      : 'Consulta realizada exclusivamente via API do Escavador.',
   }
 }
 
@@ -469,10 +477,8 @@ Nome: "${name}"
 CPF: ${cpfFormatted}${usedCpf ? ' ← identificador único — resultados são 100% desta pessoa' : ' (não informado — busca feita por nome, possível homonímia)'}
 Cidade: ${city || 'Não informada'}
 
-━━━ FONTES CONSULTADAS ━━━
-• JusBrasil: maior agregador público de processos judiciais do Brasil. Busca por ${usedCpf ? `CPF ${cpfFormatted} (identificador único)` : `nome "${name}"`}.
-• Escavador: agregador público de processos judiciais. Busca por ${usedCpf ? `CPF ${cpfFormatted}` : `nome "${name}"`}.
-• DataJud (CNJ): API oficial do CNJ — não indexa partes (LGPD) no endpoint público; listado para referência.
+━━━ FONTE CONSULTADA ━━━
+• Escavador (API oficial v2): consulta de processos do envolvido por ${usedCpf ? `CPF ${cpfFormatted} (identificador único)` : `nome "${name}"`}. Dados estruturados retornados diretamente pela API.
 
 ━━━ DADOS COLETADOS ━━━
 ${blocks}
@@ -506,7 +512,7 @@ Retorne SOMENTE este JSON (sem markdown):
   },
   "parecer_geral": "2-3 frases diretas para o recrutador sobre o resultado da pesquisa judicial",
   "nivel_risco": "baixo",
-  "fontes_consultadas": ["JusBrasil", "Escavador"],
+  "fontes_consultadas": ["Escavador"],
   "observacoes_tecnicas": "ex: CPF não informado — busca por nome pode ter homonímia"
 }
 Valores válidos para nivel_risco: "baixo" | "medio" | "alto" | "nao_determinado"`
@@ -603,23 +609,16 @@ export async function POST(
     const { full_name, cpf, city } = candidate
     const cpfClean = cpf?.replace(/\D/g, '') || null
 
-    // ── Buscas ────────────────────────────────────────────────────────────────
-    // Escavador: usa a API oficial v2 quando há chave configurada; senão, scraping.
+    // ── Busca — exclusivamente Escavador (API oficial v2) ──────────────────────
     const escavadorToken = await getEscavadorKey()
-    const [escavadorR] = await Promise.allSettled([
-      escavadorToken
-        ? searchEscavadorAPI(full_name, cpfClean, escavadorToken)
-        : searchEscavador(full_name, cpfClean),
-    ])
+    if (!escavadorToken) {
+      return NextResponse.json({
+        error: 'Chave de API do Escavador não configurada. Configure em Configurações da plataforma → Configuração IA.',
+      }, { status: 400 })
+    }
 
-    const dataJudResult  = searchDataJud()
-    const jusBrasilResult = searchJusBrasil(full_name, cpfClean)
-
-    const results: SearchResult[] = [
-      dataJudResult,
-      jusBrasilResult,
-      escavadorR.status === 'fulfilled' ? escavadorR.value : { source: 'Escavador', snippets: [], urls: [] },
-    ]
+    const escavadorR = await searchEscavadorAPI(full_name, cpfClean, escavadorToken)
+    const results: SearchResult[] = [escavadorR]
 
     const prompt = buildPrompt(full_name, cpfClean, city, results)
     const aiResult = await callAI(prompt)
