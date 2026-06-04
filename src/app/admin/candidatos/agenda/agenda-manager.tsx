@@ -1,5 +1,5 @@
 ﻿'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CalendarClock, Plus, Trash2, Loader2, X, Settings2, MapPin, User, Clock,
@@ -38,6 +38,8 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [configOpen, setConfigOpen] = useState(false)
   const [view, setView] = useState<'dia' | 'entrevistador'>('entrevistador')
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 3500) }
 
@@ -69,10 +71,21 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
   }, [interviews, interviewers])
 
   async function deleteInterview(id: string) {
-    if (!confirm('Remover este agendamento?')) return
     const res = await fetch(`/api/admin/interviews/${id}`, { method: 'DELETE' })
     if (res.ok) { setInterviews(p => p.filter(i => i.id !== id)); showToast('ok', 'Agendamento removido.') }
     else showToast('err', 'Erro ao remover.')
+  }
+  // Confirmação em 2 cliques (evita confirm() bloqueante / INP)
+  function requestDelete(id: string) {
+    if (pendingDelete === id) {
+      if (pendingTimer.current) clearTimeout(pendingTimer.current)
+      setPendingDelete(null)
+      deleteInterview(id)
+    } else {
+      setPendingDelete(id)
+      if (pendingTimer.current) clearTimeout(pendingTimer.current)
+      pendingTimer.current = setTimeout(() => setPendingDelete(null), 3000)
+    }
   }
 
   function statusBadge(s: string) {
@@ -146,7 +159,11 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                           {it.interview_locations?.name && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{it.interview_locations.name}</span>}
                         </div>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); deleteInterview(it.id) }} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); requestDelete(it.id) }}
+                        className={`shrink-0 rounded-lg transition-colors ${pendingDelete === it.id ? 'px-2 py-1 text-[11px] font-medium bg-red-600 text-white' : 'p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50'}`}
+                        title="Remover">
+                        {pendingDelete === it.id ? 'Confirmar' : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -191,7 +208,11 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                       {it.status === 'cancelada' && it.cancel_reason && <p className="text-[12px] text-red-600 mt-0.5">Motivo: {it.cancel_reason}</p>}
                       {it.notes && <p className="text-[12px] text-gray-600 mt-0.5">{it.notes}</p>}
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); deleteInterview(it.id) }} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); requestDelete(it.id) }}
+                      className={`shrink-0 rounded-lg transition-colors ${pendingDelete === it.id ? 'px-2 py-1 text-[11px] font-medium bg-red-600 text-white' : 'p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50'}`}
+                      title="Remover">
+                      {pendingDelete === it.id ? 'Confirmar' : <Trash2 className="w-4 h-4" />}
+                    </button>
                   </div>
                 ))}
               </div>
