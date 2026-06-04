@@ -23,7 +23,7 @@ interface CompanyFile {
 
 interface Props { files: CompanyFile[]; companyOptions: string[] }
 
-const TIPOS = ['Contratos', 'Políticas', 'Modelos', 'Treinamentos', 'Circulares', 'Fiscais', 'Outros']
+const TIPOS = ['Fiscais', 'Certidões negativas (CND)', 'Laudos', 'Outros']
 
 // Validade → { label, tone }
 function validityInfo(f: CompanyFile): { label: string; tone: 'ok' | 'warn' | 'danger' | 'none' } {
