@@ -12,6 +12,7 @@ import { DeleteCandidateSection } from './delete-candidate-section'
 import { DesligarFuncionarioButton } from './desligar-funcionario'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
+import { InviteInterviewButton } from './invite-interview-button'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
 import { DocumentosTab } from './documentos-tab'
 import { AdvertenciasTab } from './advertencias-tab'
@@ -437,18 +438,23 @@ export default async function CandidatePage({
           />}
         </div>
 
-        {/* PDF button — canto superior direito (só Currículo e Ficha) */}
+        {/* Ações canto superior direito (só Currículo e Ficha) */}
         {(activeTab === 'curriculo' || activeTab === 'ficha') && (
-          <Link
-            href={activeTab === 'ficha'
-              ? `/admin/candidatos/${id}/print-ficha`
-              : `/admin/candidatos/${id}/print`}
-            target="_blank"
-            className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            Exportar PDF
-          </Link>
+          <div className="shrink-0 flex items-center gap-2">
+            {activeTab === 'curriculo' && ['novo', 'apto_para_entrevista'].includes(currentStatus) && (
+              <InviteInterviewButton candidateId={id} />
+            )}
+            <Link
+              href={activeTab === 'ficha'
+                ? `/admin/candidatos/${id}/print-ficha`
+                : `/admin/candidatos/${id}/print`}
+              target="_blank"
+              className="inline-flex items-center gap-1.5 text-sm font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+            >
+              <FileDown className="w-4 h-4" />
+              Exportar PDF
+            </Link>
+          </div>
         )}
       </div>
 
