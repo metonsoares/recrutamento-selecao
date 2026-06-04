@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult } from '@/types'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { Brain, FlaskConical, Eye, CalendarCheck, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus } from 'lucide-react'
+import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
 
 const ALL_STATUSES = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
@@ -328,7 +328,6 @@ export function CandidateActions({
   const [analyzing, setAnalyzing] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
-  const [scheduling, setScheduling] = useState(false)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   function showToast(type: 'success' | 'error', message: string, durationMs = 4000) {
@@ -432,26 +431,6 @@ export function CandidateActions({
       router.refresh()
     } finally {
       setSendingTest(false)
-    }
-  }
-
-  // ── Agendar Entrevista ──────────────────────────────────────────────────────
-  async function handleScheduleInterview() {
-    setScheduling(true)
-    try {
-      const res = await fetch(`/api/admin/candidatos/${candidateId}/schedule-interview`, {
-        method: 'POST',
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        showToast('error', data?.error || 'Erro ao agendar entrevista.', 5000)
-        return
-      }
-      setStatus('entrevista_agendada')
-      showToast('success', 'Entrevista agendada! Mensagem enviada via WhatsApp.')
-      router.refresh()
-    } finally {
-      setScheduling(false)
     }
   }
 
@@ -643,21 +622,6 @@ export function CandidateActions({
             </span>
           )}
         </Button>
-
-        {/* Agendar Entrevista */}
-        {status === 'apto_para_entrevista' && (
-          <Button
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-            onClick={handleScheduleInterview}
-            disabled={scheduling}
-          >
-            {scheduling
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Agendando...</>
-              : <><CalendarCheck className="w-4 h-4" />Agendar Entrevista</>
-            }
-          </Button>
-        )}
 
       </div>
     </>
