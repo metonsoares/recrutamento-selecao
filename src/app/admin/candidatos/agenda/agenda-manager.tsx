@@ -14,7 +14,7 @@ interface Location { id: string; name: string; address: string | null }
 interface Interviewer { id: string; name: string; phone: string | null; windows: Win[] }
 interface Interview {
   id: string; candidate_id: string; interviewer_id: string | null; location_id: string | null
-  scheduled_at: string; duration_min: number; status: string; notes: string | null
+  scheduled_at: string; duration_min: number; status: string; notes: string | null; cancel_reason?: string | null
   candidates: { full_name: string; phone: string | null } | null
   interviewers: { name: string; phone: string | null } | null
   interview_locations: { name: string; address: string | null } | null
@@ -94,6 +94,11 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
     if (s === 'cancelada') return 'bg-red-100 text-red-700'
     return 'bg-blue-100 text-blue-700'
   }
+  function statusLabel(s: string) {
+    if (s === 'realizada') return 'Realizada'
+    if (s === 'cancelada') return 'Agendamento cancelado'
+    return 'Agendada'
+  }
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
@@ -146,7 +151,10 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                         <p className="text-[10px] text-muted-foreground">{new Date(it.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })}</p>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{it.candidates?.full_name || 'Candidato'}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className={`text-sm font-medium truncate ${it.status === 'cancelada' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{it.candidates?.full_name || 'Candidato'}</p>
+                          {it.status === 'cancelada' && <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">Cancelado</span>}
+                        </div>
                         <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
                           {it.candidates?.phone && <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" />{it.candidates.phone}</span>}
                           {it.interview_locations?.name && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{it.interview_locations.name}</span>}
@@ -186,13 +194,14 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-semibold text-gray-900">{it.candidates?.full_name || 'Candidato'}</p>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${statusBadge(it.status)}`}>{it.status}</span>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${statusBadge(it.status)}`}>{statusLabel(it.status)}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[12px] text-muted-foreground">
                         {it.candidates?.phone && <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" />{it.candidates.phone}</span>}
                         {it.interviewers?.name && <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />{it.interviewers.name}</span>}
                         {it.interview_locations?.name && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{it.interview_locations.name}</span>}
                       </div>
+                      {it.status === 'cancelada' && it.cancel_reason && <p className="text-[12px] text-red-600 mt-0.5">Motivo: {it.cancel_reason}</p>}
                       {it.notes && <p className="text-[12px] text-gray-600 mt-0.5">{it.notes}</p>}
                     </div>
                     <button onClick={() => deleteInterview(it.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-4 h-4" /></button>

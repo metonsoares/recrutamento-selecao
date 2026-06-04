@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 
 export interface DayOption { date: string; label: string; window: string; remaining: number }
 
+interface ScheduledInfo { date: string; window: string; location: string | null; locationAddress: string | null }
 interface Props {
   token: string
   candidateName: string
@@ -13,15 +14,34 @@ interface Props {
   locationAddress: string | null
   days: DayOption[]
   alreadyScheduled: boolean
+  cancelled?: boolean
+  scheduledInfo?: ScheduledInfo | null
 }
 
 interface Confirm { date: string; window: string; position: number; location: string | null; locationAddress: string | null }
 
-export function AgendarEntrevistaForm({ token, candidateName, interviewerName, locationName, locationAddress, days, alreadyScheduled }: Props) {
+export function AgendarEntrevistaForm({ token, candidateName, interviewerName, locationName, locationAddress, days, alreadyScheduled, cancelled, scheduledInfo }: Props) {
   const [selected, setSelected] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState<Confirm | null>(null)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelDone, setCancelDone] = useState(false)
+
+  async function submitCancel() {
+    if (!cancelReason.trim()) { setError('Informe o motivo do cancelamento.'); return }
+    setCancelling(true); setError('')
+    try {
+      const res = await fetch(`/api/public/interview-invite/${token}/cancel`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: cancelReason }),
+      })
+      const d = await res.json()
+      if (!res.ok || !d.ok) { setError(d.error || 'Erro ao cancelar.'); return }
+      setCancelDone(true)
+    } catch { setError('Erro ao cancelar.') } finally { setCancelling(false) }
+  }
 
   async function submit() {
     if (!selected) { setError('Selecione um dia.'); return }
@@ -72,10 +92,54 @@ export function AgendarEntrevistaForm({ token, candidateName, interviewerName, l
     )
   }
 
+  if (cancelDone || cancelled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8 text-center">
+        <div className="bg-white rounded-2xl shadow-sm border p-6 w-full max-w-sm space-y-2">
+          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
+          <h1 className="text-xl font-bold text-gray-900">Agendamento cancelado</h1>
+          <p className="text-sm text-muted-foreground">Seu agendamento foi cancelado. Se quiser remarcar, entre em contato pelo WhatsApp.</p>
+        </div>
+      </div>
+    )
+  }
+
   if (alreadyScheduled) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 text-center">
-        <div><CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2" /><h1 className="text-xl font-bold text-gray-900">Entrevista já agendada</h1><p className="text-sm text-muted-foreground mt-1">Você já realizou seu agendamento por este link.</p></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
+        <div className="bg-white rounded-2xl shadow-sm border p-5 sm:p-7 w-full max-w-sm space-y-5 text-center">
+          <div className="space-y-3">
+            <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+            <h1 className="text-xl font-bold text-gray-900">Entrevista agendada</h1>
+          </div>
+          {scheduledInfo && (
+            <div className="text-left bg-gray-50 border rounded-xl p-4 space-y-3 text-sm">
+              <div className="flex items-start gap-2.5"><CalendarClock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" /><span className="font-medium text-gray-900 break-words">{scheduledInfo.date.charAt(0).toUpperCase() + scheduledInfo.date.slice(1)}</span></div>
+              <div className="flex items-start gap-2.5"><Clock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" /><span className="text-gray-900">Horário: <span className="font-medium">{scheduledInfo.window}</span></span></div>
+              {scheduledInfo.location && <div className="flex items-start gap-2.5"><MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" /><span className="text-gray-900 break-words"><span className="font-medium">{scheduledInfo.location}</span>{scheduledInfo.locationAddress && <span className="block text-gray-600 text-[13px] mt-0.5">{scheduledInfo.locationAddress}</span>}</span></div>}
+            </div>
+          )}
+
+          {!cancelOpen ? (
+            <Button variant="outline" onClick={() => setCancelOpen(true)} className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700">
+              Preciso cancelar
+            </Button>
+          ) : (
+            <div className="text-left space-y-2">
+              <label className="text-xs font-medium text-gray-600">Motivo do cancelamento *</label>
+              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={3}
+                placeholder="Conte rapidamente o motivo..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-300" />
+              {error && <p className="text-sm text-red-600 flex items-center gap-1.5"><AlertCircle className="w-4 h-4" />{error}</p>}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => { setCancelOpen(false); setError('') }} disabled={cancelling} className="flex-1">Voltar</Button>
+                <Button onClick={submitCancel} disabled={cancelling || !cancelReason.trim()} className="flex-1 bg-red-600 hover:bg-red-700 gap-1.5">
+                  {cancelling ? <><Loader2 className="w-4 h-4 animate-spin" />Cancelando...</> : 'Confirmar cancelamento'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     )
   }

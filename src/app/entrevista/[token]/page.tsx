@@ -28,10 +28,26 @@ export default async function EntrevistaPublicPage({ params }: { params: Promise
   const dates = ((invite.dates as string[]) || []).slice().sort()
 
   const alreadyScheduled = invite.status === 'agendada'
+  const cancelled = invite.status === 'cancelada'
+
+  // Detalhes do agendamento atual (para tela de cancelamento)
+  let scheduledInfo: { date: string; window: string; location: string | null; locationAddress: string | null } | null = null
+  if (alreadyScheduled && invite.interview_id) {
+    const { data: iv } = await supabase.from('interviews').select('scheduled_at, status').eq('id', invite.interview_id).maybeSingle()
+    if (iv && iv.status !== 'cancelada') {
+      const d = String(iv.scheduled_at).slice(0, 10)
+      scheduledInfo = {
+        date: new Date(`${d}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }),
+        window: windowLabel(windows, weekdayOf(d)),
+        location: location?.name || null,
+        locationAddress: location?.address || null,
+      }
+    }
+  }
 
   // Capacidade restante por dia
   const dayOptions: DayOption[] = []
-  if (!alreadyScheduled) {
+  if (!alreadyScheduled && !cancelled) {
     for (const d of dates) {
       const weekday = weekdayOf(d)
       const slots = slotsForDay(windows, weekday)
@@ -59,6 +75,8 @@ export default async function EntrevistaPublicPage({ params }: { params: Promise
       locationAddress={location?.address || null}
       days={dayOptions}
       alreadyScheduled={alreadyScheduled}
+      cancelled={cancelled}
+      scheduledInfo={scheduledInfo}
     />
   )
 }
