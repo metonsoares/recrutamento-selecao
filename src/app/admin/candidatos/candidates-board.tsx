@@ -128,6 +128,7 @@ interface CandidateRow {
   email: string | null
   city: string | null
   created_at: string
+  previously_registered?: boolean
   applications?: {
     id: string
     status: string
@@ -605,6 +606,11 @@ function CandidateCard({
             <p className="font-semibold text-[13px] text-[#1a1a1a] truncate leading-tight">{c.full_name}</p>
             {jobTitle && (
               <p className="text-[11px] text-muted-foreground truncate">{jobTitle}</p>
+            )}
+            {c.previously_registered && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5">
+                Já cadastrado antes
+              </span>
             )}
           </div>
         </div>

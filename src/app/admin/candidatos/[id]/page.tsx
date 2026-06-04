@@ -406,6 +406,11 @@ export default async function CandidatePage({
             {applications && applications.length > 1 && (
               <Badge variant="outline" className="text-xs">{applications.length} candidaturas</Badge>
             )}
+            {candidate.previously_registered && (
+              <Badge className="text-xs bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-100">
+                <RefreshCw className="w-3 h-3 mr-1" />Já cadastrado anteriormente
+              </Badge>
+            )}
           </div>
           {isMaster && activeTab === 'curriculo' && <CandidateActions
             candidateId={id}

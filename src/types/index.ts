@@ -77,6 +77,8 @@ export interface Candidate {
   lgpd_accepted_at: string | null
   latest_application_id: string | null
   possible_duplicate: boolean
+  /** Já havia sido cadastrado antes e teve a ficha reativada num novo cadastro */
+  previously_registered?: boolean
   cpf: string | null
   /** Diff das alterações no último re-cadastro: { campo: { old, new } } */
   data_changes: Record<string, { old: string; new: string }> | null

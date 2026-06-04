@@ -106,6 +106,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Libera phone_normalized preso em registros SOFT-DELETED ───────────────
+    // O índice único de phone_normalized inclui registros removidos. Sem liberar,
+    // a inserção/atualização com um telefone "preso" por outro candidato removido
+    // falha por conflito de constraint. Só mexe em registros soft-deleted.
+    if (phoneNormalized) {
+      let freeQ = supabase
+        .from('candidates')
+        .update({ phone_normalized: null, updated_at: new Date().toISOString() })
+        .eq('phone_normalized', phoneNormalized)
+        .not('deleted_at', 'is', null)
+      if (existingCandidate) freeQ = freeQ.neq('id', existingCandidate.id)
+      await freeQ
+    }
+
     let candidateId: string
 
     if (existingCandidate) {
@@ -128,7 +142,7 @@ export async function POST(req: NextRequest) {
         },
       )
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('candidates')
         .update({
           full_name: full_name.trim(),
@@ -141,6 +155,8 @@ export async function POST(req: NextRequest) {
           cpf: cpfNormalized || undefined,
           possible_duplicate: !wasDeleted, // reativação não é duplicata
           deleted_at: null,                // reativa candidatos soft-deleted
+          // Marca que o candidato já havia sido cadastrado antes (reativado)
+          ...(wasDeleted ? { previously_registered: true } : {}),
           lgpd_accepted: true,
           lgpd_accepted_at: new Date().toISOString(),
           ip_address: ipAddress,
@@ -151,6 +167,11 @@ export async function POST(req: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', candidateId)
+
+      if (updateError) {
+        console.error('Error updating/reactivating candidate:', updateError)
+        return NextResponse.json({ error: 'Erro ao atualizar candidato.' }, { status: 500 })
+      }
 
       // Marca candidaturas anteriores como não-latest (inclusive de reativados)
       await supabase
