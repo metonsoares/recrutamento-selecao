@@ -19,15 +19,33 @@ export function ResultadosManager({ surveys, initialSurveyId }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [respAnalysis, setRespAnalysis] = useState<Record<string, string>>({})
   const [analyzingResp, setAnalyzingResp] = useState<Record<string, boolean>>({})
+  const [summaries, setSummaries] = useState<Record<string, string>>({})
+  const [loadingSummaries, setLoadingSummaries] = useState(false)
 
   const load = useCallback(async (id: string) => {
-    setSelectedId(id); setData(null); setAnalysis(''); setExpanded(new Set()); setRespAnalysis({}); setAnalyzingResp({})
+    setSelectedId(id); setData(null); setAnalysis(''); setExpanded(new Set()); setRespAnalysis({}); setAnalyzingResp({}); setSummaries({})
     if (!id) return
     setLoading(true)
     try {
       const res = await fetch(`/api/admin/climate-surveys/${id}/responses`)
       const json = await res.json()
-      if (res.ok) setData(json)
+      if (res.ok) {
+        setData(json)
+        // Gera resumos curtos por funcionário em paralelo
+        const resps: ResponseRow[] = json.responses || []
+        if (resps.length) {
+          setLoadingSummaries(true)
+          Promise.all(resps.map(async r => {
+            try {
+              const sr = await fetch(`/api/admin/climate-surveys/${id}/summary`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ responseId: r.id }),
+              })
+              const sj = await sr.json()
+              if (sj.summary) setSummaries(p => ({ ...p, [r.id]: sj.summary }))
+            } catch { /* ignora */ }
+          })).finally(() => setLoadingSummaries(false))
+        }
+      }
     } finally { setLoading(false) }
   }, [])
 
@@ -166,8 +184,13 @@ export function ResultadosManager({ surveys, initialSurveyId }: Props) {
                   <div key={r.id} className="rounded-lg border overflow-hidden">
                     <button onClick={() => toggleExpand(r.id)} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-left print:hover:bg-transparent">
                       {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 print:hidden" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0 print:hidden" />}
-                      <span className="flex-1 text-sm font-medium text-gray-800 truncate">{respName(r)}</span>
-                      <span className={`text-sm font-bold ${tone(pct)}`}>{pct}%</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{respName(r)}</p>
+                        {summaries[r.id]
+                          ? <p className="text-[12px] text-primary truncate">{summaries[r.id]}</p>
+                          : loadingSummaries ? <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Resumindo...</p> : null}
+                      </div>
+                      <span className={`text-sm font-bold shrink-0 ${tone(pct)}`}>{pct}%</span>
                     </button>
                     {isOpen && (
                       <div className="px-4 pb-4 pt-1 space-y-3 border-t bg-gray-50/40">
