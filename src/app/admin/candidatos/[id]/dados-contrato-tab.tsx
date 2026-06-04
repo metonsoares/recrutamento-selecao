@@ -334,11 +334,15 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
         </div>
       </div>
 
-      {/* Ações */}
-      <div className="mt-4 max-w-3xl flex flex-wrap gap-2">
+      {/* Salvar — linha própria */}
+      <div className="mt-4 max-w-3xl">
         <Button onClick={() => save()} disabled={saving} variant="outline" className="gap-1.5">
           {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar</>}
         </Button>
+      </div>
+
+      {/* Ações de contrato — linha separada */}
+      <div className="mt-3 max-w-3xl flex flex-wrap gap-2 border-t pt-4">
         <Button onClick={() => setContratarOpen(true)} disabled={saving} className="gap-1.5"><UserCheck className="w-4 h-4" />Contratar</Button>
         <Button onClick={() => setEncerrarOpen(true)} disabled={saving} variant="outline" className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50"><UserMinus className="w-4 h-4" />Encerrar contrato</Button>
       </div>
