@@ -1,0 +1,118 @@
+import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+
+export const config = {
+  matcher: ['/admin/:path*', '/api/admin/:path*'],
+}
+
+const PAGE_LABELS: [RegExp, string][] = [
+  [/^\/admin\/?$/, 'Acessou o Dashboard'],
+  [/^\/admin\/candidatos\/agenda/, 'Acessou Agenda de entrevistas'],
+  [/^\/admin\/candidatos\/contratados/, 'Acessou Colaboradores: Contratados'],
+  [/^\/admin\/candidatos\/em-contrato/, 'Acessou Colaboradores: Em contrato'],
+  [/^\/admin\/candidatos\/intermitentes/, 'Acessou Colaboradores: Intermitentes'],
+  [/^\/admin\/candidatos\/freelancers/, 'Acessou Colaboradores: Freelancers'],
+  [/^\/admin\/candidatos\/desligados/, 'Acessou Colaboradores: Desligados'],
+  [/^\/admin\/candidatos\/[^/]+\/pesquisa\//, 'Abriu resultado de pesquisa de um candidato'],
+  [/^\/admin\/candidatos\/[0-9a-f-]{36}/, 'Abriu ficha de candidato'],
+  [/^\/admin\/candidatos\/?$/, 'Acessou Candidatos'],
+  [/^\/admin\/pesquisas-clima\/cadastrar/, 'Acessou Cadastrar pesquisas de clima'],
+  [/^\/admin\/pesquisas-clima\/resultados/, 'Acessou Resultados de pesquisas de clima'],
+  [/^\/admin\/documentos-empresa/, 'Acessou Documentos da empresa'],
+  [/^\/admin\/whatsapp/, 'Acessou Mensagens WhatsApp'],
+  [/^\/admin\/relatorios/, 'Acessou Relatórios'],
+  [/^\/admin\/secoes/, 'Acessou Seções e perguntas'],
+  [/^\/admin\/formulario/, 'Acessou Formulário'],
+  [/^\/admin\/vagas/, 'Acessou Vagas'],
+  [/^\/admin\/teste-cultural/, 'Acessou Teste cultural'],
+  [/^\/admin\/configuracoes\/whatsapp/, 'Acessou Configurações: WhatsApp / Z-API'],
+  [/^\/admin\/configuracoes\/ia/, 'Acessou Configurações: IA'],
+  [/^\/admin\/configuracoes\/cadastro-empresa/, 'Acessou Configurações: Cadastro de empresa'],
+  [/^\/admin\/configuracoes\/empresa/, 'Acessou Configurações: Cultura da empresa'],
+  [/^\/admin\/configuracoes\/usuarios/, 'Acessou Configurações: Perfil de usuário'],
+  [/^\/admin\/configuracoes\/cadastrar-usuarios/, 'Acessou Configurações: Cadastro de usuários'],
+  [/^\/admin\/configuracoes\/kanban-colunas/, 'Acessou Configurações: Colunas do Kanban'],
+]
+
+const API_LABELS: [RegExp, string][] = [
+  [/\/candidatos\/[^/]+\/interview-invite/, 'Enviou convite de entrevista'],
+  [/\/candidatos\/[^/]+\/invite-interview/, 'Enviou convite de entrevista'],
+  [/\/candidatos\/[^/]+\/records/, 'Registro do colaborador'],
+  [/\/candidatos\/[^/]+\/climate-assignments/, 'Pesquisa de clima na ficha'],
+  [/\/candidatos\/[^/]+\/admission-docs/, 'Anexou/alterou documento de candidato'],
+  [/\/candidatos\/[^/]+\/background-check/, 'Executou Check de Processos'],
+  [/\/candidatos\/[^/]+\/desligar/, 'Desligou colaborador'],
+  [/\/candidatos\/[^/]+\/status/, 'Alterou status de candidato'],
+  [/\/candidatos\/[^/]+$/, 'Atualizou/Excluiu candidato'],
+  [/\/ai\/analyze-candidate/, 'Rodou análise de IA'],
+  [/\/climate-surveys\/[^/]+\/responses\//, 'Removeu resposta de pesquisa'],
+  [/\/climate-surveys\/[^/]+/, 'Editou/Removeu pesquisa de clima'],
+  [/\/climate-surveys/, 'Criou pesquisa de clima'],
+  [/\/interviews\/locations/, 'Configurou locais de entrevista'],
+  [/\/interviews\/interviewers/, 'Configurou entrevistadores'],
+  [/\/interviews/, 'Agendamento de entrevista'],
+  [/\/company-files/, 'Documento da empresa'],
+  [/\/(system-users|usuarios)/, 'Gerenciou usuários'],
+  [/\/zapi/, 'Alterou configuração de WhatsApp'],
+  [/\/ai\//, 'Alterou configuração de IA'],
+]
+
+function describe(method: string, pathname: string, isPage: boolean): string {
+  if (isPage) {
+    for (const [re, label] of PAGE_LABELS) if (re.test(pathname)) return label
+    return `Acessou ${pathname}`
+  }
+  const verb = method === 'POST' ? 'Criou' : method === 'DELETE' ? 'Removeu' : 'Atualizou'
+  for (const [re, label] of API_LABELS) if (re.test(pathname)) return label
+  return `${verb} (${pathname})`
+}
+
+export async function proxy(req: NextRequest) {
+  const res = NextResponse.next()
+  try { await logActivity(req) } catch { /* nunca bloqueia a resposta */ }
+  return res
+}
+
+async function logActivity(req: NextRequest) {
+  const pathname = req.nextUrl.pathname
+  const method = req.method
+
+  // ignora o próprio módulo de auditoria e prefetch do Next
+  if (pathname.startsWith('/admin/auditoria') || pathname.startsWith('/api/admin/audit')) return
+  if (req.headers.get('next-router-prefetch') || req.headers.get('purpose') === 'prefetch') return
+
+  const isApiMutation = pathname.startsWith('/api/admin') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+  const isNavigation = pathname.startsWith('/admin') && method === 'GET' &&
+    (req.headers.get('sec-fetch-dest') === 'document' || req.headers.get('rsc') === '1')
+  if (!isApiMutation && !isNavigation) return
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !anon || !service) return
+
+  const supabase = createServerClient(url, anon, {
+    cookies: { getAll: () => req.cookies.getAll(), setAll: () => {} },
+  })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null
+  const action = describe(method, pathname, isNavigation)
+
+  await fetch(`${url}/rest/v1/audit_logs`, {
+    method: 'POST',
+    headers: {
+      apikey: service,
+      Authorization: `Bearer ${service}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      user_id: user.id,
+      user_email: user.email,
+      action, method, path: pathname, ip,
+    }),
+    keepalive: true,
+  })
+}

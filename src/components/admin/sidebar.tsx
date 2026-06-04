@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -232,6 +232,11 @@ function SidebarContent({
             <Link href="/admin/relatorios" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}>
               <BarChart3 className="w-[15px] h-[15px] shrink-0 opacity-60" />
               Relatórios
+            </Link>
+
+            <Link href="/admin/auditoria" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/auditoria') ? NAV_ACTIVE : NAV_DEFAULT)}>
+              <ShieldCheck className="w-[15px] h-[15px] shrink-0 opacity-60" />
+              Auditoria
             </Link>
 
             {/* ── Separador: Configurações ─────────────────────── */}
