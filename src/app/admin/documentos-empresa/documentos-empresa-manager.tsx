@@ -45,7 +45,7 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
   const [modalOpen, setModalOpen] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())  // vazio = tudo recolhido
 
   // form
   const [name, setName] = useState('')
@@ -63,7 +63,7 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
   function openModal() { setName(''); setEmpresa(''); setCategory(''); setExpiresAt(''); setNoExpiry(false); setFile(null); setError(''); setModalOpen(true) }
 
   function toggleGroup(key: string) {
-    setCollapsed(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n })
+    setExpanded(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n })
   }
 
   async function handleSave() {
@@ -186,12 +186,18 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
         const tipos = grouped[emp]
         const tipoNames = Object.keys(tipos).sort((a, b) => a.localeCompare(b, 'pt-BR'))
         const total = tipoNames.reduce((s, t) => s + tipos[t].length, 0)
+        const vencidosEmpresa = tipoNames.reduce((s, t) => s + tipos[t].filter(d => validityInfo(d).tone === 'danger').length, 0)
         return (
           <div key={emp} className="bg-white rounded-2xl border shadow-sm overflow-hidden">
             {/* Cabeçalho da empresa */}
             <div className="flex items-center gap-2 px-5 py-3 border-b bg-gray-50">
               <Building2 className="w-5 h-5 text-[#333]" />
               <h2 className="text-sm font-bold text-gray-900 flex-1">{emp}</h2>
+              {vencidosEmpresa > 0 && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                  {vencidosEmpresa} vencido{vencidosEmpresa !== 1 ? 's' : ''}
+                </span>
+              )}
               <span className="text-[11px] font-semibold text-muted-foreground bg-white border px-2 py-0.5 rounded-full">{total}</span>
             </div>
 
@@ -199,17 +205,23 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
             <div className="divide-y">
               {tipoNames.map(tipo => {
                 const key = `${emp}::${tipo}`
-                const isCollapsed = collapsed.has(key)
+                const isExpanded = expanded.has(key)
                 const docs = tipos[tipo]
+                const vencidos = docs.filter(d => validityInfo(d).tone === 'danger').length
                 return (
                   <div key={key}>
                     <button onClick={() => toggleGroup(key)}
                       className="w-full flex items-center gap-2 px-5 py-2.5 hover:bg-gray-50 transition-colors">
-                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
                       <span className="text-[13px] font-semibold text-gray-700">{tipo}</span>
                       <span className="text-[11px] text-muted-foreground">({docs.length})</span>
+                      {vencidos > 0 && (
+                        <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                          {vencidos} vencido{vencidos !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </button>
-                    {!isCollapsed && (
+                    {isExpanded && (
                       <div className="divide-y divide-gray-100">
                         {docs.map(f => {
                           const v = validityInfo(f)
