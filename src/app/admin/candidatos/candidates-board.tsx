@@ -45,6 +45,15 @@ const COLUMNS = [
     statuses: ['entrevista_agendada', 'entrevistado'],
   },
   {
+    key: 'aprovados',
+    label: 'Aprovados',
+    targetStatus: 'aprovado_processo' as CandidateStatus,
+    dot: 'bg-green-600',
+    header: 'bg-green-50 border-green-200',
+    drop: 'bg-green-100 border-green-300',
+    statuses: ['aprovado_processo'],
+  },
+  {
     key: 'aprovado',
     label: 'Intermitentes',
     targetStatus: 'aprovado' as CandidateStatus,
