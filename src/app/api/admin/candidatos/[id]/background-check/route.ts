@@ -210,7 +210,90 @@ function searchJusBrasil(name: string, cpf: string | null): SearchResult {
   return { source: 'JusBrasil', snippets: [], urls: [searchUrl] }
 }
 
-// ─── Escavador ────────────────────────────────────────────────────────────────
+// ─── Escavador — API oficial v2 ───────────────────────────────────────────────
+// Doc: https://api.escavador.com/v2/docs/consulta-de-processos
+// "Resumo de processos do envolvido por nome ou CPF/CNPJ"
+// GET /api/v2/envolvido/processos?cpf_cnpj=... (ou ?nome=...)
+
+async function getEscavadorKey(): Promise<string | null> {
+  try {
+    const service = await createSupabaseServiceClient()
+    const { data } = await service.from('ai_settings').select('escavador_api_key').limit(1).single()
+    const k = (data?.escavador_api_key as string | null)?.trim()
+    return k || process.env.ESCAVADOR_API_KEY || null
+  } catch {
+    return process.env.ESCAVADOR_API_KEY || null
+  }
+}
+
+async function searchEscavadorAPI(name: string, cpf: string | null, token: string): Promise<SearchResult> {
+  const snippets: string[] = []
+  const urls: string[] = []
+  const base = 'https://api.escavador.com/api/v2/envolvido/processos'
+  const qs = cpf
+    ? `cpf_cnpj=${encodeURIComponent(cpf)}`
+    : `nome=${encodeURIComponent(name)}`
+  const url = `${base}?${qs}&limit=30`
+
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    }, 15000)
+
+    if (res.status === 401 || res.status === 403) {
+      return { source: 'Escavador (API)', snippets: ['Falha de autenticação na API do Escavador. Verifique a chave em Configuração de IA.'], urls: [] }
+    }
+    if (!res.ok) {
+      return { source: 'Escavador (API)', snippets: [`API do Escavador retornou erro ${res.status}.`], urls: [] }
+    }
+
+    const data = await res.json()
+    // A resposta pode vir como { items: [...] } ou { resposta: {...} }
+    const items: Record<string, unknown>[] = Array.isArray(data?.items) ? data.items
+      : Array.isArray(data?.resposta?.items) ? data.resposta.items
+      : Array.isArray(data?.processos) ? data.processos
+      : []
+
+    if (items.length === 0) {
+      snippets.push('Nenhum processo encontrado na base do Escavador para este envolvido.')
+    } else {
+      snippets.push(`Total de processos encontrados no Escavador: ${items.length}${data?.links?.next ? '+ (há mais páginas)' : ''}.`)
+      for (const p of items.slice(0, 25)) {
+        const numero = (p.numero_cnj || p.numero || p.numeroProcessoUnico || '') as string
+        const ativo = (p.titulo_polo_ativo || p.polo_ativo || '') as string
+        const passivo = (p.titulo_polo_passivo || p.polo_passivo || '') as string
+        const dataInicio = (p.data_inicio || p.ano_inicio || '') as string
+        // fontes/tribunais
+        const fontes = Array.isArray(p.fontes) ? p.fontes as Record<string, unknown>[] : []
+        const tribunal = fontes.map(f => (f.nome || f.sigla || '') as string).filter(Boolean).join(', ')
+        const capa = fontes.map(f => f.capa as Record<string, unknown> | undefined).find(Boolean)
+        const classe = (capa?.classe || p.classe || '') as string
+        const assuntoObj = capa?.assunto_principal as Record<string, unknown> | undefined
+        const assunto = (assuntoObj?.nome || p.assunto || '') as string
+
+        const parts = [
+          numero ? `Processo ${numero}` : 'Processo (sem número)',
+          tribunal && `Tribunal: ${tribunal}`,
+          classe && `Classe: ${classe}`,
+          assunto && `Assunto: ${assunto}`,
+          (ativo || passivo) && `Partes: ${ativo}${ativo && passivo ? ' x ' : ''}${passivo}`,
+          dataInicio && `Início: ${dataInicio}`,
+        ].filter(Boolean)
+        snippets.push(parts.join(' — '))
+      }
+    }
+  } catch (e) {
+    snippets.push(`Não foi possível consultar a API do Escavador (${(e as Error).name === 'AbortError' ? 'tempo esgotado' : 'erro de rede'}).`)
+  }
+
+  return { source: 'Escavador (API)', snippets, urls }
+}
+
+// ─── Escavador (scraping — fallback sem chave de API) ──────────────────────────
 // Estratégia em 2 tentativas:
 // 1ª: acesso direto à página de busca por CPF + seguir link de perfil (rápido, ~5-8s)
 // 2ª: se bloqueado (IPs Vercel), fallback via Google para extrair snippets (~8s)
@@ -521,12 +604,12 @@ export async function POST(
     const cpfClean = cpf?.replace(/\D/g, '') || null
 
     // ── Buscas ────────────────────────────────────────────────────────────────
-    // JusBrasil: retorna URL de busca instantaneamente (Cloudflare bloqueia fetch direto)
-    // Escavador: tenta acesso direto (5s) → fallback Google (8s) se bloqueado
-    // DataJud: retorna aviso LGPD sem rede
-    // Execução total das buscas: ≤ 10s (direto) ou ≤ 16s (fallback Google)
+    // Escavador: usa a API oficial v2 quando há chave configurada; senão, scraping.
+    const escavadorToken = await getEscavadorKey()
     const [escavadorR] = await Promise.allSettled([
-      searchEscavador(full_name, cpfClean),
+      escavadorToken
+        ? searchEscavadorAPI(full_name, cpfClean, escavadorToken)
+        : searchEscavador(full_name, cpfClean),
     ])
 
     const dataJudResult  = searchDataJud()
