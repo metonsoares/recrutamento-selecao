@@ -23,6 +23,7 @@ import { AtestadosTab } from './atestados-tab'
 import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
 import { AsosTab, AsoData } from './asos-tab'
+import { RegistrosTab, RecordItem } from './registros-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,7 +123,7 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' =
+  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'registros' =
     sp.tab === 'ficha' ? 'ficha'
     : sp.tab === 'contrato' ? 'contrato'
     : sp.tab === 'documentos' ? 'documentos'
@@ -133,6 +134,7 @@ export default async function CandidatePage({
     : sp.tab === 'contracheques' ? 'contracheques'
     : sp.tab === 'folhas-ponto' ? 'folhas-ponto'
     : sp.tab === 'asos' ? 'asos'
+    : sp.tab === 'registros' ? 'registros'
     : 'curriculo'
 
   const supabase = await createSupabaseServerClient()
@@ -180,12 +182,13 @@ export default async function CandidatePage({
   const bankData = (latestApp?.bank_data as BankData | null) ?? null
 
   // Advertências + Férias + Atestados + Faltas + Contracheques/Folhas
-  const [{ data: warningsData }, { data: vacationsData }, { data: certificatesData }, { data: absencesData }, { data: empFilesData }] = await Promise.all([
+  const [{ data: warningsData }, { data: vacationsData }, { data: certificatesData }, { data: absencesData }, { data: empFilesData }, { data: recordsData }] = await Promise.all([
     service.from('warnings').select('*').eq('candidate_id', id).order('occurred_at', { ascending: false }),
     service.from('vacations').select('*').eq('candidate_id', id).order('start_date', { ascending: false }),
     service.from('medical_certificates').select('*').eq('candidate_id', id).order('certificate_date', { ascending: false }),
     service.from('absences').select('*').eq('candidate_id', id).order('absence_date', { ascending: false }),
     service.from('employee_files').select('*').eq('candidate_id', id).order('created_at', { ascending: false }),
+    service.from('records').select('*').eq('candidate_id', id).order('record_date', { ascending: false }),
   ])
   const contracheques = (empFilesData || []).filter(f => f.kind === 'contracheque') as EmployeeFile[]
   const folhasPonto = (empFilesData || []).filter(f => f.kind === 'folha_ponto') as EmployeeFile[]
@@ -228,6 +231,8 @@ export default async function CandidatePage({
   const showPayroll = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
   // ASOs: contratado, intermitente, desligado
   const showAso = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
+  // Registros: apenas contratado
+  const showRegistros = isContratado
   // Painel completo para contratado e desligado; enxuto para os demais
   const minimalResumo = showResumoPanel && !isContratado && !isDesligado
 
@@ -410,7 +415,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} />
+      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showRegistros={showRegistros} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && showFicha && (
@@ -475,6 +480,11 @@ export default async function CandidatePage({
       {activeTab === 'folhas-ponto' && showPayroll && (
         <EmployeeFilesTab candidateId={id} kind="folha_ponto" title="Folhas de ponto"
           referenceLabel="Competência (mês/ano)" insertLabel="Inserir arquivo" initialFiles={folhasPonto} />
+      )}
+
+      {/* ── Aba: Registros ── */}
+      {activeTab === 'registros' && showRegistros && (
+        <RegistrosTab candidateId={id} initialRecords={(recordsData || []) as RecordItem[]} />
       )}
 
       {/* ── Aba: ASOs ── */}

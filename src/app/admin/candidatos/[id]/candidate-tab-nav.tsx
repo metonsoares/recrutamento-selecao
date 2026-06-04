@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays, HeartPulse } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays, HeartPulse, History } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -23,9 +23,11 @@ interface Props {
   showPayroll?: boolean
   /** Exibe ASOs — contratado, intermitente, desligado */
   showAso?: boolean
+  /** Exibe Registros — apenas contratado */
+  showRegistros?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false, showAso = false }: Props) {
+export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false, showAso = false, showRegistros = false }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -39,6 +41,7 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
     : tab === 'contracheques' ? 'contracheques'
     : tab === 'folhas-ponto' ? 'folhas-ponto'
     : tab === 'asos' ? 'asos'
+    : tab === 'registros' ? 'registros'
     : 'curriculo'
 
   const base = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border'
@@ -142,6 +145,15 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
         >
           <HeartPulse className="w-4 h-4" />
           ASOs
+        </Link>
+      )}
+      {showRegistros && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=registros`}
+          className={`${base} ${activeTab === 'registros' ? active : inactive}`}
+        >
+          <History className="w-4 h-4" />
+          Registros
         </Link>
       )}
     </div>
