@@ -74,6 +74,9 @@ export function calculateFinalScore(
 
 export function formatDate(date: string | null): string {
   if (!date) return '-'
+  // Data pura (YYYY-MM-DD) — formata sem conversão de fuso (evita recuar 1 dia)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`
   return new Date(date).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
 
