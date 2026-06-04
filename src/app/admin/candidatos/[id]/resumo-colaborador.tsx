@@ -3,7 +3,7 @@ import { formatDate } from '@/lib/helpers'
 import {
   CalendarClock, User, Plane, AlertTriangle, Briefcase,
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
-  ClipboardList, FolderArchive,
+  ClipboardList, FolderArchive, Stethoscope, UserMinus,
 } from 'lucide-react'
 
 interface Props {
@@ -25,6 +25,7 @@ interface Props {
   candidateId?: string
   fichaPending?: number          // pendências na Ficha de Admissão
   companyDocsPending?: number    // pendências em Documentos
+  timeline?: { date: string; label: string; type: string }[]
 }
 
 // ─── Helpers de tempo ─────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export function ResumoColaborador({
   fullName, jobTitle, companyName, statusLabel,
   cpf, phone, email, city, age,
   admissionDate, salary, registeredAt, warningsCount,
-  minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0,
+  minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0, timeline = [],
 }: Props) {
   const now = new Date()
   const admission = admissionDate ? new Date(admissionDate + 'T00:00:00') : null
@@ -199,16 +200,13 @@ export function ResumoColaborador({
           </CardContent>
         </Card>
 
-        {/* Histórico */}
+        {/* Histórico / Linha cronológica */}
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CalendarClock className="w-4 h-4 text-muted-foreground" />Histórico</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CalendarClock className="w-4 h-4 text-muted-foreground" />Histórico na empresa</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <Timeline
-              items={[
-                { date: registeredAt, label: 'Cadastro no sistema', icon: User },
-                ...(admission ? [{ date: admission.toISOString(), label: 'Admissão / contratação', icon: CalendarCheck }] : []),
-              ]}
-            />
+            <div className="max-h-80 overflow-y-auto pr-1">
+              <RichTimeline events={timeline.length ? timeline : [{ date: registeredAt, label: 'Cadastro no sistema', type: 'cadastro' }]} />
+            </div>
             {monthsWorked != null && (
               <p className="text-[12px] text-muted-foreground pt-2 border-t">
                 Na empresa há <strong className="text-gray-700">{humanDuration(monthsWorked)}</strong>.
@@ -234,19 +232,29 @@ function InfoRow({ icon: Icon, label, value }: { icon?: React.ElementType; label
   )
 }
 
-function Timeline({ items }: { items: { date: string; label: string; icon: React.ElementType }[] }) {
-  const sorted = [...items].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+const TIMELINE_STYLE: Record<string, { icon: React.ElementType; bg: string; fg: string }> = {
+  cadastro:     { icon: User,          bg: 'bg-gray-100',    fg: 'text-gray-600' },
+  admissao:     { icon: CalendarCheck, bg: 'bg-emerald-100', fg: 'text-emerald-700' },
+  ferias:       { icon: Plane,         bg: 'bg-sky-100',     fg: 'text-sky-700' },
+  falta:        { icon: AlertTriangle, bg: 'bg-amber-100',   fg: 'text-amber-700' },
+  advertencia:  { icon: ShieldAlert,   bg: 'bg-orange-100',  fg: 'text-orange-700' },
+  atestado:     { icon: Stethoscope,   bg: 'bg-blue-100',    fg: 'text-blue-700' },
+  desligamento: { icon: UserMinus,     bg: 'bg-rose-100',    fg: 'text-rose-700' },
+}
+
+function RichTimeline({ events }: { events: { date: string; label: string; type: string }[] }) {
   return (
-    <div className="space-y-3">
-      {sorted.map((it, i) => {
-        const Icon = it.icon
+    <div className="relative space-y-3 before:absolute before:left-[11px] before:top-1 before:bottom-1 before:w-px before:bg-gray-200">
+      {events.map((it, i) => {
+        const s = TIMELINE_STYLE[it.type] ?? TIMELINE_STYLE.cadastro
+        const Icon = s.icon
         return (
-          <div key={i} className="flex items-start gap-2.5">
-            <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
-              <Icon className="w-3 h-3 text-emerald-700" />
+          <div key={i} className="relative flex items-start gap-2.5">
+            <div className={`w-6 h-6 rounded-full ${s.bg} flex items-center justify-center shrink-0 z-10`}>
+              <Icon className={`w-3 h-3 ${s.fg}`} />
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-800 leading-tight">{it.label}</p>
+            <div className="pt-0.5">
+              <p className="text-[13px] font-medium text-gray-800 leading-tight">{it.label}</p>
               <p className="text-[11px] text-muted-foreground">{formatDate(it.date)}</p>
             </div>
           </div>

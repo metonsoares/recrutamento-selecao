@@ -188,26 +188,44 @@ export default async function CandidatePage({
   const contracheques = (empFilesData || []).filter(f => f.kind === 'contracheque') as EmployeeFile[]
   const folhasPonto = (empFilesData || []).filter(f => f.kind === 'folha_ponto') as EmployeeFile[]
 
+  // ── Linha cronológica do colaborador ──────────────────────────────────────
+  const admForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
+  const timeline: { date: string; label: string; type: string }[] = [
+    { date: candidate.created_at as string, label: 'Cadastro no sistema', type: 'cadastro' },
+  ]
+  if (admForm?.admission_date) timeline.push({ date: admForm.admission_date, label: 'Admissão / contratação', type: 'admissao' })
+  for (const v of vacationsData || []) timeline.push({ date: v.start_date, label: `Férias (${v.days} dia${v.days !== 1 ? 's' : ''})`, type: 'ferias' })
+  for (const a of absencesData || []) timeline.push({ date: a.absence_date, label: a.kind === 'afastamento' ? `Afastamento (${a.days} dia${a.days !== 1 ? 's' : ''})` : 'Falta', type: 'falta' })
+  for (const w of warningsData || []) timeline.push({ date: w.occurred_at, label: `Advertência${w.reason ? ': ' + String(w.reason).slice(0, 50) : ''}`, type: 'advertencia' })
+  for (const c of certificatesData || []) timeline.push({ date: c.certificate_date, label: `Atestado${c.comment ? ': ' + String(c.comment).slice(0, 50) : ''}`, type: 'atestado' })
+  if (latestApp?.terminated_at) {
+    const td = latestApp.termination_data as { requester?: string } | null
+    const who = td?.requester === 'funcionario' ? ' (a pedido do funcionário)' : td?.requester === 'empresa' ? ' (pela empresa)' : ''
+    timeline.push({ date: String(latestApp.terminated_at).slice(0, 10), label: `Desligamento${who}`, type: 'desligamento' })
+  }
+  timeline.sort((a, b) => a.date.localeCompare(b.date))
+
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
   const isContratado = currentStatus === 'contratado'
+  const isDesligado = currentStatus === 'desligado'
   // Painel Resumo (faixa de colaborador) + aba renomeada para "Resumo"
-  const showResumoPanel = ['contratado', 'freelancer', 'aprovado', 'em_contrato'].includes(currentStatus)
-  // Dados Bancários: contratado, freelancer, intermitente, em contrato
-  const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato'].includes(currentStatus)
-  // Ficha Admissão: contratado, intermitente (não em_contrato)
-  const showFicha = ['contratado', 'aprovado'].includes(currentStatus)
+  const showResumoPanel = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  // Dados Bancários
+  const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  // Ficha Admissão (não em_contrato)
+  const showFicha = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
   // Dados para contrato: em_contrato
   const showContract = currentStatus === 'em_contrato'
-  // Documentos: contratado, intermitente, em contrato
-  const showDocumentos = ['contratado', 'aprovado', 'em_contrato'].includes(currentStatus)
-  // Férias: apenas contratado
-  const showVacationTab = isContratado
-  // Advertências + Atestados: apenas contratado
-  const showRecords = isContratado
-  // Contracheques + Folhas de ponto: contratado e intermitente
-  const showPayroll = ['contratado', 'aprovado'].includes(currentStatus)
-  // Painel enxuto (não-contratado)
-  const minimalResumo = showResumoPanel && !isContratado
+  // Documentos
+  const showDocumentos = ['contratado', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  // Férias: contratado e desligado
+  const showVacationTab = ['contratado', 'desligado'].includes(currentStatus)
+  // Advertências + Atestados: contratado e desligado
+  const showRecords = ['contratado', 'desligado'].includes(currentStatus)
+  // Contracheques + Folhas de ponto: contratado, intermitente, desligado
+  const showPayroll = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
+  // Painel completo para contratado e desligado; enxuto para os demais
+  const minimalResumo = showResumoPanel && !isContratado && !isDesligado
 
   // Job title: join → job_id direto → form_answer job_select (pode ser UUID → lookup)
   let jobTitle: string | null = (latestApp?.jobs as { title?: string } | null)?.title ?? null
@@ -491,6 +509,7 @@ export default async function CandidatePage({
             candidateId={id}
             fichaPending={showFicha ? countFichaPending(admissionForm) : 0}
             companyDocsPending={showDocumentos ? countCompanyPending(companyDocs) : 0}
+            timeline={timeline}
           />
         </div>
       )}
