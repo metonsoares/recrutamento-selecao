@@ -270,7 +270,7 @@ function SidebarContent({
                           <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cadastro de empresa
                         </Link>
                         <Link href="/admin/configuracoes/empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                          <Building2 className="w-3 h-3 shrink-0 opacity-50" />Dados da empresa
+                          <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cultura da empresa
                         </Link>
                       </div>
                     )}

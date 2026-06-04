@@ -236,7 +236,7 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
     <div className="p-4 sm:p-6 space-y-8 max-w-3xl">
 
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Dados da Empresa</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Cultura da Empresa</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Identidade, cultura e configurações de IA para análise de candidatos
         </p>
