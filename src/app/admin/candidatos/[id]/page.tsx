@@ -22,6 +22,7 @@ import { FeriasTab } from './ferias-tab'
 import { AtestadosTab } from './atestados-tab'
 import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
+import { AsosTab, AsoData } from './asos-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,7 +122,7 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' =
+  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' =
     sp.tab === 'ficha' ? 'ficha'
     : sp.tab === 'contrato' ? 'contrato'
     : sp.tab === 'documentos' ? 'documentos'
@@ -131,6 +132,7 @@ export default async function CandidatePage({
     : sp.tab === 'atestados' ? 'atestados'
     : sp.tab === 'contracheques' ? 'contracheques'
     : sp.tab === 'folhas-ponto' ? 'folhas-ponto'
+    : sp.tab === 'asos' ? 'asos'
     : 'curriculo'
 
   const supabase = await createSupabaseServerClient()
@@ -224,6 +226,8 @@ export default async function CandidatePage({
   const showRecords = ['contratado', 'desligado'].includes(currentStatus)
   // Contracheques + Folhas de ponto: contratado, intermitente, desligado
   const showPayroll = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
+  // ASOs: contratado, intermitente, desligado
+  const showAso = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
   // Painel completo para contratado e desligado; enxuto para os demais
   const minimalResumo = showResumoPanel && !isContratado && !isDesligado
 
@@ -406,7 +410,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} />
+      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && showFicha && (
@@ -471,6 +475,19 @@ export default async function CandidatePage({
       {activeTab === 'folhas-ponto' && showPayroll && (
         <EmployeeFilesTab candidateId={id} kind="folha_ponto" title="Folhas de ponto"
           referenceLabel="Competência (mês/ano)" insertLabel="Inserir arquivo" initialFiles={folhasPonto} />
+      )}
+
+      {/* ── Aba: ASOs ── */}
+      {activeTab === 'asos' && showAso && (
+        <AsosTab
+          candidateId={id}
+          isDesligado={isDesligado}
+          initialData={(latestApp?.aso_data as AsoData | null) ?? null}
+          admissionalFile={(() => {
+            const d = (admForm?.docs as Record<string, { files?: { url: string; name: string; path: string }[] }> | undefined)?.atestado_admissional
+            return d?.files?.[0] ?? null
+          })()}
+        />
       )}
 
       {/* ── Aba: Dados Bancários ── */}

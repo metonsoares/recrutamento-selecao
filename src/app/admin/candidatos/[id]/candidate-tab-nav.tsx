@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays, HeartPulse } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -21,9 +21,11 @@ interface Props {
   showRecords?: boolean
   /** Exibe Contracheques e Folhas de ponto — contratado e intermitente */
   showPayroll?: boolean
+  /** Exibe ASOs — contratado, intermitente, desligado */
+  showAso?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false }: Props) {
+export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false, showAso = false }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -36,6 +38,7 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
     : tab === 'atestados' ? 'atestados'
     : tab === 'contracheques' ? 'contracheques'
     : tab === 'folhas-ponto' ? 'folhas-ponto'
+    : tab === 'asos' ? 'asos'
     : 'curriculo'
 
   const base = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border'
@@ -130,6 +133,15 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
         >
           <CalendarDays className="w-4 h-4" />
           Folhas de ponto
+        </Link>
+      )}
+      {showAso && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=asos`}
+          className={`${base} ${activeTab === 'asos' ? active : inactive}`}
+        >
+          <HeartPulse className="w-4 h-4" />
+          ASOs
         </Link>
       )}
     </div>
