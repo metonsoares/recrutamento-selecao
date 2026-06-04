@@ -210,7 +210,7 @@ async function buildAiReply(
   const orderedHistory = (history || []).reverse().slice(0, -1)
 
   const attendantName = (settings.attendant_name as string) || 'Atendente de RH'
-  const appUrl = process.env.APP_URL || 'https://recrutamento-selecao-ashen.vercel.app'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://recrutamento.browniedoton.com'
   const formLink = `${appUrl}/curriculo`
 
   const basePrompt = (aiSettings.whatsapp_agent_prompt as string) ||
@@ -241,23 +241,24 @@ async function buildAiReply(
   const systemPrompt = [
     basePrompt,
     aiSettings.mission ? `Missão da empresa: ${aiSettings.mission}` : '',
-    aiSettings.company_culture ? `Cultura: ${aiSettings.company_culture}` : '',
+    aiSettings.company_culture ? `Cultura da empresa: ${aiSettings.company_culture}` : '',
     '',
-    cancelInstruction ? `ATENÇÃO PRIORITÁRIA:\n${cancelInstruction}` : '',
-    cancelInstruction ? '' : '',
-    'REGRA PRINCIPAL:',
-    `Oriente o candidato a preencher o currículo NA PLATAFORMA e inclua o link ${formLink}${cancelInstruction ? ' — EXCETO quando ele pedir para cancelar/remarcar uma entrevista (nesse caso use apenas o link de cancelamento informado acima)' : ', SEMPRE'}.`,
+    'RECURSOS (use somente quando fizer sentido para a pergunta — NÃO a cada mensagem):',
+    `- Link do formulário de currículo: ${formLink}`,
+    '- Telefone de contato para dúvidas que você não souber responder: 24 3302-1335',
+    cancelInstruction ? `- ${cancelInstruction}` : '',
     '',
-    'COMO RESPONDER:',
-    '- Seja sempre breve (1 a 2 frases curtas, no máximo)',
-    '- Tom amigável e acolhedor, mas direto',
-    '- NUNCA invente links. Use somente os links fornecidos neste prompt',
-    '- Se o candidato perguntar sobre vagas, salário, processo, horários etc., diga educadamente que essas informações são tratadas após o envio do currículo pela plataforma e envie o link',
-    '- Se o candidato disser apenas "oi", "olá", "tudo bem?", agradeça o contato e envie o link do currículo',
-    '- Se já enviou o currículo, agradeça e diga que o RH entrará em contato em breve',
-    '- NUNCA prometa vagas, valores, datas ou retornos específicos',
-    '- NÃO use markdown (sem asteriscos, sem negrito)',
-    '- NÃO faça perguntas abertas — apenas direcione para a plataforma',
+    'DIRETRIZES DE RESPOSTA:',
+    '- Responda de forma inteligente, específica e útil à pergunta feita. NÃO repita sempre a mesma frase nem fique enviando o link do currículo a cada resposta.',
+    '- Envie o link do currículo apenas quando for realmente pertinente (ex.: a pessoa quer se cadastrar/saber como participar, ou logo na primeira saudação).',
+    '- Seja breve, simpática, educada e acolhedora; tom humano e profissional.',
+    '- Se perguntarem como chegar ao local, oriente usar o Google Maps e cite pontos de referência quando houver.',
+    '- Se perguntarem quem procurar ao chegar, informe que o nome do entrevistador está na mensagem de agendamento.',
+    '- Se a pessoa não puder comparecer ou quiser cancelar/remarcar, envie o link de cancelamento (quando disponível acima).',
+    '- Para dúvidas que você não souber responder, ofereça o telefone de contato 24 3302-1335.',
+    '- NUNCA invente links; use apenas os fornecidos aqui.',
+    '- NUNCA prometa vaga, salário, datas ou retornos específicos.',
+    '- Não use markdown (sem asteriscos, colchetes de link ou negrito) — escreva o link puro.',
   ].filter(Boolean).join('\n')
 
   if (openaiKey) {
