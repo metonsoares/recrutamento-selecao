@@ -392,7 +392,7 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
       {/* Quadro de saldos */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <SaldoCard icon={CalendarDays} tone="emerald" label="Saldo disponível" value={`${calc.disponivel} dias`} />
-        <SaldoCard icon={CalendarCheck} tone="gray" label="Dias descontados" value={`${calc.usados} dias`} />
+        <SaldoCard icon={CalendarCheck} tone="gray" label="Dias gozados" value={`${calc.usados} dias`} />
         <SaldoCard icon={CalendarClock} tone="blue" label="Períodos adquiridos" value={`${calc.periodos}`} />
         <SaldoCard icon={Clock} tone="amber" label="Limite p/ pedir férias" value={calc.limite || '—'} />
       </div>
