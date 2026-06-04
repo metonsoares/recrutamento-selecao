@@ -20,7 +20,7 @@ export default async function EmContratoPage() {
   type AppRow = {
     id: string
     status: string
-    contract_data: { start_date?: string; end_date?: string } | null
+    contract_data: { start_date?: string; end_date?: string; company_name?: string } | null
     admission_form: { selected_company_id?: string } | null
   }
   type CandidateRow = { id: string; full_name: string; applications: AppRow | AppRow[] | null }
@@ -70,7 +70,7 @@ export default async function EmContratoPage() {
       id: c.id,
       full_name: c.full_name,
       photoUrl: app ? (photoMap[app.id] ?? null) : null,
-      empresa: companyId ? (companyMap[companyId] ?? '') : '',
+      empresa: cd?.company_name || (companyId ? (companyMap[companyId] ?? '') : ''),
       startDate: cd?.start_date ?? null,
       endDate: cd?.end_date ?? null,
       diasRestantes,

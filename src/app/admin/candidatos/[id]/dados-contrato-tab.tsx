@@ -23,6 +23,8 @@ interface Adjustment {
 interface Absence { id: string; date: string; compensada: boolean }
 
 export interface ContractData {
+  company_id: string
+  company_name: string
   start_date: string
   days: string
   end_date: string
@@ -33,6 +35,8 @@ export interface ContractData {
   absences: Absence[]
   faltas?: number
 }
+
+export interface CompanyOption { id: string; apelido: string | null; razao_social: string | null; cnpj: string | null }
 
 interface CandidateAddress {
   street: string; number: string; complement: string
@@ -46,6 +50,7 @@ interface Props {
   address: CandidateAddress | null
   jobTitle: string | null
   initialData: ContractData | null
+  companies: CompanyOption[]
 }
 
 // ─── Moeda ────────────────────────────────────────────────────────────────────
@@ -83,7 +88,7 @@ function genId() {
   return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random())
 }
 function makeEmpty(jobTitle: string | null): ContractData {
-  return { start_date: '', days: '', end_date: '', funcao: jobTitle || '', valor: '', bonus: '', adjustments: [], absences: [] }
+  return { company_id: '', company_name: '', start_date: '', days: '', end_date: '', funcao: jobTitle || '', valor: '', bonus: '', adjustments: [], absences: [] }
 }
 
 // ─── Linha de adiantamento/desconto ───────────────────────────────────────────
@@ -147,7 +152,7 @@ function AdjustmentRow({ candidateId, item, onChange, onRemove, onSave }: {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle, initialData }: Props) {
+export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle, initialData, companies }: Props) {
   const router = useRouter()
   const [form, setForm] = useState<ContractData>(() => {
     const base = makeEmpty(jobTitle)
@@ -236,6 +241,24 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
         <div className="flex items-center gap-2 mb-5">
           <FileSignature className="w-5 h-5 text-teal-600" />
           <h2 className="text-xl font-bold text-gray-900">Dados para contrato</h2>
+        </div>
+
+        {/* Empresa contratante */}
+        <div className="mb-3">
+          {field('Empresa contratante *',
+            <select
+              value={form.company_id}
+              onChange={e => {
+                const c = companies.find(x => x.id === e.target.value)
+                setForm(prev => ({ ...prev, company_id: e.target.value, company_name: c ? (c.razao_social || c.apelido || '') : '' }))
+              }}
+              className="h-10 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
+            >
+              <option value="">Selecionar empresa...</option>
+              {companies.map(c => (
+                <option key={c.id} value={c.id}>{c.razao_social || c.apelido || 'Empresa'}{c.cnpj ? ` — ${c.cnpj}` : ''}</option>
+              ))}
+            </select>)}
         </div>
 
         {/* Dados do candidato */}
@@ -338,6 +361,18 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
       <div className="mt-4 max-w-3xl">
         <Button onClick={() => save()} disabled={saving} variant="outline" className="gap-1.5">
           {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar</>}
+        </Button>
+      </div>
+
+      {/* Documentos gerados */}
+      <div className="mt-3 max-w-3xl flex flex-wrap gap-2">
+        <Button variant="outline" disabled={saving} className="gap-1.5"
+          onClick={async () => { const ok = await save(); if (ok) window.open(`/admin/candidatos/${candidateId}/print-contrato`, '_blank') }}>
+          <FileText className="w-4 h-4" />Gerar contrato
+        </Button>
+        <Button variant="outline" disabled={saving} className="gap-1.5"
+          onClick={async () => { const ok = await save(); if (ok) window.open(`/admin/candidatos/${candidateId}/print-recibo`, '_blank') }}>
+          <FileSignature className="w-4 h-4" />Emitir recibo
         </Button>
       </div>
 

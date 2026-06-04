@@ -399,6 +399,7 @@ export default async function CandidatePage({
           address={parsedAddress}
           jobTitle={jobTitle}
           initialData={(latestApp?.contract_data as ContractData | null) ?? null}
+          companies={fichaCompanies}
         />
       )}
 
