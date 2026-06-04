@@ -37,17 +37,34 @@ export function AgendarEntrevistaForm({ token, candidateName, interviewerName, l
   }
 
   if (confirm) {
+    const diaLabel = confirm.date.charAt(0).toUpperCase() + confirm.date.slice(1)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="bg-white rounded-2xl shadow-sm border p-7 max-w-md w-full space-y-4 text-center">
-          <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto" />
-          <h1 className="text-xl font-bold text-gray-900">Entrevista agendada!</h1>
-          <div className="text-left bg-gray-50 border rounded-xl p-4 space-y-2 text-sm">
-            <p className="flex items-center gap-2"><CalendarClock className="w-4 h-4 text-gray-400" /><span className="capitalize">{confirm.date}</span></p>
-            <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-gray-400" />Horário: {confirm.window}</p>
-            {confirm.location && <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-gray-400" />{confirm.location}{confirm.locationAddress ? ` — ${confirm.locationAddress}` : ''}</p>}
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
+        <div className="bg-white rounded-2xl shadow-sm border p-5 sm:p-7 w-full max-w-sm space-y-5 text-center">
+          <div className="space-y-3">
+            <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto" />
+            <h1 className="text-xl font-bold text-gray-900">Entrevista agendada!</h1>
           </div>
-          <p className="text-[13px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <div className="text-left bg-gray-50 border rounded-xl p-4 space-y-3 text-sm">
+            <div className="flex items-start gap-2.5">
+              <CalendarClock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              <span className="font-medium text-gray-900 break-words">{diaLabel}</span>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <Clock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              <span className="text-gray-900">Horário: <span className="font-medium">{confirm.window}</span></span>
+            </div>
+            {confirm.location && (
+              <div className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                <span className="text-gray-900 break-words">
+                  <span className="font-medium">{confirm.location}</span>
+                  {confirm.locationAddress && <span className="block text-gray-600 text-[13px] mt-0.5">{confirm.locationAddress}</span>}
+                </span>
+              </div>
+            )}
+          </div>
+          <p className="text-[13px] leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-left">
             O atendimento é <strong>por ordem de chegada</strong>. Chegue dentro da janela de horário. Você receberá a confirmação também por WhatsApp.
           </p>
         </div>
@@ -92,9 +109,9 @@ export function AgendarEntrevistaForm({ token, candidateName, interviewerName, l
               return (
                 <button key={d.date} disabled={full} onClick={() => setSelected(d.date)}
                   className={`w-full text-left rounded-xl border p-4 transition-colors ${full ? 'opacity-50 cursor-not-allowed bg-gray-50' : selected === d.date ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-300' : 'bg-white hover:bg-gray-50'}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 capitalize">{d.label}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{d.label.charAt(0).toUpperCase() + d.label.slice(1)}</p>
                       <p className="text-[12px] text-muted-foreground mt-0.5">Janela: {d.window}</p>
                     </div>
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${full ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
