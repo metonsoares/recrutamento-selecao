@@ -105,6 +105,7 @@ function DocRow({
   }
 
   async function handleRemove(idx: number) {
+    if (!confirm('Remover este arquivo?')) return
     const f = files[idx]
     if (f?.path) {
       await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
@@ -217,15 +218,26 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
     finally { setUploading(false); if (e.target) e.target.value = '' }
   }
 
+  async function deleteFromStorage(path?: string) {
+    if (!path) return
+    await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }),
+    }).catch(() => {})
+  }
+
   function removeFile(idx: number) {
+    if (!confirm('Remover este arquivo?')) return
     const f = item.files[idx]
-    if (f?.path) {
-      fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
-        method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: f.path }),
-      }).catch(() => {})
-    }
+    deleteFromStorage(f?.path)
     const files = [...item.files]; files.splice(idx, 1)
     onChange({ ...item, files })
+  }
+
+  async function handleRemoveItem() {
+    if (!confirm('Remover este documento e o(s) arquivo(s) anexado(s)?')) return
+    // remove todos os arquivos do storage antes de excluir o item
+    await Promise.all(item.files.map(f => deleteFromStorage(f.path)))
+    onRemove()
   }
 
   return (
@@ -236,7 +248,7 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
         </span>
         <Input value={item.name} onChange={e => onChange({ ...item, name: e.target.value })}
           placeholder="Nome do documento" className="h-8 text-sm flex-1" />
-        <button onClick={onRemove} className="text-gray-400 hover:text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
+        <button onClick={handleRemoveItem} className="text-gray-400 hover:text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
       </div>
       <div className="mt-2 space-y-1.5">
         {item.files.map((f, i) => (
