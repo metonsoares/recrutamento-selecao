@@ -97,7 +97,7 @@ export default async function DesligadosPage() {
           </div>
         </div>
       ) : (
-        <DesligadosTable rows={tableRows} />
+        <DesligadosTable rows={tableRows} companyOptions={Array.from(new Set(tableRows.map(r => r.empresa).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))} />
       )}
     </div>
   )
