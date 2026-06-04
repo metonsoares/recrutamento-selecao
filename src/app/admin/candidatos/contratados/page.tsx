@@ -100,7 +100,7 @@ export default async function ContratadosPage() {
   const COMPANY_DOC_KEYS = [
     'ficha_registro', 'contrato_tempo_determinado', 'contrato_experiencia', 'contrato_trabalho', 'regulamento_interno',
     'banco_horas', 'cessao_imagem', 'vale_transporte', 'uniformes_epis',
-    'acrm_geral', 'acrm_escala', 'manipulacao',
+    'acrm_geral', 'acrm_escala',
   ]
 
   function getPendencia(app: AppRow | null): 'ok' | 'pendente' {

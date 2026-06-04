@@ -36,7 +36,6 @@ const COMPANY_DOCS = [
   { key: 'uniformes_epis',      label: 'Termo entrega de uniformes/EPIs',                multiple: false, na: false },
   { key: 'acrm_geral',          label: 'Termo entrega geral - ACRM',                    multiple: true,  na: false },
   { key: 'acrm_escala',         label: 'ACRM - Acordo individual de escala 12×36',      multiple: false, na: true  },
-  { key: 'manipulacao',         label: 'Certificado de manipulação de alimentos',        multiple: false, na: false },
 ]
 
 function emptyDoc(): DocState { return { not_applicable: false, files: [] } }
