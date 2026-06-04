@@ -66,7 +66,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const diaFmt = new Date(`${date}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' })
     const firstName = String(candidate?.full_name || '').split(' ')[0]
     const localTxt = location?.name ? `${location.name}${location.address ? ` (${location.address})` : ''}` : 'a ser informado'
-    const msg = `Olá ${firstName}, sua entrevista foi agendada! ✅\n\n📅 Dia: ${diaFmt}\n🕐 Horário de atendimento: ${janela}\n📍 Local: ${localTxt}\n\n* Chegue dentro da janela de horário\n* O atendimento é por ordem de chegada.\n\nAté lá!`
+    const interviewerName = interviewer?.name || ''
+    const procureLine = interviewerName ? `\n👤 Procure por: ${interviewerName}` : ''
+    const msg = `Olá ${firstName}, sua entrevista foi agendada! ✅\n\n📅 Dia: ${diaFmt}\n🕐 Horário de atendimento: ${janela}\n📍 Local: ${localTxt}${procureLine}\n\n* Chegue dentro da janela de horário\n* O atendimento é por ordem de chegada.\n\nAté lá!`
     if (candidate?.phone) await sendWhatsAppRaw(candidate.phone, msg, 'interview_confirmation')
 
     return NextResponse.json({
