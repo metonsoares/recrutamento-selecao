@@ -24,7 +24,8 @@ interface Props {
   appUrl: string
 }
 
-const STATUS_KEYS = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
+// Apenas colaboradores: Freelancers, Em contrato, Contratado, Intermitentes
+const STATUS_KEYS: CandidateStatus[] = ['freelancer', 'em_contrato', 'contratado', 'aprovado']
 
 function genId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()) }
 
@@ -53,7 +54,9 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
   }
 
   const elegiveis = useMemo(() => employees.filter(e =>
-    (!company || e.empresa === company) && (statuses.size === 0 || statuses.has(e.status))
+    (STATUS_KEYS as string[]).includes(e.status) &&
+    (!company || e.empresa === company) &&
+    (statuses.size === 0 || statuses.has(e.status))
   ), [employees, company, statuses])
 
   function toggleStatus(s: string) { setStatuses(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n }) }
