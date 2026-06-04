@@ -242,25 +242,35 @@ export default async function CandidatePage({
       return ft === 'address' || ft === 'cep'
     })?.answer_text
   if (addrAnswer) {
-    try {
-      const raw = JSON.parse(addrAnswer as string)
-      if (Array.isArray(raw)) {
-        // Formato do formulário de cadastro: [street, number, neighborhood, city, cep]
-        parsedAddress = {
-          street: raw[0] || '', number: raw[1] || '', complement: '',
-          neighborhood: raw[2] || '', city: raw[3] || '', cep: raw[4] || '',
-        }
-      } else if (typeof raw === 'object' && raw !== null) {
-        parsedAddress = {
-          street: raw.street || raw.logradouro || '',
-          number: raw.number || raw.numero || '',
-          complement: raw.complement || raw.complemento || '',
-          neighborhood: raw.neighborhood || raw.bairro || '',
-          city: raw.city || raw.cidade || '',
-          cep: raw.cep || raw.zipCode || '',
-        }
+    let raw: unknown = addrAnswer
+    try { raw = JSON.parse(addrAnswer as string) } catch { /* string simples (não-JSON) */ }
+
+    if (Array.isArray(raw)) {
+      // [street, number, neighborhood, city, cep]
+      parsedAddress = {
+        street: raw[0] || '', number: raw[1] || '', complement: '',
+        neighborhood: raw[2] || '', city: raw[3] || '', cep: raw[4] || '',
       }
-    } catch { /* ignora */ }
+    } else if (raw && typeof raw === 'object') {
+      const r = raw as Record<string, string>
+      parsedAddress = {
+        street: r.street || r.logradouro || '',
+        number: r.number || r.numero || '',
+        complement: r.complement || r.complemento || '',
+        neighborhood: r.neighborhood || r.bairro || '',
+        city: r.city || r.cidade || '',
+        cep: r.cep || r.zipCode || '',
+      }
+    } else if (typeof raw === 'string' && raw.trim()) {
+      // String formatada: "Rua X - 59 - Bairro - Cidade - 00000-000"
+      const parts = raw.split(/\s+-\s+|,\s*/).map(p => p.trim()).filter(Boolean)
+      const cepMatch = raw.match(/\d{5}-?\d{3}/)
+      parsedAddress = {
+        street: parts[0] || '', number: parts[1] || '', complement: '',
+        neighborhood: parts[2] || '', city: parts[3] || '',
+        cep: cepMatch ? cepMatch[0] : (parts[4] || ''),
+      }
+    }
   }
 
   const photoUrl = parseAnswer(

@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import { AutoPrint } from '../print/auto-print'
 import { ContractData } from '../dados-contrato-tab'
+import { parseAddressAnswer, formatAddress } from '@/lib/parse-address'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,10 @@ export default async function PrintContratoPage({ params }: { params: Promise<{ 
       .from('form_answers').select('answer_text, form_questions!inner(field_type)')
       .eq('application_id', appRow.id).in('form_questions.field_type', ['address', 'cep'])
     const ans = (addrRows || []).find(r => r.answer_text?.trim().startsWith('['))?.answer_text
-    if (ans) { try { const a = JSON.parse(ans); if (Array.isArray(a)) endereco = [a[0], a[1], a[2], a[3], a[4]].filter(Boolean).join(', ') } catch {} }
+      ?? (addrRows || [])[0]?.answer_text
+    const parsed = parseAddressAnswer(ans)
+    const f = formatAddress(parsed)
+    if (f) endereco = f + (parsed?.cep ? ` - CEP ${parsed.cep}` : '')
   }
 
   const cpfFmt = candidate.cpf ? String(candidate.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '—'

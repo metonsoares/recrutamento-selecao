@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { CandidateTabNav } from '../candidate-tab-nav'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao-form'
+import { parseAddressAnswer } from '@/lib/parse-address'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,27 +40,7 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
     const addrAns = (addrRows || []).find(r => r.answer_text?.trim().startsWith('['))
       ?? (addrRows || [])[0]
 
-    if (addrAns?.answer_text) {
-      try {
-        const raw = JSON.parse(addrAns.answer_text as string)
-        if (Array.isArray(raw)) {
-          // Formato do formulário de cadastro: [street, number, neighborhood, city, cep]
-          parsedAddress = {
-            street: raw[0] || '', number: raw[1] || '', complement: '',
-            neighborhood: raw[2] || '', city: raw[3] || '', cep: raw[4] || '',
-          }
-        } else if (typeof raw === 'object' && raw !== null) {
-          parsedAddress = {
-            street: raw.street || raw.logradouro || '',
-            number: raw.number || raw.numero || '',
-            complement: raw.complement || raw.complemento || '',
-            neighborhood: raw.neighborhood || raw.bairro || '',
-            city: raw.city || raw.cidade || '',
-            cep: raw.cep || raw.zipCode || '',
-          }
-        }
-      } catch { /* ignora parse error */ }
-    }
+    parsedAddress = parseAddressAnswer(addrAns?.answer_text)
   }
 
   const service = await createSupabaseServiceClient()
