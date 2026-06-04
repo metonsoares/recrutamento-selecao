@@ -1,8 +1,8 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  Users, UserCheck, ClipboardList, FlaskConical, Brain, ThumbsUp,
-  ThumbsDown, Star, UserPlus, Briefcase, Link2,
+  Users, UserCheck, ClipboardList, FlaskConical, Brain,
+  ThumbsDown, Star, UserPlus, Briefcase, Link2, CalendarClock, FileSignature, UserMinus,
 } from 'lucide-react'
 import { CandidateStatus, STATUS_LABELS } from '@/types'
 import { DashboardPublicLink } from './dashboard-public-link'
@@ -45,10 +45,13 @@ const statCards = [
   { status: 'aguardando_teste_cultural', label: 'Aguardando Teste', icon: FlaskConical, color: 'text-purple-600 bg-purple-50' },
   { status: 'analise_ia_concluida', label: 'Analisados pela IA', icon: Brain, color: 'text-cyan-600 bg-cyan-50' },
   { status: 'apto_para_entrevista', label: 'Aptos p/ Entrevista', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50' },
-  { status: 'aprovado', label: 'Aprovados', icon: ThumbsUp, color: 'text-green-600 bg-green-50' },
   { status: 'reprovado', label: 'Reprovados', icon: ThumbsDown, color: 'text-red-600 bg-red-50' },
   { status: 'banco_de_talentos', label: 'Banco de Talentos', icon: Star, color: 'text-violet-600 bg-violet-50' },
+  { status: 'freelancer', label: 'Freelancers', icon: Briefcase, color: 'text-sky-600 bg-sky-50' },
+  { status: 'aprovado', label: 'Intermitentes', icon: CalendarClock, color: 'text-emerald-700 bg-emerald-100' },
+  { status: 'em_contrato', label: 'Em contrato', icon: FileSignature, color: 'text-teal-700 bg-teal-100' },
   { status: 'contratado', label: 'Contratados', icon: Briefcase, color: 'text-green-700 bg-green-100' },
+  { status: 'desligado', label: 'Desligados', icon: UserMinus, color: 'text-rose-700 bg-rose-100' },
 ]
 
 export default async function DashboardPage() {
@@ -159,7 +162,7 @@ export default async function DashboardPage() {
             <CardTitle className="text-base">Candidatos por Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([status, count]) => (
+            {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
               <div key={status} className="flex items-center justify-between gap-2">
                 <span className="text-sm text-muted-foreground truncate flex-1">
                   {STATUS_LABELS[status as CandidateStatus] || status}
