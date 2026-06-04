@@ -526,20 +526,54 @@ export function CandidateActions({
           </Button>
         )}
 
-        {/* Teste Cultural — sempre Visualizar (preenchido no cadastro) */}
+        {/* Teste Cultural + Check Processos — agrupados para ficarem lado a lado */}
+        <div className="flex flex-wrap gap-2">
+          {applicationId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCultureOpen(true)}
+              className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            >
+              <Eye className="w-4 h-4" />
+              Visualizar Teste Cultural
+            </Button>
+          )}
+
+          {/* Check Processos */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBgCheckOpen(true)}
+            className={`gap-1 ${bgCheckResult
+              ? bgCheckResult.nivel_risco === 'alto'
+                ? 'border-red-300 text-red-700 hover:bg-red-50'
+                : bgCheckResult.nivel_risco === 'medio'
+                  ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                  : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+              : 'border-blue-200 text-blue-700 hover:bg-blue-50'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Check Processos
+            {bgCheckResult && (
+              <span className={`ml-1 text-[10px] font-bold px-1 py-0.5 rounded-full ${
+                bgCheckResult.nivel_risco === 'alto'    ? 'bg-red-100 text-red-700'    :
+                bgCheckResult.nivel_risco === 'medio'   ? 'bg-amber-100 text-amber-700':
+                bgCheckResult.nivel_risco === 'baixo'   ? 'bg-emerald-100 text-emerald-700' :
+                                                          'bg-gray-100 text-gray-600'
+              }`}>
+                {bgCheckResult.nivel_risco === 'alto'   ? '⚠ ALTO'   :
+                 bgCheckResult.nivel_risco === 'medio'  ? '! MÉDIO'  :
+                 bgCheckResult.nivel_risco === 'baixo'  ? '✓ BAIXO'  : '?'}
+              </span>
+            )}
+          </Button>
+        </div>
+
+        {/* Dialog de resultados do Teste Cultural */}
         {applicationId && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCultureOpen(true)}
-                className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-              >
-                <Eye className="w-4 h-4" />
-                Visualizar Teste Cultural
-              </Button>
-
-              {/* Dialog de resultados */}
               <Dialog open={cultureOpen} onOpenChange={setCultureOpen}>
                 <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
@@ -592,36 +626,6 @@ export function CandidateActions({
               </Dialog>
             </>
         )}
-
-        {/* Check Processos */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setBgCheckOpen(true)}
-          className={`gap-1 ${bgCheckResult
-            ? bgCheckResult.nivel_risco === 'alto'
-              ? 'border-red-300 text-red-700 hover:bg-red-50'
-              : bgCheckResult.nivel_risco === 'medio'
-                ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
-                : 'border-blue-300 text-blue-700 hover:bg-blue-50'
-            : 'border-blue-200 text-blue-700 hover:bg-blue-50'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          Check Processos
-          {bgCheckResult && (
-            <span className={`ml-1 text-[10px] font-bold px-1 py-0.5 rounded-full ${
-              bgCheckResult.nivel_risco === 'alto'    ? 'bg-red-100 text-red-700'    :
-              bgCheckResult.nivel_risco === 'medio'   ? 'bg-amber-100 text-amber-700':
-              bgCheckResult.nivel_risco === 'baixo'   ? 'bg-emerald-100 text-emerald-700' :
-                                                        'bg-gray-100 text-gray-600'
-            }`}>
-              {bgCheckResult.nivel_risco === 'alto'   ? '⚠ ALTO'   :
-               bgCheckResult.nivel_risco === 'medio'  ? '! MÉDIO'  :
-               bgCheckResult.nivel_risco === 'baixo'  ? '✓ BAIXO'  : '?'}
-            </span>
-          )}
-        </Button>
 
       </div>
     </>
