@@ -51,6 +51,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [configOpen, setConfigOpen] = useState(false)
   const [schedOpen, setSchedOpen] = useState(false)
+  const [view, setView] = useState<'dia' | 'entrevistador'>('entrevistador')
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 3500) }
 
@@ -65,6 +66,21 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
     }
     return Array.from(map.entries())
   }, [interviews])
+
+  // Agrupa por entrevistador → por dia
+  const byInterviewer = useMemo(() => {
+    const sorted = [...interviews].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+    const map = new Map<string, { name: string; items: Interview[] }>()
+    for (const it of sorted) {
+      const key = it.interviewer_id || 'sem'
+      const name = it.interviewers?.name || 'Sem entrevistador'
+      if (!map.has(key)) map.set(key, { name, items: [] })
+      map.get(key)!.items.push(it)
+    }
+    // inclui entrevistadores sem agendamentos
+    for (const iv of interviewers) if (!map.has(iv.id)) map.set(iv.id, { name: iv.name, items: [] })
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  }, [interviews, interviewers])
 
   async function deleteInterview(id: string) {
     if (!confirm('Remover este agendamento?')) return
@@ -101,8 +117,53 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
         </div>
       </div>
 
-      {/* Agenda */}
-      {grouped.length === 0 ? (
+      {/* Seletor de visão */}
+      {interviews.length > 0 && (
+        <div className="inline-flex items-center gap-1 p-1 bg-gray-100 rounded-lg text-sm">
+          <button onClick={() => setView('entrevistador')} className={`px-3 py-1 rounded-md transition-colors ${view === 'entrevistador' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500'}`}>Por entrevistador</button>
+          <button onClick={() => setView('dia')} className={`px-3 py-1 rounded-md transition-colors ${view === 'dia' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500'}`}>Por dia</button>
+        </div>
+      )}
+
+      {/* Visão por entrevistador */}
+      {interviews.length > 0 && view === 'entrevistador' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {byInterviewer.map(group => (
+            <div key={group.name} className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="px-5 py-2.5 bg-gray-50 border-b flex items-center gap-2">
+                <User className="w-4 h-4 text-[#333]" />
+                <h2 className="text-sm font-bold text-gray-900 flex-1">{group.name}</h2>
+                <span className="text-[11px] font-semibold text-muted-foreground bg-white border px-2 py-0.5 rounded-full">{group.items.length}</span>
+              </div>
+              {group.items.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground text-center py-5">Nenhuma entrevista agendada.</p>
+              ) : (
+                <div className="divide-y">
+                  {group.items.map(it => (
+                    <div key={it.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <div className="w-14 shrink-0 text-center">
+                        <p className="text-sm font-bold text-gray-900">{fmtTime(it.scheduled_at)}</p>
+                        <p className="text-[10px] text-muted-foreground">{new Date(it.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })}</p>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{it.candidates?.full_name || 'Candidato'}</p>
+                        <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+                          {it.candidates?.phone && <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" />{it.candidates.phone}</span>}
+                          {it.interview_locations?.name && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{it.interview_locations.name}</span>}
+                        </div>
+                      </div>
+                      <button onClick={() => deleteInterview(it.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Agenda por dia */}
+      {(interviews.length === 0 || view === 'dia') && (grouped.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3 bg-white rounded-2xl border">
           <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center"><CalendarClock className="w-7 h-7 text-gray-300" /></div>
           <p className="font-medium text-gray-600">Nenhuma entrevista agendada</p>
@@ -141,7 +202,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
             </div>
           ))}
         </div>
-      )}
+      ))}
 
       {configOpen && (
         <ConfigModal

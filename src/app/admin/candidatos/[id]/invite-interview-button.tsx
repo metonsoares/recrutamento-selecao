@@ -1,8 +1,15 @@
 'use client'
-import { useState } from 'react'
-import { Loader2, Check, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Loader2, Check, AlertCircle, X, Plus, Trash2, Copy } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 interface Props { candidateId: string }
+
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+interface Win { weekday: number; start: string; end: string }
+interface Interviewer { id: string; name: string; phone: string | null; windows: Win[] }
+interface Location { id: string; name: string; address: string | null }
 
 function WhatsAppIcon() {
   return (
@@ -12,50 +19,151 @@ function WhatsAppIcon() {
   )
 }
 
-type State = 'idle' | 'sending' | 'sent' | 'error'
+function weekdayOf(date: string) { return new Date(`${date}T12:00:00Z`).getUTCDay() }
 
 export function InviteInterviewButton({ candidateId }: Props) {
-  const [state, setState] = useState<State>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [interviewers, setInterviewers] = useState<Interviewer[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
+
+  const [interviewerId, setInterviewerId] = useState('')
+  const [locationId, setLocationId] = useState('')
+  const [dates, setDates] = useState<string[]>([])
+  const [dateInput, setDateInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+  const [doneLink, setDoneLink] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    Promise.all([
+      fetch('/api/admin/interviews/interviewers').then(r => r.json()),
+      fetch('/api/admin/interviews/locations').then(r => r.json()),
+    ]).then(([i, l]) => {
+      setInterviewers(i.interviewers || [])
+      setLocations(l.locations || [])
+    }).finally(() => setLoading(false))
+  }, [open])
+
+  const selectedInterviewer = interviewers.find(i => i.id === interviewerId)
+  const availableWeekdays = new Set((selectedInterviewer?.windows || []).map(w => Number(w.weekday)))
+
+  function addDate() {
+    if (!dateInput) return
+    if (!availableWeekdays.has(weekdayOf(dateInput))) {
+      setError(`O entrevistador não atende em ${WEEKDAYS[weekdayOf(dateInput)]}. Escolha um dia da janela dele.`)
+      return
+    }
+    if (!dates.includes(dateInput)) setDates(p => [...p, dateInput].sort())
+    setDateInput(''); setError('')
+  }
 
   async function send() {
-    if (state === 'sending') return
-    setState('sending'); setErrorMsg('')
+    setError('')
+    if (!interviewerId) { setError('Selecione o entrevistador.'); return }
+    if (dates.length === 0) { setError('Adicione ao menos um dia disponível.'); return }
+    setSending(true)
     try {
-      const res = await fetch(`/api/admin/candidatos/${candidateId}/invite-interview`, { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && data.ok) {
-        setState('sent')
-        setTimeout(() => setState('idle'), 6000)
-      } else {
-        setErrorMsg(data.error || 'Falha ao enviar.')
-        setState('error')
-        setTimeout(() => setState('idle'), 6000)
-      }
-    } catch {
-      setErrorMsg('Erro de conexão.')
-      setState('error')
-      setTimeout(() => setState('idle'), 6000)
-    }
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/interview-invite`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interviewer_id: interviewerId, location_id: locationId || null, dates }),
+      })
+      const d = await res.json()
+      if (!res.ok || !d.ok) { setError(d.error || 'Erro ao enviar convite.'); if (d.link) setDoneLink(d.link); return }
+      setDoneLink(d.link || '')
+    } catch { setError('Erro ao enviar convite.') } finally { setSending(false) }
   }
 
-  const base = 'shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60'
+  function close() {
+    setOpen(false); setInterviewerId(''); setLocationId(''); setDates([]); setDateInput(''); setError(''); setDoneLink('')
+  }
 
-  if (state === 'sent') {
-    return <span className={`${base} border-emerald-300 text-emerald-700 bg-emerald-50`}><Check className="w-4 h-4" />Convite enviado</span>
-  }
-  if (state === 'error') {
-    return (
-      <button onClick={send} className={`${base} border-red-300 text-red-700 bg-red-50 hover:bg-red-100`} title={errorMsg}>
-        <AlertCircle className="w-4 h-4" />{errorMsg ? `${errorMsg} — tentar de novo` : 'Erro — tentar de novo'}
-      </button>
-    )
-  }
+  const base = 'shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-1.5 transition-colors'
+
   return (
-    <button onClick={send} disabled={state === 'sending'}
-      className={`${base} border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10`}
-      title="Enviar convite por WhatsApp">
-      {state === 'sending' ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><WhatsAppIcon />Convidar para entrevista</>}
-    </button>
+    <>
+      <button onClick={() => setOpen(true)} className={`${base} border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10`} title="Convidar para entrevista">
+        <WhatsAppIcon />Convidar para entrevista
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white">
+              <h2 className="text-base font-semibold text-gray-900">Convidar para entrevista</h2>
+              <button onClick={close} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+            </div>
+
+            {doneLink ? (
+              <div className="px-5 py-6 space-y-4 text-center">
+                <Check className="w-12 h-12 text-emerald-500 mx-auto" />
+                <p className="text-sm font-medium text-gray-900">Convite enviado por WhatsApp!</p>
+                <p className="text-[12px] text-muted-foreground">O candidato recebeu o link para escolher o dia da entrevista.</p>
+                <div className="flex items-center gap-2 bg-gray-50 border rounded-lg px-3 py-2">
+                  <span className="text-[11px] text-gray-600 truncate flex-1">{doneLink}</span>
+                  <button onClick={() => navigator.clipboard?.writeText(doneLink)} className="text-gray-400 hover:text-primary"><Copy className="w-4 h-4" /></button>
+                </div>
+                <Button onClick={close} className="w-full">Concluir</Button>
+              </div>
+            ) : loading ? (
+              <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            ) : (
+              <>
+                <div className="px-5 py-4 space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-600">Entrevistador *</label>
+                    <select value={interviewerId} onChange={e => { setInterviewerId(e.target.value); setDates([]) }} className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+                      <option value="">Selecione...</option>
+                      {interviewers.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                    </select>
+                    {interviewers.length === 0 && <p className="text-[11px] text-amber-600">Nenhum entrevistador configurado. Configure em Agenda de entrevistas.</p>}
+                    {selectedInterviewer && (selectedInterviewer.windows.length > 0
+                      ? <p className="text-[11px] text-muted-foreground">Janelas: {selectedInterviewer.windows.map(w => `${WEEKDAYS[w.weekday]} ${w.start}-${w.end}`).join(' · ')}</p>
+                      : <p className="text-[11px] text-amber-600">Este entrevistador não tem janelas. Configure antes de convidar.</p>)}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-600">Local</label>
+                    <select value={locationId} onChange={e => setLocationId(e.target.value)} className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+                      <option value="">Selecione...</option>
+                      {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-600">Dias disponíveis *</label>
+                    <div className="flex gap-2">
+                      <Input type="date" value={dateInput} onChange={e => setDateInput(e.target.value)} className="h-9 flex-1" disabled={!interviewerId} />
+                      <Button type="button" variant="outline" onClick={addDate} disabled={!interviewerId || !dateInput} className="h-9 gap-1"><Plus className="w-4 h-4" />Adicionar</Button>
+                    </div>
+                    {selectedInterviewer && <p className="text-[11px] text-muted-foreground">Só é possível adicionar dias em que o entrevistador atende.</p>}
+                    <div className="space-y-1">
+                      {dates.map(d => (
+                        <div key={d} className="flex items-center gap-2 border rounded-lg px-3 py-1.5">
+                          <span className="text-sm text-gray-800 capitalize flex-1">
+                            {new Date(`${d}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: 'UTC' })}
+                          </span>
+                          <button onClick={() => setDates(p => p.filter(x => x !== d))} className="text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}
+                </div>
+                <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
+                  <Button variant="outline" onClick={close} disabled={sending}>Cancelar</Button>
+                  <Button onClick={send} disabled={sending} className="gap-1.5">
+                    {sending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Enviando...</> : <><WhatsAppIcon />Enviar convite</>}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
