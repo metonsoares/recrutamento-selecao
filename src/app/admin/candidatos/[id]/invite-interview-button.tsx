@@ -1,6 +1,6 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
-import { Loader2, Check, X } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2, Check, AlertCircle } from 'lucide-react'
 
 interface Props { candidateId: string }
 
@@ -12,65 +12,50 @@ function WhatsAppIcon() {
   )
 }
 
+type State = 'idle' | 'sending' | 'sent' | 'error'
+
 export function InviteInterviewButton({ candidateId }: Props) {
-  const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
-
-  function askConfirm() {
-    setConfirming(true)
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => setConfirming(false), 4000)
-  }
+  const [state, setState] = useState<State>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
 
   async function send() {
-    setConfirming(false)
-    if (timer.current) clearTimeout(timer.current)
-    setSending(true)
+    if (state === 'sending') return
+    setState('sending'); setErrorMsg('')
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}/invite-interview`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.ok) { alert(data.error || 'Erro ao enviar convite.'); return }
-      setSent(true)
-      setTimeout(() => setSent(false), 5000)
-    } finally { setSending(false) }
+      if (res.ok && data.ok) {
+        setState('sent')
+        setTimeout(() => setState('idle'), 6000)
+      } else {
+        setErrorMsg(data.error || 'Falha ao enviar.')
+        setState('error')
+        setTimeout(() => setState('idle'), 6000)
+      }
+    } catch {
+      setErrorMsg('Erro de conexão.')
+      setState('error')
+      setTimeout(() => setState('idle'), 6000)
+    }
   }
 
   const base = 'shrink-0 inline-flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60'
 
-  if (sent) {
+  if (state === 'sent') {
+    return <span className={`${base} border-emerald-300 text-emerald-700 bg-emerald-50`}><Check className="w-4 h-4" />Convite enviado</span>
+  }
+  if (state === 'error') {
     return (
-      <span className={`${base} border-emerald-300 text-emerald-700 bg-emerald-50`}>
-        <Check className="w-4 h-4" />Convite enviado
-      </span>
+      <button onClick={send} className={`${base} border-red-300 text-red-700 bg-red-50 hover:bg-red-100`} title={errorMsg}>
+        <AlertCircle className="w-4 h-4" />{errorMsg ? `${errorMsg} — tentar de novo` : 'Erro — tentar de novo'}
+      </button>
     )
   }
-
-  if (confirming) {
-    return (
-      <span className="shrink-0 inline-flex items-center gap-1">
-        <button onClick={send} disabled={sending}
-          className={`${base} border-[#25D366] text-white bg-[#25D366] hover:bg-[#1faa53]`}>
-          {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><WhatsAppIcon />Confirmar envio</>}
-        </button>
-        {!sending && (
-          <button onClick={() => setConfirming(false)}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50" title="Cancelar">
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </span>
-    )
-  }
-
   return (
-    <button onClick={askConfirm}
+    <button onClick={send} disabled={state === 'sending'}
       className={`${base} border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10`}
       title="Enviar convite por WhatsApp">
-      <WhatsAppIcon />Convidar para entrevista
+      {state === 'sending' ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><WhatsAppIcon />Convidar para entrevista</>}
     </button>
   )
 }
