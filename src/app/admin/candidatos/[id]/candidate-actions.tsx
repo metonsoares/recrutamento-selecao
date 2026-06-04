@@ -9,7 +9,17 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
 
-const ALL_STATUSES = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
+// Status disponíveis no seletor (ordem definida)
+const ALLOWED_STATUSES: CandidateStatus[] = [
+  'novo', 'apto_para_entrevista', 'entrevista_agendada', 'contratado',
+  'aprovado', 'em_contrato', 'freelancer', 'reprovado', 'desligado',
+]
+// Sobrescreve rótulos só neste seletor
+const STATUS_LABEL_OVERRIDE: Partial<Record<CandidateStatus, string>> = {
+  novo: 'Novo currículo',
+  aprovado: 'Intermitente',
+}
+function statusOptionLabel(s: CandidateStatus) { return STATUS_LABEL_OVERRIDE[s] || STATUS_LABELS[s] }
 
 // ─── Toast simples ────────────────────────────────────────────────────────────
 
@@ -484,8 +494,11 @@ export function CandidateActions({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {ALL_STATUSES.map(s => (
-                <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+              {(ALLOWED_STATUSES.includes(status as CandidateStatus)
+                ? ALLOWED_STATUSES
+                : [status as CandidateStatus, ...ALLOWED_STATUSES]
+              ).map(s => (
+                <SelectItem key={s} value={s}>{statusOptionLabel(s)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
