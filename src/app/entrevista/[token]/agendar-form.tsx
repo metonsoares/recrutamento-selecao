@@ -93,9 +93,9 @@ export function AgendarEntrevistaForm({ token, candidateName, interviewerName, l
           </div>
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[13px] text-amber-800 flex gap-2">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[13px] leading-relaxed text-amber-800 flex items-start gap-2">
           <Clock className="w-4 h-4 shrink-0 mt-0.5" />
-          As entrevistas são realizadas <strong>por ordem de chegada</strong> dentro da janela de horário do dia escolhido.
+          <span className="flex-1">As entrevistas são realizadas <strong>por ordem de chegada</strong> dentro da janela de horário do dia escolhido.</span>
         </div>
 
         {days.length === 0 ? (
