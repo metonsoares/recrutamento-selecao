@@ -231,11 +231,16 @@ export default async function CandidatePage({
   // ── Extract key fields from form_answers ─────────────────────────────────
   const allFa = formAnswers || []
 
-  // Endereço a partir de form_answers (field_type = 'address')
+  // Endereço a partir de form_answers (field_type 'address' ou 'cep')
   let parsedAddress: CandidateAddress | null = null
-  const addrAnswer = allFa.find(
-    a => (a.form_questions as { field_type?: string } | null)?.field_type === 'address'
-  )?.answer_text
+  const addrAnswer = allFa.find(a => {
+    const ft = (a.form_questions as { field_type?: string } | null)?.field_type
+    return (ft === 'address' || ft === 'cep') && a.answer_text && a.answer_text.trim().startsWith('[')
+  })?.answer_text
+    ?? allFa.find(a => {
+      const ft = (a.form_questions as { field_type?: string } | null)?.field_type
+      return ft === 'address' || ft === 'cep'
+    })?.answer_text
   if (addrAnswer) {
     try {
       const raw = JSON.parse(addrAnswer as string)

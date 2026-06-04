@@ -26,15 +26,18 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
     .eq('is_latest', true)
     .maybeSingle()
 
-  // Busca endereço em form_answers (field_type = 'address')
+  // Busca endereço em form_answers (field_type 'address' ou 'cep')
   let parsedAddress: CandidateAddress | null = null
   if (app?.id) {
-    const { data: addrAns } = await supabase
+    const { data: addrRows } = await supabase
       .from('form_answers')
       .select('answer_text, form_questions!inner(field_type)')
       .eq('application_id', app.id)
-      .eq('form_questions.field_type', 'address')
-      .maybeSingle()
+      .in('form_questions.field_type', ['address', 'cep'])
+
+    // prioriza a resposta em formato de array (endereço completo)
+    const addrAns = (addrRows || []).find(r => r.answer_text?.trim().startsWith('['))
+      ?? (addrRows || [])[0]
 
     if (addrAns?.answer_text) {
       try {
