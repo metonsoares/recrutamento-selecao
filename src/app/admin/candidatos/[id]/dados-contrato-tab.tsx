@@ -28,6 +28,7 @@ export interface ContractData {
   end_date: string
   funcao: string
   valor: string
+  bonus: string
   adjustments: Adjustment[]
   absences: Absence[]
   faltas?: number
@@ -82,7 +83,7 @@ function genId() {
   return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random())
 }
 function makeEmpty(jobTitle: string | null): ContractData {
-  return { start_date: '', days: '', end_date: '', funcao: jobTitle || '', valor: '', adjustments: [], absences: [] }
+  return { start_date: '', days: '', end_date: '', funcao: jobTitle || '', valor: '', bonus: '', adjustments: [], absences: [] }
 }
 
 // ─── Linha de adiantamento/desconto ───────────────────────────────────────────
@@ -218,7 +219,9 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
   const totalAdiant = form.adjustments.filter(a => a.type === 'adiantamento').reduce((s, a) => s + parseBRL(a.value), 0)
   const totalDesc = form.adjustments.filter(a => a.type === 'desconto').reduce((s, a) => s + parseBRL(a.value), 0)
   const descontoFaltas = valorDia * faltasNaoComp
-  const aPagar = valorBruto - totalAdiant - totalDesc
+  const bonusValor = parseBRL(form.bonus)
+  const bonusAplicado = faltasNaoComp === 0 ? bonusValor : 0
+  const aPagar = valorBruto - totalAdiant - totalDesc + bonusAplicado
 
   return (
     <>
@@ -257,6 +260,11 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
           </div>
           {field('Função a exercer no contrato', <Input value={form.funcao} onChange={e => set('funcao', e.target.value)} placeholder="Ex: Garçom para evento" />)}
           {field('Valor de contrato (total)', <Input value={form.valor} onChange={e => set('valor', maskBRL(e.target.value))} placeholder="R$ 0,00" />)}
+          {field('Valor bônus (opcional)',
+            <div className="space-y-1">
+              <Input value={form.bonus} onChange={e => set('bonus', maskBRL(e.target.value))} placeholder="R$ 0,00" />
+              <p className="text-[11px] text-muted-foreground">Somado ao valor final apenas se o funcionário não tiver nenhuma falta.</p>
+            </div>)}
         </div>
 
         {/* Adiantamentos e descontos */}
@@ -314,6 +322,11 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
           {faltasNaoComp > 0 && <CalcRow label={`(−) Faltas não compensadas (${faltasNaoComp})`} value={`− ${fmtBRL(descontoFaltas)}`} negative />}
           {totalAdiant > 0 && <CalcRow label="(−) Adiantamentos" value={`− ${fmtBRL(totalAdiant)}`} negative />}
           {totalDesc > 0 && <CalcRow label="(−) Descontos / quebras" value={`− ${fmtBRL(totalDesc)}`} negative />}
+          {bonusValor > 0 && (
+            bonusAplicado > 0
+              ? <CalcRow label="(+) Bônus (sem faltas)" value={`+ ${fmtBRL(bonusAplicado)}`} positive />
+              : <CalcRow label="(×) Bônus não aplicado (há faltas)" value={fmtBRL(bonusValor)} muted />
+          )}
           <div className="border-t pt-2 mt-1 flex items-center justify-between">
             <span className="font-bold text-gray-900 flex items-center gap-1.5"><Calculator className="w-4 h-4" />Valor a pagar</span>
             <span className={`font-bold text-lg ${aPagar < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtBRL(aPagar)}</span>
@@ -375,11 +388,11 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
   )
 }
 
-function CalcRow({ label, value, muted, negative }: { label: string; value: string; muted?: boolean; negative?: boolean }) {
+function CalcRow({ label, value, muted, negative, positive }: { label: string; value: string; muted?: boolean; negative?: boolean; positive?: boolean }) {
   return (
     <div className="flex items-center justify-between">
       <span className={muted ? 'text-muted-foreground text-[13px]' : 'text-gray-700'}>{label}</span>
-      <span className={`font-medium ${negative ? 'text-red-600' : muted ? 'text-muted-foreground' : 'text-gray-900'}`}>{value}</span>
+      <span className={`font-medium ${negative ? 'text-red-600' : positive ? 'text-emerald-700' : muted ? 'text-muted-foreground' : 'text-gray-900'}`}>{value}</span>
     </div>
   )
 }
