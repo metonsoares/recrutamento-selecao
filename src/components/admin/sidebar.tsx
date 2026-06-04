@@ -137,6 +137,9 @@ function SidebarContent({
               <Link href="/admin/candidatos" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Users className="w-3 h-3 shrink-0 opacity-50" />Candidatos
               </Link>
+              <Link href="/admin/candidatos/agenda" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/agenda') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <CalendarClock className="w-3 h-3 shrink-0 opacity-50" />Agenda de entrevistas
+              </Link>
               {isMaster && (
                 <div>
                   <button onClick={() => setConfigCurriculosOpen(o => !o)} className={cn(DEEP_BASE, inConfigCurriculos ? DEEP_ACTIVE : DEEP_DEFAULT)}>
