@@ -2,7 +2,7 @@
 import { useState, useRef, useMemo } from 'react'
 import {
   FolderArchive, Plus, Trash2, Loader2, X, Upload, FileText, FileDown,
-  CheckCircle2, AlertCircle, Download, Search, Building2, ChevronDown, Clock, ShieldAlert,
+  CheckCircle2, AlertCircle, Download, Search, Building2, ChevronDown, Clock, ShieldAlert, Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +43,8 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
   const [empresaFilter, setEmpresaFilter] = useState('all')
   const [tipoFilter, setTipoFilter] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [existingFileName, setExistingFileName] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())  // vazio = tudo recolhido
@@ -60,7 +62,13 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
 
-  function openModal() { setName(''); setEmpresa(''); setCategory(''); setExpiresAt(''); setNoExpiry(false); setFile(null); setError(''); setModalOpen(true) }
+  function openModal() { setEditingId(null); setExistingFileName(null); setName(''); setEmpresa(''); setCategory(''); setExpiresAt(''); setNoExpiry(false); setFile(null); setError(''); setModalOpen(true) }
+
+  function openEdit(f: CompanyFile) {
+    setEditingId(f.id); setExistingFileName(f.file_name || null)
+    setName(f.name || ''); setEmpresa(f.empresa || ''); setCategory(f.category || '')
+    setExpiresAt(f.expires_at || ''); setNoExpiry(f.no_expiry); setFile(null); setError(''); setModalOpen(true)
+  }
 
   function toggleGroup(key: string) {
     setExpanded(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n })
@@ -71,19 +79,26 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
     if (!empresa) { setError('Selecione a empresa.'); return }
     if (!name.trim()) { setError('Informe o nome do documento.'); return }
     if (!noExpiry && !expiresAt) { setError('Informe a validade ou marque "Não expira".'); return }
-    if (!file) { setError('Anexe um arquivo.'); return }
-    if (file.size > 10 * 1024 * 1024) { setError('Arquivo excede 10 MB.'); return }
+    if (!editingId && !file) { setError('Anexe um arquivo.'); return }
+    if (file && file.size > 10 * 1024 * 1024) { setError('Arquivo excede 10 MB.'); return }
     setSaving(true)
     const fd = new FormData()
-    fd.append('file', file); fd.append('name', name); fd.append('category', category); fd.append('empresa', empresa)
+    if (file) fd.append('file', file)
+    fd.append('name', name); fd.append('category', category); fd.append('empresa', empresa)
     fd.append('no_expiry', String(noExpiry)); fd.append('expires_at', expiresAt)
     try {
-      const res = await fetch('/api/admin/company-files', { method: 'POST', body: fd })
+      const res = await fetch(editingId ? `/api/admin/company-files/${editingId}` : '/api/admin/company-files',
+        { method: editingId ? 'PUT' : 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setFiles(prev => [data.file, ...prev])
+      if (editingId) {
+        setFiles(prev => prev.map(f => f.id === editingId ? data.file : f))
+        showToast('ok', 'Documento atualizado.')
+      } else {
+        setFiles(prev => [data.file, ...prev])
+        showToast('ok', 'Documento adicionado.')
+      }
       setModalOpen(false)
-      showToast('ok', 'Documento adicionado.')
     } catch (e) {
       setError((e as Error).message || 'Erro ao salvar.')
     } finally { setSaving(false) }
@@ -241,6 +256,10 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
                                 {v.tone === 'danger' ? <ShieldAlert className="w-3 h-3" /> : v.tone === 'none' ? null : <Clock className="w-3 h-3" />}
                                 {v.label}
                               </span>
+                              <button onClick={() => openEdit(f)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors shrink-0" title="Editar">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
                               <button onClick={() => handleDelete(f.id)} disabled={deletingId === f.id}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0" title="Remover">
                                 {deletingId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
@@ -263,7 +282,7 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white">
-              <h2 className="text-base font-semibold text-gray-900">Adicionar documento</h2>
+              <h2 className="text-base font-semibold text-gray-900">{editingId ? 'Editar documento' : 'Adicionar documento'}</h2>
               <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
@@ -300,7 +319,9 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Arquivo * (PDF, DOC, JPG, PNG — até 10 MB)</label>
+                <label className="text-xs font-medium text-gray-600">
+                  Arquivo {editingId ? '(opcional — deixe em branco para manter o atual)' : '*'} (PDF, DOC, JPG, PNG — até 10 MB)
+                </label>
                 {file ? (
                   <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                     <FileText className="w-4 h-4 text-red-500 shrink-0" />
@@ -308,10 +329,17 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
                     <button onClick={() => setFile(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <button onClick={() => fileRef.current?.click()}
-                    className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors w-full justify-center">
-                    <Upload className="w-3.5 h-3.5" />Selecionar arquivo
-                  </button>
+                  <>
+                    {editingId && existingFileName && (
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mb-1">
+                        <FileText className="w-3.5 h-3.5 text-gray-400" />Atual: {existingFileName}
+                      </p>
+                    )}
+                    <button onClick={() => fileRef.current?.click()}
+                      className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors w-full justify-center">
+                      <Upload className="w-3.5 h-3.5" />{editingId ? 'Substituir arquivo' : 'Selecionar arquivo'}
+                    </button>
+                  </>
                 )}
                 <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx" className="hidden"
                   onChange={e => setFile(e.target.files?.[0] || null)} />
@@ -321,7 +349,7 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><Plus className="w-3.5 h-3.5" />Adicionar</>}
+                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : editingId ? <><CheckCircle2 className="w-3.5 h-3.5" />Salvar alterações</> : <><Plus className="w-3.5 h-3.5" />Adicionar</>}
               </Button>
             </div>
           </div>
