@@ -523,6 +523,31 @@ export function CandidateActions({
         )}
 
 
+        {/* Resultado da entrevista (somente quando agendada) */}
+        {applicationId && status === 'entrevista_agendada' && (
+          <>
+            <Button
+              size="sm"
+              disabled={savingStatus}
+              onClick={() => handleStatusChange('aprovado_processo')}
+              className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Aprovado na entrevista
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={savingStatus}
+              onClick={() => handleStatusChange('reprovado')}
+              className="gap-1 border-red-300 text-red-700 hover:bg-red-50"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              Reprovado
+            </Button>
+          </>
+        )}
+
         {/* Analisar IA */}
         {applicationId && (
           <Button
