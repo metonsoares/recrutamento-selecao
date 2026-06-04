@@ -30,13 +30,13 @@ const COMPANY_DOCS = [
 ]
 
 interface AdmissionForm {
-  docs?: Record<string, DocState>
+  docs?: Record<string, unknown>
   children_count?: string
   alimony?: boolean | null
 }
 
 export function countFichaPending(af: AdmissionForm | null): number {
-  const docs = af?.docs || {}
+  const docs = (af?.docs || {}) as Record<string, DocState>
   const children = parseInt(af?.children_count || '0') || 0
   const alimony = af?.alimony === true
   let pending = 0
