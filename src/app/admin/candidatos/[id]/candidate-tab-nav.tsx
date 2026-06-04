@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -19,9 +19,11 @@ interface Props {
   showDocumentos?: boolean
   /** Exibe Advertências e Atestados — apenas contratado */
   showRecords?: boolean
+  /** Exibe Contracheques e Folhas de ponto — contratado e intermitente */
+  showPayroll?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true }: Props) {
+export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -32,6 +34,8 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
     : tab === 'bancarios' ? 'bancarios'
     : tab === 'ferias' ? 'ferias'
     : tab === 'atestados' ? 'atestados'
+    : tab === 'contracheques' ? 'contracheques'
+    : tab === 'folhas-ponto' ? 'folhas-ponto'
     : 'curriculo'
 
   const base = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border'
@@ -108,6 +112,24 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
         >
           <Stethoscope className="w-4 h-4" />
           Atestados
+        </Link>
+      )}
+      {showPayroll && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=contracheques`}
+          className={`${base} ${activeTab === 'contracheques' ? active : inactive}`}
+        >
+          <Wallet className="w-4 h-4" />
+          Contracheques
+        </Link>
+      )}
+      {showPayroll && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=folhas-ponto`}
+          className={`${base} ${activeTab === 'folhas-ponto' ? active : inactive}`}
+        >
+          <CalendarDays className="w-4 h-4" />
+          Folhas de ponto
         </Link>
       )}
     </div>
