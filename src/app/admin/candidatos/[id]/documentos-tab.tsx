@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import {
   Upload, X, FileText, CheckCircle2, AlertCircle, Clock,
-  Loader2, Save, Plus, Trash2, GraduationCap, Megaphone, Building2, Receipt,
+  Loader2, Save, Plus, Trash2, GraduationCap, Megaphone, Building2, Receipt, LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -269,7 +269,7 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
   )
 }
 
-function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidateId, addLabel }: {
+function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidateId, addLabel, pinnedFile, pinnedLabel }: {
   title: string
   subtitle: string
   icon: React.ElementType
@@ -277,6 +277,8 @@ function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidat
   setItems: (fn: (prev: CustomDoc[]) => CustomDoc[]) => void
   candidateId: string
   addLabel: string
+  pinnedFile?: UploadedFile | null
+  pinnedLabel?: string
 }) {
   function add() {
     const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())
@@ -302,6 +304,16 @@ function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidat
       </div>
 
       <div className="space-y-2">
+        {/* Documento fixado (ex: carta de demissão) */}
+        {pinnedFile && (
+          <div className="rounded-xl border bg-emerald-50 border-emerald-200 p-3">
+            <p className="text-[13px] font-medium text-gray-800 mb-1.5">{pinnedLabel || 'Documento'}</p>
+            <div className="flex items-center gap-1.5 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
+              <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+              <a href={pinnedFile.url} target="_blank" rel="noreferrer" download className="text-[11px] text-emerald-700 hover:underline truncate max-w-[260px]">{pinnedFile.name}</a>
+            </div>
+          </div>
+        )}
         {items.map(item => (
           <CustomDocRow
             key={item.id}
@@ -311,7 +323,7 @@ function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidat
             onRemove={() => setItems(prev => prev.filter(p => p.id !== item.id))}
           />
         ))}
-        {items.length === 0 && (
+        {items.length === 0 && !pinnedFile && (
           <p className="text-sm text-muted-foreground text-center py-4">Nenhum item adicionado.</p>
         )}
         <button onClick={add}
@@ -328,6 +340,8 @@ function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidat
 interface Props {
   candidateId: string
   initialDocs: Record<string, unknown> | null
+  showDesligamento?: boolean
+  terminationLetter?: UploadedFile | null
 }
 
 function initCustom(saved: Record<string, unknown> | null, key: string): CustomDoc[] {
@@ -338,11 +352,12 @@ function initCustom(saved: Record<string, unknown> | null, key: string): CustomD
   return []
 }
 
-export function DocumentosTab({ candidateId, initialDocs }: Props) {
+export function DocumentosTab({ candidateId, initialDocs, showDesligamento = false, terminationLetter = null }: Props) {
   const [docs, setDocs] = useState<Record<string, DocState>>(() => initDocs(initialDocs))
   const [treinamentos, setTreinamentos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__treinamentos'))
   const [circulares, setCirculares] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__circulares'))
   const [recibos, setRecibos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__recibos'))
+  const [desligamentoDocs, setDesligamentoDocs] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__desligamento'))
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -353,7 +368,7 @@ export function DocumentosTab({ candidateId, initialDocs }: Props) {
   async function handleSave() {
     setSaving(true)
     try {
-      const payload = { ...docs, __treinamentos: treinamentos, __circulares: circulares, __recibos: recibos }
+      const payload = { ...docs, __treinamentos: treinamentos, __circulares: circulares, __recibos: recibos, __desligamento: desligamentoDocs }
       const res = await fetch(`/api/admin/candidatos/${candidateId}/company-docs`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -443,6 +458,21 @@ export function DocumentosTab({ candidateId, initialDocs }: Props) {
         candidateId={candidateId}
         addLabel="Adicionar recibo"
       />
+
+      {/* Desligamento (somente desligado) */}
+      {showDesligamento && (
+        <CustomDocsCard
+          title="Desligamento"
+          subtitle="Carta de demissão e demais documentos do desligamento"
+          icon={LogOut}
+          items={desligamentoDocs}
+          setItems={setDesligamentoDocs}
+          candidateId={candidateId}
+          addLabel="Adicionar documento"
+          pinnedFile={terminationLetter}
+          pinnedLabel="Carta de demissão"
+        />
+      )}
 
       {/* Salvar */}
       <Button onClick={handleSave} disabled={saving} className="gap-1.5 w-full sm:w-auto">

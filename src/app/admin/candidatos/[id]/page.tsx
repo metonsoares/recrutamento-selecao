@@ -443,7 +443,12 @@ export default async function CandidatePage({
 
       {/* ── Aba: Documentos ── */}
       {activeTab === 'documentos' && showDocumentos && (
-        <DocumentosTab candidateId={id} initialDocs={companyDocs} />
+        <DocumentosTab
+          candidateId={id}
+          initialDocs={companyDocs}
+          showDesligamento={isDesligado}
+          terminationLetter={(latestApp?.termination_data as { letter?: { url: string; name: string; path: string } } | null)?.letter ?? null}
+        />
       )}
 
       {/* ── Aba: Advertências ── */}
