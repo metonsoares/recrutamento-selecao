@@ -1,21 +1,18 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { ArrowLeft, Users, UserMinus } from 'lucide-react'
-import { FreelancersTable } from '../freelancers/freelancers-table'
+import { DesligadosTable } from './desligados-table'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DesligadosPage() {
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidates } = await supabase
     .from('candidates')
     .select(`
-      id, full_name, phone, email, city, created_at,
-      applications!latest_application_id (
-        id, status, created_at, final_score,
-        jobs ( title )
-      )
+      id, full_name,
+      applications!latest_application_id ( id, status, terminated_at, updated_at, contract_data, admission_form )
     `)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -23,56 +20,34 @@ export default async function DesligadosPage() {
   type AppRow = {
     id: string
     status: string
-    created_at: string
-    final_score: number | null
-    jobs: { title: string } | { title: string }[] | null
+    terminated_at: string | null
+    updated_at: string | null
+    contract_data: { company_name?: string } | null
+    admission_form: { selected_company_id?: string } | null
   }
-
-  type CandidateRow = {
-    id: string
-    full_name: string
-    phone: string | null
-    email: string | null
-    city: string | null
-    created_at: string
-    applications: AppRow | AppRow[] | null
-  }
+  type CandidateRow = { id: string; full_name: string; applications: AppRow | AppRow[] | null }
 
   const rows = (candidates || []) as CandidateRow[]
+  const getApp = (c: CandidateRow): AppRow | null =>
+    !c.applications ? null : (Array.isArray(c.applications) ? c.applications[0] : c.applications)
 
-  function getApp(c: CandidateRow): AppRow | null {
-    if (!c.applications) return null
-    return Array.isArray(c.applications) ? c.applications[0] : c.applications
-  }
+  const lista = rows.filter(c => getApp(c)?.status === 'desligado')
 
-  function getJobTitle(app: AppRow | null): string {
-    if (!app?.jobs) return '—'
-    const j = Array.isArray(app.jobs) ? app.jobs[0] : app.jobs
-    return j?.title || '—'
-  }
+  // Empresas
+  const { data: companiesData } = await supabase.from('companies').select('id, apelido, razao_social')
+  const companyMap: Record<string, string> = {}
+  for (const c of companiesData || []) companyMap[c.id] = c.apelido || c.razao_social || 'Empresa'
 
-  // Apenas candidatos com status 'desligado'
-  const desligados = rows.filter(c => getApp(c)?.status === 'desligado')
-
-  // Busca fotos
-  const appIds = desligados.map(c => getApp(c)?.id).filter(Boolean) as string[]
+  // Fotos
+  const appIds = lista.map(c => getApp(c)?.id).filter(Boolean) as string[]
   const photoMap: Record<string, string> = {}
-
   if (appIds.length > 0) {
-    const { data: fileQuestions } = await supabase
-      .from('form_questions')
-      .select('id')
-      .eq('field_type', 'file_upload')
-
+    const { data: fileQuestions } = await supabase.from('form_questions').select('id').eq('field_type', 'file_upload')
     const fileQuestionIds = (fileQuestions ?? []).map(q => q.id)
-
     if (fileQuestionIds.length > 0) {
       const { data: photoAnswers } = await supabase
-        .from('form_answers')
-        .select('application_id, answer_text')
-        .in('application_id', appIds)
-        .in('question_id', fileQuestionIds)
-
+        .from('form_answers').select('application_id, answer_text')
+        .in('application_id', appIds).in('question_id', fileQuestionIds)
       for (const pa of photoAnswers || []) {
         if (!photoMap[pa.application_id] && pa.answer_text) {
           const url = pa.answer_text.replace(/^"|"$/g, '')
@@ -82,31 +57,22 @@ export default async function DesligadosPage() {
     }
   }
 
-  const tableRows = desligados.map(c => {
+  const tableRows = lista.map(c => {
     const app = getApp(c)
+    const companyId = app?.admission_form?.selected_company_id
     return {
       id: c.id,
       full_name: c.full_name,
-      phone: c.phone,
-      email: c.email,
-      city: c.city,
-      created_at: c.created_at,
-      appId: app?.id ?? null,
-      finalScore: app?.final_score ?? null,
-      jobTitle: getJobTitle(app),
       photoUrl: app ? (photoMap[app.id] ?? null) : null,
+      empresa: app?.contract_data?.company_name || (companyId ? (companyMap[companyId] ?? '') : ''),
+      terminatedAt: app?.terminated_at || app?.updated_at || null,
     }
   })
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
-
-      {/* Cabeçalho */}
       <div className="flex items-center gap-3">
-        <Link
-          href="/admin/candidatos"
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-        >
+        <Link href="/admin/candidatos" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div className="flex items-center gap-2">
@@ -114,36 +80,24 @@ export default async function DesligadosPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Desligados</h1>
             <p className="text-sm text-muted-foreground">
-              {desligados.length} funcionário{desligados.length !== 1 ? 's' : ''} desligado{desligados.length !== 1 ? 's' : ''}
+              {lista.length} funcionário{lista.length !== 1 ? 's' : ''} desligado{lista.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Estado vazio */}
-      {desligados.length === 0 && (
+      {lista.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
             <Users className="w-8 h-8 text-gray-300" />
           </div>
           <div>
             <p className="font-medium text-gray-600">Nenhum desligado</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Funcionários com status &ldquo;Desligado&rdquo; aparecem aqui.
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Funcionários com status &ldquo;Desligado&rdquo; aparecem aqui.</p>
           </div>
-          <Link
-            href="/admin/candidatos"
-            className="text-sm text-primary underline underline-offset-2"
-          >
-            Ver todos os candidatos
-          </Link>
         </div>
-      )}
-
-      {/* Tabela */}
-      {desligados.length > 0 && (
-        <FreelancersTable rows={tableRows} />
+      ) : (
+        <DesligadosTable rows={tableRows} />
       )}
     </div>
   )

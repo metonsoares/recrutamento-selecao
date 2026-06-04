@@ -341,9 +341,12 @@ export function CandidateActions({
     setStatus(newStatus as CandidateStatus)
     setSavingStatus(true)
     const supabase = createSupabaseBrowserClient()
+    const now = new Date().toISOString()
+    const payload: Record<string, unknown> = { status: newStatus, updated_at: now }
+    if (newStatus === 'desligado') payload.terminated_at = now
     const { error } = await supabase
       .from('applications')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .update(payload)
       .eq('id', applicationId)
     setSavingStatus(false)
     if (error) {

@@ -29,6 +29,7 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     }
     if (status) update.status = status
+    if (status === 'desligado') update.terminated_at = new Date().toISOString()
 
     const { error } = await supabase.from('applications').update(update).eq('id', app.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

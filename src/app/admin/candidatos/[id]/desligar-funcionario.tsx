@@ -14,9 +14,10 @@ export function DesligarFuncionarioButton({ applicationId }: { applicationId?: s
     if (!applicationId) return
     setSaving(true)
     const supabase = createSupabaseBrowserClient()
+    const now = new Date().toISOString()
     const { error } = await supabase
       .from('applications')
-      .update({ status: 'desligado', updated_at: new Date().toISOString() })
+      .update({ status: 'desligado', terminated_at: now, updated_at: now })
       .eq('id', applicationId)
     setSaving(false)
     if (!error) { setOpen(false); router.refresh() }
