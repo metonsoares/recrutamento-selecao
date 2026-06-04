@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -48,7 +48,7 @@ function SidebarContent({
   const isMaster = role === 'master'
 
   // ── Grupos ────────────────────────────────────────────────────────────────
-  const COLAB_PATHS = ['/admin/candidatos/contratados', '/admin/candidatos/intermitentes', '/admin/candidatos/freelancers', '/admin/candidatos/desligados']
+  const COLAB_PATHS = ['/admin/candidatos/em-contrato', '/admin/candidatos/contratados', '/admin/candidatos/intermitentes', '/admin/candidatos/freelancers', '/admin/candidatos/desligados']
   const inColaboradores = COLAB_PATHS.some(p => pathname.startsWith(p))
   const inCurriculos = !inColaboradores && pathname.startsWith('/admin/candidatos')
   const inConfigCurriculos =
@@ -170,6 +170,9 @@ function SidebarContent({
           </button>
           {colaboradoresOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link href="/admin/candidatos/em-contrato" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/em-contrato') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <FileSignature className="w-3 h-3 shrink-0 opacity-50" />Em contrato
+              </Link>
               <Link href="/admin/candidatos/contratados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/contratados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <UserCheck className="w-3 h-3 shrink-0 opacity-50" />Contratados
               </Link>

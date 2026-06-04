@@ -12,6 +12,7 @@ export type CandidateStatus =
   | 'aprovado'
   | 'reprovado'
   | 'banco_de_talentos'
+  | 'em_contrato'
   | 'contratado'
   | 'freelancer'
   | 'desistente'
@@ -32,6 +33,7 @@ export const STATUS_LABELS: Record<CandidateStatus, string> = {
   aprovado: 'Intermitentes',
   reprovado: 'Reprovado',
   banco_de_talentos: 'Banco de Talentos',
+  em_contrato: 'Em contrato',
   contratado: 'Contratado',
   freelancer: 'Freelancer',
   desistente: 'Desistente',
@@ -53,6 +55,7 @@ export const STATUS_COLORS: Record<CandidateStatus, string> = {
   aprovado: 'bg-green-100 text-green-700',
   reprovado: 'bg-red-100 text-red-700',
   banco_de_talentos: 'bg-violet-100 text-violet-700',
+  em_contrato: 'bg-teal-100 text-teal-700',
   contratado: 'bg-green-200 text-green-800',
   freelancer: 'bg-sky-100 text-sky-700',
   desistente: 'bg-gray-200 text-gray-600',

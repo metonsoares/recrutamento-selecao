@@ -10,6 +10,7 @@ export const DEFAULT_COLUMNS = [
   { key: 'agendada',  label: 'Entrevista Agendada',   dot: 'bg-purple-500' },
   { key: 'aprovado',  label: 'Intermitentes',          dot: 'bg-emerald-500' },
   { key: 'reprovado', label: 'Reprovado',              dot: 'bg-red-400' },
+  { key: 'em_contrato',label: 'Em contrato',           dot: 'bg-teal-500' },
   { key: 'contratado',label: 'Contratado',             dot: 'bg-[#1a5c38]' },
   { key: 'freelancer',label: 'Freelancer',             dot: 'bg-sky-500' },
 ] as const

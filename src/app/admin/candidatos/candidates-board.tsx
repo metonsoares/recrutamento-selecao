@@ -63,6 +63,15 @@ const COLUMNS = [
     statuses: ['reprovado', 'desistente'],
   },
   {
+    key: 'em_contrato',
+    label: 'Em contrato',
+    targetStatus: 'em_contrato' as CandidateStatus,
+    dot: 'bg-teal-500',
+    header: 'bg-teal-50 border-teal-300',
+    drop: 'bg-teal-100 border-teal-400',
+    statuses: ['em_contrato'],
+  },
+  {
     key: 'contratado',
     label: 'Contratado',
     targetStatus: 'contratado' as CandidateStatus,
