@@ -4,7 +4,7 @@ import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface QuestionOption { text: string; weight: number }
-interface Question { id: string; text: string; options: QuestionOption[] }
+interface Question { id: string; text: string; type?: 'texto' | 'multipla'; options: QuestionOption[] }
 
 interface Props {
   token: string
@@ -17,17 +17,22 @@ interface Props {
 
 export function PesquisaForm({ token, title, description, companyName, questions, funcionarios }: Props) {
   const [candidateId, setCandidateId] = useState('')
-  const [answers, setAnswers] = useState<Record<string, number>>({})
+  const [answers, setAnswers] = useState<Record<string, number | string>>({})
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
 
-  function setAnswer(qid: string, idx: number) { setAnswers(p => ({ ...p, [qid]: idx })) }
+  function setAnswer(qid: string, val: number | string) { setAnswers(p => ({ ...p, [qid]: val })) }
 
   async function submit() {
     setError('')
     if (funcionarios.length > 0 && !candidateId) { setError('Selecione seu nome.'); return }
-    if (Object.keys(answers).length < questions.length) { setError('Responda todas as perguntas.'); return }
+    const faltando = questions.some(q => {
+      const a = answers[q.id]
+      if (q.type === 'texto') return !a || !String(a).trim()
+      return a == null
+    })
+    if (faltando) { setError('Responda todas as perguntas.'); return }
     setSaving(true)
     try {
       const res = await fetch(`/api/public/climate/${token}`, {
@@ -77,14 +82,23 @@ export function PesquisaForm({ token, title, description, companyName, questions
         {questions.map((q, i) => (
           <div key={q.id} className="bg-white rounded-2xl border shadow-sm p-5 space-y-2.5">
             <p className="text-sm font-semibold text-gray-900">{i + 1}. {q.text}</p>
-            <div className="space-y-1.5">
-              {q.options.map((o, idx) => (
-                <label key={idx} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${answers[q.id] === idx ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'}`}>
-                  <input type="radio" checked={answers[q.id] === idx} onChange={() => setAnswer(q.id, idx)} className="accent-primary" />
-                  <span className="text-sm text-gray-700">{o.text}</span>
-                </label>
-              ))}
-            </div>
+            {q.type === 'texto' ? (
+              <textarea
+                value={typeof answers[q.id] === 'string' ? (answers[q.id] as string) : ''}
+                onChange={e => setAnswer(q.id, e.target.value)}
+                rows={3} placeholder="Sua resposta..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            ) : (
+              <div className="space-y-1.5">
+                {q.options.map((o, idx) => (
+                  <label key={idx} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${answers[q.id] === idx ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" checked={answers[q.id] === idx} onChange={() => setAnswer(q.id, idx)} className="accent-primary" />
+                    <span className="text-sm text-gray-700">{o.text}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 

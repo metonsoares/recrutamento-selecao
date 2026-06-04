@@ -1,16 +1,15 @@
 'use client'
 import { useState, useMemo } from 'react'
 import {
-  ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink,
+  ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink, Upload,
 } from 'lucide-react'
-// (Loader2 já incluído acima)
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 
 interface Employee { id: string; name: string; status: string; empresa: string }
 interface QOption { text: string; weight: string }
-interface Question { id: string; text: string; options: QOption[] }
+interface Question { id: string; text: string; type: 'texto' | 'multipla'; options: QOption[] }
 interface Survey {
   id: string; title: string; company_name: string | null; token: string
   target_candidate_ids: string[]; questions: unknown[]
@@ -49,8 +48,29 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
 
   function openModal() {
     setTitle(''); setDescription(''); setCompany(''); setStatuses(new Set()); setSelectedEmp(new Set())
-    setQuestions([{ id: genId(), text: '', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }])
+    setQuestions([{ id: genId(), text: '', type: 'multipla', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }])
     setError(''); setModalOpen(true)
+  }
+
+  const [importing, setImporting] = useState(false)
+  async function handleDocx(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return
+    setImporting(true); setError('')
+    const fd = new FormData(); fd.append('file', f)
+    try {
+      const res = await fetch('/api/admin/climate-surveys/parse-docx', { method: 'POST', body: fd })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      if (d.title && !title.trim()) setTitle(d.title)
+      if (d.description && !description.trim()) setDescription(d.description)
+      type PQ = { id: string; text: string; type: 'texto' | 'multipla'; options: { text: string; weight: number }[] }
+      setQuestions((d.questions as PQ[]).map(q => ({
+        id: q.id || genId(), text: q.text, type: q.type,
+        options: (q.options || []).map(o => ({ text: o.text, weight: String(o.weight ?? 0) })),
+      })))
+      showToast('ok', `${d.questions.length} pergunta(s) importada(s) do arquivo.`)
+    } catch (err) { setError((err as Error).message || 'Erro ao importar arquivo.') }
+    finally { setImporting(false); if (e.target) e.target.value = '' }
   }
 
   const elegiveis = useMemo(() => employees.filter(e =>
@@ -62,7 +82,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
   function toggleStatus(s: string) { setStatuses(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n }) }
   function toggleEmp(id: string) { setSelectedEmp(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
 
-  function addQuestion() { setQuestions(p => [...p, { id: genId(), text: '', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }]) }
+  function addQuestion() { setQuestions(p => [...p, { id: genId(), text: '', type: 'multipla', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }]) }
   function updQuestion(id: string, patch: Partial<Question>) { setQuestions(p => p.map(q => q.id === id ? { ...q, ...patch } : q)) }
   function rmQuestion(id: string) { setQuestions(p => p.filter(q => q.id !== id)) }
   function addOption(qid: string) { setQuestions(p => p.map(q => q.id === qid ? { ...q, options: [...q.options, { text: '', weight: '0' }] } : q)) }
@@ -74,8 +94,10 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
   async function handleSave() {
     setError('')
     if (!title.trim()) { setError('Informe o título da pesquisa.'); return }
-    if (questions.length === 0 || questions.some(q => !q.text.trim() || q.options.some(o => !o.text.trim()))) {
-      setError('Preencha todas as perguntas e opções.'); return
+    if (questions.length === 0 || questions.some(q =>
+      !q.text.trim() || (q.type === 'multipla' && (q.options.length === 0 || q.options.some(o => !o.text.trim())))
+    )) {
+      setError('Preencha todas as perguntas e as opções das de múltipla escolha.'); return
     }
     setSaving(true)
     try {
@@ -83,7 +105,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
         title, description, company_name: company || null,
         target_statuses: Array.from(statuses),
         target_candidate_ids: Array.from(selectedEmp),
-        questions: questions.map(q => ({ id: q.id, text: q.text, options: q.options.map(o => ({ text: o.text, weight: Number(o.weight) || 0 })) })),
+        questions: questions.map(q => ({ id: q.id, text: q.text, type: q.type, options: q.type === 'texto' ? [] : q.options.map(o => ({ text: o.text, weight: Number(o.weight) || 0 })) })),
       }
       const res = await fetch('/api/admin/climate-surveys', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -197,6 +219,18 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
                 </div>
               </div>
 
+              {/* Importar de arquivo */}
+              <div className="border-t pt-3">
+                <label className="flex items-center gap-2 text-[12px] font-medium text-primary cursor-pointer hover:underline w-fit">
+                  {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  Importar perguntas de arquivo .docx
+                  <input type="file" accept=".docx" className="hidden" onChange={handleDocx} disabled={importing} />
+                </label>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  O arquivo deve conter perguntas numeradas, opções (com pesos entre parênteses, ex: &ldquo;Ótimo (10)&rdquo;) e tipo [texto]/[múltipla].
+                </p>
+              </div>
+
               {/* Perguntas */}
               <div className="space-y-2 border-t pt-3">
                 <div className="flex items-center justify-between">
@@ -208,18 +242,27 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-gray-500">{qi + 1}.</span>
                       <Input value={q.text} onChange={e => updQuestion(q.id, { text: e.target.value })} placeholder="Texto da pergunta" className="h-8 text-sm flex-1" />
+                      <select value={q.type} onChange={e => updQuestion(q.id, { type: e.target.value as 'texto' | 'multipla' })}
+                        className="h-8 text-xs border border-gray-300 rounded-md px-1.5 bg-white">
+                        <option value="multipla">Múltipla</option>
+                        <option value="texto">Texto</option>
+                      </select>
                       <button onClick={() => rmQuestion(q.id)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
-                    <div className="space-y-1 pl-5">
-                      {q.options.map((o, oi) => (
-                        <div key={oi} className="flex items-center gap-2">
-                          <Input value={o.text} onChange={e => updOption(q.id, oi, { text: e.target.value })} placeholder={`Opção ${oi + 1}`} className="h-7 text-sm flex-1" />
-                          <Input value={o.weight} onChange={e => updOption(q.id, oi, { weight: e.target.value })} placeholder="Peso" type="number" className="h-7 text-sm w-20" title="Peso/nota" />
-                          <button onClick={() => rmOption(q.id, oi)} className="text-gray-300 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
-                        </div>
-                      ))}
-                      <button onClick={() => addOption(q.id)} className="text-[11px] text-primary hover:underline">+ opção</button>
-                    </div>
+                    {q.type === 'multipla' ? (
+                      <div className="space-y-1 pl-5">
+                        {q.options.map((o, oi) => (
+                          <div key={oi} className="flex items-center gap-2">
+                            <Input value={o.text} onChange={e => updOption(q.id, oi, { text: e.target.value })} placeholder={`Opção ${oi + 1}`} className="h-7 text-sm flex-1" />
+                            <Input value={o.weight} onChange={e => updOption(q.id, oi, { weight: e.target.value })} placeholder="Peso" type="number" className="h-7 text-sm w-20" title="Peso/nota" />
+                            <button onClick={() => rmOption(q.id, oi)} className="text-gray-300 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        ))}
+                        <button onClick={() => addOption(q.id)} className="text-[11px] text-primary hover:underline">+ opção</button>
+                      </div>
+                    ) : (
+                      <p className="pl-5 text-[11px] text-muted-foreground italic">Campo de resposta aberta (texto) — sem pontuação.</p>
+                    )}
                   </div>
                 ))}
               </div>
