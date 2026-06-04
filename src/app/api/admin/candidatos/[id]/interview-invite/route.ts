@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { generateToken } from '@/lib/helpers'
+import { generateToken, generateShortCode, publicAppUrl } from '@/lib/helpers'
 import { sendWhatsAppRaw } from '@/lib/whatsapp'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,13 +16,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!candidate.phone) return NextResponse.json({ error: 'Candidato sem telefone cadastrado.' }, { status: 400 })
 
     const token = generateToken()
+    const shortCode = generateShortCode()
     const { data: invite, error } = await supabase.from('interview_invites').insert({
-      token, candidate_id: id, interviewer_id, location_id: location_id || null, dates, status: 'pendente',
+      token, short_code: shortCode, candidate_id: id, interviewer_id, location_id: location_id || null, dates, status: 'pendente',
     }).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
-    const link = `${appUrl}/entrevista/${token}`
+    const link = `${publicAppUrl()}/e/${shortCode}`
     const firstName = String(candidate.full_name).split(' ')[0]
     const message = `Olá ${firstName}, recebemos seu cadastro e gostaríamos de agendar uma entrevista presencial. Clique no link e selecione o dia disponível para realizar seu agendamento.\n\n${link}`
 

@@ -228,11 +228,11 @@ async function buildAiReply(
       .limit(1).maybeSingle()
     if (cand?.id) {
       const { data: inv } = await supabase
-        .from('interview_invites').select('token')
+        .from('interview_invites').select('token, short_code')
         .eq('candidate_id', cand.id).eq('status', 'agendada')
         .order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (inv?.token) {
-        const cancelLink = `${publicBase}/entrevista/${inv.token}`
+        const cancelLink = inv.short_code ? `${publicBase}/e/${inv.short_code}` : `${publicBase}/entrevista/${inv.token}`
         cancelInstruction = `Este candidato TEM uma entrevista agendada. Se ele quiser CANCELAR ou REMARCAR, responda com empatia e envie EXATAMENTE este link, sem inventar outro e sem enviar o link do currículo: ${cancelLink}`
       }
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { sendWhatsAppRaw } from '@/lib/whatsapp'
 import { slotsForDay, windowLabel, weekdayOf, SLOT_MIN, Win } from '@/lib/interview-slots'
+import { publicAppUrl } from '@/lib/helpers'
 
 const TZ = '-03:00'
 
@@ -68,8 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const localTxt = location?.name ? `${location.name}${location.address ? ` (${location.address})` : ''}` : 'a ser informado'
     const interviewerName = interviewer?.name || ''
     const procureLine = interviewerName ? `\n👤 Procure por: ${interviewerName}` : ''
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
-    const link = `${appUrl}/entrevista/${token}`
+    const link = `${publicAppUrl()}/e/${invite.short_code || ''}`
     const msg = `Olá ${firstName}, sua entrevista foi agendada! ✅\n\n📅 Dia: ${diaFmt}\n🕐 Horário de atendimento: ${janela}\n📍 Local: ${localTxt}${procureLine}\n\n* Chegue dentro da janela de horário\n* O atendimento é por ordem de chegada.\n\nSe precisar cancelar, acesse o mesmo link e informe o motivo:\n${link}\n\nAté lá!`
     if (candidate?.phone) await sendWhatsAppRaw(candidate.phone, msg, 'interview_confirmation')
 

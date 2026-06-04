@@ -12,6 +12,16 @@ export function generateToken(): string {
   return crypto.randomBytes(32).toString('hex')
 }
 
+/** Código curto (base36, ~6 chars) para links encurtados. */
+export function generateShortCode(): string {
+  return crypto.randomBytes(5).toString('hex').slice(0, 6)
+}
+
+/** Base pública da aplicação (domínio próprio), evitando URLs de preview da Vercel. */
+export function publicAppUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || 'https://recrutamento.browniedoton.com'
+}
+
 export function maskToken(token: string): string {
   if (!token || token.length < 8) return '••••••••'
   return '••••••••••••' + token.slice(-4)
