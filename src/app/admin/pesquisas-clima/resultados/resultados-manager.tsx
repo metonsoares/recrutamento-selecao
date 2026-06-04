@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { BarChart3, Loader2, Brain, FileDown, Users, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import { BarChart3, Loader2, Brain, FileDown, Users, AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface SurveyLite { id: string; title: string; company_name: string | null; climate_responses?: { count: number }[] }
@@ -8,9 +8,9 @@ interface QOption { text: string; weight: number }
 interface Question { id: string; text: string; type?: 'texto' | 'multipla'; options: QOption[] }
 interface ResponseRow { id: string; candidate_id: string | null; total_score: number | null; max_score: number | null; answers: Record<string, number | string>; created_at: string }
 
-interface Props { surveys: SurveyLite[]; initialSurveyId?: string }
+interface Props { surveys: SurveyLite[]; initialSurveyId?: string; isMaster?: boolean }
 
-export function ResultadosManager({ surveys, initialSurveyId }: Props) {
+export function ResultadosManager({ surveys, initialSurveyId, isMaster }: Props) {
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<{ survey: { title: string; company_name: string | null; questions: Question[] }; responses: ResponseRow[]; nameMap: Record<string, string> } | null>(null)
@@ -21,6 +21,7 @@ export function ResultadosManager({ surveys, initialSurveyId }: Props) {
   const [analyzingResp, setAnalyzingResp] = useState<Record<string, boolean>>({})
   const [summaries, setSummaries] = useState<Record<string, string>>({})
   const [loadingSummaries, setLoadingSummaries] = useState(false)
+  const [deleting, setDeleting] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async (id: string) => {
     setSelectedId(id); setData(null); setAnalysis(''); setExpanded(new Set()); setRespAnalysis({}); setAnalyzingResp({}); setSummaries({})
@@ -52,6 +53,19 @@ export function ResultadosManager({ surveys, initialSurveyId }: Props) {
   useEffect(() => { if (initialSurveyId) load(initialSurveyId) }, [initialSurveyId, load])
 
   function toggleExpand(id: string) { setExpanded(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+
+  async function deleteResponse(responseId: string) {
+    if (!selectedId) return
+    if (!confirm('Remover esta resposta permanentemente? Ela deixará de impactar o resultado geral da empresa.')) return
+    setDeleting(p => ({ ...p, [responseId]: true }))
+    try {
+      const res = await fetch(`/api/admin/climate-surveys/${selectedId}/responses/${responseId}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { alert(json.error || 'Erro ao remover resposta.'); return }
+      setData(prev => prev ? { ...prev, responses: prev.responses.filter(r => r.id !== responseId) } : prev)
+      setExpanded(p => { const n = new Set(p); n.delete(responseId); return n })
+    } finally { setDeleting(p => ({ ...p, [responseId]: false })) }
+  }
 
   async function analyzeResponse(responseId: string) {
     if (!selectedId) return
@@ -213,11 +227,17 @@ export function ResultadosManager({ surveys, initialSurveyId }: Props) {
                             )
                           })}
                         </div>
-                        {/* Análise individual IA */}
-                        <div className="print:hidden">
+                        {/* Ações */}
+                        <div className="print:hidden flex flex-wrap items-center gap-2">
                           <Button size="sm" variant="outline" onClick={() => analyzeResponse(r.id)} disabled={analyzingResp[r.id]} className="gap-1.5 h-7">
                             {analyzingResp[r.id] ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analisando...</> : <><Brain className="w-3.5 h-3.5" />Interpretar com IA</>}
                           </Button>
+                          {isMaster && (
+                            <Button size="sm" variant="outline" onClick={() => deleteResponse(r.id)} disabled={deleting[r.id]}
+                              className="gap-1.5 h-7 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
+                              {deleting[r.id] ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Removendo...</> : <><Trash2 className="w-3.5 h-3.5" />Remover resposta</>}
+                            </Button>
+                          )}
                         </div>
                         {respAnalysis[r.id] && (
                           <div className="bg-white rounded-lg border p-3">
