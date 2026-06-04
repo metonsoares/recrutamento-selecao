@@ -27,7 +27,7 @@ export default async function ContratadosPage() {
     created_at: string
     final_score: number | null
     culture_score: number | null
-    admission_form: { selected_company_id?: string } | null
+    admission_form: { selected_company_id?: string; function_title?: string } | null
     company_docs: Record<string, { not_applicable?: boolean; files?: unknown[] }> | null
     jobs: { title: string } | { title: string }[] | null
   }
@@ -128,7 +128,7 @@ export default async function ContratadosPage() {
       appId: app?.id ?? null,
       appStatus: app?.status ?? null,
       finalScore: app?.final_score ?? null,
-      jobTitle: getJobTitle(app),
+      jobTitle: app?.admission_form?.function_title || getJobTitle(app),
       companyName: companyId ? (companyMap[companyId] ?? null) : null,
       photoUrl: app ? (photoMap[app.id] ?? null) : null,
       pendencia: getPendencia(app),

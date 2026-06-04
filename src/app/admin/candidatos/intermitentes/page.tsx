@@ -13,7 +13,7 @@ export default async function IntermitentesPage() {
     .select(`
       id, full_name, phone, email, city, created_at,
       applications!latest_application_id (
-        id, status, created_at, final_score,
+        id, status, created_at, final_score, admission_form,
         jobs ( title )
       )
     `)
@@ -25,6 +25,7 @@ export default async function IntermitentesPage() {
     status: string
     created_at: string
     final_score: number | null
+    admission_form: { function_title?: string } | null
     jobs: { title: string } | { title: string }[] | null
   }
 
@@ -46,6 +47,7 @@ export default async function IntermitentesPage() {
   }
 
   function getJobTitle(app: AppRow | null): string {
+    if (app?.admission_form?.function_title) return app.admission_form.function_title
     if (!app?.jobs) return '—'
     const j = Array.isArray(app.jobs) ? app.jobs[0] : app.jobs
     return j?.title || '—'

@@ -472,7 +472,7 @@ export default async function CandidatePage({
         <div className="mb-5">
           <ResumoColaborador
             fullName={candidate.full_name}
-            jobTitle={jobTitle}
+            jobTitle={(['contratado', 'aprovado'].includes(currentStatus) && admissionForm?.function_title) ? admissionForm.function_title : jobTitle}
             companyName={fichaCompanies.find(c => c.id === admissionForm?.selected_company_id)?.apelido
               ?? fichaCompanies.find(c => c.id === admissionForm?.selected_company_id)?.razao_social
               ?? null}
