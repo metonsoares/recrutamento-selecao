@@ -1,0 +1,256 @@
+'use client'
+import { useState, useMemo } from 'react'
+import {
+  ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink,
+} from 'lucide-react'
+// (Loader2 já incluído acima)
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { STATUS_LABELS, CandidateStatus } from '@/types'
+
+interface Employee { id: string; name: string; status: string; empresa: string }
+interface QOption { text: string; weight: string }
+interface Question { id: string; text: string; options: QOption[] }
+interface Survey {
+  id: string; title: string; company_name: string | null; token: string
+  target_candidate_ids: string[]; questions: unknown[]
+  climate_responses?: { count: number }[]
+}
+
+interface Props {
+  initialSurveys: Survey[]
+  companyOptions: string[]
+  employees: Employee[]
+  appUrl: string
+}
+
+const STATUS_KEYS = (Object.keys(STATUS_LABELS) as CandidateStatus[]).filter(s => s !== 'removido')
+
+function genId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()) }
+
+export function CadastrarPesquisaManager({ initialSurveys, companyOptions, employees, appUrl }: Props) {
+  const [surveys, setSurveys] = useState<Survey[]>(initialSurveys)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [linkModal, setLinkModal] = useState<Survey | null>(null)
+
+  // form
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [company, setCompany] = useState('')
+  const [statuses, setStatuses] = useState<Set<string>>(new Set())
+  const [selectedEmp, setSelectedEmp] = useState<Set<string>>(new Set())
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
+
+  function openModal() {
+    setTitle(''); setDescription(''); setCompany(''); setStatuses(new Set()); setSelectedEmp(new Set())
+    setQuestions([{ id: genId(), text: '', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }])
+    setError(''); setModalOpen(true)
+  }
+
+  const elegiveis = useMemo(() => employees.filter(e =>
+    (!company || e.empresa === company) && (statuses.size === 0 || statuses.has(e.status))
+  ), [employees, company, statuses])
+
+  function toggleStatus(s: string) { setStatuses(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n }) }
+  function toggleEmp(id: string) { setSelectedEmp(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+
+  function addQuestion() { setQuestions(p => [...p, { id: genId(), text: '', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }]) }
+  function updQuestion(id: string, patch: Partial<Question>) { setQuestions(p => p.map(q => q.id === id ? { ...q, ...patch } : q)) }
+  function rmQuestion(id: string) { setQuestions(p => p.filter(q => q.id !== id)) }
+  function addOption(qid: string) { setQuestions(p => p.map(q => q.id === qid ? { ...q, options: [...q.options, { text: '', weight: '0' }] } : q)) }
+  function updOption(qid: string, idx: number, patch: Partial<QOption>) {
+    setQuestions(p => p.map(q => q.id === qid ? { ...q, options: q.options.map((o, i) => i === idx ? { ...o, ...patch } : o) } : q))
+  }
+  function rmOption(qid: string, idx: number) { setQuestions(p => p.map(q => q.id === qid ? { ...q, options: q.options.filter((_, i) => i !== idx) } : q)) }
+
+  async function handleSave() {
+    setError('')
+    if (!title.trim()) { setError('Informe o título da pesquisa.'); return }
+    if (questions.length === 0 || questions.some(q => !q.text.trim() || q.options.some(o => !o.text.trim()))) {
+      setError('Preencha todas as perguntas e opções.'); return
+    }
+    setSaving(true)
+    try {
+      const payload = {
+        title, description, company_name: company || null,
+        target_statuses: Array.from(statuses),
+        target_candidate_ids: Array.from(selectedEmp),
+        questions: questions.map(q => ({ id: q.id, text: q.text, options: q.options.map(o => ({ text: o.text, weight: Number(o.weight) || 0 })) })),
+      }
+      const res = await fetch('/api/admin/climate-surveys', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      })
+      const d = await res.json(); if (!res.ok) throw new Error(d.error)
+      setSurveys(prev => [d.survey, ...prev])
+      setModalOpen(false)
+      setLinkModal(d.survey)
+      showToast('ok', 'Pesquisa criada!')
+    } catch (e) { setError((e as Error).message || 'Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Remover esta pesquisa e suas respostas?')) return
+    const res = await fetch(`/api/admin/climate-surveys/${id}`, { method: 'DELETE' })
+    if (res.ok) { setSurveys(p => p.filter(s => s.id !== id)); showToast('ok', 'Pesquisa removida.') }
+    else showToast('err', 'Erro ao remover.')
+  }
+
+  function surveyUrl(token: string) { return `${appUrl || ''}/pesquisa/${token}` }
+
+  return (
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
+      {toast && (
+        <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+          {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}{toast.msg}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <ClipboardList className="w-6 h-6 text-[#333]" />
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Cadastrar pesquisas</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Pesquisas de clima organizacional</p>
+          </div>
+        </div>
+        <Button onClick={openModal} className="gap-1.5 shrink-0"><Plus className="w-4 h-4" />Nova pesquisa</Button>
+      </div>
+
+      {/* Lista */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        {surveys.length === 0 && <p className="text-center text-sm text-muted-foreground py-12">Nenhuma pesquisa cadastrada.</p>}
+        {surveys.map((s, i) => (
+          <div key={s.id} className={`flex items-center gap-3 px-4 py-3.5 ${i < surveys.length - 1 ? 'border-b' : ''}`}>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">{s.title}</p>
+              <p className="text-[12px] text-muted-foreground">
+                {s.company_name || 'Todas as empresas'} · {(s.target_candidate_ids?.length || 0)} funcionário(s) · {(s.questions?.length || 0)} pergunta(s) · {s.climate_responses?.[0]?.count ?? 0} resposta(s)
+              </p>
+            </div>
+            <button onClick={() => setLinkModal(s)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Link / QR Code"><QrCode className="w-4 h-4" /></button>
+            <button onClick={() => handleDelete(s.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" title="Remover"><Trash2 className="w-4 h-4" /></button>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal Nova pesquisa */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
+              <h2 className="text-base font-semibold text-gray-900">Nova pesquisa de clima</h2>
+              <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Título *</label>
+                <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Pesquisa de Clima 2026" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Descrição</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Empresa</label>
+                <select value={company} onChange={e => { setCompany(e.target.value); setSelectedEmp(new Set()) }}
+                  className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+                  <option value="">Todas as empresas</option>
+                  {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Status dos funcionários</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {STATUS_KEYS.map(s => (
+                    <button key={s} type="button" onClick={() => toggleStatus(s)}
+                      className={`text-[11px] px-2 py-1 rounded-full border transition-colors ${statuses.has(s) ? 'bg-primary text-primary-foreground border-primary' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                      {STATUS_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Funcionários */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Funcionários ({selectedEmp.size} selecionados de {elegiveis.length})</label>
+                <div className="border rounded-lg max-h-40 overflow-y-auto divide-y">
+                  {elegiveis.length === 0 && <p className="text-[12px] text-muted-foreground text-center py-3">Ajuste empresa/status para listar funcionários.</p>}
+                  {elegiveis.map(e => (
+                    <label key={e.id} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 text-sm">
+                      <input type="checkbox" checked={selectedEmp.has(e.id)} onChange={() => toggleEmp(e.id)} className="accent-primary" />
+                      <span className="flex-1 truncate">{e.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[e.status as CandidateStatus] || e.status}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Perguntas */}
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Perguntas</label>
+                  <Button type="button" variant="outline" size="sm" onClick={addQuestion} className="gap-1 h-7"><Plus className="w-3 h-3" />Pergunta</Button>
+                </div>
+                {questions.map((q, qi) => (
+                  <div key={q.id} className="rounded-lg border p-3 space-y-2 bg-gray-50/50">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-gray-500">{qi + 1}.</span>
+                      <Input value={q.text} onChange={e => updQuestion(q.id, { text: e.target.value })} placeholder="Texto da pergunta" className="h-8 text-sm flex-1" />
+                      <button onClick={() => rmQuestion(q.id)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <div className="space-y-1 pl-5">
+                      {q.options.map((o, oi) => (
+                        <div key={oi} className="flex items-center gap-2">
+                          <Input value={o.text} onChange={e => updOption(q.id, oi, { text: e.target.value })} placeholder={`Opção ${oi + 1}`} className="h-7 text-sm flex-1" />
+                          <Input value={o.weight} onChange={e => updOption(q.id, oi, { weight: e.target.value })} placeholder="Peso" type="number" className="h-7 text-sm w-20" title="Peso/nota" />
+                          <button onClick={() => rmOption(q.id, oi)} className="text-gray-300 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                      <button onClick={() => addOption(q.id)} className="text-[11px] text-primary hover:underline">+ opção</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
+              <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Button>
+              <Button onClick={handleSave} disabled={saving} className="gap-1.5">
+                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><Plus className="w-3.5 h-3.5" />Criar pesquisa</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Link/QR */}
+      {linkModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 text-center">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">{linkModal.title}</h2>
+              <button onClick={() => setLinkModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(surveyUrl(linkModal.token))}`} alt="QR Code" className="w-44 h-44 mx-auto rounded-lg border" />
+            <div className="flex items-center gap-2 bg-gray-50 border rounded-lg px-3 py-2">
+              <span className="text-[11px] text-gray-600 truncate flex-1">{surveyUrl(linkModal.token)}</span>
+              <button onClick={() => { navigator.clipboard?.writeText(surveyUrl(linkModal.token)); showToast('ok', 'Link copiado!') }} className="text-gray-400 hover:text-primary"><Copy className="w-4 h-4" /></button>
+              <a href={surveyUrl(linkModal.token)} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-primary"><ExternalLink className="w-4 h-4" /></a>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

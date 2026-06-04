@@ -67,7 +67,9 @@ function SidebarContent({
 
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos || inConfigCurriculos)
   const [configCurriculosOpen, setConfigCurriculosOpen] = useState(inConfigCurriculos)
+  const inPesquisas = pathname.startsWith('/admin/pesquisas-clima')
   const [colaboradoresOpen, setColaboradoresOpen] = useState(inColaboradores)
+  const [pesquisasOpen, setPesquisasOpen] = useState(inPesquisas)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
   const [usuariosOpen, setUsuariosOpen] = useState(inUsuarios)
@@ -184,6 +186,25 @@ function SidebarContent({
               </Link>
               <Link href="/admin/candidatos/desligados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/desligados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <UserMinus className="w-3 h-3 shrink-0 opacity-50" />Desligados
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Pesquisas de clima ▾ */}
+        <div>
+          <button onClick={() => setPesquisasOpen(o => !o)} className={cn(NAV_BASE, inPesquisas ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <ClipboardList className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            <span className="flex-1 text-left">Pesquisas de clima</span>
+            <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', pesquisasOpen && 'rotate-180')} />
+          </button>
+          {pesquisasOpen && (
+            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link href="/admin/pesquisas-clima/cadastrar" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/pesquisas-clima/cadastrar') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Cadastrar pesquisas
+              </Link>
+              <Link href="/admin/pesquisas-clima/resultados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/pesquisas-clima/resultados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <BarChart3 className="w-3 h-3 shrink-0 opacity-50" />Ver resultados
               </Link>
             </div>
           )}
