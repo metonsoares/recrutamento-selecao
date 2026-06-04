@@ -757,7 +757,7 @@ export default async function CandidatePage({
 
       {/* ── Desligar funcionário (rodapé) ── */}
       {isMaster && ['contratado', 'aprovado'].includes(currentStatus) && (
-        <DesligarFuncionarioButton applicationId={latestApp?.id} />
+        <DesligarFuncionarioButton candidateId={id} applicationId={latestApp?.id} />
       )}
 
       {/* ── Zona de perigo — somente Master ── */}
