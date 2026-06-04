@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -11,17 +11,22 @@ interface Props {
   showBankTab?: boolean
   /** Exibe Férias — apenas contratado */
   showVacationTab?: boolean
-  /** Exibe Ficha Admissão e Documentos — contratado e intermitente */
-  showFichaDocs?: boolean
+  /** Exibe Ficha Admissão — contratado e intermitente */
+  showFicha?: boolean
+  /** Exibe Dados para contrato — em contrato */
+  showContract?: boolean
+  /** Exibe Documentos — contratado, intermitente, em contrato */
+  showDocumentos?: boolean
   /** Exibe Advertências e Atestados — apenas contratado */
   showRecords?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFichaDocs = true, showRecords = true }: Props) {
+export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
     tab === 'ficha' ? 'ficha'
+    : tab === 'contrato' ? 'contrato'
     : tab === 'documentos' ? 'documentos'
     : tab === 'advertencias' ? 'advertencias'
     : tab === 'bancarios' ? 'bancarios'
@@ -42,7 +47,7 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
         <FileText className="w-4 h-4" />
         {showResumo ? 'Resumo' : 'Currículo'}
       </Link>
-      {showFichaDocs && (
+      {showFicha && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=ficha`}
           className={`${base} ${activeTab === 'ficha' ? active : inactive}`}
@@ -51,7 +56,16 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
           Ficha Admissão
         </Link>
       )}
-      {showFichaDocs && (
+      {showContract && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=contrato`}
+          className={`${base} ${activeTab === 'contrato' ? active : inactive}`}
+        >
+          <FileSignature className="w-4 h-4" />
+          Dados para contrato
+        </Link>
+      )}
+      {showDocumentos && (
         <Link
           href={`/admin/candidatos/${candidateId}?tab=documentos`}
           className={`${base} ${activeTab === 'documentos' ? active : inactive}`}

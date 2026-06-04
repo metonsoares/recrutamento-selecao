@@ -18,6 +18,7 @@ import { DadosBancariosTab, BankData } from './dados-bancarios-tab'
 import { ResumoColaborador } from './resumo-colaborador'
 import { FeriasTab } from './ferias-tab'
 import { AtestadosTab } from './atestados-tab'
+import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,8 +118,9 @@ export default async function CandidatePage({
 }) {
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' =
+  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' =
     sp.tab === 'ficha' ? 'ficha'
+    : sp.tab === 'contrato' ? 'contrato'
     : sp.tab === 'documentos' ? 'documentos'
     : sp.tab === 'advertencias' ? 'advertencias'
     : sp.tab === 'bancarios' ? 'bancarios'
@@ -184,8 +186,12 @@ export default async function CandidatePage({
   const showResumoPanel = ['contratado', 'freelancer', 'aprovado', 'em_contrato'].includes(currentStatus)
   // Dados Bancários: contratado, freelancer, intermitente, em contrato
   const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato'].includes(currentStatus)
-  // Ficha Admissão + Documentos: contratado, intermitente, em contrato
-  const showFichaDocs = ['contratado', 'aprovado', 'em_contrato'].includes(currentStatus)
+  // Ficha Admissão: contratado, intermitente (não em_contrato)
+  const showFicha = ['contratado', 'aprovado'].includes(currentStatus)
+  // Dados para contrato: em_contrato
+  const showContract = currentStatus === 'em_contrato'
+  // Documentos: contratado, intermitente, em contrato
+  const showDocumentos = ['contratado', 'aprovado', 'em_contrato'].includes(currentStatus)
   // Férias: apenas contratado
   const showVacationTab = isContratado
   // Advertências + Atestados: apenas contratado
@@ -357,10 +363,10 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFichaDocs={showFichaDocs} showRecords={showRecords} />
+      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} />
 
       {/* ── Aba: Ficha Admissão ── */}
-      {activeTab === 'ficha' && showFichaDocs && (
+      {activeTab === 'ficha' && showFicha && (
         <FichaAdmissaoForm
           candidate={{
             id: candidate.id,
@@ -379,8 +385,20 @@ export default async function CandidatePage({
         />
       )}
 
+      {/* ── Aba: Dados para contrato ── */}
+      {activeTab === 'contrato' && showContract && (
+        <DadosContratoTab
+          candidateId={id}
+          fullName={candidate.full_name}
+          cpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)}
+          address={parsedAddress}
+          jobTitle={jobTitle}
+          initialData={(latestApp?.contract_data as ContractData | null) ?? null}
+        />
+      )}
+
       {/* ── Aba: Documentos ── */}
-      {activeTab === 'documentos' && showFichaDocs && (
+      {activeTab === 'documentos' && showDocumentos && (
         <DocumentosTab candidateId={id} initialDocs={companyDocs} />
       )}
 
