@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b']
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 interface Win { weekday: number; start: string; end: string }
 interface Location { id: string; name: string; address: string | null }
@@ -55,7 +55,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
     return Array.from(map.entries())
   }, [interviews])
 
-  // Agrupa por entrevistador â†’ por dia
+  // Agrupa por entrevistador -> por dia
   const byInterviewer = useMemo(() => {
     const sorted = [...interviews].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
     const map = new Map<string, { name: string; items: Interview[] }>()
@@ -120,7 +120,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
         </div>
       </div>
 
-      {/* Seletor de visÃ£o */}
+      {/* Seletor de visão */}
       {interviews.length > 0 && (
         <div className="inline-flex items-center gap-1 p-1 bg-gray-100 rounded-lg text-sm">
           <button onClick={() => setView('entrevistador')} className={`px-3 py-1 rounded-md transition-colors ${view === 'entrevistador' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500'}`}>Por entrevistador</button>
@@ -128,7 +128,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
         </div>
       )}
 
-      {/* VisÃ£o por entrevistador */}
+      {/* Visão por entrevistador */}
       {interviews.length > 0 && view === 'entrevistador' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {byInterviewer.map(group => (
@@ -233,7 +233,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
   )
 }
 
-// â”€â”€â”€ Modal de configuraÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Modal de configuração ---
 function ConfigModal({ locations, setLocations, interviewers, setInterviewers, onClose, showToast }: {
   locations: Location[]; setLocations: React.Dispatch<React.SetStateAction<Location[]>>
   interviewers: Interviewer[]; setInterviewers: React.Dispatch<React.SetStateAction<Interviewer[]>>
@@ -290,7 +290,7 @@ function ConfigModal({ locations, setLocations, interviewers, setInterviewers, o
             </div>
             <div className="flex flex-wrap gap-2 items-end pt-1">
               <div className="flex-1 min-w-[140px] space-y-1"><label className="text-xs text-gray-600">Nome do local *</label><Input value={locName} onChange={e => setLocName(e.target.value)} placeholder="Ex: Loja Centro" className="h-9" /></div>
-              <div className="flex-1 min-w-[140px] space-y-1"><label className="text-xs text-gray-600">EndereÃ§o</label><Input value={locAddr} onChange={e => setLocAddr(e.target.value)} placeholder="Rua, nÂº, bairro" className="h-9" /></div>
+              <div className="flex-1 min-w-[140px] space-y-1"><label className="text-xs text-gray-600">Endereço</label><Input value={locAddr} onChange={e => setLocAddr(e.target.value)} placeholder="Rua, nº, bairro" className="h-9" /></div>
               <Button onClick={addLocation} disabled={busy || !locName.trim()} className="gap-1 h-9"><Plus className="w-4 h-4" />Adicionar</Button>
             </div>
           </div>
@@ -321,7 +321,7 @@ function ConfigModal({ locations, setLocations, interviewers, setInterviewers, o
   )
 }
 
-// â”€â”€â”€ Card de entrevistador (com janelas de horÃ¡rio) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Card de entrevistador (com janelas de horário) ---
 function InterviewerCard({ interviewer, onSaved, onDeleted, showToast }: {
   interviewer: Interviewer; onSaved: (i: Interviewer) => void; onDeleted: () => void; showToast: (t: 'ok' | 'err', m: string) => void
 }) {
@@ -370,14 +370,14 @@ function InterviewerCard({ interviewer, onSaved, onDeleted, showToast }: {
         <button onClick={del} className="text-gray-400 hover:text-red-500" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
       </div>
 
-      {/* Janelas de horÃ¡rio */}
+      {/* Janelas de horário */}
       <div className="space-y-1">
         <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Disponibilidade</p>
         {windows.length === 0 && <p className="text-[12px] text-muted-foreground">Nenhuma janela definida.</p>}
         <div className="flex flex-wrap gap-1.5">
           {windows.map((w, i) => (
             <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-white border rounded-full px-2 py-0.5">
-              <Clock className="w-3 h-3 text-gray-400" />{WEEKDAYS[w.weekday]} {w.start}â€“{w.end}
+              <Clock className="w-3 h-3 text-gray-400" />{WEEKDAYS[w.weekday]} {w.start}–{w.end}
               <button onClick={() => rmWindow(i)} className="text-gray-300 hover:text-red-500"><X className="w-3 h-3" /></button>
             </span>
           ))}
@@ -387,7 +387,7 @@ function InterviewerCard({ interviewer, onSaved, onDeleted, showToast }: {
             {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
           </select>
           <input type="time" value={wStart} onChange={e => setWStart(e.target.value)} className="h-8 text-xs border border-gray-300 rounded-md px-1.5 bg-white" />
-          <span className="text-xs text-gray-400">atÃ©</span>
+          <span className="text-xs text-gray-400">até</span>
           <input type="time" value={wEnd} onChange={e => setWEnd(e.target.value)} className="h-8 text-xs border border-gray-300 rounded-md px-1.5 bg-white" />
           <Button type="button" size="sm" variant="outline" onClick={addWindow} className="h-8 gap-1"><Plus className="w-3 h-3" />Janela</Button>
         </div>
