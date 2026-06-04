@@ -1,13 +1,112 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mammoth from 'mammoth'
+import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 
 export const runtime = 'nodejs'
-export const maxDuration = 30
+export const maxDuration = 45
 
 function genId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()) }
 
 interface QOption { text: string; weight: number }
 interface Question { id: string; text: string; type: 'texto' | 'multipla'; options: QOption[] }
+
+// ─── Interpretação por IA ──────────────────────────────────────────────────────
+
+interface ParsedSurvey { title: string; description: string; questions: Question[] }
+
+function buildAiPrompt(text: string): string {
+  return `Você é um especialista em RH que estrutura pesquisas de clima organizacional.
+Recebeu o conteúdo de um arquivo (extraído de um .docx) com uma pesquisa. Interprete-o e estruture-o
+FIELMENTE, sem perder a essência nem o propósito do teste.
+
+Regras:
+- Identifique o título e a descrição/instruções, se houver.
+- Extraia TODAS as perguntas na ordem original.
+- Para cada pergunta, determine o tipo:
+  - "multipla" = múltipla escolha (tem alternativas).
+  - "texto" = resposta aberta (sem alternativas).
+- Para perguntas de múltipla escolha, extraia as opções na ordem e atribua um "weight" (peso/nota) a cada opção:
+  - Se o documento já indica pesos/notas, use-os.
+  - Se NÃO houver pesos, atribua uma escala coerente com a intenção (ex: escala de satisfação:
+    melhor opção = maior peso; pior = 0), distribuindo de forma proporcional (ex: 10, 7, 4, 0).
+- NÃO invente perguntas que não existam. Preserve o texto original das perguntas e opções.
+
+Conteúdo do arquivo:
+"""
+${text.slice(0, 12000)}
+"""
+
+Responda SOMENTE com JSON válido (sem markdown), no formato:
+{
+  "title": "string",
+  "description": "string",
+  "questions": [
+    { "text": "string", "type": "multipla", "options": [ { "text": "string", "weight": 10 } ] },
+    { "text": "string", "type": "texto", "options": [] }
+  ]
+}`
+}
+
+function normalize(parsed: unknown): ParsedSurvey | null {
+  if (!parsed || typeof parsed !== 'object') return null
+  const p = parsed as Record<string, unknown>
+  const rawQs = Array.isArray(p.questions) ? p.questions : []
+  const questions: Question[] = rawQs.map((q): Question => {
+    const qq = q as Record<string, unknown>
+    const type: 'texto' | 'multipla' = String(qq.type || '').toLowerCase().includes('texto') ? 'texto' : 'multipla'
+    const opts = Array.isArray(qq.options) ? qq.options : []
+    const options: QOption[] = opts.map((o) => {
+      const oo = o as Record<string, unknown>
+      return { text: String(oo.text ?? '').trim(), weight: Number(oo.weight) || 0 }
+    }).filter(o => o.text)
+    return {
+      id: genId(),
+      text: String(qq.text ?? '').trim(),
+      type: (type === 'multipla' && options.length === 0) ? 'texto' : type,
+      options: type === 'texto' ? [] : options,
+    }
+  }).filter(q => q.text)
+  if (questions.length === 0) return null
+  return { title: String(p.title ?? '').trim(), description: String(p.description ?? '').trim(), questions }
+}
+
+async function interpretWithAI(text: string): Promise<ParsedSurvey | null> {
+  const prompt = buildAiPrompt(text)
+  const anthropicKey = await getAnthropicKey()
+  const openaiKey = await getOpenAIKey()
+
+  if (anthropicKey) {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 3000, messages: [{ role: 'user', content: prompt }] }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        const t: string = d?.content?.[0]?.text || ''
+        const m = t.match(/\{[\s\S]*\}/)
+        if (m) return normalize(JSON.parse(m[0]))
+      }
+    } catch { /* fallback */ }
+  }
+  if (openaiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 3000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        const t: string = d?.choices?.[0]?.message?.content || ''
+        const m = t.match(/\{[\s\S]*\}/)
+        if (m) return normalize(JSON.parse(m[0]))
+      }
+    } catch { /* fallback */ }
+  }
+  return null
+}
 
 /**
  * Convenção esperada no .docx:
@@ -70,11 +169,20 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const { value: text } = await mammoth.extractRawText({ buffer })
+    if (!text || text.trim().length < 10) {
+      return NextResponse.json({ error: 'Arquivo vazio ou ilegível.' }, { status: 422 })
+    }
+
+    // 1) Interpretação por IA (mantém a essência do teste)
+    const aiResult = await interpretWithAI(text)
+    if (aiResult) return NextResponse.json({ ...aiResult, source: 'ia' })
+
+    // 2) Fallback: parser heurístico
     const parsed = parseSurvey(text)
     if (parsed.questions.length === 0) {
-      return NextResponse.json({ error: 'Não foi possível identificar perguntas no arquivo. Verifique o formato.' }, { status: 422 })
+      return NextResponse.json({ error: 'Não foi possível identificar perguntas no arquivo. Verifique o formato ou configure uma chave de IA.' }, { status: 422 })
     }
-    return NextResponse.json(parsed)
+    return NextResponse.json({ ...parsed, source: 'heuristico' })
   } catch (err) {
     console.error('[parse-docx]', err)
     return NextResponse.json({ error: 'Erro ao processar o arquivo.' }, { status: 500 })
