@@ -1,12 +1,15 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { normalizeRole } from '@/lib/permissions'
 import { CandidatesBoard } from './candidates-board'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CandidatosPage() {
+  await requirePermission('candidatos.ver')
   const supabase = await createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const role = ((user?.user_metadata?.role as string | undefined) === 'recrutador' ? 'recrutador' : 'master') as 'master' | 'recrutador'
+  const role = (normalizeRole(user?.user_metadata?.role as string | undefined) === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
 
   const [{ data: candidates }, { data: jobs }, { data: settings }] = await Promise.all([
     supabase

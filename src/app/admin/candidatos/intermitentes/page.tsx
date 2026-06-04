@@ -1,3 +1,4 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { ArrowLeft, Users, CalendarClock } from 'lucide-react'
@@ -7,6 +8,7 @@ import { countFichaPending, countCompanyPending } from '@/lib/doc-pendency'
 export const dynamic = 'force-dynamic'
 
 export default async function IntermitentesPage() {
+  await requirePermission('colaboradores.ver')
   const supabase = await createSupabaseServiceClient()
 
   const { data: candidates } = await supabase

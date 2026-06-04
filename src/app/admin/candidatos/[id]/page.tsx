@@ -25,6 +25,8 @@ import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
 import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
+import { requirePermission } from '@/lib/auth-guard'
+import { normalizeRole } from '@/lib/permissions'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
@@ -123,6 +125,7 @@ export default async function CandidatePage({
   params: Promise<{ id: string }>
   searchParams: Promise<Record<string, string>>
 }) {
+  await requirePermission('candidatos.ver')
   const { id } = await params
   const sp = await searchParams
   const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'clima' | 'registros' =
@@ -143,7 +146,7 @@ export default async function CandidatePage({
   const supabase = await createSupabaseServerClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  const role = ((user?.user_metadata?.role as string | undefined) === 'recrutador' ? 'recrutador' : 'master') as 'master' | 'recrutador'
+  const role = (normalizeRole(user?.user_metadata?.role as string | undefined) === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
   const isMaster = role === 'master'
 
   const { data: candidate } = await supabase

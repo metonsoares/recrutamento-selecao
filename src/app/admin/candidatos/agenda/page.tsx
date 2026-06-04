@@ -1,9 +1,11 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AgendaManager } from './agenda-manager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AgendaEntrevistasPage() {
+  await requirePermission('agenda.ver')
   const supabase = await createSupabaseServiceClient()
 
   const [{ data: locations }, { data: interviewers }, { data: interviews }] = await Promise.all([

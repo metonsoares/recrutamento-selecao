@@ -1,3 +1,4 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { IaSettingsForm } from './ia-settings-form'
 
@@ -24,6 +25,7 @@ type AiSettingsRow = {
 }
 
 export default async function IaConfigPage() {
+  await requirePermission('config.ia')
   const supabase = await createSupabaseServerClient()
   const { data: settings } = await supabase
     .from('ai_settings')

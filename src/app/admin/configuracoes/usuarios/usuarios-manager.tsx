@@ -7,8 +7,17 @@ import {
   AlertCircle, X, Eye, EyeOff, ShieldCheck, User, Crown, UserCog,
 } from 'lucide-react'
 import { formatDate } from '@/lib/helpers'
+import { ALL_ROLES, ROLE_LABELS, type Role } from '@/lib/permissions'
 
-type UserRole = 'master' | 'recrutador'
+type UserRole = Role
+
+const ROLE_DESC: Record<Role, string> = {
+  master: 'Acesso total ao sistema',
+  recrutador: 'Candidatos, agenda e resultados',
+  rh: 'Recrutamento + fichas e colaboradores',
+  gestor: 'Candidatos, agenda e resultados (gestão)',
+  operador: 'Sem acesso ao painel',
+}
 
 interface AdminUser {
   id: string
@@ -252,7 +261,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                       <UserCog className="w-3 h-3" />
-                      Recrutador
+                      {ROLE_LABELS[u.role]}
                     </span>
                   )}
                   {isMe && (
@@ -312,7 +321,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1.5 block">Perfil de acesso *</label>
               <div className="grid grid-cols-2 gap-2">
-                {(['master', 'recrutador'] as UserRole[]).map(r => (
+                {ALL_ROLES.map(r => (
                   <button
                     key={r}
                     type="button"
@@ -320,9 +329,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                     className={[
                       'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
                       fRole === r
-                        ? r === 'master'
-                          ? 'border-amber-400 bg-amber-50'
-                          : 'border-blue-400 bg-blue-50'
+                        ? r === 'master' ? 'border-amber-400 bg-amber-50' : 'border-emerald-400 bg-emerald-50'
                         : 'border-gray-200 hover:border-gray-300',
                     ].join(' ')}
                   >
@@ -330,13 +337,9 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                       {r === 'master'
                         ? <Crown className="w-3.5 h-3.5 text-amber-600" />
                         : <UserCog className="w-3.5 h-3.5 text-blue-600" />}
-                      {r === 'master' ? 'Master' : 'Recrutador'}
+                      {ROLE_LABELS[r]}
                     </span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      {r === 'master'
-                        ? 'Acesso total ao sistema'
-                        : 'Visualiza candidatos apenas'}
-                    </span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">{ROLE_DESC[r]}</span>
                   </button>
                 ))}
               </div>
@@ -378,7 +381,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1.5 block">Perfil de acesso *</label>
               <div className="grid grid-cols-2 gap-2">
-                {(['master', 'recrutador'] as UserRole[]).map(r => (
+                {ALL_ROLES.map(r => (
                   <button
                     key={r}
                     type="button"
@@ -386,9 +389,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                     className={[
                       'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
                       fRole === r
-                        ? r === 'master'
-                          ? 'border-amber-400 bg-amber-50'
-                          : 'border-blue-400 bg-blue-50'
+                        ? r === 'master' ? 'border-amber-400 bg-amber-50' : 'border-emerald-400 bg-emerald-50'
                         : 'border-gray-200 hover:border-gray-300',
                     ].join(' ')}
                   >
@@ -396,13 +397,9 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                       {r === 'master'
                         ? <Crown className="w-3.5 h-3.5 text-amber-600" />
                         : <UserCog className="w-3.5 h-3.5 text-blue-600" />}
-                      {r === 'master' ? 'Master' : 'Recrutador'}
+                      {ROLE_LABELS[r]}
                     </span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      {r === 'master'
-                        ? 'Acesso total ao sistema'
-                        : 'Visualiza candidatos apenas'}
-                    </span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">{ROLE_DESC[r]}</span>
                   </button>
                 ))}
               </div>

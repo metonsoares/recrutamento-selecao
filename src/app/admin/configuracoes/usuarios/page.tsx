@@ -1,9 +1,12 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { normalizeRole } from '@/lib/permissions'
 import { UsuariosManager } from './usuarios-manager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function UsuariosPage() {
+  await requirePermission('config.usuarios_perfil')
   const [supabase, service] = await Promise.all([
     createSupabaseServerClient(),
     createSupabaseServiceClient(),
@@ -18,7 +21,7 @@ export default async function UsuariosPage() {
     id: u.id,
     email: u.email ?? '',
     name: (u.user_metadata?.full_name as string | undefined) ?? '',
-    role: ((u.user_metadata?.role as string | undefined) === 'recrutador' ? 'recrutador' : 'master') as 'master' | 'recrutador',
+    role: normalizeRole(u.user_metadata?.role as string | undefined),
     created_at: u.created_at,
     last_sign_in: u.last_sign_in_at ?? null,
   }))

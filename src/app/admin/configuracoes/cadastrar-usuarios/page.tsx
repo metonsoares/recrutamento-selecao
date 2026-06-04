@@ -1,9 +1,11 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { CadastrarUsuariosManager } from './cadastrar-usuarios-manager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CadastrarUsuariosPage() {
+  await requirePermission('config.usuarios_cadastro')
   const service = await createSupabaseServiceClient()
 
   // Usuários do sistema já cadastrados (com code no metadata)

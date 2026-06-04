@@ -1,3 +1,4 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { KanbanColunasForm } from './kanban-colunas-form'
 
@@ -16,6 +17,7 @@ export const DEFAULT_COLUMNS = [
 ] as const
 
 export default async function KanbanColunasPage() {
+  await requirePermission('config.kanban')
   const supabase = await createSupabaseServerClient()
   const { data: settings } = await supabase
     .from('ai_settings')

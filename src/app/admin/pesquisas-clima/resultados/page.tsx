@@ -1,14 +1,13 @@
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { ResultadosManager } from './resultados-manager'
+import { requirePermission } from '@/lib/auth-guard'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ResultadosPage({ searchParams }: { searchParams: Promise<{ survey?: string }> }) {
   const { survey } = await searchParams
-
-  const authClient = await createSupabaseServerClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  const isMaster = (user?.user_metadata?.role as string | undefined) !== 'recrutador'
+  const role = await requirePermission('pesquisas.resultados')
+  const isMaster = role === 'master'
 
   const supabase = await createSupabaseServiceClient()
   const { data: surveys } = await supabase

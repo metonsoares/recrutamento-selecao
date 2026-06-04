@@ -1,9 +1,11 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { CadastrarPesquisaManager } from './cadastrar-pesquisa-manager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CadastrarPesquisasPage() {
+  await requirePermission('pesquisas.cadastrar')
   const supabase = await createSupabaseServiceClient()
 
   const [{ data: surveys }, { data: companiesData }, { data: candidates }] = await Promise.all([

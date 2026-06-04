@@ -1,3 +1,4 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { ArrowLeft, Users, Briefcase } from 'lucide-react'
@@ -6,6 +7,7 @@ import { FreelancersTable } from './freelancers-table'
 export const dynamic = 'force-dynamic'
 
 export default async function FreelancersPage() {
+  await requirePermission('colaboradores.ver')
   const supabase = await createSupabaseServerClient()
 
   const { data: candidates } = await supabase

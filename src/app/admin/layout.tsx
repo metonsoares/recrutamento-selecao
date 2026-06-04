@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AdminNav } from '@/components/admin/sidebar'
+import { normalizeRole } from '@/lib/permissions'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createSupabaseServerClient()
@@ -8,9 +9,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
-  const role = ((user.user_metadata?.role as string | undefined) === 'recrutador'
-    ? 'recrutador'
-    : 'master') as 'master' | 'recrutador'
+  const role = normalizeRole(user.user_metadata?.role as string | undefined)
+
+  // Operador não tem nenhuma permissão de acesso ao painel
+  if (role === 'operador') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-6 text-center">
+        <div className="max-w-sm">
+          <h1 className="text-xl font-bold text-gray-900">Acesso restrito</h1>
+          <p className="text-sm text-muted-foreground mt-2">Seu perfil não tem permissão para acessar o painel administrativo. Fale com um administrador.</p>
+        </div>
+      </div>
+    )
+  }
 
   // Fetch branding from ai_settings (service client to bypass RLS)
   const serviceClient = await createSupabaseServiceClient()

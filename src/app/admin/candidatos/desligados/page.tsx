@@ -1,3 +1,4 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { ArrowLeft, Users, UserMinus } from 'lucide-react'
@@ -6,6 +7,7 @@ import { DesligadosTable } from './desligados-table'
 export const dynamic = 'force-dynamic'
 
 export default async function DesligadosPage() {
+  await requirePermission('colaboradores.ver')
   const supabase = await createSupabaseServiceClient()
 
   const { data: candidates } = await supabase

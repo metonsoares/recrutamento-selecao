@@ -1,3 +1,4 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { ArrowLeft, Users, FileSignature } from 'lucide-react'
@@ -6,6 +7,7 @@ import { EmContratoTable } from './em-contrato-table'
 export const dynamic = 'force-dynamic'
 
 export default async function EmContratoPage() {
+  await requirePermission('colaboradores.ver')
   const supabase = await createSupabaseServiceClient()
 
   const { data: candidates } = await supabase

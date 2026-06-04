@@ -12,8 +12,9 @@ import {
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { can, canAny, type Role } from '@/lib/permissions'
 
-type UserRole = 'master' | 'recrutador'
+type UserRole = Role
 
 // ─── Estilos base dos itens ───────────────────────────────────────────────────
 
@@ -46,6 +47,15 @@ function SidebarContent({
   const router = useRouter()
 
   const isMaster = role === 'master'
+  // Atalhos de permissão
+  const showCurriculosGroup = can(role, 'candidatos.ver') || can(role, 'agenda.ver') ||
+    canAny(role, ['curriculos.secoes', 'curriculos.vagas', 'curriculos.teste_cultural'])
+  const showConfigCurriculosGroup = canAny(role, ['curriculos.secoes', 'curriculos.vagas', 'curriculos.teste_cultural'])
+  const showColaboradores = can(role, 'colaboradores.ver')
+  const showPesquisasGroup = canAny(role, ['pesquisas.cadastrar', 'pesquisas.resultados'])
+  const showPlataformaGroup = canAny(role, ['config.whatsapp', 'config.ia', 'config.empresa_cadastro', 'config.empresa_cultura', 'config.usuarios_perfil', 'config.usuarios_cadastro'])
+  const showEmpresaGroup = canAny(role, ['config.empresa_cadastro', 'config.empresa_cultura'])
+  const showUsuariosGroup = canAny(role, ['config.usuarios_perfil', 'config.usuarios_cadastro'])
 
   // ── Grupos ────────────────────────────────────────────────────────────────
   const COLAB_PATHS = ['/admin/candidatos/em-contrato', '/admin/candidatos/contratados', '/admin/candidatos/intermitentes', '/admin/candidatos/freelancers', '/admin/candidatos/desligados']
@@ -116,6 +126,7 @@ function SidebarContent({
       <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
 
         {/* Dashboard */}
+        {can(role, 'dashboard.ver') && (
         <Link
           href="/admin"
           onClick={go}
@@ -124,8 +135,10 @@ function SidebarContent({
           <LayoutDashboard className="w-[15px] h-[15px] shrink-0 opacity-60" />
           Dashboard
         </Link>
+        )}
 
         {/* Currículos ▾ */}
+        {showCurriculosGroup && (
         <div>
           <button onClick={() => setCurriculosOpen(o => !o)} className={cn(NAV_BASE, inCurriculos || inConfigCurriculos ? NAV_ACTIVE : NAV_DEFAULT)}>
             <ClipboardList className="w-[15px] h-[15px] shrink-0 opacity-60" />
@@ -134,13 +147,17 @@ function SidebarContent({
           </button>
           {curriculosOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              {can(role, 'candidatos.ver') && (
               <Link href="/admin/candidatos" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Users className="w-3 h-3 shrink-0 opacity-50" />Candidatos
               </Link>
+              )}
+              {can(role, 'agenda.ver') && (
               <Link href="/admin/candidatos/agenda" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/agenda') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <CalendarClock className="w-3 h-3 shrink-0 opacity-50" />Agenda de entrevistas
               </Link>
-              {isMaster && (
+              )}
+              {showConfigCurriculosGroup && (
                 <div>
                   <button onClick={() => setConfigCurriculosOpen(o => !o)} className={cn(DEEP_BASE, inConfigCurriculos ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                     <Settings2 className="w-3 h-3 shrink-0 opacity-50" />
@@ -149,15 +166,21 @@ function SidebarContent({
                   </button>
                   {configCurriculosOpen && (
                     <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
+                      {can(role, 'curriculos.secoes') && (
                       <Link href="/admin/secoes" onClick={go} className={cn(DEEP_BASE, (pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario')) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                         <Layers className="w-3 h-3 shrink-0 opacity-50" />Seções e perguntas
                       </Link>
+                      )}
+                      {can(role, 'curriculos.vagas') && (
                       <Link href="/admin/vagas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/vagas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                         <Briefcase className="w-3 h-3 shrink-0 opacity-50" />Vagas
                       </Link>
+                      )}
+                      {can(role, 'curriculos.teste_cultural') && (
                       <Link href="/admin/teste-cultural" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/teste-cultural') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                         <FlaskConical className="w-3 h-3 shrink-0 opacity-50" />Teste cultural
                       </Link>
+                      )}
                     </div>
                   )}
                 </div>
@@ -165,8 +188,10 @@ function SidebarContent({
             </div>
           )}
         </div>
+        )}
 
         {/* Colaboradores ▾ */}
+        {showColaboradores && (
         <div>
           <button onClick={() => setColaboradoresOpen(o => !o)} className={cn(NAV_BASE, inColaboradores ? NAV_ACTIVE : NAV_DEFAULT)}>
             <UserCheck className="w-[15px] h-[15px] shrink-0 opacity-60" />
@@ -193,8 +218,10 @@ function SidebarContent({
             </div>
           )}
         </div>
+        )}
 
         {/* Pesquisas de clima ▾ */}
+        {showPesquisasGroup && (
         <div>
           <button onClick={() => setPesquisasOpen(o => !o)} className={cn(NAV_BASE, inPesquisas ? NAV_ACTIVE : NAV_DEFAULT)}>
             <ClipboardList className="w-[15px] h-[15px] shrink-0 opacity-60" />
@@ -203,42 +230,53 @@ function SidebarContent({
           </button>
           {pesquisasOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              {can(role, 'pesquisas.cadastrar') && (
               <Link href="/admin/pesquisas-clima/cadastrar" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/pesquisas-clima/cadastrar') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Cadastrar pesquisas
               </Link>
+              )}
+              {can(role, 'pesquisas.resultados') && (
               <Link href="/admin/pesquisas-clima/resultados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/pesquisas-clima/resultados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <BarChart3 className="w-3 h-3 shrink-0 opacity-50" />Ver resultados
               </Link>
+              )}
             </div>
           )}
         </div>
+        )}
 
         {/* Documentos empresa */}
-        {isMaster && (
+        {can(role, 'documentos_empresa') && (
           <Link href="/admin/documentos-empresa" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/documentos-empresa') ? NAV_ACTIVE : NAV_DEFAULT)}>
             <FolderArchive className="w-[15px] h-[15px] shrink-0 opacity-60" />
             Documentos empresa
           </Link>
         )}
 
-        {/* ── Itens visíveis apenas para Master ── */}
+        {can(role, 'whatsapp.ver') && (
+          <Link href="/admin/whatsapp" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/whatsapp') ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <MessageSquare className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            Mensagens WhatsApp
+          </Link>
+        )}
+
+        {can(role, 'relatorios.ver') && (
+          <Link href="/admin/relatorios" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <BarChart3 className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            Relatórios
+          </Link>
+        )}
+
         {isMaster && (
+          <Link href="/admin/auditoria" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/auditoria') ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <ShieldCheck className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            Auditoria
+          </Link>
+        )}
+
+        {/* ── Configurações da plataforma ── */}
+        {showPlataformaGroup && (
           <>
-            <Link href="/admin/whatsapp" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/whatsapp') ? NAV_ACTIVE : NAV_DEFAULT)}>
-              <MessageSquare className="w-[15px] h-[15px] shrink-0 opacity-60" />
-              Mensagens WhatsApp
-            </Link>
-
-            <Link href="/admin/relatorios" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}>
-              <BarChart3 className="w-[15px] h-[15px] shrink-0 opacity-60" />
-              Relatórios
-            </Link>
-
-            <Link href="/admin/auditoria" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/auditoria') ? NAV_ACTIVE : NAV_DEFAULT)}>
-              <ShieldCheck className="w-[15px] h-[15px] shrink-0 opacity-60" />
-              Auditoria
-            </Link>
-
             {/* ── Separador: Configurações ─────────────────────── */}
             <div className="pt-4 pb-1 px-3">
               <span className="text-[11px] font-medium text-[#8a8a8a] uppercase tracking-widest select-none">
@@ -255,14 +293,19 @@ function SidebarContent({
               </button>
               {plataformaOpen && (
                 <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+                  {can(role, 'config.whatsapp') && (
                   <Link href="/admin/configuracoes/whatsapp" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/whatsapp') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                     <Zap className="w-3 h-3 shrink-0 opacity-50" />WhatsApp / Z-API
                   </Link>
+                  )}
+                  {can(role, 'config.ia') && (
                   <Link href="/admin/configuracoes/ia" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/ia') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                     <BrainCircuit className="w-3 h-3 shrink-0 opacity-50" />Configuração IA
                   </Link>
+                  )}
 
                   {/* Empresa ▾ */}
+                  {showEmpresaGroup && (
                   <div>
                     <button onClick={() => setEmpresaOpen(o => !o)} className={cn(DEEP_BASE, inEmpresa ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                       <Building2 className="w-3 h-3 shrink-0 opacity-50" />
@@ -271,17 +314,23 @@ function SidebarContent({
                     </button>
                     {empresaOpen && (
                       <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
+                        {can(role, 'config.empresa_cadastro') && (
                         <Link href="/admin/configuracoes/cadastro-empresa" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cadastro de empresa
                         </Link>
+                        )}
+                        {can(role, 'config.empresa_cultura') && (
                         <Link href="/admin/configuracoes/empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cultura da empresa
                         </Link>
+                        )}
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Usuários ▾ */}
+                  {showUsuariosGroup && (
                   <div>
                     <button onClick={() => setUsuariosOpen(o => !o)} className={cn(DEEP_BASE, inUsuarios ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                       <Users className="w-3 h-3 shrink-0 opacity-50" />
@@ -290,15 +339,20 @@ function SidebarContent({
                     </button>
                     {usuariosOpen && (
                       <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
+                        {can(role, 'config.usuarios_perfil') && (
                         <Link href="/admin/configuracoes/usuarios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <UserCheck className="w-3 h-3 shrink-0 opacity-50" />Perfil de usuário
                         </Link>
+                        )}
+                        {can(role, 'config.usuarios_cadastro') && (
                         <Link href="/admin/configuracoes/cadastrar-usuarios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastrar-usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <Users className="w-3 h-3 shrink-0 opacity-50" />Cadastro de usuários
                         </Link>
+                        )}
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
               )}
             </div>

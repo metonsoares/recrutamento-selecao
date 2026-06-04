@@ -1,9 +1,11 @@
+import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
 export default async function RelatoriosPage() {
+  await requirePermission('relatorios.ver')
   const supabase = await createSupabaseServerClient()
 
   const { data: candidates } = await supabase
