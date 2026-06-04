@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import {
-  ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink, Upload,
+  ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink, Upload, Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,8 +11,8 @@ interface Employee { id: string; name: string; status: string; empresa: string }
 interface QOption { text: string; weight: string }
 interface Question { id: string; text: string; type: 'texto' | 'multipla'; options: QOption[] }
 interface Survey {
-  id: string; title: string; company_name: string | null; token: string
-  target_candidate_ids: string[]; questions: unknown[]
+  id: string; title: string; description?: string | null; company_name: string | null; token: string
+  target_statuses?: string[]; target_candidate_ids: string[]; questions: unknown[]
   climate_responses?: { count: number }[]
 }
 
@@ -31,6 +31,7 @@ function genId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ?
 export function CadastrarPesquisaManager({ initialSurveys, companyOptions, employees, appUrl }: Props) {
   const [surveys, setSurveys] = useState<Survey[]>(initialSurveys)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [linkModal, setLinkModal] = useState<Survey | null>(null)
 
@@ -47,8 +48,23 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
 
   function openModal() {
+    setEditingId(null)
     setTitle(''); setDescription(''); setCompany(''); setStatuses(new Set()); setSelectedEmp(new Set())
     setQuestions([{ id: genId(), text: '', type: 'multipla', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }])
+    setError(''); setModalOpen(true)
+  }
+
+  function openEdit(s: Survey) {
+    setEditingId(s.id)
+    setTitle(s.title || ''); setDescription(s.description || ''); setCompany(s.company_name || '')
+    setStatuses(new Set(s.target_statuses || []))
+    setSelectedEmp(new Set(s.target_candidate_ids || []))
+    type PQ = { id?: string; text: string; type?: 'texto' | 'multipla'; options?: { text: string; weight: number }[] }
+    const qs = (s.questions || []) as PQ[]
+    setQuestions(qs.map(q => ({
+      id: q.id || genId(), text: q.text || '', type: q.type === 'texto' ? 'texto' : 'multipla',
+      options: (q.options || []).map(o => ({ text: o.text, weight: String(o.weight ?? 0) })),
+    })))
     setError(''); setModalOpen(true)
   }
 
@@ -115,14 +131,20 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
         target_candidate_ids: Array.from(selectedEmp),
         questions: questions.map(q => ({ id: q.id, text: q.text, type: q.type, options: q.type === 'texto' ? [] : q.options.map(o => ({ text: o.text, weight: Number(o.weight) || 0 })) })),
       }
-      const res = await fetch('/api/admin/climate-surveys', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      const res = await fetch(editingId ? `/api/admin/climate-surveys/${editingId}` : '/api/admin/climate-surveys', {
+        method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
       const d = await res.json(); if (!res.ok) throw new Error(d.error)
-      setSurveys(prev => [d.survey, ...prev])
-      setModalOpen(false)
-      setLinkModal(d.survey)
-      showToast('ok', 'Pesquisa criada!')
+      if (editingId) {
+        setSurveys(prev => prev.map(s => s.id === editingId ? { ...s, ...d.survey } : s))
+        setModalOpen(false)
+        showToast('ok', 'Pesquisa atualizada!')
+      } else {
+        setSurveys(prev => [d.survey, ...prev])
+        setModalOpen(false)
+        setLinkModal(d.survey)
+        showToast('ok', 'Pesquisa criada!')
+      }
     } catch (e) { setError((e as Error).message || 'Erro ao salvar.') }
     finally { setSaving(false) }
   }
@@ -166,6 +188,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
                 {s.company_name || 'Todas as empresas'} · {(s.target_candidate_ids?.length || 0)} funcionário(s) · {(s.questions?.length || 0)} pergunta(s) · {s.climate_responses?.[0]?.count ?? 0} resposta(s)
               </p>
             </div>
+            <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Editar"><Pencil className="w-4 h-4" /></button>
             <button onClick={() => setLinkModal(s)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Link / QR Code"><QrCode className="w-4 h-4" /></button>
             <button onClick={() => handleDelete(s.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" title="Remover"><Trash2 className="w-4 h-4" /></button>
           </div>
@@ -177,7 +200,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-base font-semibold text-gray-900">Nova pesquisa de clima</h2>
+              <h2 className="text-base font-semibold text-gray-900">{editingId ? 'Editar pesquisa de clima' : 'Nova pesquisa de clima'}</h2>
               <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-4">
@@ -280,7 +303,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><Plus className="w-3.5 h-3.5" />Criar pesquisa</>}
+                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : editingId ? <><CheckCircle2 className="w-3.5 h-3.5" />Salvar alterações</> : <><Plus className="w-3.5 h-3.5" />Criar pesquisa</>}
               </Button>
             </div>
           </div>
