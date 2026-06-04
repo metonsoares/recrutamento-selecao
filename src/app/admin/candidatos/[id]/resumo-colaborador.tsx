@@ -3,6 +3,7 @@ import { formatDate } from '@/lib/helpers'
 import {
   CalendarClock, User, Plane, AlertTriangle, Briefcase,
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
+  ClipboardList, FolderArchive,
 } from 'lucide-react'
 
 interface Props {
@@ -21,6 +22,9 @@ interface Props {
   warningsCount: number
   /** Versão enxuta (freelancer/intermitente): oculta cargo, admissão, tempo de casa, advertências, salário */
   minimal?: boolean
+  candidateId?: string
+  fichaPending?: number          // pendências na Ficha de Admissão
+  companyDocsPending?: number    // pendências em Documentos
 }
 
 // ─── Helpers de tempo ─────────────────────────────────────────────────────────
@@ -47,7 +51,7 @@ export function ResumoColaborador({
   fullName, jobTitle, companyName, statusLabel,
   cpf, phone, email, city, age,
   admissionDate, salary, registeredAt, warningsCount,
-  minimal = false,
+  minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0,
 }: Props) {
   const now = new Date()
   const admission = admissionDate ? new Date(admissionDate + 'T00:00:00') : null
@@ -153,6 +157,32 @@ export function ResumoColaborador({
           </div>
         )
       })()}
+
+      {/* ── Pendências de documentos ── */}
+      {(fichaPending > 0 || companyDocsPending > 0) && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="font-semibold text-sm text-gray-900 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            Pendências de documentos
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {fichaPending > 0 && (
+              <a href={candidateId ? `/admin/candidatos/${candidateId}?tab=ficha` : '#'}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors">
+                <ClipboardList className="w-3.5 h-3.5" />
+                Ficha de Admissão — {fichaPending} pendente{fichaPending !== 1 ? 's' : ''}
+              </a>
+            )}
+            {companyDocsPending > 0 && (
+              <a href={candidateId ? `/admin/candidatos/${candidateId}?tab=documentos` : '#'}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors">
+                <FolderArchive className="w-3.5 h-3.5" />
+                Documentos — {companyDocsPending} pendente{companyDocsPending !== 1 ? 's' : ''}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

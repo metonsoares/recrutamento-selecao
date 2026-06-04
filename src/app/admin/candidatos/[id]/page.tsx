@@ -16,6 +16,7 @@ import { DocumentosTab } from './documentos-tab'
 import { AdvertenciasTab } from './advertencias-tab'
 import { DadosBancariosTab, BankData } from './dados-bancarios-tab'
 import { ResumoColaborador } from './resumo-colaborador'
+import { countFichaPending, countCompanyPending } from '@/lib/doc-pendency'
 import { FeriasTab } from './ferias-tab'
 import { AtestadosTab } from './atestados-tab'
 import { DadosContratoTab, ContractData } from './dados-contrato-tab'
@@ -486,6 +487,9 @@ export default async function CandidatePage({
             registeredAt={candidate.created_at}
             warningsCount={(warningsData || []).length}
             minimal={minimalResumo}
+            candidateId={id}
+            fichaPending={showFicha ? countFichaPending(admissionForm) : 0}
+            companyDocsPending={showDocumentos ? countCompanyPending(companyDocs) : 0}
           />
         </div>
       )}
