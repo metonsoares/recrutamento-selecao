@@ -322,7 +322,6 @@ export function CandidateActions({
   const [cultureOpen, setCultureOpen] = useState(false)
   const [bgCheckOpen, setBgCheckOpen] = useState(false)
   const [confirmReanalyze, setConfirmReanalyze] = useState(false)
-  const [desligarOpen, setDesligarOpen] = useState(false)
   const bypassConfirm = useRef(false)
   const [bgCheckResult, setBgCheckResult] = useState<BackgroundCheckResult | null>(initialBackgroundCheck ?? null)
   const [bgCheckAt, setBgCheckAt] = useState<string | null>(initialBackgroundCheckAt ?? null)
@@ -528,46 +527,6 @@ export function CandidateActions({
           </Button>
         )}
 
-        {/* Desligar funcionário → status desligado (contratado / intermitente) */}
-        {applicationId && (status === 'contratado' || status === 'aprovado') && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={savingStatus}
-            onClick={() => setDesligarOpen(true)}
-            className="gap-1 border-rose-300 text-rose-700 hover:bg-rose-50"
-          >
-            <UserMinus className="w-4 h-4" />
-            Desligar funcionário
-          </Button>
-        )}
-
-        {/* Modal de confirmação de desligamento */}
-        {desligarOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <UserMinus className="w-5 h-5 text-rose-600" />
-                <h2 className="text-base font-semibold text-gray-900">Desligar funcionário</h2>
-              </div>
-              <p className="text-sm text-gray-600">
-                Confirmar o desligamento deste funcionário? O status passará para <strong>Desligado</strong> e ele será listado em <em>Colaboradores → Desligados</em>.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setDesligarOpen(false)} disabled={savingStatus}>Cancelar</Button>
-                <Button
-                  variant="destructive"
-                  disabled={savingStatus}
-                  onClick={async () => { await handleStatusChange('desligado'); setDesligarOpen(false) }}
-                  className="gap-1.5"
-                >
-                  <UserMinus className="w-3.5 h-3.5" />
-                  Desligar
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Analisar IA */}
         {applicationId && (

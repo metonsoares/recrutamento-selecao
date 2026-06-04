@@ -9,6 +9,7 @@ import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
 import { DeleteCandidateSection } from './delete-candidate-section'
+import { DesligarFuncionarioButton } from './desligar-funcionario'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
@@ -754,7 +755,12 @@ export default async function CandidatePage({
         </div>
       </div>
 
-      {/* ── Remover Currículo ── */}
+      {/* ── Desligar funcionário (rodapé) ── */}
+      {isMaster && ['contratado', 'aprovado'].includes(currentStatus) && (
+        <DesligarFuncionarioButton applicationId={latestApp?.id} />
+      )}
+
+      {/* ── Zona de perigo — somente Master ── */}
       {isMaster && <DeleteCandidateSection candidateId={id} candidateName={candidate.full_name} />}
 
       </> /* fim aba Currículo */}
