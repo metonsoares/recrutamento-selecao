@@ -1,7 +1,8 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink, Upload, Pencil,
+  ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink, Upload, Pencil, BarChart3, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +14,7 @@ interface Question { id: string; text: string; type: 'texto' | 'multipla'; optio
 interface Survey {
   id: string; title: string; description?: string | null; company_name: string | null; token: string
   target_statuses?: string[]; target_candidate_ids: string[]; questions: unknown[]
+  result_guide?: string | null
   climate_responses?: { count: number }[]
 }
 
@@ -29,6 +31,7 @@ const STATUS_KEYS: CandidateStatus[] = ['freelancer', 'em_contrato', 'contratado
 function genId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()) }
 
 export function CadastrarPesquisaManager({ initialSurveys, companyOptions, employees, appUrl }: Props) {
+  const router = useRouter()
   const [surveys, setSurveys] = useState<Survey[]>(initialSurveys)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -42,6 +45,8 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
   const [statuses, setStatuses] = useState<Set<string>>(new Set())
   const [selectedEmp, setSelectedEmp] = useState<Set<string>>(new Set())
   const [questions, setQuestions] = useState<Question[]>([])
+  const [resultGuide, setResultGuide] = useState('')
+  const [importingGuide, setImportingGuide] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -51,6 +56,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
     setEditingId(null)
     setTitle(''); setDescription(''); setCompany(''); setStatuses(new Set()); setSelectedEmp(new Set())
     setQuestions([{ id: genId(), text: '', type: 'multipla', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }])
+    setResultGuide('')
     setError(''); setModalOpen(true)
   }
 
@@ -65,6 +71,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
       id: q.id || genId(), text: q.text || '', type: q.type === 'texto' ? 'texto' : 'multipla',
       options: (q.options || []).map(o => ({ text: o.text, weight: String(o.weight ?? 0) })),
     })))
+    setResultGuide(s.result_guide || '')
     setError(''); setModalOpen(true)
   }
 
@@ -97,6 +104,28 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
     finally { setImporting(false); if (e.target) e.target.value = '' }
   }
 
+  async function handleGuide(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return
+    setImportingGuide(true); setError('')
+    const fd = new FormData(); fd.append('file', f)
+    fd.append('questions', questions.map((q, i) => `${i + 1}. ${q.text}`).join('\n'))
+    try {
+      const res = await fetch('/api/admin/climate-surveys/parse-guide', { method: 'POST', body: fd })
+      const raw = await res.text()
+      let d: { error?: string; guide?: string }
+      try { d = JSON.parse(raw) } catch {
+        throw new Error(res.status === 504 || res.status === 408
+          ? 'O processamento demorou demais. Tente novamente.'
+          : 'Não foi possível processar o arquivo. Tente novamente.')
+      }
+      if (!res.ok) throw new Error(d.error || 'Erro ao importar.')
+      if (!d.guide) throw new Error('Não foi possível extrair as instruções do arquivo.')
+      setResultGuide(d.guide)
+      showToast('ok', 'Instruções de resultado importadas e interpretadas pela IA.')
+    } catch (err) { setError((err as Error).message || 'Erro ao importar arquivo.') }
+    finally { setImportingGuide(false); if (e.target) e.target.value = '' }
+  }
+
   const elegiveis = useMemo(() => employees.filter(e =>
     (STATUS_KEYS as string[]).includes(e.status) &&
     (!company || e.empresa === company) &&
@@ -105,6 +134,15 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
 
   function toggleStatus(s: string) { setStatuses(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n }) }
   function toggleEmp(id: string) { setSelectedEmp(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  const allSelected = elegiveis.length > 0 && elegiveis.every(e => selectedEmp.has(e.id))
+  function toggleAllEmp() {
+    setSelectedEmp(p => {
+      const n = new Set(p)
+      if (allSelected) elegiveis.forEach(e => n.delete(e.id))
+      else elegiveis.forEach(e => n.add(e.id))
+      return n
+    })
+  }
 
   function addQuestion() { setQuestions(p => [...p, { id: genId(), text: '', type: 'multipla', options: [{ text: '', weight: '10' }, { text: '', weight: '0' }] }]) }
   function updQuestion(id: string, patch: Partial<Question>) { setQuestions(p => p.map(q => q.id === id ? { ...q, ...patch } : q)) }
@@ -130,6 +168,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
         target_statuses: Array.from(statuses),
         target_candidate_ids: Array.from(selectedEmp),
         questions: questions.map(q => ({ id: q.id, text: q.text, type: q.type, options: q.type === 'texto' ? [] : q.options.map(o => ({ text: o.text, weight: Number(o.weight) || 0 })) })),
+        result_guide: resultGuide || null,
       }
       const res = await fetch(editingId ? `/api/admin/climate-surveys/${editingId}` : '/api/admin/climate-surveys', {
         method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -189,6 +228,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
               </p>
             </div>
             <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Editar"><Pencil className="w-4 h-4" /></button>
+            <button onClick={() => router.push(`/admin/pesquisas-clima/resultados?survey=${s.id}`)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Ver resultados"><BarChart3 className="w-4 h-4" /></button>
             <button onClick={() => setLinkModal(s)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Link / QR Code"><QrCode className="w-4 h-4" /></button>
             <button onClick={() => handleDelete(s.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" title="Remover"><Trash2 className="w-4 h-4" /></button>
           </div>
@@ -237,7 +277,14 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
 
               {/* Funcionários */}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Funcionários ({selectedEmp.size} selecionados de {elegiveis.length})</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-gray-600">Funcionários ({selectedEmp.size} selecionados de {elegiveis.length})</label>
+                  {elegiveis.length > 0 && (
+                    <button type="button" onClick={toggleAllEmp} className="text-[11px] font-medium text-primary hover:underline">
+                      {allSelected ? 'Limpar seleção' : 'Selecionar todos'}
+                    </button>
+                  )}
+                </div>
                 <div className="border rounded-lg max-h-40 overflow-y-auto divide-y">
                   {elegiveis.length === 0 && <p className="text-[12px] text-muted-foreground text-center py-3">Ajuste empresa/status para listar funcionários.</p>}
                   {elegiveis.map(e => (
@@ -296,6 +343,24 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
                     )}
                   </div>
                 ))}
+              </div>
+
+              {/* Guia de resultados (IA) */}
+              <div className="space-y-1.5 border-t pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" />Instruções de resultado</label>
+                  <label className="flex items-center gap-1.5 text-[12px] font-medium text-primary cursor-pointer hover:underline w-fit">
+                    {importingGuide ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    Importar .docx
+                    <input type="file" accept=".docx" className="hidden" onChange={handleGuide} disabled={importingGuide} />
+                  </label>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Envie um arquivo com as instruções de como interpretar/pontuar e gerar os resultados. A IA interpreta e usa esse guia para analisar cada formulário preenchido. Você também pode editar o texto abaixo.
+                </p>
+                <textarea value={resultGuide} onChange={e => setResultGuide(e.target.value)} rows={5}
+                  placeholder="Instruções de interpretação dos resultados (faixas de pontuação, perfis, recomendações...). Importe um .docx ou escreva aqui."
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
 
               {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}

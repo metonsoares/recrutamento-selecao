@@ -15,6 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         target_statuses: b.target_statuses || [],
         target_candidate_ids: b.target_candidate_ids || [],
         questions: b.questions || [],
+        result_guide: b.result_guide ?? null,
       })
       .eq('id', id)
       .select().single()

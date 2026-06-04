@@ -1,24 +1,27 @@
 'use client'
-import { useState } from 'react'
-import { BarChart3, Loader2, Brain, FileDown, Users, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { BarChart3, Loader2, Brain, FileDown, Users, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface SurveyLite { id: string; title: string; company_name: string | null; climate_responses?: { count: number }[] }
 interface QOption { text: string; weight: number }
-interface Question { id: string; text: string; options: QOption[] }
-interface ResponseRow { id: string; candidate_id: string | null; total_score: number | null; max_score: number | null; answers: Record<string, number>; created_at: string }
+interface Question { id: string; text: string; type?: 'texto' | 'multipla'; options: QOption[] }
+interface ResponseRow { id: string; candidate_id: string | null; total_score: number | null; max_score: number | null; answers: Record<string, number | string>; created_at: string }
 
-interface Props { surveys: SurveyLite[] }
+interface Props { surveys: SurveyLite[]; initialSurveyId?: string }
 
-export function ResultadosManager({ surveys }: Props) {
+export function ResultadosManager({ surveys, initialSurveyId }: Props) {
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<{ survey: { title: string; company_name: string | null; questions: Question[] }; responses: ResponseRow[]; nameMap: Record<string, string> } | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysis, setAnalysis] = useState('')
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [respAnalysis, setRespAnalysis] = useState<Record<string, string>>({})
+  const [analyzingResp, setAnalyzingResp] = useState<Record<string, boolean>>({})
 
-  async function load(id: string) {
-    setSelectedId(id); setData(null); setAnalysis('')
+  const load = useCallback(async (id: string) => {
+    setSelectedId(id); setData(null); setAnalysis(''); setExpanded(new Set()); setRespAnalysis({}); setAnalyzingResp({})
     if (!id) return
     setLoading(true)
     try {
@@ -26,6 +29,22 @@ export function ResultadosManager({ surveys }: Props) {
       const json = await res.json()
       if (res.ok) setData(json)
     } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { if (initialSurveyId) load(initialSurveyId) }, [initialSurveyId, load])
+
+  function toggleExpand(id: string) { setExpanded(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+
+  async function analyzeResponse(responseId: string) {
+    if (!selectedId) return
+    setAnalyzingResp(p => ({ ...p, [responseId]: true }))
+    try {
+      const res = await fetch(`/api/admin/climate-surveys/${selectedId}/analyze-response`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ responseId }),
+      })
+      const json = await res.json()
+      setRespAnalysis(p => ({ ...p, [responseId]: json.analysis || json.error || 'Sem análise.' }))
+    } finally { setAnalyzingResp(p => ({ ...p, [responseId]: false })) }
   }
 
   async function analyze() {
@@ -47,18 +66,17 @@ export function ResultadosManager({ surveys }: Props) {
     const maxW = q.options.length ? Math.max(...q.options.map(o => Number(o.weight) || 0)) : 0
     let soma = 0, n = 0
     for (const r of responses) {
-      const idx = r.answers?.[q.id]
-      if (idx != null && q.options[idx]) { soma += Number(q.options[idx].weight) || 0; n++ }
+      const raw = r.answers?.[q.id]
+      const idx = typeof raw === 'number' ? raw : Number(raw)
+      if (raw != null && Number.isInteger(idx) && q.options[idx]) { soma += Number(q.options[idx].weight) || 0; n++ }
     }
     const media = n ? soma / n : 0
     return { text: q.text, aderencia: maxW ? Math.round((media / maxW) * 100) : 0 }
   })
   const mediaGeral = perQuestion.length ? Math.round(perQuestion.reduce((s, q) => s + q.aderencia, 0) / perQuestion.length) : 0
 
-  const perFunc = responses.map(r => {
-    const pct = r.max_score ? Math.round(((r.total_score || 0) / r.max_score) * 100) : 0
-    return { nome: r.candidate_id ? (data?.nameMap[r.candidate_id] || 'Identificado') : 'Anônimo', pct }
-  })
+  function respName(r: ResponseRow) { return r.candidate_id ? (data?.nameMap[r.candidate_id] || 'Identificado') : 'Anônimo' }
+  function respPct(r: ResponseRow) { return r.max_score ? Math.round(((r.total_score || 0) / r.max_score) * 100) : 0 }
 
   function tone(pct: number) { return pct >= 70 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600' }
   function bar(pct: number) { return pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400' }
@@ -139,15 +157,57 @@ export function ResultadosManager({ surveys }: Props) {
           {/* Por funcionário */}
           <div className="bg-white rounded-xl border p-5">
             <h2 className="text-sm font-bold text-gray-900 mb-3">Resultado por funcionário</h2>
-            <table className="w-full text-sm">
-              <thead><tr className="text-xs text-muted-foreground uppercase border-b"><th className="text-left py-1.5">Funcionário</th><th className="text-right py-1.5">Aderência</th></tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {perFunc.map((f, i) => (
-                  <tr key={i}><td className="py-2 text-gray-700">{f.nome}</td><td className={`py-2 text-right font-semibold ${tone(f.pct)}`}>{f.pct}%</td></tr>
-                ))}
-                {perFunc.length === 0 && <tr><td colSpan={2} className="py-4 text-center text-muted-foreground">Nenhuma resposta ainda.</td></tr>}
-              </tbody>
-            </table>
+            <div className="space-y-2">
+              {responses.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nenhuma resposta ainda.</p>}
+              {responses.map(r => {
+                const isOpen = expanded.has(r.id)
+                const pct = respPct(r)
+                return (
+                  <div key={r.id} className="rounded-lg border overflow-hidden">
+                    <button onClick={() => toggleExpand(r.id)} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-left print:hover:bg-transparent">
+                      {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 print:hidden" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0 print:hidden" />}
+                      <span className="flex-1 text-sm font-medium text-gray-800 truncate">{respName(r)}</span>
+                      <span className={`text-sm font-bold ${tone(pct)}`}>{pct}%</span>
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 pb-4 pt-1 space-y-3 border-t bg-gray-50/40">
+                        {/* Respostas detalhadas */}
+                        <div className="space-y-1.5 pt-2">
+                          {questions.map((q, qi) => {
+                            const a = r.answers?.[q.id]
+                            let resposta = '(não respondida)'
+                            if (q.type === 'texto') resposta = a ? String(a) : '(em branco)'
+                            else {
+                              const idx = typeof a === 'number' ? a : Number(a)
+                              const opt = q.options?.[idx]
+                              resposta = opt ? `${opt.text} (peso ${opt.weight})` : '(não respondida)'
+                            }
+                            return (
+                              <div key={q.id} className="text-[13px]">
+                                <p className="text-gray-600">{qi + 1}. {q.text}</p>
+                                <p className="text-gray-900 font-medium pl-3">↳ {resposta}</p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {/* Análise individual IA */}
+                        <div className="print:hidden">
+                          <Button size="sm" variant="outline" onClick={() => analyzeResponse(r.id)} disabled={analyzingResp[r.id]} className="gap-1.5 h-7">
+                            {analyzingResp[r.id] ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analisando...</> : <><Brain className="w-3.5 h-3.5" />Interpretar com IA</>}
+                          </Button>
+                        </div>
+                        {respAnalysis[r.id] && (
+                          <div className="bg-white rounded-lg border p-3">
+                            <p className="text-xs font-bold text-gray-900 mb-1 flex items-center gap-1.5"><Brain className="w-3.5 h-3.5" />Análise individual</p>
+                            <div className="text-[13px] text-gray-700 whitespace-pre-wrap leading-relaxed">{respAnalysis[r.id]}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           {/* Análise IA */}

@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
         target_statuses: b.target_statuses || [],
         target_candidate_ids: b.target_candidate_ids || [],
         questions: b.questions || [],
+        result_guide: b.result_guide || null,
         token: generateToken(),
         active: true,
       })

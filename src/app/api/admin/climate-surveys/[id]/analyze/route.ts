@@ -42,7 +42,7 @@ Aderência geral média: ${mediaGeral}%
 
 Resultados por pergunta (aderência = quão próximo do peso máximo, 0-100%):
 ${perQuestion.map(q => `- "${q.pergunta}": ${q.aderencia}% (média ${q.media})`).join('\n')}
-
+${survey.result_guide ? `\nGUIA DE INTERPRETAÇÃO DOS RESULTADOS (siga fielmente estes critérios ao classificar e recomendar):\n"""\n${String(survey.result_guide).slice(0, 8000)}\n"""\n` : ''}
 Escreva uma análise objetiva em português (4-6 parágrafos curtos) com:
 1. Diagnóstico geral do clima (positivo/atenção/crítico).
 2. Pontos fortes (maiores aderências).
