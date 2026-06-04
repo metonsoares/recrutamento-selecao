@@ -216,17 +216,42 @@ async function buildAiReply(
   const basePrompt = (aiSettings.whatsapp_agent_prompt as string) ||
     `Você é ${attendantName}, assistente virtual de RH do Brownie do Ton.`
 
+  // Se este número tem uma entrevista agendada, fornece o link REAL de cancelamento
+  let cancelInstruction = ''
+  try {
+    const publicBase = process.env.NEXT_PUBLIC_APP_URL || appUrl
+    const rawPhone = String(conversation?.phone || '').replace(/\D/g, '')
+    const local = rawPhone.startsWith('55') ? rawPhone.slice(2) : rawPhone
+    const { data: cand } = await supabase
+      .from('candidates').select('id')
+      .or(`phone_normalized.eq.${local},phone_normalized.eq.${rawPhone}`)
+      .limit(1).maybeSingle()
+    if (cand?.id) {
+      const { data: inv } = await supabase
+        .from('interview_invites').select('token')
+        .eq('candidate_id', cand.id).eq('status', 'agendada')
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (inv?.token) {
+        const cancelLink = `${publicBase}/entrevista/${inv.token}`
+        cancelInstruction = `Este candidato TEM uma entrevista agendada. Se ele quiser CANCELAR ou REMARCAR, responda com empatia e envie EXATAMENTE este link, sem inventar outro e sem enviar o link do currículo: ${cancelLink}`
+      }
+    }
+  } catch { /* ignore */ }
+
   const systemPrompt = [
     basePrompt,
     aiSettings.mission ? `Missão da empresa: ${aiSettings.mission}` : '',
     aiSettings.company_culture ? `Cultura: ${aiSettings.company_culture}` : '',
     '',
+    cancelInstruction ? `ATENÇÃO PRIORITÁRIA:\n${cancelInstruction}` : '',
+    cancelInstruction ? '' : '',
     'REGRA PRINCIPAL:',
-    `Sua única função é orientar o candidato a preencher o currículo NA PLATAFORMA. SEMPRE inclua o link ${formLink} em sua resposta.`,
+    `Oriente o candidato a preencher o currículo NA PLATAFORMA e inclua o link ${formLink}${cancelInstruction ? ' — EXCETO quando ele pedir para cancelar/remarcar uma entrevista (nesse caso use apenas o link de cancelamento informado acima)' : ', SEMPRE'}.`,
     '',
     'COMO RESPONDER:',
     '- Seja sempre breve (1 a 2 frases curtas, no máximo)',
     '- Tom amigável e acolhedor, mas direto',
+    '- NUNCA invente links. Use somente os links fornecidos neste prompt',
     '- Se o candidato perguntar sobre vagas, salário, processo, horários etc., diga educadamente que essas informações são tratadas após o envio do currículo pela plataforma e envie o link',
     '- Se o candidato disser apenas "oi", "olá", "tudo bem?", agradeça o contato e envie o link do currículo',
     '- Se já enviou o currículo, agradeça e diga que o RH entrará em contato em breve',

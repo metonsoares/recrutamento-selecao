@@ -1,5 +1,6 @@
 ﻿'use client'
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   CalendarClock, Plus, Trash2, Loader2, X, Settings2, MapPin, User, Clock,
   CheckCircle2, AlertCircle, Phone, Pencil,
@@ -30,6 +31,7 @@ function fmtDateKey(iso: string) { return new Date(iso).toLocaleDateString('pt-B
 function fmtTime(iso: string) { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) }
 
 export function AgendaManager({ initialLocations, initialInterviewers, initialInterviews }: Props) {
+  const router = useRouter()
   const [locations, setLocations] = useState<Location[]>(initialLocations)
   const [interviewers, setInterviewers] = useState<Interviewer[]>(initialInterviewers)
   const [interviews, setInterviews] = useState<Interview[]>(initialInterviews)
@@ -128,7 +130,8 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
               ) : (
                 <div className="divide-y">
                   {group.items.map(it => (
-                    <div key={it.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div key={it.id} onClick={() => it.candidate_id && router.push(`/admin/candidatos/${it.candidate_id}`)}
+                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
                       <div className="w-14 shrink-0 text-center">
                         <p className="text-sm font-bold text-gray-900">{fmtTime(it.scheduled_at)}</p>
                         <p className="text-[10px] text-muted-foreground">{new Date(it.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })}</p>
@@ -143,7 +146,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                           {it.interview_locations?.name && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{it.interview_locations.name}</span>}
                         </div>
                       </div>
-                      <button onClick={() => deleteInterview(it.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteInterview(it.id) }} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
                 </div>
@@ -169,7 +172,8 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
               </div>
               <div className="divide-y">
                 {items.map(it => (
-                  <div key={it.id} className="flex items-start gap-4 px-5 py-3.5">
+                  <div key={it.id} onClick={() => it.candidate_id && router.push(`/admin/candidatos/${it.candidate_id}`)}
+                    className="flex items-start gap-4 px-5 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors">
                     <div className="w-16 shrink-0 text-center">
                       <p className="text-base font-bold text-gray-900">{fmtTime(it.scheduled_at)}</p>
                       <p className="text-[10px] text-muted-foreground">{it.duration_min} min</p>
@@ -187,7 +191,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                       {it.status === 'cancelada' && it.cancel_reason && <p className="text-[12px] text-red-600 mt-0.5">Motivo: {it.cancel_reason}</p>}
                       {it.notes && <p className="text-[12px] text-gray-600 mt-0.5">{it.notes}</p>}
                     </div>
-                    <button onClick={() => deleteInterview(it.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteInterview(it.id) }} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0" title="Remover"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>
