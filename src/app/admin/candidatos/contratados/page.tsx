@@ -98,7 +98,7 @@ export default async function ContratadosPage() {
 
   // Documentos da empresa exigidos (mesma lista da aba Documentos)
   const COMPANY_DOC_KEYS = [
-    'ficha_registro', 'contrato_experiencia', 'contrato_trabalho', 'regulamento_interno',
+    'ficha_registro', 'contrato_tempo_determinado', 'contrato_experiencia', 'contrato_trabalho', 'regulamento_interno',
     'banco_horas', 'cessao_imagem', 'vale_transporte', 'uniformes_epis',
     'acrm_geral', 'acrm_escala', 'manipulacao',
   ]

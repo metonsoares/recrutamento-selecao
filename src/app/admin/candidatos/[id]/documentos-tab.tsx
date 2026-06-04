@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import {
   Upload, X, FileText, CheckCircle2, AlertCircle, Clock,
-  Loader2, Save, Plus, Trash2, GraduationCap, Megaphone, Building2,
+  Loader2, Save, Plus, Trash2, GraduationCap, Megaphone, Building2, Receipt,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,7 @@ interface CustomDoc {
 
 const COMPANY_DOCS = [
   { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: false, na: false },
+  { key: 'contrato_tempo_determinado', label: 'Contrato por tempo determinado',          multiple: false, na: true  },
   { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: false },
   { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false },
   { key: 'regulamento_interno', label: 'Regulamento interno',                            multiple: false, na: false },
@@ -330,6 +331,7 @@ export function DocumentosTab({ candidateId, initialDocs }: Props) {
   const [docs, setDocs] = useState<Record<string, DocState>>(() => initDocs(initialDocs))
   const [treinamentos, setTreinamentos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__treinamentos'))
   const [circulares, setCirculares] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__circulares'))
+  const [recibos, setRecibos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__recibos'))
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -340,7 +342,7 @@ export function DocumentosTab({ candidateId, initialDocs }: Props) {
   async function handleSave() {
     setSaving(true)
     try {
-      const payload = { ...docs, __treinamentos: treinamentos, __circulares: circulares }
+      const payload = { ...docs, __treinamentos: treinamentos, __circulares: circulares, __recibos: recibos }
       const res = await fetch(`/api/admin/candidatos/${candidateId}/company-docs`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -418,6 +420,17 @@ export function DocumentosTab({ candidateId, initialDocs }: Props) {
         setItems={setCirculares}
         candidateId={candidateId}
         addLabel="Adicionar circular"
+      />
+
+      {/* Recibos */}
+      <CustomDocsCard
+        title="Recibos"
+        subtitle="Recibos diversos (vale, adiantamento, pagamentos, etc.)"
+        icon={Receipt}
+        items={recibos}
+        setItems={setRecibos}
+        candidateId={candidateId}
+        addLabel="Adicionar recibo"
       />
 
       {/* Salvar */}
