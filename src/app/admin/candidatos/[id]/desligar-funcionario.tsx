@@ -46,6 +46,7 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
     setError('')
     if (!date) { setError('Informe a data do desligamento.'); return }
     if (!requester) { setError('Informe quem solicitou o desligamento.'); return }
+    if (!letter) { setError('Anexe a carta de demissão.'); return }
     setSaving(true)
     const supabase = createSupabaseBrowserClient()
     const now = new Date().toISOString()
@@ -97,7 +98,7 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Carta de demissão (PDF/JPG/PNG)</label>
+                <label className="text-xs font-medium text-gray-600">Carta de demissão * (PDF/JPG/PNG)</label>
                 {letter ? (
                   <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                     <FileText className="w-4 h-4 text-red-500 shrink-0" />
