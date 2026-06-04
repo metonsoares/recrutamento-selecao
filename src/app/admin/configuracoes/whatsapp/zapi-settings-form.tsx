@@ -27,6 +27,8 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
   const [sendingTest, setSendingTest] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState(false)
   const [webhookTestResult, setWebhookTestResult] = useState<{ ok: boolean; msg: string; detail?: string } | null>(null)
+  const [registeringHooks, setRegisteringHooks] = useState(false)
+  const [registerResult, setRegisterResult] = useState<{ ok: boolean; msg: string; detail?: string } | null>(null)
 
   const DEFAULT_WELCOME = `Olá! Aqui é {ATENDENTE}, do Brownie do Ton 😊\n\nObrigado pelo contato! Ficamos felizes com seu interesse em fazer parte da nossa equipe.\n\nPara se candidatar, acesse nosso formulário:\n{LINK}\n\nApós o envio, nossa equipe de RH analisará seu perfil e entrará em contato. 😊`
 
@@ -105,8 +107,39 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
     setTestResult(null)
     const res = await fetch('/api/admin/zapi/test-connection', { method: 'POST' })
     const data = await res.json()
-    setTestResult({ ok: data.ok, msg: data.ok ? 'Conexão bem-sucedida!' : (data.error || 'Falha na conexão') })
+    const zerr = data?.data?.error as string | undefined
+    setTestResult({
+      ok: data.ok,
+      msg: data.ok
+        ? 'Conectado! WhatsApp ativo na instância.'
+        : (data.connected === false
+            ? `Instância DESCONECTADA do WhatsApp${zerr ? ` — ${zerr}` : ''}. Leia o QR Code novamente no painel da Z-API.`
+            : (data.error || 'Falha na conexão')),
+    })
     setTesting(false)
+  }
+
+  async function handleRegisterWebhooks() {
+    setRegisteringHooks(true)
+    setRegisterResult(null)
+    try {
+      const res = await fetch('/api/admin/zapi/register-webhooks', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        const fails = (data.results || []).filter((r: { ok: boolean }) => !r.ok).map((r: { key: string }) => r.key)
+        setRegisterResult({
+          ok: true,
+          msg: data.allOk ? '✅ Webhooks registrados na Z-API com sucesso!' : '✅ Webhook de recebimento registrado!',
+          detail: fails.length ? `Não registrados (opcionais): ${fails.join(', ')}` : `Apontando para ${data.base}`,
+        })
+        router.refresh()
+      } else {
+        setRegisterResult({ ok: false, msg: `❌ ${data.error || 'Falha ao registrar webhooks.'}` })
+      }
+    } catch {
+      setRegisterResult({ ok: false, msg: '❌ Erro ao registrar webhooks.' })
+    }
+    setRegisteringHooks(false)
   }
 
   async function handleTestWebhook() {
@@ -334,13 +367,35 @@ export function ZApiSettingsForm({ settings, logs }: { settings: WhatsappSetting
 
         <TabsContent value="webhook" className="space-y-5 mt-4">
 
+          {/* Registro automático */}
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div>
+              <p className="font-semibold text-sm">Registrar webhooks automaticamente</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Configura os webhooks direto na sua instância da Z-API (recebimento, status e desconexão), apontando para esta plataforma. É o que faz as mensagens recebidas chegarem e a resposta automática funcionar.
+              </p>
+            </div>
+            <Button onClick={handleRegisterWebhooks} disabled={registeringHooks} className="gap-2">
+              {registeringHooks
+                ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>Registrando…</>
+                : <><Zap className="w-4 h-4" />Registrar webhooks na Z-API</>
+              }
+            </Button>
+            {registerResult && (
+              <div className={`p-3 rounded-lg text-sm space-y-1 ${registerResult.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                <p className="font-medium">{registerResult.msg}</p>
+                {registerResult.detail && <p className="text-xs opacity-80 break-all">{registerResult.detail}</p>}
+              </div>
+            )}
+          </div>
+
           {/* Instruction banner */}
           <div className="flex gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50">
             <span className="text-amber-500 text-lg shrink-0">⚠️</span>
             <div className="text-sm">
-              <p className="font-semibold text-amber-800">Configure os URLs abaixo no painel do Z-API</p>
+              <p className="font-semibold text-amber-800">Ou configure manualmente no painel do Z-API</p>
               <p className="text-amber-700 mt-0.5">
-                Acesse <strong>Z-API → sua instância → Webhooks e configurações gerais</strong> e cole cada URL no campo correspondente. Sem isso, as mensagens não chegam à plataforma.
+                Se preferir, acesse <strong>Z-API → sua instância → Webhooks e configurações gerais</strong> e cole cada URL no campo correspondente. Sem isso, as mensagens não chegam à plataforma.
               </p>
             </div>
           </div>

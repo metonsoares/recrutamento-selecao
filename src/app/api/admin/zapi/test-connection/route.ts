@@ -20,9 +20,13 @@ export async function POST(req: NextRequest) {
     })
     const data = await response.json()
 
-    await supabase.from('whatsapp_settings').update({ last_connection_at: new Date().toISOString() }).eq('id', settings.id)
+    // Z-API retorna HTTP 200 mesmo desconectado — o que importa é o campo `connected`
+    const connected = data?.connected === true
+    if (connected) {
+      await supabase.from('whatsapp_settings').update({ last_connection_at: new Date().toISOString() }).eq('id', settings.id)
+    }
 
-    return NextResponse.json({ ok: response.ok, data })
+    return NextResponse.json({ ok: connected, connected, data })
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 })
   }
