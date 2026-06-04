@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import {
   Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download,
-  CheckCircle2, AlertCircle,
+  CheckCircle2, AlertCircle, Wallet, CalendarDays,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,13 +22,13 @@ interface Props {
   candidateId: string
   kind: string                 // 'contracheque' | 'folha_ponto'
   title: string                // "Contracheques"
-  icon: React.ElementType
   referenceLabel: string       // "Competência (mês/ano)"
   insertLabel: string          // "Inserir arquivo"
   initialFiles: EmployeeFile[]
 }
 
-export function EmployeeFilesTab({ candidateId, kind, title, icon: Icon, referenceLabel, insertLabel, initialFiles }: Props) {
+export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, insertLabel, initialFiles }: Props) {
+  const Icon = kind === 'folha_ponto' ? CalendarDays : Wallet
   const [files, setFiles] = useState<EmployeeFile[]>(initialFiles)
   const [modalOpen, setModalOpen] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)

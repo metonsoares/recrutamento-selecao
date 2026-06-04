@@ -20,7 +20,6 @@ import { FeriasTab } from './ferias-tab'
 import { AtestadosTab } from './atestados-tab'
 import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
-import { Wallet, CalendarDays } from 'lucide-react'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -439,13 +438,13 @@ export default async function CandidatePage({
 
       {/* ── Aba: Contracheques ── */}
       {activeTab === 'contracheques' && showPayroll && (
-        <EmployeeFilesTab candidateId={id} kind="contracheque" title="Contracheques" icon={Wallet}
+        <EmployeeFilesTab candidateId={id} kind="contracheque" title="Contracheques"
           referenceLabel="Competência (mês/ano)" insertLabel="Inserir arquivo" initialFiles={contracheques} />
       )}
 
       {/* ── Aba: Folhas de ponto ── */}
       {activeTab === 'folhas-ponto' && showPayroll && (
-        <EmployeeFilesTab candidateId={id} kind="folha_ponto" title="Folhas de ponto" icon={CalendarDays}
+        <EmployeeFilesTab candidateId={id} kind="folha_ponto" title="Folhas de ponto"
           referenceLabel="Competência (mês/ano)" insertLabel="Inserir arquivo" initialFiles={folhasPonto} />
       )}
 
