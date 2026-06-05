@@ -2,6 +2,7 @@ import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { normalizeRole } from '@/lib/permissions'
 import { UsuariosManager } from './usuarios-manager'
+import { AccessMatrix } from './access-matrix'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,9 +28,14 @@ export default async function UsuariosPage() {
   }))
 
   return (
-    <UsuariosManager
-      users={users}
-      currentUserId={currentUser?.id ?? ''}
-    />
+    <>
+      <UsuariosManager
+        users={users}
+        currentUserId={currentUser?.id ?? ''}
+      />
+      <div className="px-4 sm:px-6 pb-8 max-w-5xl">
+        <AccessMatrix />
+      </div>
+    </>
   )
 }

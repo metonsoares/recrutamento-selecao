@@ -79,3 +79,64 @@ export function can(role: Role, perm: Permission): boolean {
 export function canAny(role: Role, perms: Permission[]): boolean {
   return perms.some(p => can(role, p))
 }
+
+// ─── Matriz para exibição (módulos × ações) ─────────────────────────────────────
+export interface MatrixRow { module: string; action: string; perm: Permission }
+
+export const PERMISSION_MATRIX: MatrixRow[] = [
+  { module: 'Dashboard', action: 'Ver indicadores gerais', perm: 'dashboard.ver' },
+
+  { module: 'Currículos', action: 'Candidatos — ver lista/quadro, buscar', perm: 'candidatos.ver' },
+  { module: 'Currículos', action: 'Candidatos — mudar status', perm: 'candidatos.status' },
+  { module: 'Currículos', action: 'Candidatos — editar vaga', perm: 'candidatos.editar_vaga' },
+  { module: 'Currículos', action: 'Ficha — Ficha de Admissão', perm: 'ficha.admissao' },
+  { module: 'Currículos', action: 'Ficha — Dados para contrato', perm: 'ficha.contrato' },
+  { module: 'Currículos', action: 'Ficha — Documentos', perm: 'ficha.documentos' },
+  { module: 'Currículos', action: 'Ficha — Dados Bancários', perm: 'ficha.bancarios' },
+  { module: 'Currículos', action: 'Ficha — Férias', perm: 'ficha.ferias' },
+  { module: 'Currículos', action: 'Ficha — Advertências', perm: 'ficha.advertencias' },
+  { module: 'Currículos', action: 'Ficha — Atestados', perm: 'ficha.atestados' },
+  { module: 'Currículos', action: 'Ficha — Contracheques', perm: 'ficha.contracheques' },
+  { module: 'Currículos', action: 'Ficha — Folhas de ponto', perm: 'ficha.folhas' },
+  { module: 'Currículos', action: 'Ficha — ASOs', perm: 'ficha.asos' },
+  { module: 'Currículos', action: 'Ficha — Pesquisas de clima (adicionar)', perm: 'ficha.clima' },
+  { module: 'Currículos', action: 'Ficha — Pesquisas de clima (remover)', perm: 'ficha.clima_remover' },
+  { module: 'Currículos', action: 'Ficha — Registros', perm: 'ficha.registros' },
+  { module: 'Currículos', action: 'Ação — Analisar IA', perm: 'acao.analise_ia' },
+  { module: 'Currículos', action: 'Ação — Visualizar Teste Cultural', perm: 'acao.teste_cultural' },
+  { module: 'Currículos', action: 'Ação — Check Processos', perm: 'acao.check_processos' },
+  { module: 'Currículos', action: 'Ação — Convidar para entrevista', perm: 'acao.convidar' },
+  { module: 'Currículos', action: 'Ação — Exportar PDF', perm: 'acao.exportar_pdf' },
+  { module: 'Currículos', action: 'Ação — Desligar funcionário', perm: 'acao.desligar' },
+  { module: 'Currículos', action: 'Ação — Excluir candidato', perm: 'acao.excluir_candidato' },
+  { module: 'Currículos', action: 'Agenda — ver', perm: 'agenda.ver' },
+  { module: 'Currículos', action: 'Agenda — configurar locais', perm: 'agenda.config_locais' },
+  { module: 'Currículos', action: 'Agenda — configurar entrevistadores', perm: 'agenda.config_entrevistadores' },
+  { module: 'Currículos', action: 'Agenda — remover agendamento', perm: 'agenda.remover_agendamento' },
+  { module: 'Currículos', action: 'Config — Seções e perguntas', perm: 'curriculos.secoes' },
+  { module: 'Currículos', action: 'Config — Vagas', perm: 'curriculos.vagas' },
+  { module: 'Currículos', action: 'Config — Teste cultural', perm: 'curriculos.teste_cultural' },
+
+  { module: 'Colaboradores', action: 'Ver listas (todos os status)', perm: 'colaboradores.ver' },
+
+  { module: 'Pesquisas de clima', action: 'Cadastrar pesquisas', perm: 'pesquisas.cadastrar' },
+  { module: 'Pesquisas de clima', action: 'Ver resultados', perm: 'pesquisas.resultados' },
+  { module: 'Pesquisas de clima', action: 'Remover resposta', perm: 'pesquisas.remover_resposta' },
+
+  { module: 'Documentos da empresa', action: 'Ver / Adicionar / Editar / Excluir', perm: 'documentos_empresa' },
+
+  { module: 'Mensagens WhatsApp', action: 'Ver conversas e histórico', perm: 'whatsapp.ver' },
+  { module: 'Mensagens WhatsApp', action: 'Excluir conversa', perm: 'whatsapp.excluir' },
+
+  { module: 'Relatórios', action: 'Ver relatórios', perm: 'relatorios.ver' },
+
+  { module: 'Auditoria', action: 'Ver auditoria', perm: 'auditoria.ver' },
+
+  { module: 'Configurações', action: 'WhatsApp / Z-API', perm: 'config.whatsapp' },
+  { module: 'Configurações', action: 'Configuração IA', perm: 'config.ia' },
+  { module: 'Configurações', action: 'Empresa — Cadastro de empresa', perm: 'config.empresa_cadastro' },
+  { module: 'Configurações', action: 'Empresa — Cultura da empresa', perm: 'config.empresa_cultura' },
+  { module: 'Configurações', action: 'Usuários — Perfil de usuário', perm: 'config.usuarios_perfil' },
+  { module: 'Configurações', action: 'Usuários — Cadastro de usuários', perm: 'config.usuarios_cadastro' },
+  { module: 'Configurações', action: 'Kanban — Colunas', perm: 'config.kanban' },
+]
