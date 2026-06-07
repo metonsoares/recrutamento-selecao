@@ -80,6 +80,44 @@ export function canAny(role: Role, perms: Permission[]): boolean {
   return perms.some(p => can(role, p))
 }
 
+// ─── Níveis de acesso (CRUD) ────────────────────────────────────────────────────
+export type Level = 'none' | 'view' | 'edit_view' | 'add_edit_view' | 'edit_remove_view' | 'full'
+export const LEVELS: Level[] = ['full', 'edit_remove_view', 'add_edit_view', 'edit_view', 'view', 'none']
+
+export const LEVEL_LABEL: Record<Level, string> = {
+  none: 'Sem acesso',
+  view: 'Visualizar',
+  edit_view: 'Editar/Visualizar',
+  add_edit_view: 'Adicionar/Editar/Visualizar',
+  edit_remove_view: 'Editar/Remover/Visualizar',
+  full: 'Adicionar/Editar/Remover/Visualizar',
+}
+export const LEVEL_SHORT: Record<Level, string> = {
+  none: '—',
+  view: 'Visualizar',
+  edit_view: 'Editar/Ver',
+  add_edit_view: 'Adic./Editar/Ver',
+  edit_remove_view: 'Editar/Rem./Ver',
+  full: 'Total (A/E/R/V)',
+}
+
+export function levelGrants(level: Level): boolean { return level !== 'none' }
+
+/** Nível "natural" a partir da descrição da ação (quando concedida). */
+export function naturalLevel(action: string): Level {
+  const a = action.toLowerCase()
+  const add = /adicion|anexar|criar|lan[çc]ar|cadastr/.test(a)
+  const remove = /excluir|remover/.test(a)
+  const edit = /editar/.test(a)
+  if (add && remove) return 'full'
+  if (add && edit) return 'add_edit_view'
+  if (edit && remove) return 'edit_remove_view'
+  if (add) return 'add_edit_view'
+  if (remove) return 'edit_remove_view'
+  if (edit) return 'edit_view'
+  return 'view'
+}
+
 // ─── Matriz para exibição (módulos × ações) ─────────────────────────────────────
 export interface MatrixRow { module: string; action: string; perm: Permission }
 
@@ -140,3 +178,16 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
   { module: 'Configurações', action: 'Usuários — Cadastro de usuários', perm: 'config.usuarios_cadastro' },
   { module: 'Configurações', action: 'Kanban — Colunas', perm: 'config.kanban' },
 ]
+
+// perm → ação (para derivar o nível natural)
+const ACTION_OF: Record<string, string> = Object.fromEntries(PERMISSION_MATRIX.map(r => [r.perm, r.action]))
+
+// Permissão sempre exclusiva do master (módulo de Perfil de usuário / editor de acessos)
+export const MASTER_ONLY_PERMS: Permission[] = ['config.usuarios_perfil', 'auditoria.ver']
+
+/** Nível PADRÃO (código) para um perfil/permissão — usado quando não há valor salvo no banco. */
+export function defaultLevel(role: Role, perm: Permission): Level {
+  if (MASTER_ONLY_PERMS.includes(perm)) return role === 'master' ? 'full' : 'none'
+  if (!can(role, perm)) return 'none'
+  return naturalLevel(ACTION_OF[perm] || '')
+}

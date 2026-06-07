@@ -1,21 +1,23 @@
-import { requirePermission } from '@/lib/auth-guard'
+import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { normalizeRole } from '@/lib/permissions'
+import { getAllLevels } from '@/lib/permissions-server'
 import { UsuariosManager } from './usuarios-manager'
 import { AccessMatrix } from './access-matrix'
 
 export const dynamic = 'force-dynamic'
 
 export default async function UsuariosPage() {
-  await requirePermission('config.usuarios_perfil')
+  await requireMaster()
   const [supabase, service] = await Promise.all([
     createSupabaseServerClient(),
     createSupabaseServiceClient(),
   ])
 
-  const [{ data: { user: currentUser } }, { data: usersData }] = await Promise.all([
+  const [{ data: { user: currentUser } }, { data: usersData }, levels] = await Promise.all([
     supabase.auth.getUser(),
     service.auth.admin.listUsers({ perPage: 200 }),
+    getAllLevels(),
   ])
 
   const users = (usersData?.users ?? []).map(u => ({
@@ -34,7 +36,7 @@ export default async function UsuariosPage() {
         currentUserId={currentUser?.id ?? ''}
       />
       <div className="px-4 sm:px-6 pb-8 max-w-5xl">
-        <AccessMatrix />
+        <AccessMatrix initialLevels={levels} />
       </div>
     </>
   )

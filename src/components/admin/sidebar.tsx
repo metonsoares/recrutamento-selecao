@@ -12,7 +12,7 @@ import {
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { can, canAny, type Role } from '@/lib/permissions'
+import { type Role } from '@/lib/permissions'
 
 type UserRole = Role
 
@@ -37,25 +37,31 @@ function SidebarContent({
   logoUrl,
   companyName,
   role = 'master',
+  perms = [],
 }: {
   onNavClick?: () => void
   logoUrl?: string | null
   companyName?: string | null
   role?: UserRole
+  perms?: string[]
 }) {
   const pathname = usePathname()
   const router = useRouter()
 
+  const permSet = new Set(perms)
+  const can = (p: string) => permSet.has(p)
+  const canAny = (ps: string[]) => ps.some(p => permSet.has(p))
+
   const isMaster = role === 'master'
   // Atalhos de permissão
-  const showCurriculosGroup = can(role, 'candidatos.ver') || can(role, 'agenda.ver') ||
-    canAny(role, ['curriculos.secoes', 'curriculos.vagas', 'curriculos.teste_cultural'])
-  const showConfigCurriculosGroup = canAny(role, ['curriculos.secoes', 'curriculos.vagas', 'curriculos.teste_cultural'])
-  const showColaboradores = can(role, 'colaboradores.ver')
-  const showPesquisasGroup = canAny(role, ['pesquisas.cadastrar', 'pesquisas.resultados'])
-  const showPlataformaGroup = canAny(role, ['config.whatsapp', 'config.ia', 'config.empresa_cadastro', 'config.empresa_cultura', 'config.usuarios_perfil', 'config.usuarios_cadastro'])
-  const showEmpresaGroup = canAny(role, ['config.empresa_cadastro', 'config.empresa_cultura'])
-  const showUsuariosGroup = canAny(role, ['config.usuarios_perfil', 'config.usuarios_cadastro'])
+  const showCurriculosGroup = can('candidatos.ver') || can('agenda.ver') ||
+    canAny(['curriculos.secoes', 'curriculos.vagas', 'curriculos.teste_cultural'])
+  const showConfigCurriculosGroup = canAny(['curriculos.secoes', 'curriculos.vagas', 'curriculos.teste_cultural'])
+  const showColaboradores = can('colaboradores.ver')
+  const showPesquisasGroup = canAny(['pesquisas.cadastrar', 'pesquisas.resultados'])
+  const showPlataformaGroup = canAny(['config.whatsapp', 'config.ia', 'config.empresa_cadastro', 'config.empresa_cultura', 'config.usuarios_perfil', 'config.usuarios_cadastro'])
+  const showEmpresaGroup = canAny(['config.empresa_cadastro', 'config.empresa_cultura'])
+  const showUsuariosGroup = canAny(['config.usuarios_perfil', 'config.usuarios_cadastro'])
 
   // ── Grupos ────────────────────────────────────────────────────────────────
   const COLAB_PATHS = ['/admin/candidatos/em-contrato', '/admin/candidatos/contratados', '/admin/candidatos/intermitentes', '/admin/candidatos/freelancers', '/admin/candidatos/desligados']
@@ -126,7 +132,7 @@ function SidebarContent({
       <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
 
         {/* Dashboard */}
-        {can(role, 'dashboard.ver') && (
+        {can('dashboard.ver') && (
         <Link
           href="/admin"
           onClick={go}
@@ -147,12 +153,12 @@ function SidebarContent({
           </button>
           {curriculosOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-              {can(role, 'candidatos.ver') && (
+              {can('candidatos.ver') && (
               <Link href="/admin/candidatos" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/candidatos' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Users className="w-3 h-3 shrink-0 opacity-50" />Candidatos
               </Link>
               )}
-              {can(role, 'agenda.ver') && (
+              {can('agenda.ver') && (
               <Link href="/admin/candidatos/agenda" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/agenda') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <CalendarClock className="w-3 h-3 shrink-0 opacity-50" />Agenda de entrevistas
               </Link>
@@ -166,17 +172,17 @@ function SidebarContent({
                   </button>
                   {configCurriculosOpen && (
                     <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
-                      {can(role, 'curriculos.secoes') && (
+                      {can('curriculos.secoes') && (
                       <Link href="/admin/secoes" onClick={go} className={cn(DEEP_BASE, (pathname.startsWith('/admin/secoes') || pathname.startsWith('/admin/formulario')) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                         <Layers className="w-3 h-3 shrink-0 opacity-50" />Seções e perguntas
                       </Link>
                       )}
-                      {can(role, 'curriculos.vagas') && (
+                      {can('curriculos.vagas') && (
                       <Link href="/admin/vagas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/vagas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                         <Briefcase className="w-3 h-3 shrink-0 opacity-50" />Vagas
                       </Link>
                       )}
-                      {can(role, 'curriculos.teste_cultural') && (
+                      {can('curriculos.teste_cultural') && (
                       <Link href="/admin/teste-cultural" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/teste-cultural') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                         <FlaskConical className="w-3 h-3 shrink-0 opacity-50" />Teste cultural
                       </Link>
@@ -230,12 +236,12 @@ function SidebarContent({
           </button>
           {pesquisasOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-              {can(role, 'pesquisas.cadastrar') && (
+              {can('pesquisas.cadastrar') && (
               <Link href="/admin/pesquisas-clima/cadastrar" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/pesquisas-clima/cadastrar') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Cadastrar pesquisas
               </Link>
               )}
-              {can(role, 'pesquisas.resultados') && (
+              {can('pesquisas.resultados') && (
               <Link href="/admin/pesquisas-clima/resultados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/pesquisas-clima/resultados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <BarChart3 className="w-3 h-3 shrink-0 opacity-50" />Ver resultados
               </Link>
@@ -246,21 +252,21 @@ function SidebarContent({
         )}
 
         {/* Documentos empresa */}
-        {can(role, 'documentos_empresa') && (
+        {can('documentos_empresa') && (
           <Link href="/admin/documentos-empresa" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/documentos-empresa') ? NAV_ACTIVE : NAV_DEFAULT)}>
             <FolderArchive className="w-[15px] h-[15px] shrink-0 opacity-60" />
             Documentos empresa
           </Link>
         )}
 
-        {can(role, 'whatsapp.ver') && (
+        {can('whatsapp.ver') && (
           <Link href="/admin/whatsapp" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/whatsapp') ? NAV_ACTIVE : NAV_DEFAULT)}>
             <MessageSquare className="w-[15px] h-[15px] shrink-0 opacity-60" />
             Mensagens WhatsApp
           </Link>
         )}
 
-        {can(role, 'relatorios.ver') && (
+        {can('relatorios.ver') && (
           <Link href="/admin/relatorios" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}>
             <BarChart3 className="w-[15px] h-[15px] shrink-0 opacity-60" />
             Relatórios
@@ -293,12 +299,12 @@ function SidebarContent({
               </button>
               {plataformaOpen && (
                 <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-                  {can(role, 'config.whatsapp') && (
+                  {can('config.whatsapp') && (
                   <Link href="/admin/configuracoes/whatsapp" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/whatsapp') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                     <Zap className="w-3 h-3 shrink-0 opacity-50" />WhatsApp / Z-API
                   </Link>
                   )}
-                  {can(role, 'config.ia') && (
+                  {can('config.ia') && (
                   <Link href="/admin/configuracoes/ia" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/ia') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                     <BrainCircuit className="w-3 h-3 shrink-0 opacity-50" />Configuração IA
                   </Link>
@@ -314,12 +320,12 @@ function SidebarContent({
                     </button>
                     {empresaOpen && (
                       <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
-                        {can(role, 'config.empresa_cadastro') && (
+                        {can('config.empresa_cadastro') && (
                         <Link href="/admin/configuracoes/cadastro-empresa" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cadastro de empresa
                         </Link>
                         )}
-                        {can(role, 'config.empresa_cultura') && (
+                        {can('config.empresa_cultura') && (
                         <Link href="/admin/configuracoes/empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/configuracoes/empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cultura da empresa
                         </Link>
@@ -339,12 +345,12 @@ function SidebarContent({
                     </button>
                     {usuariosOpen && (
                       <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
-                        {can(role, 'config.usuarios_perfil') && (
+                        {can('config.usuarios_perfil') && (
                         <Link href="/admin/configuracoes/usuarios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <UserCheck className="w-3 h-3 shrink-0 opacity-50" />Perfil de usuário
                         </Link>
                         )}
-                        {can(role, 'config.usuarios_cadastro') && (
+                        {can('config.usuarios_cadastro') && (
                         <Link href="/admin/configuracoes/cadastrar-usuarios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastrar-usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <Users className="w-3 h-3 shrink-0 opacity-50" />Cadastro de usuários
                         </Link>
@@ -382,10 +388,12 @@ export function AdminNav({
   logoUrl,
   companyName,
   role,
+  perms = [],
 }: {
   logoUrl?: string | null
   companyName?: string | null
   role?: UserRole
+  perms?: string[]
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -416,7 +424,7 @@ export function AdminNav({
       <div className="lg:hidden h-14" />
 
       <aside className="hidden lg:flex w-64 min-h-screen bg-white border-r border-[#e8e8e8] flex-col fixed top-0 left-0 bottom-0 z-30">
-        <SidebarContent logoUrl={logoUrl} companyName={companyName} role={role} />
+        <SidebarContent logoUrl={logoUrl} companyName={companyName} role={role} perms={perms} />
       </aside>
 
       {mobileOpen && (
@@ -430,7 +438,7 @@ export function AdminNav({
             >
               <X className="w-4 h-4" />
             </button>
-            <SidebarContent onNavClick={() => setMobileOpen(false)} logoUrl={logoUrl} companyName={companyName} role={role} />
+            <SidebarContent onNavClick={() => setMobileOpen(false)} logoUrl={logoUrl} companyName={companyName} role={role} perms={perms} />
           </aside>
         </div>
       )}
