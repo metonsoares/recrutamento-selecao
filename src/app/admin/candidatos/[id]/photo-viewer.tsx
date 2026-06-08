@@ -4,6 +4,9 @@ import { X } from 'lucide-react'
 
 export function PhotoViewer({ src, name }: { src: string; name: string }) {
   const [open, setOpen] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  if (failed) return <PhotoPlaceholder />
 
   return (
     <>
@@ -18,7 +21,9 @@ export function PhotoViewer({ src, name }: { src: string; name: string }) {
           src={src}
           alt={`Foto de ${name}`}
           className="w-full h-full object-cover"
-          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
         />
       </button>
 
