@@ -300,13 +300,17 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         : c
     ))
 
-    const supabase = createSupabaseBrowserClient()
-    const { error } = await supabase
-      .from('applications')
-      .update({ status: targetStatus, updated_at: new Date().toISOString() })
-      .eq('id', appId)
+    let ok = false
+    try {
+      const res = await fetch(`/api/admin/applications/${appId}/status`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: targetStatus }),
+      })
+      const d = await res.json().catch(() => ({}))
+      ok = res.ok && d.ok
+    } catch { ok = false }
 
-    if (error) {
+    if (!ok) {
       const prevStatus = candidate!.applications!.status
       setCandidates(prev => prev.map(c =>
         c.id === candidateId && c.applications

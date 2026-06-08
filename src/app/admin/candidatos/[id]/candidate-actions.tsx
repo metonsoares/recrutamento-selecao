@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult } from '@/types'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
 
@@ -349,20 +348,24 @@ export function CandidateActions({
     if (!newStatus || !applicationId) return
     setStatus(newStatus as CandidateStatus)
     setSavingStatus(true)
-    const supabase = createSupabaseBrowserClient()
-    const now = new Date().toISOString()
-    const payload: Record<string, unknown> = { status: newStatus, updated_at: now }
-    if (newStatus === 'desligado') payload.terminated_at = now
-    const { error } = await supabase
-      .from('applications')
-      .update(payload)
-      .eq('id', applicationId)
-    setSavingStatus(false)
-    if (error) {
+    try {
+      const res = await fetch(`/api/admin/applications/${applicationId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) {
+        showToast('error', d.error || 'Erro ao alterar status.')
+        setStatus(currentStatus)
+      } else {
+        router.refresh()
+      }
+    } catch {
       showToast('error', 'Erro ao alterar status.')
       setStatus(currentStatus)
-    } else {
-      router.refresh()
+    } finally {
+      setSavingStatus(false)
     }
   }
 
