@@ -6,6 +6,9 @@ export function PhotoViewer({ src, name }: { src: string; name: string }) {
   const [open, setOpen] = useState(false)
   const [failed, setFailed] = useState(false)
 
+  // Serve a imagem pelo próprio domínio (proxy) quando vier do Storage do Supabase
+  const proxied = /\/storage\/v1\/object\/public\//.test(src) ? `/api/img?u=${encodeURIComponent(src)}` : src
+
   if (failed) return <PhotoPlaceholder />
 
   return (
@@ -18,11 +21,10 @@ export function PhotoViewer({ src, name }: { src: string; name: string }) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={src}
+          src={proxied}
           alt={`Foto de ${name}`}
           className="w-full h-full object-cover"
           decoding="async"
-          referrerPolicy="no-referrer"
           onError={() => setFailed(true)}
         />
       </button>
@@ -45,7 +47,7 @@ export function PhotoViewer({ src, name }: { src: string; name: string }) {
             </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={src}
+              src={proxied}
               alt={`Foto de ${name}`}
               className="w-full rounded-xl shadow-2xl object-contain max-h-[80vh]"
             />
