@@ -226,50 +226,76 @@ async function getEscavadorKey(): Promise<string | null> {
   }
 }
 
+/** Faz uma tentativa única na API do Escavador. Retorna o objeto data em 200, ou um marcador de status. */
+async function escavadorAttempt(qs: string, token: string): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; status: number; detail: string }> {
+  const url = `https://api.escavador.com/api/v2/envolvido/processos?${qs}`
+  const res = await fetchWithTimeout(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+  }, 15000)
+  if (res.ok) return { ok: true, data: await res.json() }
+  // Extrai mensagem + erros de validação (Laravel 422 => { message, errors: {campo:[...]} })
+  let detail = ''
+  try {
+    const j = await res.json()
+    detail = j?.message || j?.error || ''
+    if (j?.errors && typeof j.errors === 'object') {
+      const flat = Object.values(j.errors as Record<string, string[]>).flat().filter(Boolean)
+      if (flat.length) detail = `${detail ? detail + ' — ' : ''}${flat.join('; ')}`
+    }
+  } catch { /* ignore */ }
+  return { ok: false, status: res.status, detail }
+}
+
 async function searchEscavadorAPI(name: string, cpf: string | null, token: string): Promise<SearchResult> {
   const snippets: string[] = []
   const urls: string[] = []
-  const base = 'https://api.escavador.com/api/v2/envolvido/processos'
-  const qs = cpf
-    ? `cpf_cnpj=${encodeURIComponent(cpf)}`
-    : `nome=${encodeURIComponent(name)}`
-  const url = `${base}?${qs}&limit=30`
+  const cpfFmt = cpf ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null
+
+  // Tenta em sequência formatos aceitos; usa o primeiro que retornar 200.
+  const attempts: string[] = []
+  if (cpf) {
+    attempts.push(`cpf_cnpj=${encodeURIComponent(cpf)}`)                 // dígitos
+    if (cpfFmt) attempts.push(`cpf_cnpj=${encodeURIComponent(cpfFmt)}`)  // formatado
+  }
+  if (name) attempts.push(`nome=${encodeURIComponent(name)}`)            // por nome (fallback)
 
   try {
-    const res = await fetchWithTimeout(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-    }, 15000)
+    let data: Record<string, unknown> | null = null
+    let lastStatus = 0
+    let lastDetail = ''
 
-    if (res.status === 401 || res.status === 403) {
-      return { source: 'Escavador (API)', snippets: ['Falha de autenticação na API do Escavador. Verifique a chave em Configuração de IA.'], urls: [] }
-    }
-    if (res.status === 402) {
-      return { source: 'Escavador (API)', snippets: ['A consulta ao Escavador requer créditos/plano ativo (HTTP 402). Verifique o saldo da sua conta em escavador.com.'], urls: [] }
-    }
-    if (res.status === 404) {
-      return { source: 'Escavador (API)', snippets: ['Nenhum processo encontrado na base do Escavador para este envolvido.'], urls: [] }
-    }
-    if (!res.ok) {
-      let detail = ''
-      try { const j = await res.json(); detail = j?.message || j?.error || '' } catch { /* ignore */ }
-      return { source: 'Escavador (API)', snippets: [`API do Escavador retornou erro ${res.status}${detail ? ': ' + detail : ''}.`], urls: [] }
+    for (const qs of attempts) {
+      const r = await escavadorAttempt(qs, token)
+      if (r.ok) { data = r.data; break }
+      lastStatus = r.status; lastDetail = r.detail
+      // Erros que não adianta repetir com outro formato:
+      if (r.status === 401 || r.status === 403 || r.status === 402) break
     }
 
-    const data = await res.json()
+    if (!data) {
+      if (lastStatus === 401 || lastStatus === 403) {
+        return { source: 'Escavador (API)', snippets: ['Falha de autenticação na API do Escavador. Verifique a chave em Configuração de IA.'], urls: [] }
+      }
+      if (lastStatus === 402) {
+        return { source: 'Escavador (API)', snippets: ['A consulta ao Escavador requer créditos/plano ativo (HTTP 402). Verifique o saldo da sua conta em escavador.com.'], urls: [] }
+      }
+      if (lastStatus === 404) {
+        return { source: 'Escavador (API)', snippets: ['Nenhum processo encontrado na base do Escavador para este envolvido.'], urls: [] }
+      }
+      return { source: 'Escavador (API)', snippets: [`API do Escavador retornou erro ${lastStatus}${lastDetail ? ': ' + lastDetail : ''}.`], urls: [] }
+    }
+
     // A resposta pode vir como { items: [...] } ou { resposta: {...} }
-    const items: Record<string, unknown>[] = Array.isArray(data?.items) ? data.items
-      : Array.isArray(data?.resposta?.items) ? data.resposta.items
-      : Array.isArray(data?.processos) ? data.processos
-      : []
+    const d = data as { items?: unknown[]; resposta?: { items?: unknown[] }; processos?: unknown[]; links?: { next?: unknown } }
+    const items: Record<string, unknown>[] = (Array.isArray(d.items) ? d.items
+      : Array.isArray(d.resposta?.items) ? d.resposta!.items
+      : Array.isArray(d.processos) ? d.processos
+      : []) as Record<string, unknown>[]
 
     if (items.length === 0) {
       snippets.push('Nenhum processo encontrado na base do Escavador para este envolvido.')
     } else {
-      snippets.push(`Total de processos encontrados no Escavador: ${items.length}${data?.links?.next ? '+ (há mais páginas)' : ''}.`)
+      snippets.push(`Total de processos encontrados no Escavador: ${items.length}${d.links?.next ? '+ (há mais páginas)' : ''}.`)
       for (const p of items.slice(0, 25)) {
         const numero = (p.numero_cnj || p.numero || p.numeroProcessoUnico || '') as string
         const ativo = (p.titulo_polo_ativo || p.polo_ativo || '') as string
