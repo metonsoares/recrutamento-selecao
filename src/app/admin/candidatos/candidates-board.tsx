@@ -209,10 +209,14 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
   const [colDragOverKey, setColDragOverKey] = useState<string | null>(null)
   const [isDraggingCol, setIsDraggingCol] = useState(false)
 
+  // Colunas de colaboradores não aparecem no quadro de Candidatos
+  // (têm menu próprio em "Colaboradores").
+  const HIDDEN_COLUMNS = new Set(['contratado', 'em_contrato', 'aprovado', 'freelancer'])
+
   // ── orderedColumns a partir do estado local ───────────────────────────────
   const orderedColumns = colOrder
     .map(key => COLUMNS.find(c => c.key === key))
-    .filter((c): c is typeof COLUMNS[number] => c !== undefined)
+    .filter((c): c is typeof COLUMNS[number] => c !== undefined && !HIDDEN_COLUMNS.has(c.key))
 
   // ── Salva ordem das colunas no banco ──────────────────────────────────────
   async function saveColumnOrder(order: string[]) {
