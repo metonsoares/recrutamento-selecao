@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult } from '@/types'
-import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus } from 'lucide-react'
+import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult } from '@/types'
+import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus, HandCoins } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
 
 // Status disponíveis no seletor (ordem definida)
@@ -301,6 +301,130 @@ function BackgroundCheckModal({
   )
 }
 
+// ─── Modal: Check de Auxílios (Portal da Transparência) ─────────────────────────
+
+function AuxiliosCheckModal({
+  open, onClose, result, checkedAt, candidateId, candidateCpf, onRefresh,
+}: {
+  open: boolean
+  onClose: () => void
+  result: AuxiliosCheckResult | null
+  checkedAt: string | null
+  candidateId: string
+  candidateCpf: string | null
+  onRefresh: (r: AuxiliosCheckResult, at: string) => void
+}) {
+  const [running, setRunning] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const cpfFormatted = candidateCpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') ?? null
+
+  async function runCheck() {
+    setRunning(true); setErr(null)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/auxilios-check`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setErr(data?.error || `Erro ${res.status}`); return }
+      onRefresh(data.result as AuxiliosCheckResult, new Date().toISOString())
+    } catch {
+      setErr('Erro de conexão. Tente novamente.')
+    } finally { setRunning(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="w-[95vw] max-w-2xl p-0 gap-0 overflow-hidden flex flex-col max-h-[90vh]">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+            <HandCoins className="w-5 h-5 text-amber-600 shrink-0" />
+            Check de Auxílios Governamentais
+          </DialogTitle>
+          {cpfFormatted && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Portal da Transparência · CPF: <span className="font-mono font-semibold text-gray-700">{cpfFormatted}</span>
+            </p>
+          )}
+        </DialogHeader>
+
+        <div className="px-6 py-3 border-b bg-gray-50 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+          <span className="text-xs text-muted-foreground">
+            {checkedAt ? `Última verificação: ${formatDateTime(checkedAt)}` : 'Nenhuma pesquisa realizada ainda'}
+          </span>
+          <Button size="sm" variant="outline" onClick={runCheck} disabled={running} className="gap-1.5 shrink-0">
+            {running ? <><Loader2 className="w-4 h-4 animate-spin" />Consultando...</> : <><RefreshCw className="w-4 h-4" />{result ? 'Refazer pesquisa' : 'Iniciar pesquisa'}</>}
+          </Button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 [word-break:break-word]">
+          {err && <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{err}</div>}
+
+          {running && !result && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-muted-foreground">
+              <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
+              <p className="text-sm font-semibold text-gray-700">Consultando o Portal da Transparência...</p>
+            </div>
+          )}
+
+          {!result && !running && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-muted-foreground">
+              <HandCoins className="w-16 h-16 text-gray-200" />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-gray-600">Nenhuma pesquisa realizada ainda</p>
+                <p className="text-xs mt-1 text-gray-400 max-w-xs">Clique em &ldquo;Iniciar pesquisa&rdquo; para verificar auxílios governamentais{cpfFormatted ? ` do CPF ${cpfFormatted}` : ''} (Bolsa Família, BPC, Auxílio Emergencial, etc.).</p>
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <>
+              <div className={`rounded-xl p-5 flex items-start gap-4 border-2 ${
+                result.recebendo ? 'bg-amber-50 border-amber-300' : result.encontrado ? 'bg-blue-50 border-blue-300' : 'bg-emerald-50 border-emerald-300'
+              }`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                  result.recebendo ? 'bg-amber-100' : result.encontrado ? 'bg-blue-100' : 'bg-emerald-100'
+                }`}>
+                  <HandCoins className={`w-6 h-6 ${result.recebendo ? 'text-amber-600' : result.encontrado ? 'text-blue-600' : 'text-emerald-600'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-base font-bold mb-1 ${result.recebendo ? 'text-amber-800' : result.encontrado ? 'text-blue-800' : 'text-emerald-800'}`}>
+                    {result.recebendo ? '● Recebendo auxílio atualmente' : result.encontrado ? '○ Já recebeu auxílio' : '✅ Nenhum auxílio encontrado'}
+                  </p>
+                  <p className="text-sm leading-relaxed text-gray-700 break-words">{result.resumo}</p>
+                </div>
+              </div>
+
+              {result.beneficios.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-700">Benefícios encontrados</p>
+                  {result.beneficios.map((b, i) => (
+                    <div key={i} className="rounded-lg border bg-white px-4 py-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{b.programa}</p>
+                        <p className="text-xs text-muted-foreground">{b.detalhe}{b.periodo ? ` · ${b.periodo}` : ''}{b.valor ? ` · ${b.valor}` : ''}</p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                        b.situacao === 'recebendo' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                      }`}>{b.situacao === 'recebendo' ? 'RECEBENDO' : 'RECEBEU'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {result.observacao && <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{result.observacao}</p>}
+
+              <div className="flex flex-wrap gap-1.5 items-center pt-1">
+                <span className="text-[11px] text-muted-foreground">Fontes:</span>
+                {result.fontes_consultadas.map((f, i) => (
+                  <span key={i} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{f}</span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function CandidateActions({
@@ -312,6 +436,8 @@ export function CandidateActions({
   cultureAnswersSummary,
   initialBackgroundCheck,
   initialBackgroundCheckAt,
+  initialAuxiliosCheck,
+  initialAuxiliosCheckAt,
   candidateCpf,
   hasExistingAnalysis,
 }: {
@@ -323,6 +449,8 @@ export function CandidateActions({
   cultureAnswersSummary?: Array<{ question: string; answer: string; score: number }>
   initialBackgroundCheck?: BackgroundCheckResult | null
   initialBackgroundCheckAt?: string | null
+  initialAuxiliosCheck?: AuxiliosCheckResult | null
+  initialAuxiliosCheckAt?: string | null
   candidateCpf?: string | null
   hasExistingAnalysis?: boolean
 }) {
@@ -334,6 +462,9 @@ export function CandidateActions({
   const bypassConfirm = useRef(false)
   const [bgCheckResult, setBgCheckResult] = useState<BackgroundCheckResult | null>(initialBackgroundCheck ?? null)
   const [bgCheckAt, setBgCheckAt] = useState<string | null>(initialBackgroundCheckAt ?? null)
+  const [auxOpen, setAuxOpen] = useState(false)
+  const [auxResult, setAuxResult] = useState<AuxiliosCheckResult | null>(initialAuxiliosCheck ?? null)
+  const [auxAt, setAuxAt] = useState<string | null>(initialAuxiliosCheckAt ?? null)
   const [analyzing, setAnalyzing] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
@@ -489,6 +620,16 @@ export function CandidateActions({
         onRefresh={(r, at) => { setBgCheckResult(r); setBgCheckAt(at) }}
       />
 
+      <AuxiliosCheckModal
+        open={auxOpen}
+        onClose={() => setAuxOpen(false)}
+        result={auxResult}
+        checkedAt={auxAt}
+        candidateId={candidateId}
+        candidateCpf={candidateCpf ?? null}
+        onRefresh={(r, at) => { setAuxResult(r); setAuxAt(at) }}
+      />
+
       <div className="flex gap-2 flex-wrap items-center mt-2">
         {/* Status */}
         {applicationId && (
@@ -607,6 +748,29 @@ export function CandidateActions({
                 {bgCheckResult.nivel_risco === 'alto'   ? '⚠ ALTO'   :
                  bgCheckResult.nivel_risco === 'medio'  ? '! MÉDIO'  :
                  bgCheckResult.nivel_risco === 'baixo'  ? '✓ BAIXO'  : '?'}
+              </span>
+            )}
+          </Button>
+
+          {/* Check Auxílios */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAuxOpen(true)}
+            className={`gap-1 ${auxResult?.recebendo
+              ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+              : auxResult?.encontrado
+                ? 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}
+          >
+            <HandCoins className="w-4 h-4" />
+            Check Auxílios
+            {auxResult && (
+              <span className={`ml-1 text-[10px] font-bold px-1 py-0.5 rounded-full ${
+                auxResult.recebendo ? 'bg-amber-100 text-amber-700' :
+                auxResult.encontrado ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                {auxResult.recebendo ? '● RECEBENDO' : auxResult.encontrado ? '○ RECEBEU' : '✓ NÃO'}
               </span>
             )}
           </Button>

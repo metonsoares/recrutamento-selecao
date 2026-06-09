@@ -115,6 +115,24 @@ export interface BackgroundCheckResult {
   observacoes_tecnicas?: string
 }
 
+export interface AuxilioItem {
+  programa: string
+  situacao: 'recebendo' | 'recebeu' | 'indefinido'
+  periodo?: string
+  valor?: string
+  detalhe?: string
+}
+
+export interface AuxiliosCheckResult {
+  encontrado: boolean
+  recebendo: boolean
+  resumo: string
+  beneficios: AuxilioItem[]
+  fontes_consultadas: string[]
+  observacao?: string
+  erro?: string
+}
+
 export interface Application {
   id: string
   candidate_id: string

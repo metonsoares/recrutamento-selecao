@@ -22,6 +22,7 @@ type AiSettingsRow = {
   search_url_3_label: string | null
   datajud_api_key: string | null
   escavador_api_key: string | null
+  transparencia_api_key: string | null
 }
 
 export default async function IaConfigPage() {
@@ -37,7 +38,7 @@ export default async function IaConfigPage() {
       'search_url_1, search_url_1_label,' +
       'search_url_2, search_url_2_label,' +
       'search_url_3, search_url_3_label,' +
-      'datajud_api_key, escavador_api_key'
+      'datajud_api_key, escavador_api_key, transparencia_api_key'
     )
     .limit(1)
     .maybeSingle() as { data: AiSettingsRow | null }
@@ -61,6 +62,7 @@ export default async function IaConfigPage() {
       searchUrl3Label={settings?.search_url_3_label ?? ''}
       hasDatajudKey={!!settings?.datajud_api_key}
       hasEscavadorKey={!!settings?.escavador_api_key}
+      hasTransparenciaKey={!!settings?.transparencia_api_key}
     />
   )
 }

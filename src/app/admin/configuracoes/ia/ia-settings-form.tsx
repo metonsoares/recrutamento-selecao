@@ -36,6 +36,7 @@ interface Props {
   searchUrl3Label: string
   hasDatajudKey: boolean
   hasEscavadorKey: boolean
+  hasTransparenciaKey: boolean
 }
 
 // ─── Provider radio ───────────────────────────────────────────────────────────
@@ -482,6 +483,7 @@ export function IaSettingsForm({
   searchUrl3Label,
   hasDatajudKey,
   hasEscavadorKey,
+  hasTransparenciaKey,
 }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
@@ -504,6 +506,24 @@ export function IaSettingsForm({
       else setEscavadorStatus('error')
     } catch { setEscavadorStatus('error') }
     finally { setSavingEscavador(false) }
+  }
+
+  const [transpKey, setTranspKey] = useState('')
+  const [showTranspKey, setShowTranspKey] = useState(false)
+  const [savingTransp, setSavingTransp] = useState(false)
+  const [transpStatus, setTranspStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+  async function saveTransparencia() {
+    if (!transpKey.trim()) return
+    setSavingTransp(true); setTranspStatus('idle')
+    try {
+      const res = await fetch('/api/admin/ai/save-transparencia-key', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: transpKey.trim() }),
+      })
+      if (res.ok) { setTranspStatus('saved'); setTranspKey(''); setTimeout(() => window.location.reload(), 800) }
+      else setTranspStatus('error')
+    } catch { setTranspStatus('error') }
+    finally { setSavingTransp(false) }
   }
   const [savingProvider, setSavingProvider] = useState<Provider | null>(null)
   const [statusMap, setStatusMap] = useState<Record<Provider, KeyStatus>>({ anthropic: 'idle', openai: 'idle' })
@@ -687,6 +707,47 @@ export function IaSettingsForm({
             <a href="https://api.escavador.com/" target="_blank" rel="noopener noreferrer"
               className="underline text-violet-600 hover:text-violet-800 inline-flex items-center gap-0.5">
               escavador.com <ExternalLink className="w-3 h-3" />
+            </a>
+          </p>
+        </div>
+
+        {/* Portal da Transparência */}
+        <div className="space-y-2 border-t pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Portal da Transparência</p>
+              <p className="text-xs text-muted-foreground">Consulta de auxílios governamentais por CPF (Check Auxílios).</p>
+            </div>
+            {hasTransparenciaKey
+              ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0">✓ Configurada</Badge>
+              : <Badge variant="secondary" className="shrink-0">Não configurada</Badge>}
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showTranspKey ? 'text' : 'password'}
+                value={transpKey}
+                onChange={e => { setTranspKey(e.target.value); setTranspStatus('idle') }}
+                onKeyDown={e => e.key === 'Enter' && saveTransparencia()}
+                placeholder="Chave da API do Portal da Transparência"
+                className="pr-10 font-mono text-sm"
+              />
+              <button type="button" onClick={() => setShowTranspKey(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showTranspKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <Button onClick={saveTransparencia} disabled={savingTransp || !transpKey.trim()} className="shrink-0">
+              {savingTransp ? <Loader2 className="w-4 h-4 animate-spin" /> : hasTransparenciaKey ? 'Substituir' : 'Salvar'}
+            </Button>
+          </div>
+          {transpStatus === 'saved' && <p className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="w-3 h-3" />Chave salva!</p>}
+          {transpStatus === 'error' && <p className="text-xs text-red-500">Erro ao salvar. Tente novamente.</p>}
+          <p className="text-xs text-muted-foreground">
+            Chave gratuita em{' '}
+            <a href="https://portaldatransparencia.gov.br/api-de-dados/cadastrar-email" target="_blank" rel="noopener noreferrer"
+              className="underline text-violet-600 hover:text-violet-800 inline-flex items-center gap-0.5">
+              portaldatransparencia.gov.br <ExternalLink className="w-3 h-3" />
             </a>
           </p>
         </div>
