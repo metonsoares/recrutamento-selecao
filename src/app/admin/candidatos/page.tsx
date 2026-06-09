@@ -74,6 +74,37 @@ export default async function CandidatosPage() {
     }
   }
 
+  // ── Data de nascimento (campo 'date' do formulário) → idade ────────────────
+  const latestAppIds = (candidates || [])
+    .map(c => {
+      const app = (Array.isArray(c.applications) ? c.applications[0] : c.applications) as { id?: string } | null
+      return app?.id
+    })
+    .filter((id): id is string => !!id)
+
+  if (latestAppIds.length > 0) {
+    const { data: dateQs } = await supabase.from('form_questions').select('id').eq('field_type', 'date')
+    const dateQIds = (dateQs || []).map(q => q.id as string)
+    if (dateQIds.length > 0) {
+      const dobByApp: Record<string, string> = {}
+      // busca em blocos (evita limite de itens no .in)
+      for (let i = 0; i < latestAppIds.length; i += 200) {
+        const slice = latestAppIds.slice(i, i + 200)
+        const { data: dobAnswers } = await supabase
+          .from('form_answers').select('application_id, answer_text')
+          .in('application_id', slice).in('question_id', dateQIds)
+        for (const a of dobAnswers || []) {
+          const raw = (a.answer_text as string | null)?.replace(/^"|"$/g, '').trim()
+          if (raw && a.application_id && !dobByApp[a.application_id as string]) dobByApp[a.application_id as string] = raw
+        }
+      }
+      for (const c of candidates || []) {
+        const app = (Array.isArray(c.applications) ? c.applications[0] : c.applications) as { id?: string } | null
+        if (app?.id && dobByApp[app.id]) (c as Record<string, unknown>).birth_date = dobByApp[app.id]
+      }
+    }
+  }
+
   const columnOrder = (settings?.kanban_column_order as string[] | null) ?? null
   const settingsId = settings?.id ?? null
 

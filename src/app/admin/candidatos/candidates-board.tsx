@@ -5,9 +5,28 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CandidateStatus } from '@/types'
 import { formatDate } from '@/lib/helpers'
+import { inferSex } from '@/lib/infer-sex'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Search, SortAsc, GripVertical, BrainCircuit, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+
+/** Idade a partir da data de nascimento ('YYYY-MM-DD' ou 'DD/MM/YYYY'). */
+function ageFrom(birth?: string | null): number | null {
+  if (!birth) return null
+  let y = 0, m = 0, d = 0
+  const iso = birth.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3] }
+  else {
+    const br = birth.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    if (!br) return null
+    d = +br[1]; m = +br[2]; y = +br[3]
+  }
+  const t = new Date()
+  let age = t.getFullYear() - y
+  const mo = t.getMonth() + 1
+  if (mo < m || (mo === m && t.getDate() < d)) age--
+  return age >= 0 && age < 120 ? age : null
+}
 
 // ─── Colunas do Kanban ────────────────────────────────────────────────────────
 
@@ -138,6 +157,7 @@ interface CandidateRow {
   city: string | null
   created_at: string
   previously_registered?: boolean
+  birth_date?: string | null
   applications?: {
     id: string
     status: string
@@ -167,6 +187,8 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('date_desc')
   const [filterJob, setFilterJob] = useState('all')
+  const [filterAge, setFilterAge] = useState('all')
+  const [filterSex, setFilterSex] = useState('all')
 
   // ── Drag state (candidatos) ───────────────────────────────────────────────
   const [dragId, setDragId] = useState<string | null>(null)
@@ -268,13 +290,25 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         if (filterJob === 'all') return true
         return (c.applications as Record<string, unknown> | null | undefined)?.job_id === filterJob
       })
+      .filter(c => {
+        if (filterAge === 'all') return true
+        const age = ageFrom(c.birth_date)
+        if (age == null) return false
+        if (filterAge === '55+') return age >= 55
+        const [lo, hi] = filterAge.split('-').map(Number)
+        return age >= lo && age <= hi
+      })
+      .filter(c => {
+        if (filterSex === 'all') return true
+        return inferSex(c.full_name) === filterSex
+      })
       .sort((a, b) => {
         if (sortBy === 'name') return a.full_name.localeCompare(b.full_name, 'pt-BR')
         if (sortBy === 'score') return (b.applications?.final_score ?? -1) - (a.applications?.final_score ?? -1)
         if (sortBy === 'date_asc') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
-  }, [candidates, search, filterJob, sortBy])
+  }, [candidates, search, filterJob, filterAge, filterSex, sortBy])
 
   // ── Drag & Drop (candidatos) ──────────────────────────────────────────────
   async function handleDrop(candidateId: string, targetStatus: CandidateStatus) {
@@ -378,7 +412,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Candidatos</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {total} candidato{total !== 1 ? 's' : ''}{search || filterJob !== 'all' ? ' filtrados' : ' no total'}
+            {total} candidato{total !== 1 ? 's' : ''}{search || filterJob !== 'all' || filterAge !== 'all' || filterSex !== 'all' ? ' filtrados' : ' no total'}
           </p>
         </div>
         {isMaster && pendingCount > 0 && (
@@ -416,6 +450,29 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
           <SelectContent>
             <SelectItem value="all">Todas as vagas</SelectItem>
             {jobs.map(j => <SelectItem key={j.id} value={j.id}>{j.title}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterAge} onValueChange={v => v && setFilterAge(v)}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Faixa etária" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as idades</SelectItem>
+            <SelectItem value="18-24">18 a 24 anos</SelectItem>
+            <SelectItem value="25-34">25 a 34 anos</SelectItem>
+            <SelectItem value="35-44">35 a 44 anos</SelectItem>
+            <SelectItem value="45-54">45 a 54 anos</SelectItem>
+            <SelectItem value="55+">55+ anos</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterSex} onValueChange={v => v && setFilterSex(v)}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Sexo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Ambos os sexos</SelectItem>
+            <SelectItem value="F">Feminino</SelectItem>
+            <SelectItem value="M">Masculino</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={v => v && setSortBy(v as SortOption)}>
