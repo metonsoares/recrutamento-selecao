@@ -37,6 +37,91 @@ function brl(v: unknown): string | undefined {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'pt-BR,pt;q=0.9',
+  'X-Requested-With': 'XMLHttpRequest',
+  Referer: 'https://portaldatransparencia.gov.br/busca',
+}
+
+/** Consulta pública (sem chave de API) — usa os endpoints internos do site. Melhor esforço. */
+async function publicConsulta(cpf: string, name: string): Promise<AuxiliosCheckResult> {
+  const portalLink = `https://portaldatransparencia.gov.br/busca?termo=${cpf}`
+  const baseResult = (extra: Partial<AuxiliosCheckResult> = {}): AuxiliosCheckResult => ({
+    encontrado: false, recebendo: false,
+    resumo: 'Nenhum auxílio governamental encontrado para este CPF no Portal da Transparência.',
+    beneficios: [], fontes_consultadas: ['Portal da Transparência (consulta pública)'],
+    observacao: `Consulta sem chave de API (melhor esforço). Para confirmação, acesse: ${portalLink}`,
+    ...extra,
+  })
+
+  try {
+    // 1) Busca a pessoa física pelo CPF (endpoint interno do site)
+    const url = `https://portaldatransparencia.gov.br/pessoa-fisica/busca/resultado?termo=${encodeURIComponent(cpf)}&pagina=1&tamanhoPagina=10`
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 9000)
+    let data: unknown = null
+    let blocked = false
+    try {
+      const res = await fetch(url, { headers: BROWSER_HEADERS, signal: ctrl.signal })
+      if (res.ok) { try { data = await res.json() } catch { blocked = true } }
+      else blocked = true
+    } catch { blocked = true } finally { clearTimeout(t) }
+
+    if (blocked) {
+      return baseResult({
+        resumo: 'Não foi possível consultar automaticamente sem chave de API (o Portal bloqueou a requisição).',
+        observacao: `Consulte manualmente no Portal da Transparência: ${portalLink}. Para automação confiável, configure a chave gratuita da API em Configuração IA.`,
+      })
+    }
+
+    // Estruturas possíveis: { data: [...] } | { registros: [...] } | [...]
+    const d = data as { data?: unknown[]; registros?: unknown[] }
+    const list: Record<string, unknown>[] = (Array.isArray(d?.data) ? d.data
+      : Array.isArray(d?.registros) ? d.registros
+      : Array.isArray(data) ? data : []) as Record<string, unknown>[]
+
+    // tenta achar a pessoa correspondente ao CPF (cpf vem mascarado: ***.xxx.xxx-**)
+    const masked = cpf.slice(3, 9) // 6 dígitos do meio aparecem no cpfFormatado
+    const person = list.find(p => String((p as Record<string, unknown>).cpfFormatado || '').replace(/\D/g, '').includes(masked)) || list[0]
+
+    if (!person) return baseResult()
+
+    // flags de benefício no resultado de busca (variam conforme o portal)
+    const flags = JSON.stringify(person).toLowerCase()
+    const beneficios: AuxilioItem[] = []
+    const programMap: [RegExp, string][] = [
+      [/bolsa\s*fam[ií]lia/, 'Bolsa Família / Novo Bolsa Família'],
+      [/\bbpc\b|presta[çc][ãa]o continuada/, 'BPC'],
+      [/aux[ií]lio\s*emergencial/, 'Auxílio Emergencial'],
+      [/aux[ií]lio\s*brasil/, 'Auxílio Brasil'],
+      [/seguro\s*defeso/, 'Seguro Defeso'],
+      [/garantia\s*safra/, 'Garantia-Safra'],
+    ]
+    for (const [re, label] of programMap) {
+      if (re.test(flags)) beneficios.push({ programa: label, situacao: 'indefinido', detalhe: 'Indício encontrado na busca pública (confirme no Portal).' })
+    }
+
+    const apareceComoBeneficiario = /beneficiario|benef[ií]cio|bolsa|bpc|emergencial|defeso|safra/.test(flags)
+    const encontrado = beneficios.length > 0 || apareceComoBeneficiario
+
+    return baseResult({
+      encontrado,
+      recebendo: false, // sem a API não dá para afirmar com segurança o mês corrente
+      resumo: encontrado
+        ? `${name} aparece no Portal da Transparência possivelmente como beneficiário de programa social. Confirme os detalhes no link.`
+        : 'Nenhum indício de auxílio governamental encontrado na busca pública para este CPF.',
+      beneficios,
+    })
+  } catch {
+    return baseResult({
+      resumo: 'Não foi possível consultar automaticamente sem chave de API.',
+      observacao: `Consulte manualmente: ${portalLink}`,
+    })
+  }
+}
+
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
@@ -54,8 +139,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const { data: settings } = await supabase.from('ai_settings').select('transparencia_api_key').limit(1).single()
     const token = (settings?.transparencia_api_key as string | null)?.trim() || process.env.TRANSPARENCIA_API_KEY || null
+
+    // ── Sem chave de API: consulta pública (melhor esforço, sem chave) ─────────
     if (!token) {
-      return NextResponse.json({ error: 'Chave da API do Portal da Transparência não configurada. Cadastre em Configurações → Configuração IA (gratuita em portaldatransparencia.gov.br/api-de-dados/cadastrar-email).' }, { status: 400 })
+      const pub = await publicConsulta(cpf, candidate.full_name as string)
+      await supabase.from('candidates').update({
+        auxilios_check_result: pub,
+        auxilios_check_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', id)
+      return NextResponse.json({ success: true, result: pub })
     }
 
     const beneficios: AuxilioItem[] = []

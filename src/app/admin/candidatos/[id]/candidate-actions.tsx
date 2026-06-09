@@ -402,8 +402,8 @@ function AuxiliosCheckModal({
                         <p className="text-xs text-muted-foreground">{b.detalhe}{b.periodo ? ` · ${b.periodo}` : ''}{b.valor ? ` · ${b.valor}` : ''}</p>
                       </div>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                        b.situacao === 'recebendo' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                      }`}>{b.situacao === 'recebendo' ? 'RECEBENDO' : 'RECEBEU'}</span>
+                        b.situacao === 'recebendo' ? 'bg-amber-100 text-amber-700' : b.situacao === 'recebeu' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      }`}>{b.situacao === 'recebendo' ? 'RECEBENDO' : b.situacao === 'recebeu' ? 'RECEBEU' : 'INDÍCIO'}</span>
                     </div>
                   ))}
                 </div>
