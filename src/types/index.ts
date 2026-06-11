@@ -10,6 +10,8 @@ export type CandidateStatus =
   | 'entrevista_agendada'
   | 'entrevistado'
   | 'aprovado_processo'
+  | 'aprovado_barraca'
+  | 'aprovado_carrinho'
   | 'aprovado'
   | 'reprovado'
   | 'banco_de_talentos'
@@ -32,6 +34,8 @@ export const STATUS_LABELS: Record<CandidateStatus, string> = {
   entrevista_agendada: 'Entrevista Agendada',
   entrevistado: 'Entrevistado',
   aprovado_processo: 'Aprovado',
+  aprovado_barraca: 'Aprovado - Barraca',
+  aprovado_carrinho: 'Aprovado - Carrinho',
   aprovado: 'Intermitentes',
   reprovado: 'Reprovado',
   banco_de_talentos: 'Banco de Talentos',
@@ -55,6 +59,8 @@ export const STATUS_COLORS: Record<CandidateStatus, string> = {
   entrevista_agendada: 'bg-teal-100 text-teal-700',
   entrevistado: 'bg-lime-100 text-lime-700',
   aprovado_processo: 'bg-green-100 text-green-700',
+  aprovado_barraca: 'bg-teal-100 text-teal-700',
+  aprovado_carrinho: 'bg-cyan-100 text-cyan-700',
   aprovado: 'bg-green-100 text-green-700',
   reprovado: 'bg-red-100 text-red-700',
   banco_de_talentos: 'bg-violet-100 text-violet-700',
