@@ -48,7 +48,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
 
   const [templateId, setTemplateId] = useState('')
   const [templatePdf, setTemplatePdf] = useState(false)
-  const [vars, setVars] = useState<{ name: string; value: string; type?: string; label?: string; manual?: boolean }[]>([])
+  const [vars, setVars] = useState<{ name: string; value: string; type?: string; label?: string; manual?: boolean; tags?: string[] }[]>([])
   const [loadingVars, setLoadingVars] = useState(false)
 
   const [title, setTitle] = useState('')
@@ -121,7 +121,11 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
     if (!title.trim()) { setError('Informe o título do contrato.'); return }
     if (!date) { setError('Informe a data do contrato.'); return }
     setSaving(true)
-    const variablesObj = vars.reduce((acc, v) => { acc[v.name] = v.value; return acc }, {} as Record<string, string>)
+    // expande o valor para todas as grafias originais do campo no documento
+    const variablesObj = vars.reduce((acc, v) => {
+      for (const tag of (v.tags && v.tags.length ? v.tags : [v.name])) acc[tag] = v.value
+      return acc
+    }, {} as Record<string, string>)
     const payload: Record<string, unknown> = {
       title, contract_date: date, period_start: start || null, period_end: end || null, value, notes,
     }

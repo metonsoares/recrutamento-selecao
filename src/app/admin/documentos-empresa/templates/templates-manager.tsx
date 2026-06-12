@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
+import { guessSource } from '@/lib/template-vars'
 
 export interface ContractTemplate {
   id: string
@@ -46,21 +47,7 @@ const MANUAL_TYPES: { value: string; label: string }[] = [
   { value: 'currency', label: 'Moeda (R$)' },
 ]
 
-interface MapRow { name: string; source: string; type: string }
-
-/** Sugere a associação pelo nome da variável. */
-function guessSource(name: string): string {
-  const n = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
-  const GUESS: Record<string, string> = {
-    nome: 'nome', nomecompleto: 'nome', contratado: 'nome', contratada: 'nome', candidato: 'nome', funcionario: 'nome',
-    cpf: 'cpf', telefone: 'telefone', celular: 'telefone', fone: 'telefone', email: 'email',
-    cidade: 'cidade', bairro: 'bairro', endereco: 'endereco', enderecocompleto: 'endereco', residencia: 'endereco', cep: 'cep',
-    cargo: 'cargo', funcao: 'cargo', vaga: 'cargo',
-    salario: 'salario', empresa: 'empresa', contratante: 'empresa', cnpj: 'empresa_cnpj',
-    data: 'data', datahoje: 'data', dataatual: 'data', hoje: 'data',
-  }
-  return GUESS[n] || 'manual'
-}
+interface MapRow { key: string; label: string; tags: string[]; source: string; type: string }
 
 export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
   const [templates, setTemplates] = useState<ContractTemplate[]>(initialTemplates)
@@ -96,10 +83,12 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
       if (!res.ok) { setMapError(d.error || 'Erro ao ler o template.'); return }
       if (d.pdf) { setMapError('Templates em PDF não possuem variáveis para associar.'); return }
       const existing = (d.mappings || {}) as Record<string, { source: string; type?: string }>
-      const rows: MapRow[] = (d.variables || []).map((name: string) => {
-        const m = existing[name]
-        if (m) return { name, source: m.source, type: m.type || 'text' }
-        return { name, source: guessSource(name), type: 'text' }
+      type Group = { key: string; label: string; tags: string[] }
+      const rows: MapRow[] = ((d.groups || []) as Group[]).map(g => {
+        const m = existing[g.key]
+        if (m) return { key: g.key, label: g.label, tags: g.tags, source: m.source, type: m.type || 'text' }
+        const guess = guessSource(g.label)
+        return { key: g.key, label: g.label, tags: g.tags, source: guess.source, type: guess.type }
       })
       if (rows.length === 0) setMapError('Nenhuma variável {campo} encontrada no documento. Use chaves simples no .docx, ex.: {nome}, {Valor do contrato}.')
       setMapRows(rows)
@@ -112,7 +101,7 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
     setSavingMap(true); setMapError('')
     try {
       const mappings = mapRows.reduce((acc, r) => {
-        acc[r.name] = r.source === 'manual' ? { source: 'manual', type: r.type } : { source: r.source }
+        acc[r.key] = r.source === 'manual' ? { source: 'manual', type: r.type } : { source: r.source }
         return acc
       }, {} as Record<string, { source: string; type?: string }>)
       const res = await fetch(`/api/admin/contract-templates/${mapTemplate.id}/variables`, {
@@ -318,8 +307,11 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
                   </p>
                   <div className="space-y-2">
                     {mapRows.map((r, i) => (
-                      <div key={r.name} className="flex items-center gap-2 rounded-lg border p-2.5 bg-gray-50/50 flex-wrap">
-                        <span className="font-mono text-[12px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md shrink-0">{'{'}{r.name}{'}'}</span>
+                      <div key={r.key} className="flex items-center gap-2 rounded-lg border p-2.5 bg-gray-50/50 flex-wrap">
+                        <span className="font-mono text-[12px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md shrink-0" title={r.tags.map(t => `{${t}}`).join('  ')}>
+                          {'{'}{r.label}{'}'}
+                          {r.tags.length > 1 && <span className="ml-1 text-[10px] text-violet-400">×{r.tags.length}</span>}
+                        </span>
                         <span className="text-gray-400 shrink-0">→</span>
                         <select value={r.source}
                           onChange={e => setMapRows(prev => prev.map((x, j) => j === i ? { ...x, source: e.target.value } : x))}

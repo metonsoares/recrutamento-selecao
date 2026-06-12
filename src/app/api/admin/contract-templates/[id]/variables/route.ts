@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mammoth from 'mammoth'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { groupVariables } from '@/lib/template-vars'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -8,7 +9,7 @@ export const maxDuration = 30
 /** Extrai as variáveis {tag} do texto de um .docx (aceita espaços e acentos). */
 function extractTags(text: string): string[] {
   return Array.from(new Set(
-    [...text.matchAll(/\{([^{}\n]{1,60}?)\}/g)].map(m => m[1].trim()).filter(Boolean)
+    [...text.matchAll(/\{([^{}\n]{1,80}?)\}/g)].map(m => m[1].trim()).filter(Boolean)
   ))
 }
 
@@ -19,16 +20,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const { data: tpl } = await supabase.from('contract_templates').select('*').eq('id', id).maybeSingle()
     if (!tpl) return NextResponse.json({ error: 'Template não encontrado.' }, { status: 404 })
     if (tpl.file_type === 'pdf') {
-      return NextResponse.json({ variables: [], mappings: tpl.field_mappings || {}, pdf: true })
+      return NextResponse.json({ groups: [], mappings: tpl.field_mappings || {}, pdf: true })
     }
 
     const res = await fetch(tpl.file_url as string)
     if (!res.ok) return NextResponse.json({ error: 'Não foi possível ler o arquivo do template.' }, { status: 502 })
     const buf = Buffer.from(await res.arrayBuffer())
     const { value: text } = await mammoth.extractRawText({ buffer: buf })
-    const variables = extractTags(text)
+    const groups = groupVariables(extractTags(text))
 
-    return NextResponse.json({ variables, mappings: tpl.field_mappings || {} })
+    // mapeamentos: chave pode ser o key do grupo (novo) ou um tag bruto (legado)
+    const raw = (tpl.field_mappings || {}) as Record<string, { source: string; type?: string }>
+    const mappings: Record<string, { source: string; type?: string }> = {}
+    for (const g of groups) {
+      const m = raw[g.key] || g.tags.map(t => raw[t]).find(Boolean)
+      if (m) mappings[g.key] = m
+    }
+
+    return NextResponse.json({ groups, mappings })
   } catch (err) {
     console.error('[contract-templates variables GET]', err)
     return NextResponse.json({ error: 'Erro ao ler o template.' }, { status: 500 })

@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import mammoth from 'mammoth'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { parseAddressAnswer, formatAddress } from '@/lib/parse-address'
+import { groupVariables, guessSource } from '@/lib/template-vars'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
-
-function norm(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
-}
 
 function fmtCpf(cpf: string | null): string {
   const d = (cpf || '').replace(/\D/g, '')
@@ -37,8 +34,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const buf = Buffer.from(await res.arrayBuffer())
     const { value: text } = await mammoth.extractRawText({ buffer: buf })
     const tags = Array.from(new Set(
-      [...text.matchAll(/\{([^{}\n]{1,60}?)\}/g)].map(m => m[1].trim()).filter(Boolean)
+      [...text.matchAll(/\{([^{}\n]{1,80}?)\}/g)].map(m => m[1].trim()).filter(Boolean)
     ))
+    const groups = groupVariables(tags)
 
     // dados do candidato para auto-preenchimento
     const { data: cand } = await supabase
@@ -101,30 +99,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       empresa: empresaNome,
       empresa_cnpj: empresaCnpj,
     }
-    // heurística por nome da variável (fallback quando não há mapeamento)
-    const KNOWN: Record<string, string> = {
-      nome: SOURCE_VALUES.nome, nomecompleto: SOURCE_VALUES.nome, contratado: SOURCE_VALUES.nome, contratada: SOURCE_VALUES.nome,
-      cpf: SOURCE_VALUES.cpf,
-      telefone: SOURCE_VALUES.telefone, celular: SOURCE_VALUES.telefone, fone: SOURCE_VALUES.telefone,
-      email: SOURCE_VALUES.email, cidade: SOURCE_VALUES.cidade, bairro: SOURCE_VALUES.bairro,
-      endereco: endereco, enderecocompleto: endereco, residencia: endereco, cep: cep,
-      data: today, datahoje: today, dataatual: today, hoje: today,
-      cargo: jobTitle, funcao: jobTitle, vaga: jobTitle,
-      salario: SOURCE_VALUES.salario, valor: SOURCE_VALUES.salario,
-      empresa: empresaNome, contratante: empresaNome, cnpj: empresaCnpj,
-    }
-
     const mappings = (tpl.field_mappings || {}) as Record<string, Mapping>
 
-    const variables = tags.map(name => {
-      const map = mappings[name]
+    // Um campo por GRUPO (grafias diferentes do mesmo campo são unificadas)
+    const variables = groups.map(g => {
+      // mapeamento salvo: por chave do grupo (novo) ou por tag bruto (legado)
+      const map = mappings[g.key] || g.tags.map(t => mappings[t]).find(Boolean)
       if (map) {
         if (map.source === 'manual') {
-          return { name, value: '', type: map.type || 'text', label: map.label || name, manual: true }
+          return { name: g.key, label: map.label || g.label, tags: g.tags, value: '', type: map.type || 'text', manual: true }
         }
-        return { name, value: SOURCE_VALUES[map.source] ?? '', type: 'text', label: map.label || name, manual: false }
+        return { name: g.key, label: map.label || g.label, tags: g.tags, value: SOURCE_VALUES[map.source] ?? '', type: 'text', manual: false }
       }
-      return { name, value: KNOWN[norm(name)] ?? '', type: 'text', label: name, manual: false }
+      // sem mapeamento: sugestão automática
+      const guess = guessSource(g.label)
+      if (guess.source === 'manual') {
+        return { name: g.key, label: g.label, tags: g.tags, value: '', type: guess.type, manual: true }
+      }
+      return { name: g.key, label: g.label, tags: g.tags, value: SOURCE_VALUES[guess.source] ?? '', type: 'text', manual: false }
     })
 
     return NextResponse.json({ templateName: tpl.name, fileType: tpl.file_type, variables })
