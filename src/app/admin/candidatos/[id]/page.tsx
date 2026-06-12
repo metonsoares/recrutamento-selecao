@@ -28,6 +28,7 @@ import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
 import { normalizeRole } from '@/lib/permissions'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
+import { ContratosTab, ContractItem } from './contratos-tab'
 import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -128,7 +129,7 @@ export default async function CandidatePage({
   await requirePermission('candidatos.ver')
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'clima' | 'registros' =
+  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'clima' | 'contratos' | 'registros' =
     sp.tab === 'ficha' ? 'ficha'
     : sp.tab === 'contrato' ? 'contrato'
     : sp.tab === 'documentos' ? 'documentos'
@@ -140,6 +141,7 @@ export default async function CandidatePage({
     : sp.tab === 'folhas-ponto' ? 'folhas-ponto'
     : sp.tab === 'asos' ? 'asos'
     : sp.tab === 'clima' ? 'clima'
+    : sp.tab === 'contratos' ? 'contratos'
     : sp.tab === 'registros' ? 'registros'
     : 'curriculo'
 
@@ -226,6 +228,10 @@ export default async function CandidatePage({
     }
   })
   const climateSurveyOptions: SurveyOption[] = (allSurveysData || []).map(s => ({ id: s.id as string, title: s.title as string, token: s.token as string }))
+
+  // ── Contratos do freelancer ────────────────────────────────────────────────
+  const { data: contractsData } = await service
+    .from('freelancer_contracts').select('*').eq('candidate_id', id).order('contract_date', { ascending: false })
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
 
   // ── Linha cronológica do colaborador ──────────────────────────────────────
@@ -270,6 +276,8 @@ export default async function CandidatePage({
   const showRegistros = isContratado
   // Pesquisas de clima: colaboradores (contratado, freelancer, em contrato, intermitente, desligado)
   const showClima = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  // Contratos: apenas freelancer
+  const showContratos = currentStatus === 'freelancer'
   // Painel completo para contratado e desligado; enxuto para os demais
   const minimalResumo = showResumoPanel && !isContratado && !isDesligado
 
@@ -464,7 +472,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showClima={showClima} showRegistros={showRegistros} />
+      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showClima={showClima} showContratos={showContratos} showRegistros={showRegistros} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && showFicha && (
@@ -529,6 +537,11 @@ export default async function CandidatePage({
       {activeTab === 'folhas-ponto' && showPayroll && (
         <EmployeeFilesTab candidateId={id} kind="folha_ponto" title="Folhas de ponto"
           referenceLabel="Competência (mês/ano)" insertLabel="Inserir arquivo" initialFiles={folhasPonto} />
+      )}
+
+      {/* ── Aba: Contratos (freelancer) ── */}
+      {activeTab === 'contratos' && showContratos && (
+        <ContratosTab candidateId={id} initialContracts={(contractsData || []) as ContractItem[]} />
       )}
 
       {/* ── Aba: Pesquisas de clima ── */}

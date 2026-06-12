@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 
-const MAX_SIZE = 4 * 1024 * 1024 // 4 MB
-const ALLOWED = ['application/pdf', 'image/jpeg', 'image/png']
+const MAX_SIZE = 15 * 1024 * 1024 // 15 MB
+const ALLOWED = [
+  'application/pdf', 'image/jpeg', 'image/png',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+]
 
 export async function POST(
   req: NextRequest,
