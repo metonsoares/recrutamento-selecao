@@ -39,7 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         role={role}
         perms={Array.from(granted)}
       />
-      <main className="lg:pl-64 min-h-screen">
+      <main className="lg:pl-72 min-h-screen">
         {children}
       </main>
     </div>

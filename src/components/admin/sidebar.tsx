@@ -438,7 +438,7 @@ export function AdminNav({
 
       <div className="lg:hidden h-14" />
 
-      <aside className="hidden lg:flex w-64 min-h-screen bg-white border-r border-[#e8e8e8] flex-col fixed top-0 left-0 bottom-0 z-30">
+      <aside className="hidden lg:flex w-72 min-h-screen bg-white border-r border-[#e8e8e8] flex-col fixed top-0 left-0 bottom-0 z-30">
         <SidebarContent logoUrl={logoUrl} companyName={companyName} role={role} perms={perms} />
       </aside>
 
