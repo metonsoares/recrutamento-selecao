@@ -30,6 +30,8 @@ const SYSTEM_FIELDS: { value: string; label: string }[] = [
   { value: 'email', label: 'E-mail do candidato' },
   { value: 'cidade', label: 'Cidade do candidato' },
   { value: 'bairro', label: 'Bairro do candidato' },
+  { value: 'endereco', label: 'Endereço do candidato' },
+  { value: 'cep', label: 'CEP do candidato' },
   { value: 'cargo', label: 'Cargo / Função' },
   { value: 'salario', label: 'Salário / Valor cadastrado' },
   { value: 'empresa', label: 'Empresa (contratante)' },
@@ -52,7 +54,8 @@ function guessSource(name: string): string {
   const GUESS: Record<string, string> = {
     nome: 'nome', nomecompleto: 'nome', contratado: 'nome', contratada: 'nome', candidato: 'nome', funcionario: 'nome',
     cpf: 'cpf', telefone: 'telefone', celular: 'telefone', fone: 'telefone', email: 'email',
-    cidade: 'cidade', bairro: 'bairro', cargo: 'cargo', funcao: 'cargo', vaga: 'cargo',
+    cidade: 'cidade', bairro: 'bairro', endereco: 'endereco', enderecocompleto: 'endereco', residencia: 'endereco', cep: 'cep',
+    cargo: 'cargo', funcao: 'cargo', vaga: 'cargo',
     salario: 'salario', empresa: 'empresa', contratante: 'empresa', cnpj: 'empresa_cnpj',
     data: 'data', datahoje: 'data', dataatual: 'data', hoje: 'data',
   }

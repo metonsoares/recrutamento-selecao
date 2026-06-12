@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mammoth from 'mammoth'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { parseAddressAnswer, formatAddress } from '@/lib/parse-address'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -52,6 +53,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const jobTitle = (app?.jobs?.title || (adm.function_title as string) || (ctr.function_title as string) || '') as string
     const salary = (adm.salary || ctr.salary || ctr.value || '') as string
 
+    // Endereço cadastrado pelo candidato (form_answers, field_type address/cep)
+    let endereco = ''
+    let cep = ''
+    const { data: candRow } = await supabase.from('candidates').select('latest_application_id').eq('id', id).maybeSingle()
+    if (candRow?.latest_application_id) {
+      const { data: addrAnswers } = await supabase
+        .from('form_answers')
+        .select('answer_text, form_questions!inner(field_type)')
+        .eq('application_id', candRow.latest_application_id)
+        .in('form_questions.field_type', ['address', 'cep'])
+      for (const a of addrAnswers || []) {
+        const parsed = parseAddressAnswer(a.answer_text as string | null)
+        if (parsed && (parsed.street || parsed.city)) {
+          endereco = formatAddress(parsed)
+          cep = parsed.cep || cep
+          break
+        }
+        if (parsed?.cep && !cep) cep = parsed.cep
+      }
+    }
+
     // Empresa contratante (admission_form/contract_data → companies)
     let empresaNome = ''
     let empresaCnpj = ''
@@ -71,6 +93,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       email: cand?.email || '',
       cidade: cand?.city || '',
       bairro: cand?.neighborhood || '',
+      endereco,
+      cep,
       data: today,
       cargo: jobTitle,
       salario: String(salary || ''),
@@ -83,6 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       cpf: SOURCE_VALUES.cpf,
       telefone: SOURCE_VALUES.telefone, celular: SOURCE_VALUES.telefone, fone: SOURCE_VALUES.telefone,
       email: SOURCE_VALUES.email, cidade: SOURCE_VALUES.cidade, bairro: SOURCE_VALUES.bairro,
+      endereco: endereco, enderecocompleto: endereco, residencia: endereco, cep: cep,
       data: today, datahoje: today, dataatual: today, hoje: today,
       cargo: jobTitle, funcao: jobTitle, vaga: jobTitle,
       salario: SOURCE_VALUES.salario, valor: SOURCE_VALUES.salario,
