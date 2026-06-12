@@ -48,7 +48,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
 
   const [templateId, setTemplateId] = useState('')
   const [templatePdf, setTemplatePdf] = useState(false)
-  const [vars, setVars] = useState<{ name: string; value: string }[]>([])
+  const [vars, setVars] = useState<{ name: string; value: string; type?: string; label?: string; manual?: boolean }[]>([])
   const [loadingVars, setLoadingVars] = useState(false)
 
   const [title, setTitle] = useState('')
@@ -264,8 +264,17 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {vars.map((v, i) => (
                       <div key={v.name} className="space-y-1">
-                        <label className="text-[11px] font-medium text-gray-600">{v.name}</label>
-                        <Input value={v.value} onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} className="h-8 text-sm" />
+                        <label className="text-[11px] font-medium text-gray-600">
+                          {v.label || v.name}
+                          {v.manual && <span className="ml-1 text-[10px] text-amber-600">(preencher)</span>}
+                        </label>
+                        <Input
+                          type={v.type === 'number' || v.type === 'currency' ? 'number' : v.type === 'date' ? 'date' : 'text'}
+                          placeholder={v.type === 'currency' ? 'R$ 0,00' : undefined}
+                          value={v.value}
+                          onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
+                          className="h-8 text-sm"
+                        />
                       </div>
                     ))}
                   </div>

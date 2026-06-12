@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import {
   FileText, Plus, Trash2, Loader2, X, Upload, FileDown, Download,
-  CheckCircle2, AlertCircle, FileSignature, Eye, Pencil,
+  CheckCircle2, AlertCircle, FileSignature, Eye, Pencil, Braces,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,44 @@ export interface ContractTemplate {
 
 interface Props { initialTemplates: ContractTemplate[]; companyOptions: string[] }
 
+// ─── Mapeamento de variáveis ────────────────────────────────────────────────
+// Campos do sistema disponíveis para associação
+const SYSTEM_FIELDS: { value: string; label: string }[] = [
+  { value: 'nome', label: 'Nome do candidato' },
+  { value: 'cpf', label: 'CPF do candidato' },
+  { value: 'telefone', label: 'Telefone do candidato' },
+  { value: 'email', label: 'E-mail do candidato' },
+  { value: 'cidade', label: 'Cidade do candidato' },
+  { value: 'bairro', label: 'Bairro do candidato' },
+  { value: 'cargo', label: 'Cargo / Função' },
+  { value: 'salario', label: 'Salário / Valor cadastrado' },
+  { value: 'empresa', label: 'Empresa (contratante)' },
+  { value: 'empresa_cnpj', label: 'CNPJ da empresa' },
+  { value: 'data', label: 'Data atual' },
+]
+
+const MANUAL_TYPES: { value: string; label: string }[] = [
+  { value: 'text', label: 'Texto' },
+  { value: 'number', label: 'Número' },
+  { value: 'date', label: 'Data' },
+  { value: 'currency', label: 'Moeda (R$)' },
+]
+
+interface MapRow { name: string; source: string; type: string }
+
+/** Sugere a associação pelo nome da variável. */
+function guessSource(name: string): string {
+  const n = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+  const GUESS: Record<string, string> = {
+    nome: 'nome', nomecompleto: 'nome', contratado: 'nome', contratada: 'nome', candidato: 'nome', funcionario: 'nome',
+    cpf: 'cpf', telefone: 'telefone', celular: 'telefone', fone: 'telefone', email: 'email',
+    cidade: 'cidade', bairro: 'bairro', cargo: 'cargo', funcao: 'cargo', vaga: 'cargo',
+    salario: 'salario', empresa: 'empresa', contratante: 'empresa', cnpj: 'empresa_cnpj',
+    data: 'data', datahoje: 'data', dataatual: 'data', hoje: 'data',
+  }
+  return GUESS[n] || 'manual'
+}
+
 export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
   const [templates, setTemplates] = useState<ContractTemplate[]>(initialTemplates)
   const [modalOpen, setModalOpen] = useState(false)
@@ -36,8 +74,53 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // ── Mapeamento de variáveis ──
+  const [mapOpen, setMapOpen] = useState(false)
+  const [mapTemplate, setMapTemplate] = useState<{ id: string; name: string } | null>(null)
+  const [mapRows, setMapRows] = useState<MapRow[]>([])
+  const [loadingMap, setLoadingMap] = useState(false)
+  const [savingMap, setSavingMap] = useState(false)
+  const [mapError, setMapError] = useState('')
+
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
   function openModal() { setEditingId(null); setExistingFileName(null); setName(''); setEmpresa(''); setFile(null); setError(''); setModalOpen(true) }
+
+  async function openMapping(t: { id: string; name: string }) {
+    setMapTemplate(t); setMapRows([]); setMapError(''); setMapOpen(true); setLoadingMap(true)
+    try {
+      const res = await fetch(`/api/admin/contract-templates/${t.id}/variables`)
+      const d = await res.json()
+      if (!res.ok) { setMapError(d.error || 'Erro ao ler o template.'); return }
+      if (d.pdf) { setMapError('Templates em PDF não possuem variáveis para associar.'); return }
+      const existing = (d.mappings || {}) as Record<string, { source: string; type?: string }>
+      const rows: MapRow[] = (d.variables || []).map((name: string) => {
+        const m = existing[name]
+        if (m) return { name, source: m.source, type: m.type || 'text' }
+        return { name, source: guessSource(name), type: 'text' }
+      })
+      if (rows.length === 0) setMapError('Nenhuma variável {campo} encontrada no documento. Use chaves simples no .docx, ex.: {nome}, {Valor do contrato}.')
+      setMapRows(rows)
+    } catch { setMapError('Erro ao ler o template.') }
+    finally { setLoadingMap(false) }
+  }
+
+  async function saveMapping() {
+    if (!mapTemplate) return
+    setSavingMap(true); setMapError('')
+    try {
+      const mappings = mapRows.reduce((acc, r) => {
+        acc[r.name] = r.source === 'manual' ? { source: 'manual', type: r.type } : { source: r.source }
+        return acc
+      }, {} as Record<string, { source: string; type?: string }>)
+      const res = await fetch(`/api/admin/contract-templates/${mapTemplate.id}/variables`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mappings }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) { setMapError(d.error || 'Erro ao salvar.'); return }
+      setMapOpen(false)
+      showToast('ok', 'Campos do template associados.')
+    } finally { setSavingMap(false) }
+  }
   function openEdit(t: ContractTemplate) {
     setEditingId(t.id); setExistingFileName(t.file_name || null)
     setName(t.name); setEmpresa(t.empresa || ''); setFile(null); setError(''); setModalOpen(true)
@@ -71,6 +154,8 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
         showToast('ok', 'Template adicionado.')
       }
       setModalOpen(false)
+      // .docx → abre a tela de associação de variáveis
+      if (d.template?.file_type !== 'pdf') openMapping({ id: d.template.id, name: d.template.name })
     } catch (e) { setError((e as Error).message || 'Erro ao salvar.') }
     finally { setSaving(false) }
   }
@@ -127,6 +212,10 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
               {t.file_url && (
                 <a href={viewUrl(t)} target="_blank" rel="noreferrer"
                   className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Visualizar (formatação original)"><Eye className="w-4 h-4" /></a>
+              )}
+              {t.file_type !== 'pdf' && (
+                <button onClick={() => openMapping({ id: t.id, name: t.name })}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Associar campos (variáveis)"><Braces className="w-4 h-4" /></button>
               )}
               <button onClick={() => openEdit(t)}
                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Editar"><Pencil className="w-4 h-4" /></button>
@@ -196,6 +285,67 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
               <Button onClick={handleSave} disabled={saving} className="gap-1.5">
                 {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : editingId ? <><CheckCircle2 className="w-3.5 h-3.5" />Salvar alterações</> : <><Plus className="w-3.5 h-3.5" />Adicionar</>}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: associação de variáveis */}
+      {mapOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-1.5"><Braces className="w-4 h-4 text-primary" />Associar campos do template</h2>
+                <p className="text-[12px] text-muted-foreground truncate">{mapTemplate?.name}</p>
+              </div>
+              <button onClick={() => setMapOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {loadingMap && (
+                <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm">Lendo variáveis do documento...</span>
+                </div>
+              )}
+
+              {!loadingMap && mapRows.length > 0 && (
+                <>
+                  <p className="text-[12px] text-muted-foreground bg-gray-50 border rounded-lg px-3 py-2">
+                    Associe cada variável encontrada no documento a um campo do sistema, ou marque como <strong>&ldquo;Preencher na hora&rdquo;</strong> para digitar o valor ao gerar o contrato.
+                  </p>
+                  <div className="space-y-2">
+                    {mapRows.map((r, i) => (
+                      <div key={r.name} className="flex items-center gap-2 rounded-lg border p-2.5 bg-gray-50/50 flex-wrap">
+                        <span className="font-mono text-[12px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md shrink-0">{'{'}{r.name}{'}'}</span>
+                        <span className="text-gray-400 shrink-0">→</span>
+                        <select value={r.source}
+                          onChange={e => setMapRows(prev => prev.map((x, j) => j === i ? { ...x, source: e.target.value } : x))}
+                          className="h-8 flex-1 min-w-[180px] border border-gray-300 rounded-md px-2 text-sm bg-white">
+                          {SYSTEM_FIELDS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                          <option value="manual">✏️ Preencher na hora</option>
+                        </select>
+                        {r.source === 'manual' && (
+                          <select value={r.type}
+                            onChange={e => setMapRows(prev => prev.map((x, j) => j === i ? { ...x, type: e.target.value } : x))}
+                            className="h-8 w-[110px] border border-gray-300 rounded-md px-2 text-xs bg-white shrink-0">
+                            {MANUAL_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {mapError && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{mapError}</p>}
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
+              <Button variant="outline" onClick={() => setMapOpen(false)} disabled={savingMap}>Fechar</Button>
+              {mapRows.length > 0 && (
+                <Button onClick={saveMapping} disabled={savingMap} className="gap-1.5">
+                  {savingMap ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />Confirmar associações</>}
+                </Button>
+              )}
             </div>
           </div>
         </div>
