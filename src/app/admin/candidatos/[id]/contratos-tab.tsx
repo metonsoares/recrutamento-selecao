@@ -1,7 +1,7 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
-  Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download,
+  Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download, Eye, Pencil,
   CheckCircle2, AlertCircle, FileSignature,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,21 +19,37 @@ export interface ContractItem {
   file_url: string | null
   file_name: string | null
   file_path: string | null
+  file_type: string | null
+  template_id: string | null
+  variables: Record<string, string> | null
   created_at: string
 }
 
+interface TemplateOpt { id: string; name: string; file_type: string | null }
 interface Props { candidateId: string; initialContracts: ContractItem[] }
 
 function brl(v: number | null) {
   if (v == null) return null
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
+function viewUrl(c: ContractItem) {
+  const url = c.file_url || ''
+  if (c.file_type === 'pdf' || c.file_name?.toLowerCase().endsWith('.pdf')) return url
+  return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
+}
 
 export function ContratosTab({ candidateId, initialContracts }: Props) {
   const [contracts, setContracts] = useState<ContractItem[]>(initialContracts)
+  const [templates, setTemplates] = useState<TemplateOpt[]>([])
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const [templateId, setTemplateId] = useState('')
+  const [templatePdf, setTemplatePdf] = useState(false)
+  const [vars, setVars] = useState<{ name: string; value: string }[]>([])
+  const [loadingVars, setLoadingVars] = useState(false)
 
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
@@ -47,9 +63,44 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (!modalOpen) return
+    fetch('/api/admin/contract-templates').then(r => r.json()).then(d => setTemplates((d.templates || []).map((t: TemplateOpt) => ({ id: t.id, name: t.name, file_type: t.file_type })))).catch(() => {})
+  }, [modalOpen])
+
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
-  function openModal() {
-    setTitle(''); setDate(new Date().toISOString().slice(0, 10)); setStart(''); setEnd(''); setValue(''); setNotes(''); setFile(null); setError(''); setModalOpen(true)
+
+  function resetForm() {
+    setTemplateId(''); setTemplatePdf(false); setVars([]); setTitle(''); setDate(new Date().toISOString().slice(0, 10))
+    setStart(''); setEnd(''); setValue(''); setNotes(''); setFile(null); setError('')
+  }
+  function openModal() { setEditingId(null); resetForm(); setModalOpen(true) }
+  function openEdit(c: ContractItem) {
+    setEditingId(c.id)
+    setTemplateId(c.template_id || ''); setTemplatePdf(false)
+    setVars(c.variables ? Object.entries(c.variables).map(([name, v]) => ({ name, value: String(v) })) : [])
+    setTitle(c.title); setDate(c.contract_date)
+    setStart(c.period_start || ''); setEnd(c.period_end || ''); setValue(c.value != null ? String(c.value) : ''); setNotes(c.notes || '')
+    setFile(c.file_url && c.file_path && c.file_name ? { url: c.file_url, name: c.file_name, path: c.file_path } : null)
+    setError(''); setModalOpen(true)
+  }
+
+  async function onSelectTemplate(tid: string) {
+    setTemplateId(tid); setVars([]); setTemplatePdf(false); setError('')
+    if (!tid) return
+    const tpl = templates.find(t => t.id === tid)
+    if (tpl && !title.trim()) setTitle(tpl.name)
+    setLoadingVars(true)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/prepare`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ template_id: tid }),
+      })
+      const d = await res.json()
+      if (!res.ok) { setError(d.error || 'Erro ao ler template.'); return }
+      if (d.pdf) { setTemplatePdf(true); setVars([]) }
+      else setVars(d.variables || [])
+    } catch { setError('Erro ao ler template.') }
+    finally { setLoadingVars(false) }
   }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -70,18 +121,26 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
     if (!title.trim()) { setError('Informe o título do contrato.'); return }
     if (!date) { setError('Informe a data do contrato.'); return }
     setSaving(true)
+    const variablesObj = vars.reduce((acc, v) => { acc[v.name] = v.value; return acc }, {} as Record<string, string>)
+    const payload: Record<string, unknown> = {
+      title, contract_date: date, period_start: start || null, period_end: end || null, value, notes,
+    }
+    if (templateId && vars.length > 0) { payload.template_id = templateId; payload.variables = variablesObj }
+    if (file && (!templateId || templatePdf)) { payload.file_url = file.url; payload.file_name = file.name; payload.file_path = file.path }
     try {
-      const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title, contract_date: date, period_start: start || null, period_end: end || null,
-          value, notes, file_url: file?.url, file_name: file?.name, file_path: file?.path,
-        }),
-      })
+      const url = editingId
+        ? `/api/admin/candidatos/${candidateId}/contratos/${editingId}`
+        : `/api/admin/candidatos/${candidateId}/contratos`
+      const res = await fetch(url, { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await res.json(); if (!res.ok) throw new Error(d.error)
-      setContracts(prev => [d.contract, ...prev].sort((a, b) => b.contract_date.localeCompare(a.contract_date)))
+      if (editingId) {
+        setContracts(prev => prev.map(c => c.id === editingId ? d.contract : c).sort((a, b) => b.contract_date.localeCompare(a.contract_date)))
+        showToast('ok', 'Contrato atualizado.')
+      } else {
+        setContracts(prev => [d.contract, ...prev].sort((a, b) => b.contract_date.localeCompare(a.contract_date)))
+        showToast('ok', 'Contrato adicionado.')
+      }
       setModalOpen(false)
-      showToast('ok', 'Contrato adicionado.')
     } catch (e) { setError((e as Error).message || 'Erro ao salvar.') }
     finally { setSaving(false) }
   }
@@ -135,23 +194,27 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     <span className="text-[12px] font-semibold text-gray-800">{formatDate(c.contract_date)}</span>
                     <span className="text-sm font-medium text-gray-900">{c.title}</span>
                     {c.value != null && <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">{brl(c.value)}</span>}
-                    <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id}
-                      className="ml-auto text-gray-300 hover:text-red-500 shrink-0">
-                      {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
+                    <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                      {c.file_url && (
+                        <a href={viewUrl(c)} target="_blank" rel="noreferrer" className="p-1 rounded text-gray-400 hover:text-primary hover:bg-primary/5" title="Visualizar"><Eye className="w-3.5 h-3.5" /></a>
+                      )}
+                      <button onClick={() => openEdit(c)} className="p-1 rounded text-gray-400 hover:text-primary hover:bg-primary/5" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
+                      {c.file_url && (
+                        <a href={c.file_url} target="_blank" rel="noreferrer" download className="p-1 rounded text-gray-400 hover:text-primary hover:bg-primary/5" title="Download"><Download className="w-3.5 h-3.5" /></a>
+                      )}
+                      <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id} className="p-1 rounded text-gray-400 hover:text-red-500" title="Remover">
+                        {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                   {(c.period_start || c.period_end) && (
-                    <p className="text-[12px] text-muted-foreground mt-0.5">
-                      Período: {c.period_start ? formatDate(c.period_start) : '—'} a {c.period_end ? formatDate(c.period_end) : '—'}
-                    </p>
+                    <p className="text-[12px] text-muted-foreground mt-0.5">Período: {c.period_start ? formatDate(c.period_start) : '—'} a {c.period_end ? formatDate(c.period_end) : '—'}</p>
                   )}
                   {c.notes && <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{c.notes}</p>}
-                  {c.file_url && (
-                    <a href={c.file_url} target="_blank" rel="noreferrer" download
-                      className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] text-sky-700 hover:underline font-medium">
-                      {c.file_name?.endsWith('.pdf') ? <FileText className="w-3.5 h-3.5 text-red-500" /> : <FileDown className="w-3.5 h-3.5 text-blue-500" />}
-                      {c.file_name || 'Contrato'}<Download className="w-3 h-3 opacity-60" />
-                    </a>
+                  {c.file_name && (
+                    <p className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] text-gray-500">
+                      {c.file_name.toLowerCase().endsWith('.pdf') ? <FileText className="w-3.5 h-3.5 text-red-500" /> : <FileDown className="w-3.5 h-3.5 text-blue-500" />}{c.file_name}
+                    </p>
                   )}
                 </div>
               </div>
@@ -162,12 +225,24 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
 
       {modalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white">
-              <h2 className="text-base font-semibold text-gray-900">Adicionar contrato</h2>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
+              <h2 className="text-base font-semibold text-gray-900">{editingId ? 'Editar contrato' : 'Adicionar contrato'}</h2>
               <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
+              {/* Template */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Usar template de contrato</label>
+                <select value={templateId} onChange={e => onSelectTemplate(e.target.value)}
+                  className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
+                  <option value="">Nenhum (anexar arquivo manualmente)</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}{t.file_type === 'pdf' ? ' (PDF)' : ''}</option>)}
+                </select>
+                {loadingVars && <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Lendo variáveis do template...</p>}
+                {templatePdf && <p className="text-[11px] text-amber-600">Template em PDF não tem variáveis para preencher — anexe o arquivo abaixo, se desejar.</p>}
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Título / tipo do contrato *</label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Contrato de prestação de serviço - Evento X" />
@@ -180,33 +255,58 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                 <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Início (opcional)</label><Input type="date" value={start} onChange={e => setStart(e.target.value)} /></div>
                 <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Término (opcional)</label><Input type="date" value={end} onChange={e => setEnd(e.target.value)} /></div>
               </div>
+
+              {/* Variáveis do template */}
+              {vars.length > 0 && (
+                <div className="space-y-2 border-t pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Campos do contrato</p>
+                  <p className="text-[11px] text-muted-foreground">Preenchidos automaticamente quando encontrados. Complete os que estiverem em branco.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {vars.map((v, i) => (
+                      <div key={v.name} className="space-y-1">
+                        <label className="text-[11px] font-medium text-gray-600">{v.name}</label>
+                        <Input value={v.value} onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} className="h-8 text-sm" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Observações</label>
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Arquivo do contrato (PDF/DOC/imagem)</label>
-                {file ? (
-                  <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
-                    <FileText className="w-4 h-4 text-red-500 shrink-0" />
-                    <a href={file.url} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{file.name}</a>
-                    <button onClick={() => setFile(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
-                  </div>
-                ) : (
-                  <button disabled={uploading} onClick={() => fileRef.current?.click()}
-                    className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50 w-full justify-center">
-                    {uploading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Enviando...</> : <><Upload className="w-3.5 h-3.5" />Anexar arquivo</>}
-                  </button>
-                )}
-                <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx" className="hidden" onChange={handleFile} />
-              </div>
+
+              {/* Anexo manual (quando sem template ou template pdf) */}
+              {(!templateId || templatePdf) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Arquivo do contrato (PDF/DOC/imagem)</label>
+                  {file ? (
+                    <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
+                      <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                      <a href={file.url} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{file.name}</a>
+                      <button onClick={() => setFile(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <button disabled={uploading} onClick={() => fileRef.current?.click()}
+                      className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50 w-full justify-center">
+                      {uploading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Enviando...</> : <><Upload className="w-3.5 h-3.5" />Anexar arquivo</>}
+                    </button>
+                  )}
+                  <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx" className="hidden" onChange={handleFile} />
+                </div>
+              )}
+
+              {templateId && !templatePdf && vars.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">Ao salvar, o contrato será gerado em Word com a formatação do template.</p>
+              )}
               {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving || uploading} className="gap-1.5">
-                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />Adicionar</>}
+                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />Salvar</>}
               </Button>
             </div>
           </div>
