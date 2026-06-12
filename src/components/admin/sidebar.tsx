@@ -84,8 +84,10 @@ function SidebarContent({
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos || inConfigCurriculos)
   const [configCurriculosOpen, setConfigCurriculosOpen] = useState(inConfigCurriculos)
   const inPesquisas = pathname.startsWith('/admin/pesquisas-clima')
+  const inDocumentos = pathname.startsWith('/admin/documentos-empresa')
   const [colaboradoresOpen, setColaboradoresOpen] = useState(inColaboradores)
   const [pesquisasOpen, setPesquisasOpen] = useState(inPesquisas)
+  const [documentosOpen, setDocumentosOpen] = useState(inDocumentos)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
   const [usuariosOpen, setUsuariosOpen] = useState(inUsuarios)
@@ -251,12 +253,25 @@ function SidebarContent({
         </div>
         )}
 
-        {/* Documentos empresa */}
+        {/* Documentos empresa ▾ */}
         {can('documentos_empresa') && (
-          <Link href="/admin/documentos-empresa" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/documentos-empresa') ? NAV_ACTIVE : NAV_DEFAULT)}>
+        <div>
+          <button onClick={() => setDocumentosOpen(o => !o)} className={cn(NAV_BASE, inDocumentos ? NAV_ACTIVE : NAV_DEFAULT)}>
             <FolderArchive className="w-[15px] h-[15px] shrink-0 opacity-60" />
-            Documentos empresa
-          </Link>
+            <span className="flex-1 text-left">Documentos empresa</span>
+            <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', documentosOpen && 'rotate-180')} />
+          </button>
+          {documentosOpen && (
+            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link href="/admin/documentos-empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/documentos-empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <FolderArchive className="w-3 h-3 shrink-0 opacity-50" />Documentos da empresa
+              </Link>
+              <Link href="/admin/documentos-empresa/templates" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/documentos-empresa/templates') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <FileSignature className="w-3 h-3 shrink-0 opacity-50" />Templates de contrato
+              </Link>
+            </div>
+          )}
+        </div>
         )}
 
         {can('whatsapp.ver') && (
