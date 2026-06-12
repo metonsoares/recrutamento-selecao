@@ -238,9 +238,14 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
       )}
 
       <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
-        <div className="flex items-center gap-2 mb-5">
-          <FileSignature className="w-5 h-5 text-teal-600" />
-          <h2 className="text-xl font-bold text-gray-900">Dados para contrato</h2>
+        <div className="flex items-center justify-between gap-2 mb-5">
+          <div className="flex items-center gap-2">
+            <FileSignature className="w-5 h-5 text-teal-600" />
+            <h2 className="text-xl font-bold text-gray-900">Dados para contrato</h2>
+          </div>
+          <Button onClick={() => save()} disabled={saving} className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shrink-0">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar</>}
+          </Button>
         </div>
 
         {/* Empresa contratante */}
@@ -357,15 +362,8 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
         </div>
       </div>
 
-      {/* Salvar — linha própria */}
-      <div className="mt-4 max-w-3xl">
-        <Button onClick={() => save()} disabled={saving} variant="outline" className="gap-1.5">
-          {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar</>}
-        </Button>
-      </div>
-
-      {/* Documentos gerados */}
-      <div className="mt-3 max-w-3xl flex flex-wrap gap-2">
+      {/* Ações — todas na mesma linha */}
+      <div className="mt-4 max-w-3xl flex flex-wrap gap-2">
         <Button variant="outline" disabled={saving} className="gap-1.5"
           onClick={async () => { const ok = await save(); if (ok) window.open(`/admin/candidatos/${candidateId}/print-contrato`, '_blank') }}>
           <FileText className="w-4 h-4" />Gerar contrato
@@ -374,12 +372,15 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
           onClick={async () => { const ok = await save(); if (ok) window.open(`/admin/candidatos/${candidateId}/print-recibo`, '_blank') }}>
           <FileSignature className="w-4 h-4" />Emitir recibo
         </Button>
-      </div>
-
-      {/* Ações de contrato — linha separada */}
-      <div className="mt-3 max-w-3xl flex flex-wrap gap-2 border-t pt-4">
         <Button onClick={() => setContratarOpen(true)} disabled={saving} className="gap-1.5"><UserCheck className="w-4 h-4" />Contratar</Button>
         <Button onClick={() => setEncerrarOpen(true)} disabled={saving} variant="outline" className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50"><UserMinus className="w-4 h-4" />Encerrar contrato</Button>
+      </div>
+
+      {/* Salvar — também no rodapé, em destaque */}
+      <div className="mt-4 max-w-3xl">
+        <Button onClick={() => save()} disabled={saving} className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white">
+          {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar</>}
+        </Button>
       </div>
 
       {/* Modal Contratar */}
