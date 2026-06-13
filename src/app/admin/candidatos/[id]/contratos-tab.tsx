@@ -229,7 +229,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
 
       {modalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-base font-semibold text-gray-900">{editingId ? 'Editar contrato' : 'Adicionar contrato'}</h2>
               <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
@@ -270,10 +270,10 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                 <div className="space-y-2 border-t pt-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Campos do contrato</p>
                   <p className="text-[11px] text-muted-foreground">Preenchidos automaticamente quando encontrados. Complete os que estiverem em branco.</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-2.5">
                     {vars.map((v, i) => (
                       <div key={v.name} className="space-y-1">
-                        <label className="text-[11px] font-medium text-gray-600">
+                        <label className="text-[12px] font-medium text-gray-600">
                           {v.label || v.name}
                           {v.manual && <span className="ml-1 text-[10px] text-amber-600">(preencher)</span>}
                         </label>
@@ -282,7 +282,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                           placeholder={v.type === 'currency' ? 'R$ 0,00' : undefined}
                           value={v.value}
                           onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
-                          className="h-8 text-sm"
+                          className="h-9 text-sm"
                         />
                       </div>
                     ))}
@@ -290,11 +290,14 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                 </div>
               )}
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Observações</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
-              </div>
+              {/* Observações só no fluxo manual */}
+              {(!templateId || templatePdf) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Observações</label>
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+              )}
 
               {/* Anexo manual (quando sem template ou template pdf) */}
               {(!templateId || templatePdf) && (
