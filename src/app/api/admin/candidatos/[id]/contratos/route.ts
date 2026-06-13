@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import PizZip from 'pizzip'
-import Docxtemplater from 'docxtemplater'
+import { generateDocxFromTemplate } from '@/lib/docx-generate'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
-
-/** Gera um .docx preenchido a partir do template + variáveis. */
-async function generateFromTemplate(templateUrl: string, variables: Record<string, string>): Promise<Buffer> {
-  const res = await fetch(templateUrl)
-  if (!res.ok) throw new Error('Falha ao baixar o template.')
-  const buf = Buffer.from(await res.arrayBuffer())
-  const zip = new PizZip(buf)
-  const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: () => '' })
-  doc.render(variables)
-  return doc.getZip().generate({ type: 'nodebuffer' }) as Buffer
-}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -37,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!tpl) return NextResponse.json({ error: 'Template não encontrado.' }, { status: 404 })
       if (tpl.file_type !== 'pdf') {
         try {
-          const out = await generateFromTemplate(tpl.file_url as string, b.variables as Record<string, string>)
+          const out = await generateDocxFromTemplate(tpl.file_url as string, b.variables as Record<string, string>)
           const path = `contract-templates/gerados/${Date.now()}.docx`
           const { error: upErr } = await supabase.storage.from('admission-docs').upload(path, out, {
             contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', upsert: false,
