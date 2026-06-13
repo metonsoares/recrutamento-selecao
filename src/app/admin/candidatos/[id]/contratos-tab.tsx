@@ -251,14 +251,19 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                 <label className="text-xs font-medium text-gray-600">Título / tipo do contrato *</label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Contrato de prestação de serviço - Evento X" />
               </div>
-              <div className="flex gap-2">
-                <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Data *</label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
-                <div className="w-32 space-y-1"><label className="text-xs font-medium text-gray-600">Valor (R$)</label><Input type="number" value={value} onChange={e => setValue(e.target.value)} placeholder="0,00" /></div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Início (opcional)</label><Input type="date" value={start} onChange={e => setStart(e.target.value)} /></div>
-                <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Término (opcional)</label><Input type="date" value={end} onChange={e => setEnd(e.target.value)} /></div>
-              </div>
+              {/* Data/Valor/Período só no fluxo manual — com template, os dados vêm das variáveis */}
+              {(!templateId || templatePdf) && (
+                <>
+                  <div className="flex gap-2">
+                    <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Data *</label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+                    <div className="w-32 space-y-1"><label className="text-xs font-medium text-gray-600">Valor (R$)</label><Input type="number" value={value} onChange={e => setValue(e.target.value)} placeholder="0,00" /></div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Início (opcional)</label><Input type="date" value={start} onChange={e => setStart(e.target.value)} /></div>
+                    <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Término (opcional)</label><Input type="date" value={end} onChange={e => setEnd(e.target.value)} /></div>
+                  </div>
+                </>
+              )}
 
               {/* Variáveis do template */}
               {vars.length > 0 && (
