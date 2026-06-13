@@ -68,6 +68,8 @@ export function guessSource(name: string): { source: string; type: string } {
     if (has('empresa') || has('contratante')) return { source: 'empresa_cep', type: 'text' }
     return { source: 'cep', type: 'text' }
   }
+  // número do contrato → gerado automaticamente (AAAAMMDDHHMM)
+  if (has('numero') && has('contrato')) return { source: 'numero_contrato', type: 'text' }
   // campos do evento são sempre preenchidos na hora
   if (has('evento')) return { source: 'manual', type: has('data') ? 'date' : (has('valor') || has('preco')) ? 'currency' : 'text' }
   if (has('endereco') || has('residencia')) {

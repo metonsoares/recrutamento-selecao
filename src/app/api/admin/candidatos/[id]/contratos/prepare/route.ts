@@ -91,6 +91,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const today = new Date().toLocaleDateString('pt-BR')
+
+    // Número automático do contrato: AAAAMMDDHHMM (horário de Brasília)
+    const p = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date()).reduce((acc, x) => { acc[x.type] = x.value; return acc }, {} as Record<string, string>)
+    const numeroContrato = `${p.year}${p.month}${p.day}${p.hour}${p.minute}`
     // valores por "source" do mapeamento
     const SOURCE_VALUES: Record<string, string> = {
       nome: cand?.full_name || '',
@@ -108,6 +115,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       empresa_cnpj: empresaCnpj,
       empresa_endereco: empresaEndereco,
       empresa_cep: empresaCep,
+      numero_contrato: numeroContrato,
     }
     const mappings = (tpl.field_mappings || {}) as Record<string, Mapping>
 

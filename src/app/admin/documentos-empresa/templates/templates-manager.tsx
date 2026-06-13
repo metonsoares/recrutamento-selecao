@@ -40,6 +40,7 @@ const SYSTEM_FIELDS: { value: string; label: string }[] = [
   { value: 'empresa_endereco', label: 'Endereço da empresa' },
   { value: 'empresa_cep', label: 'CEP da empresa' },
   { value: 'data', label: 'Data atual' },
+  { value: 'numero_contrato', label: 'Número do contrato (automático)' },
 ]
 
 const MANUAL_TYPES: { value: string; label: string }[] = [
