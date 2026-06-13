@@ -22,9 +22,12 @@ export function baseKey(s: string): string {
   return k
 }
 
-/** Rótulo de exibição amigável. */
+/** Rótulo de exibição amigável (sem prefixo CONTRATANTE/CONTRATADO). */
 export function displayLabel(raw: string): string {
-  return stripQuotes(raw).replace(/\s*:\s*/g, ' — ').trim()
+  const parts = stripQuotes(raw).split(':').map(p => p.trim()).filter(Boolean)
+  // descarta o 1º segmento quando é apenas o papel (CONTRATANTE/CONTRATADO)
+  if (parts.length > 1 && ROLE_PREFIXES.includes(normKey(parts[0]))) parts.shift()
+  return parts.join(' — ').trim()
 }
 
 export interface VarGroup {
@@ -62,6 +65,8 @@ export function guessSource(name: string): { source: string; type: string } {
   if (has('cpf')) return { source: 'cpf', type: 'text' }
   if (has('cnpj')) return { source: 'empresa_cnpj', type: 'text' }
   if (has('cep')) return { source: 'cep', type: 'text' }
+  // campos do evento são sempre preenchidos na hora
+  if (has('evento')) return { source: 'manual', type: has('data') ? 'date' : (has('valor') || has('preco')) ? 'currency' : 'text' }
   if (has('endereco') || has('residencia')) {
     // endereço do evento/empresa → preencher na hora
     if (has('evento') || has('empresa') || has('contratante')) return { source: 'manual', type: 'text' }
