@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays, HeartPulse, History, MessageSquareHeart, ScrollText } from 'lucide-react'
+import { FileText, ClipboardList, FolderArchive, AlertTriangle, Landmark, Plane, Stethoscope, FileSignature, Wallet, CalendarDays, HeartPulse, History, MessageSquareHeart, ScrollText, Receipt } from 'lucide-react'
 
 interface Props {
   candidateId: string
@@ -29,9 +29,11 @@ interface Props {
   showClima?: boolean
   /** Exibe Contratos — freelancer */
   showContratos?: boolean
+  /** Exibe Recibos — freelancer */
+  showRecibos?: boolean
 }
 
-export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false, showAso = false, showRegistros = false, showClima = false, showContratos = false }: Props) {
+export function CandidateTabNav({ candidateId, showResumo = false, showBankTab = false, showVacationTab = false, showFicha = true, showContract = false, showDocumentos = true, showRecords = true, showPayroll = false, showAso = false, showRegistros = false, showClima = false, showContratos = false, showRecibos = false }: Props) {
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
   const activeTab =
@@ -47,6 +49,7 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
     : tab === 'asos' ? 'asos'
     : tab === 'clima' ? 'clima'
     : tab === 'contratos' ? 'contratos'
+    : tab === 'recibos' ? 'recibos'
     : tab === 'registros' ? 'registros'
     : 'curriculo'
 
@@ -160,6 +163,15 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
         >
           <ScrollText className="w-4 h-4" />
           Contratos
+        </Link>
+      )}
+      {showRecibos && (
+        <Link
+          href={`/admin/candidatos/${candidateId}?tab=recibos`}
+          className={`${base} ${activeTab === 'recibos' ? active : inactive}`}
+        >
+          <Receipt className="w-4 h-4" />
+          Recibos
         </Link>
       )}
       {showClima && (

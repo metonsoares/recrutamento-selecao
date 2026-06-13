@@ -129,7 +129,7 @@ export default async function CandidatePage({
   await requirePermission('candidatos.ver')
   const { id } = await params
   const sp = await searchParams
-  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'clima' | 'contratos' | 'registros' =
+  const activeTab: 'curriculo' | 'ficha' | 'contrato' | 'documentos' | 'advertencias' | 'bancarios' | 'ferias' | 'atestados' | 'contracheques' | 'folhas-ponto' | 'asos' | 'clima' | 'contratos' | 'recibos' | 'registros' =
     sp.tab === 'ficha' ? 'ficha'
     : sp.tab === 'contrato' ? 'contrato'
     : sp.tab === 'documentos' ? 'documentos'
@@ -142,6 +142,7 @@ export default async function CandidatePage({
     : sp.tab === 'asos' ? 'asos'
     : sp.tab === 'clima' ? 'clima'
     : sp.tab === 'contratos' ? 'contratos'
+    : sp.tab === 'recibos' ? 'recibos'
     : sp.tab === 'registros' ? 'registros'
     : 'curriculo'
 
@@ -200,6 +201,7 @@ export default async function CandidatePage({
   ])
   const contracheques = (empFilesData || []).filter(f => f.kind === 'contracheque') as EmployeeFile[]
   const folhasPonto = (empFilesData || []).filter(f => f.kind === 'folha_ponto') as EmployeeFile[]
+  const recibos = (empFilesData || []).filter(f => f.kind === 'recibo') as EmployeeFile[]
 
   // ── Pesquisas de clima (atribuições + respostas + lista para dropdown) ─────
   const [{ data: climateAssignData }, { data: climateRespData }, { data: allSurveysData }] = await Promise.all([
@@ -276,8 +278,9 @@ export default async function CandidatePage({
   const showRegistros = isContratado
   // Pesquisas de clima: colaboradores (contratado, freelancer, em contrato, intermitente, desligado)
   const showClima = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
-  // Contratos: apenas freelancer
+  // Contratos e Recibos: apenas freelancer
   const showContratos = currentStatus === 'freelancer'
+  const showRecibos = currentStatus === 'freelancer'
   // Painel completo para contratado e desligado; enxuto para os demais
   const minimalResumo = showResumoPanel && !isContratado && !isDesligado
 
@@ -472,7 +475,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
-      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showClima={showClima} showContratos={showContratos} showRegistros={showRegistros} />
+      <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showClima={showClima} showContratos={showContratos} showRecibos={showRecibos} showRegistros={showRegistros} />
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && showFicha && (
@@ -542,6 +545,12 @@ export default async function CandidatePage({
       {/* ── Aba: Contratos (freelancer) ── */}
       {activeTab === 'contratos' && showContratos && (
         <ContratosTab candidateId={id} initialContracts={(contractsData || []) as ContractItem[]} />
+      )}
+
+      {/* ── Aba: Recibos (freelancer) ── */}
+      {activeTab === 'recibos' && showRecibos && (
+        <EmployeeFilesTab candidateId={id} kind="recibo" title="Recibos"
+          referenceLabel="Referência (evento / data)" insertLabel="Inserir recibo" initialFiles={recibos} />
       )}
 
       {/* ── Aba: Pesquisas de clima ── */}
