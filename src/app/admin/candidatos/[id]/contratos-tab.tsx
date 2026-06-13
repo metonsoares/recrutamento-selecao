@@ -225,16 +225,16 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     <span className="text-[12px] font-semibold text-gray-800">{formatDate(c.contract_date)}</span>
                     <span className="text-sm font-medium text-gray-900">{c.title}</span>
                     {c.value != null && <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">{brl(c.value)}</span>}
-                    <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                    <div className="ml-auto flex items-center gap-1 shrink-0">
                       {c.file_url && (
-                        <a href={viewUrl(c)} target="_blank" rel="noreferrer" className="p-1 rounded text-gray-400 hover:text-primary hover:bg-primary/5" title="Visualizar"><Eye className="w-3.5 h-3.5" /></a>
+                        <a href={viewUrl(c)} target="_blank" rel="noreferrer" className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Visualizar"><Eye className="w-5 h-5" /></a>
                       )}
-                      <button onClick={() => openEdit(c)} className="p-1 rounded text-gray-400 hover:text-primary hover:bg-primary/5" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => openEdit(c)} className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Editar"><Pencil className="w-5 h-5" /></button>
                       {c.file_url && (
-                        <a href={c.file_url} target="_blank" rel="noreferrer" download className="p-1 rounded text-gray-400 hover:text-primary hover:bg-primary/5" title="Download"><Download className="w-3.5 h-3.5" /></a>
+                        <a href={c.file_url} target="_blank" rel="noreferrer" download className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Download"><Download className="w-5 h-5" /></a>
                       )}
-                      <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id} className="p-1 rounded text-gray-400 hover:text-red-500" title="Remover">
-                        {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id} className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50" title="Remover">
+                        {deletingId === c.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
                       </button>
                     </div>
                   </div>
