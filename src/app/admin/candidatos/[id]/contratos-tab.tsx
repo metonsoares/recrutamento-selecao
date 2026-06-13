@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
+import { parseMoney, formatMoneyExtenso } from '@/lib/currency'
 
 export interface ContractItem {
   id: string
@@ -148,9 +149,17 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
     if (!title.trim()) { setError('Informe o título do contrato.'); return }
     if (!date) { setError('Informe a data do contrato.'); return }
     setSaving(true)
-    // expande o valor para todas as grafias originais do campo no documento
+    // expande o valor para todas as grafias originais do campo no documento;
+    // campos monetários viram "R$ 2.000,00 (dois mil reais)"
     const variablesObj = vars.reduce((acc, v) => {
-      for (const tag of (v.tags && v.tags.length ? v.tags : [v.name])) acc[tag] = v.value
+      let out = v.value
+      const label = (v.label || v.name).toLowerCase()
+      const isMoney = v.type === 'currency' || /valor|bonus|bônus|preço|preco|salário|salario|cachê|cache/.test(label)
+      if (isMoney) {
+        const n = parseMoney(v.value)
+        if (n != null) out = formatMoneyExtenso(n)
+      }
+      for (const tag of (v.tags && v.tags.length ? v.tags : [v.name])) acc[tag] = out
       return acc
     }, {} as Record<string, string>)
     const payload: Record<string, unknown> = {
