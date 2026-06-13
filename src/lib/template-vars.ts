@@ -71,7 +71,7 @@ export function guessSource(name: string): { source: string; type: string } {
   // número do contrato → gerado automaticamente (AAAAMMDDHHMM)
   if (has('numero') && has('contrato')) return { source: 'numero_contrato', type: 'text' }
   // campos do evento são sempre preenchidos na hora
-  if (has('evento')) return { source: 'manual', type: has('data') ? 'date' : (has('valor') || has('preco')) ? 'currency' : 'text' }
+  if (has('evento')) return { source: 'manual', type: (has('valor') || has('preco')) ? 'currency' : 'text' }
   if (has('endereco') || has('residencia')) {
     if (has('empresa') || has('contratante')) return { source: 'empresa_endereco', type: 'text' }
     return { source: 'endereco', type: 'text' }
@@ -86,7 +86,8 @@ export function guessSource(name: string): { source: string; type: string } {
   if (has('nome') || k === 'contratado' || k === 'contratada' || has('candidato') || has('funcionario')) return { source: 'nome', type: 'text' }
   if (has('data')) {
     if (has('assinatura') || k === 'data' || k === 'datahoje' || k === 'dataatual' || k === 'hoje') return { source: 'data', type: 'text' }
-    return { source: 'manual', type: 'date' }
+    // datas livres (ex.: datas de participação) → texto
+    return { source: 'manual', type: 'text' }
   }
   if (has('valor') || has('preco')) return { source: 'manual', type: 'currency' }
   return { source: 'manual', type: 'text' }

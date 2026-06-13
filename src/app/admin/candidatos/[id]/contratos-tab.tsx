@@ -48,8 +48,10 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
 
   const [templateId, setTemplateId] = useState('')
   const [templatePdf, setTemplatePdf] = useState(false)
-  const [vars, setVars] = useState<{ name: string; value: string; type?: string; label?: string; manual?: boolean; tags?: string[] }[]>([])
+  const [vars, setVars] = useState<{ name: string; value: string; type?: string; label?: string; manual?: boolean; tags?: string[]; source?: string }[]>([])
   const [loadingVars, setLoadingVars] = useState(false)
+  const [companies, setCompanies] = useState<{ id: string; nome: string; cnpj: string; endereco: string; cep: string }[]>([])
+  const [companySel, setCompanySel] = useState('')
 
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
@@ -98,9 +100,34 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
       const d = await res.json()
       if (!res.ok) { setError(d.error || 'Erro ao ler template.'); return }
       if (d.pdf) { setTemplatePdf(true); setVars([]) }
-      else setVars(d.variables || [])
+      else {
+        setCompanies(d.companies || [])
+        setCompanySel(d.selectedCompanyId || '')
+        let nextVars = (d.variables || []) as typeof vars
+        // pré-aplica a empresa vinculada à ficha (quando houver)
+        const pre = (d.companies || []).find((c: { id: string }) => c.id === d.selectedCompanyId)
+        if (pre) nextVars = applyCompany(nextVars, pre)
+        setVars(nextVars)
+      }
     } catch { setError('Erro ao ler template.') }
     finally { setLoadingVars(false) }
+  }
+
+  /** Preenche os campos da empresa (razão social, CNPJ, endereço, CEP) em cascata. */
+  function applyCompany(list: typeof vars, c: { nome: string; cnpj: string; endereco: string; cep: string }) {
+    return list.map(v =>
+      v.source === 'empresa' ? { ...v, value: c.nome }
+      : v.source === 'empresa_cnpj' ? { ...v, value: c.cnpj }
+      : v.source === 'empresa_endereco' ? { ...v, value: c.endereco }
+      : v.source === 'empresa_cep' ? { ...v, value: c.cep }
+      : v
+    )
+  }
+
+  function onSelectCompany(id: string) {
+    setCompanySel(id)
+    const c = companies.find(x => x.id === id)
+    if (c) setVars(prev => applyCompany(prev, c))
   }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -277,13 +304,24 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                           {v.label || v.name}
                           {v.manual && <span className="ml-1 text-[10px] text-amber-600">(preencher)</span>}
                         </label>
-                        <Input
-                          type={v.type === 'number' || v.type === 'currency' ? 'number' : v.type === 'date' ? 'date' : 'text'}
-                          placeholder={v.type === 'currency' ? 'R$ 0,00' : undefined}
-                          value={v.value}
-                          onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
-                          className="h-9 text-sm"
-                        />
+                        {v.source === 'empresa' ? (
+                          <select
+                            value={companySel}
+                            onChange={e => onSelectCompany(e.target.value)}
+                            className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
+                          >
+                            <option value="">Selecione a empresa...</option>
+                            {companies.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                          </select>
+                        ) : (
+                          <Input
+                            type={v.type === 'number' || v.type === 'currency' ? 'number' : v.type === 'date' ? 'date' : 'text'}
+                            placeholder={v.type === 'currency' ? 'R$ 0,00' : undefined}
+                            value={v.value}
+                            onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
+                            className="h-9 text-sm"
+                          />
+                        )}
                       </div>
                     ))}
                   </div>

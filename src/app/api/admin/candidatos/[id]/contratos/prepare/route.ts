@@ -125,19 +125,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const map = mappings[g.key] || g.tags.map(t => mappings[t]).find(Boolean)
       if (map) {
         if (map.source === 'manual') {
-          return { name: g.key, label: map.label || g.label, tags: g.tags, value: '', type: map.type || 'text', manual: true }
+          return { name: g.key, label: map.label || g.label, tags: g.tags, value: '', type: map.type || 'text', manual: true, source: 'manual' }
         }
-        return { name: g.key, label: map.label || g.label, tags: g.tags, value: SOURCE_VALUES[map.source] ?? '', type: 'text', manual: false }
+        return { name: g.key, label: map.label || g.label, tags: g.tags, value: SOURCE_VALUES[map.source] ?? '', type: 'text', manual: false, source: map.source }
       }
       // sem mapeamento: sugestão automática
       const guess = guessSource(g.label)
       if (guess.source === 'manual') {
-        return { name: g.key, label: g.label, tags: g.tags, value: '', type: guess.type, manual: true }
+        return { name: g.key, label: g.label, tags: g.tags, value: '', type: guess.type, manual: true, source: 'manual' }
       }
-      return { name: g.key, label: g.label, tags: g.tags, value: SOURCE_VALUES[guess.source] ?? '', type: 'text', manual: false }
+      return { name: g.key, label: g.label, tags: g.tags, value: SOURCE_VALUES[guess.source] ?? '', type: 'text', manual: false, source: guess.source }
     })
 
-    return NextResponse.json({ templateName: tpl.name, fileType: tpl.file_type, variables })
+    // Empresas cadastradas (para o dropdown de Contratante)
+    const { data: allCompanies } = await supabase
+      .from('companies')
+      .select('id, apelido, razao_social, cnpj, cep, logradouro, numero, complemento, bairro, cidade, estado')
+      .order('razao_social')
+    const companies = (allCompanies || []).map(c => ({
+      id: c.id as string,
+      nome: (c.razao_social || c.apelido || '') as string,
+      cnpj: (c.cnpj || '') as string,
+      endereco: [c.logradouro, c.numero, c.complemento, c.bairro, c.cidade, c.estado].filter(Boolean).join(', '),
+      cep: (c.cep || '') as string,
+    }))
+
+    return NextResponse.json({ templateName: tpl.name, fileType: tpl.file_type, variables, companies, selectedCompanyId: companyId || '' })
   } catch (err) {
     console.error('[contratos prepare]', err)
     return NextResponse.json({ error: 'Erro ao ler o template.' }, { status: 500 })
