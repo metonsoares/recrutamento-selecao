@@ -37,6 +37,8 @@ const SYSTEM_FIELDS: { value: string; label: string }[] = [
   { value: 'salario', label: 'Salário / Valor cadastrado' },
   { value: 'empresa', label: 'Empresa (contratante)' },
   { value: 'empresa_cnpj', label: 'CNPJ da empresa' },
+  { value: 'empresa_endereco', label: 'Endereço da empresa' },
+  { value: 'empresa_cep', label: 'CEP da empresa' },
   { value: 'data', label: 'Data atual' },
 ]
 

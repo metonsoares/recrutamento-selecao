@@ -75,11 +75,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Empresa contratante (admission_form/contract_data → companies)
     let empresaNome = ''
     let empresaCnpj = ''
+    let empresaEndereco = ''
+    let empresaCep = ''
     const companyId = (ctr.selected_company_id || adm.selected_company_id) as string | undefined
     if (companyId) {
-      const { data: comp } = await supabase.from('companies').select('apelido, razao_social, cnpj').eq('id', companyId).maybeSingle()
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('apelido, razao_social, cnpj, cep, logradouro, numero, complemento, bairro, cidade, estado')
+        .eq('id', companyId).maybeSingle()
       empresaNome = (comp?.razao_social || comp?.apelido || '') as string
       empresaCnpj = (comp?.cnpj || '') as string
+      empresaCep = (comp?.cep || '') as string
+      empresaEndereco = [comp?.logradouro, comp?.numero, comp?.complemento, comp?.bairro, comp?.cidade, comp?.estado]
+        .filter(Boolean).join(', ')
     }
 
     const today = new Date().toLocaleDateString('pt-BR')
@@ -98,6 +106,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       salario: String(salary || ''),
       empresa: empresaNome,
       empresa_cnpj: empresaCnpj,
+      empresa_endereco: empresaEndereco,
+      empresa_cep: empresaCep,
     }
     const mappings = (tpl.field_mappings || {}) as Record<string, Mapping>
 

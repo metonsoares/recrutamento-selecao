@@ -64,12 +64,14 @@ export function guessSource(name: string): { source: string; type: string } {
   const has = (s: string) => k.includes(s)
   if (has('cpf')) return { source: 'cpf', type: 'text' }
   if (has('cnpj')) return { source: 'empresa_cnpj', type: 'text' }
-  if (has('cep')) return { source: 'cep', type: 'text' }
+  if (has('cep')) {
+    if (has('empresa') || has('contratante')) return { source: 'empresa_cep', type: 'text' }
+    return { source: 'cep', type: 'text' }
+  }
   // campos do evento são sempre preenchidos na hora
   if (has('evento')) return { source: 'manual', type: has('data') ? 'date' : (has('valor') || has('preco')) ? 'currency' : 'text' }
   if (has('endereco') || has('residencia')) {
-    // endereço do evento/empresa → preencher na hora
-    if (has('evento') || has('empresa') || has('contratante')) return { source: 'manual', type: 'text' }
+    if (has('empresa') || has('contratante')) return { source: 'empresa_endereco', type: 'text' }
     return { source: 'endereco', type: 'text' }
   }
   if (has('telefone') || has('celular') || has('fone')) return { source: 'telefone', type: 'text' }
