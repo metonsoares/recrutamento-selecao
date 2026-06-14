@@ -23,13 +23,14 @@ import { FeriasTab } from './ferias-tab'
 import { AtestadosTab } from './atestados-tab'
 import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
+import { BackButton } from './back-button'
 import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
 import { normalizeRole } from '@/lib/permissions'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
 import { ContratosTab, ContractItem } from './contratos-tab'
-import { FileDown, Globe, ArrowLeft, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
+import { FileDown, Globe, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -395,14 +396,8 @@ export default async function CandidatePage({
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
 
-      {/* ── Back button ── */}
-      <Link
-        href="/admin/candidatos"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Candidatos
-      </Link>
+      {/* ── Back button — volta para a página anterior (lista de onde veio) ── */}
+      <BackButton label="Voltar" />
 
       {/* ── Header ── */}
       <div className="flex items-start gap-4 flex-wrap">
