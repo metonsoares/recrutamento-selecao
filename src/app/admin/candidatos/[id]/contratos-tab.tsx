@@ -307,32 +307,45 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Campos do contrato</p>
                   <p className="text-[11px] text-muted-foreground">Preenchidos automaticamente quando encontrados. Complete os que estiverem em branco.</p>
                   <div className="space-y-2.5">
-                    {vars.map((v, i) => (
-                      <div key={v.name} className="space-y-1">
-                        <label className="text-[12px] font-medium text-gray-600">
-                          {v.label || v.name}
-                          {v.manual && <span className="ml-1 text-[10px] text-amber-600">(preencher)</span>}
-                        </label>
-                        {v.source === 'empresa' ? (
-                          <select
-                            value={companySel}
-                            onChange={e => onSelectCompany(e.target.value)}
-                            className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
-                          >
-                            <option value="">Selecione a empresa...</option>
-                            {companies.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                          </select>
-                        ) : (
-                          <Input
-                            type={v.type === 'number' || v.type === 'currency' ? 'number' : v.type === 'date' ? 'date' : 'text'}
-                            placeholder={v.type === 'currency' ? 'R$ 0,00' : undefined}
-                            value={v.value}
-                            onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
-                            className="h-9 text-sm"
-                          />
-                        )}
-                      </div>
-                    ))}
+                    {vars.map((v, i) => {
+                      const lbl = (v.label || v.name).toLowerCase()
+                      const isMoney = v.type === 'currency' || /valor|bonus|bônus|preço|preco|salário|salario|cachê|cache/.test(lbl)
+                      const moneyNum = isMoney ? parseMoney(v.value) : null
+                      return (
+                        <div key={v.name} className="space-y-1">
+                          <label className="text-[12px] font-medium text-gray-600">
+                            {v.label || v.name}
+                            {v.manual && <span className="ml-1 text-[10px] text-amber-600">(preencher)</span>}
+                          </label>
+                          {v.source === 'empresa' ? (
+                            <select
+                              value={companySel}
+                              onChange={e => onSelectCompany(e.target.value)}
+                              className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
+                            >
+                              <option value="">Selecione a empresa...</option>
+                              {companies.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                            </select>
+                          ) : (
+                            <Input
+                              type={isMoney ? 'text' : v.type === 'number' ? 'number' : v.type === 'date' ? 'date' : 'text'}
+                              inputMode={isMoney ? 'decimal' : undefined}
+                              placeholder={isMoney ? 'Ex: 3.000,00' : undefined}
+                              value={v.value}
+                              onChange={e => setVars(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
+                              className="h-9 text-sm"
+                            />
+                          )}
+                          {/* Preview por extenso (vai assim para o contrato) */}
+                          {isMoney && moneyNum != null && (
+                            <p className="text-[11px] text-emerald-700 font-medium">{formatMoneyExtenso(moneyNum)}</p>
+                          )}
+                          {isMoney && v.value.trim() !== '' && moneyNum == null && (
+                            <p className="text-[11px] text-amber-600">Digite um valor numérico (ex.: 3000 ou 3.000,00).</p>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
