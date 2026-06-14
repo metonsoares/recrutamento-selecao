@@ -24,15 +24,17 @@ export async function POST(req: NextRequest) {
 
     const { tokenApi, cryptKey, environment } = await req.json()
     const token = String(tokenApi || '').trim()
-    const crypt = String(cryptKey || '').trim()
+    const crypt = String(cryptKey || '').trim() // opcional — só se habilitado na conta
     const env = environment === 'sandbox' ? 'sandbox' : 'producao'
 
-    if (!token || !crypt) {
-      return NextResponse.json({ error: 'Informe o Token API e a Crypt Key da D4Sign.' }, { status: 400 })
+    if (!token) {
+      return NextResponse.json({ error: 'Informe o Token API da D4Sign.' }, { status: 400 })
     }
 
-    // Testa a conexão: lista os cofres (requer tokenAPI + cryptKey válidos)
-    const url = `${baseUrl(env)}/cofres?tokenAPI=${encodeURIComponent(token)}&cryptKey=${encodeURIComponent(crypt)}`
+    // Testa a conexão: lista os cofres. cryptKey só é enviada se informada
+    // (a D4Sign exige cryptKey apenas quando habilitada na conta).
+    const url = `${baseUrl(env)}/cofres?tokenAPI=${encodeURIComponent(token)}`
+      + (crypt ? `&cryptKey=${encodeURIComponent(crypt)}` : '')
     let cofresCount: number | null = null
     try {
       const ctrl = new AbortController()
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
       provider: 'd4sign',
       environment: env,
       token_api_encrypted: encryptToken(token),
-      crypt_key_encrypted: encryptToken(crypt),
+      crypt_key_encrypted: crypt ? encryptToken(crypt) : null,
       status: 'connected',
       connected_at: now,
       meta: { cofres: cofresCount },

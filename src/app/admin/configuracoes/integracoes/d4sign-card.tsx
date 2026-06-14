@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, CheckCircle2, AlertCircle, X, Eye, EyeOff, ExternalLink, Unplug } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, X, Eye, EyeOff, ExternalLink, Unplug, HelpCircle, ChevronDown } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
 
 interface Props {
@@ -24,10 +24,11 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
   const [editing, setEditing] = useState(initialStatus !== 'connected')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [guideOpen, setGuideOpen] = useState(false)
 
   async function connect() {
     setError('')
-    if (!tokenApi.trim() || !cryptKey.trim()) { setError('Informe o Token API e a Crypt Key.'); return }
+    if (!tokenApi.trim()) { setError('Informe o Token API.'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/admin/integrations/d4sign', {
@@ -101,10 +102,42 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
         ) : (
           <>
             <p className="text-[12px] text-muted-foreground">
-              A D4Sign autentica por <strong>Token API</strong> e <strong>Crypt Key</strong> (não usa login/senha aqui).
-              Gere essas chaves no painel da D4Sign em <em>Configurações → API</em> e cole abaixo. Ao clicar em
-              “Conectar”, validamos automaticamente as credenciais.
+              A D4Sign autentica por <strong>Token API</strong> (e <strong>Crypt Key</strong>, se habilitada na sua conta) —
+              não usa login/senha aqui. Pegue o token no painel da D4Sign e cole abaixo. Ao clicar em “Conectar”,
+              validamos automaticamente as credenciais.
             </p>
+
+            {/* Passo a passo guiado */}
+            <div className="rounded-xl border border-blue-200 bg-blue-50/60 overflow-hidden">
+              <button type="button" onClick={() => setGuideOpen(o => !o)}
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left">
+                <HelpCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                <span className="text-[13px] font-semibold text-blue-900 flex-1">Como obter o Token API e a Crypt Key</span>
+                <ChevronDown className={`w-4 h-4 text-blue-600 transition-transform ${guideOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {guideOpen && (
+                <div className="px-3.5 pb-3.5">
+                  <ol className="space-y-2.5">
+                    {[
+                      <>Acesse <a href="https://secure.d4sign.com.br" target="_blank" rel="noreferrer" className="text-blue-700 underline font-medium">secure.d4sign.com.br</a> e faça login na sua conta (pode ser com o Google/Gmail cadastrado).</>,
+                      <>No menu lateral, clique em <strong>“Dev API”</strong> (é onde ficam as chaves de integração).</>,
+                      <>Copie o valor do <strong>Token API</strong> e cole no campo abaixo.</>,
+                      <>Se a sua conta tiver <strong>Crypt Key</strong> habilitada, copie-a também e cole no campo “Crypt Key”. Se não aparecer, deixe em branco — não é obrigatória.</>,
+                      <>Escolha o ambiente (<strong>Produção</strong> para uso real; <strong>Sandbox</strong> para testes) e clique em <strong>Conectar</strong>.</>,
+                    ].map((step, i) => (
+                      <li key={i} className="flex gap-2.5">
+                        <span className="shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                        <span className="text-[12px] text-blue-900/90 leading-relaxed">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="text-[11px] text-blue-800/70 mt-3 pl-7">
+                    Observação: a chave padrão tem limite de 10 requisições por hora — para aumentar, fale com o suporte da D4Sign.
+                    O login pelo Google serve para você entrar no painel; as chaves acima é que conectam a plataforma.
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Ambiente</label>
@@ -116,16 +149,16 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">Token API</label>
+              <label className="text-xs font-medium text-gray-600">Token API <span className="text-red-500">*</span></label>
               <Input type={showSecrets ? 'text' : 'password'} value={tokenApi} onChange={e => setTokenApi(e.target.value)}
-                placeholder="tokenAPI da D4Sign" autoComplete="off" />
+                placeholder="cole aqui o Token API (menu Dev API)" autoComplete="off" />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">Crypt Key</label>
+              <label className="text-xs font-medium text-gray-600">Crypt Key <span className="text-muted-foreground font-normal">(opcional — só se habilitada na conta)</span></label>
               <div className="relative">
                 <Input type={showSecrets ? 'text' : 'password'} value={cryptKey} onChange={e => setCryptKey(e.target.value)}
-                  placeholder="cryptKey da D4Sign" autoComplete="off" className="pr-9" />
+                  placeholder="cole aqui a Crypt Key, se houver" autoComplete="off" className="pr-9" />
                 <button type="button" onClick={() => setShowSecrets(s => !s)}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
