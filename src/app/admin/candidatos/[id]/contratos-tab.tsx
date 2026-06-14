@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download, Eye, Pencil,
-  CheckCircle2, AlertCircle, FileSignature,
+  CheckCircle2, AlertCircle, FileSignature, PenTool, Clock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,10 @@ export interface ContractItem {
   template_id: string | null
   variables: Record<string, string> | null
   created_at: string
+  d4sign_uuid?: string | null
+  d4sign_status?: string | null
+  d4sign_status_raw?: string | null
+  signed_file_url?: string | null
 }
 
 interface TemplateOpt { id: string; name: string; file_type: string | null }
@@ -72,6 +76,32 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
   }, [modalOpen])
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
+
+  // ── Assinatura D4Sign ─────────────────────────────────────────────────────
+  const [d4BusyId, setD4BusyId] = useState<string | null>(null)
+
+  async function handleD4Send(c: ContractItem) {
+    if (!confirm('Enviar este contrato para assinatura na D4Sign? A empresa assina primeiro e depois o funcionário.')) return
+    setD4BusyId(c.id)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign`, { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) { showToast('err', d.error || 'Erro ao enviar para assinatura.'); return }
+      setContracts(prev => prev.map(x => x.id === c.id ? { ...x, d4sign_uuid: d.uuid, d4sign_status: 'enviado' } : x))
+      showToast('ok', 'Contrato enviado para assinatura na D4Sign.')
+    } catch { showToast('err', 'Erro ao enviar para assinatura.') } finally { setD4BusyId(null) }
+  }
+
+  async function handleD4Check(c: ContractItem) {
+    setD4BusyId(c.id)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign`, { method: 'GET' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) { showToast('err', d.error || 'Erro ao consultar status.'); return }
+      setContracts(prev => prev.map(x => x.id === c.id ? { ...x, d4sign_status: d.status, d4sign_status_raw: d.status_raw, signed_file_url: d.signed_file_url ?? x.signed_file_url } : x))
+      showToast('ok', d.status === 'assinado' ? 'Documento assinado!' : `Status: ${d.status_raw || 'aguardando assinatura'}`)
+    } catch { showToast('err', 'Erro ao consultar status.') } finally { setD4BusyId(null) }
+  }
 
   function resetForm() {
     setTemplateId(''); setTemplatePdf(false); setVars([]); setTitle(''); setDate(new Date().toISOString().slice(0, 10))
@@ -255,6 +285,46 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     <p className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] text-gray-500">
                       {c.file_name.toLowerCase().endsWith('.pdf') ? <FileText className="w-3.5 h-3.5 text-red-500" /> : <FileDown className="w-3.5 h-3.5 text-blue-500" />}{c.file_name}
                     </p>
+                  )}
+
+                  {/* Assinatura via D4Sign */}
+                  {c.file_url && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {!c.d4sign_uuid ? (
+                        <button
+                          onClick={() => handleD4Send(c)}
+                          disabled={d4BusyId === c.id}
+                          title="Enviar o contrato para assinatura eletrônica na D4Sign"
+                          className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#0b5cff] text-[#0b5cff] hover:bg-[#0b5cff]/10 transition-colors disabled:opacity-60"
+                        >
+                          {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><PenTool className="w-4 h-4" />Enviar para assinatura</>}
+                        </button>
+                      ) : c.d4sign_status === 'assinado' ? (
+                        <>
+                          <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-4 h-4" />Documento assinado
+                          </span>
+                          {c.signed_file_url && (
+                            <a href={c.signed_file_url} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors">
+                              <Download className="w-4 h-4" />Baixar assinado
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleD4Check(c)}
+                          disabled={d4BusyId === c.id}
+                          title="Clique para verificar o status da assinatura na D4Sign"
+                          className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-60"
+                        >
+                          {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Verificando...</> : <><Clock className="w-4 h-4" />Aguardando assinatura</>}
+                        </button>
+                      )}
+                      {c.d4sign_uuid && c.d4sign_status !== 'assinado' && c.d4sign_status_raw && (
+                        <span className="text-[11px] text-muted-foreground">{c.d4sign_status_raw}</span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
