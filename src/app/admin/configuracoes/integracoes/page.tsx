@@ -1,10 +1,23 @@
 import { requireMaster } from '@/lib/auth-guard'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { Plug } from 'lucide-react'
+import { D4SignCard } from './d4sign-card'
 
 export const dynamic = 'force-dynamic'
 
 export default async function IntegracoesPage() {
   await requireMaster()
+
+  const supabase = await createSupabaseServiceClient()
+  const { data: d4 } = await supabase
+    .from('integrations')
+    .select('environment, status, connected_at, meta')
+    .eq('provider', 'd4sign')
+    .maybeSingle()
+
+  const d4Status = (d4?.status === 'connected' ? 'connected' : 'disconnected') as 'connected' | 'disconnected'
+  const d4Env = (d4?.environment === 'sandbox' ? 'sandbox' : 'producao') as 'producao' | 'sandbox'
+  const d4Cofres = ((d4?.meta as { cofres?: number } | null)?.cofres) ?? null
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl space-y-6">
@@ -21,15 +34,14 @@ export default async function IntegracoesPage() {
         </div>
       </div>
 
-      {/* Lista de aplicativos (em breve) */}
-      <div className="flex flex-col items-center justify-center text-center gap-3 py-16 bg-white rounded-2xl border">
-        <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
-          <Plug className="w-7 h-7 text-gray-300" />
-        </div>
-        <p className="font-medium text-gray-600">Nenhuma integração disponível ainda</p>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          Os aplicativos que farão a integração com a plataforma aparecerão aqui.
-        </p>
+      {/* Aplicativos */}
+      <div className="space-y-4">
+        <D4SignCard
+          initialStatus={d4Status}
+          initialEnvironment={d4Env}
+          initialConnectedAt={(d4?.connected_at as string | null) ?? null}
+          initialCofres={d4Cofres}
+        />
       </div>
     </div>
   )
