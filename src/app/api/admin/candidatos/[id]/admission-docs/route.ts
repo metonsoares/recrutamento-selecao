@@ -24,10 +24,10 @@ export async function POST(
       return NextResponse.json({ error: 'Arquivo e docKey são obrigatórios.' }, { status: 400 })
     }
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'Arquivo excede o limite de 4 MB.' }, { status: 400 })
+      return NextResponse.json({ error: 'Arquivo excede o limite de 15 MB.' }, { status: 400 })
     }
     if (!ALLOWED.includes(file.type)) {
-      return NextResponse.json({ error: 'Formato inválido. Use PDF, JPG ou PNG.' }, { status: 400 })
+      return NextResponse.json({ error: 'Formato inválido. Use PDF, JPG, PNG, Word ou Excel.' }, { status: 400 })
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase() || 'bin'

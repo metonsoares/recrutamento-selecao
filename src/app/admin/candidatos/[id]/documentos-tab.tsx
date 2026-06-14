@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   Upload, X, FileText, CheckCircle2, AlertCircle, Clock,
   Loader2, Save, Plus, Trash2, GraduationCap, Megaphone, Building2, Receipt, LogOut,
@@ -359,23 +359,27 @@ export function DocumentosTab({ candidateId, initialDocs, showDesligamento = fal
   const [recibos, setRecibos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__recibos'))
   const [desligamentoDocs, setDesligamentoDocs] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__desligamento'))
   const [saving, setSaving] = useState(false)
+  const [autoStatus, setAutoStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
   function setDoc(key: string, val: DocState) {
     setDocs(prev => ({ ...prev, [key]: val }))
   }
 
+  async function persist(): Promise<boolean> {
+    const payload = { ...docs, __treinamentos: treinamentos, __circulares: circulares, __recibos: recibos, __desligamento: desligamentoDocs }
+    const res = await fetch(`/api/admin/candidatos/${candidateId}/company-docs`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Erro ao salvar.')
+    return true
+  }
+
   async function handleSave() {
     setSaving(true)
     try {
-      const payload = { ...docs, __treinamentos: treinamentos, __circulares: circulares, __recibos: recibos, __desligamento: desligamentoDocs }
-      const res = await fetch(`/api/admin/candidatos/${candidateId}/company-docs`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      await persist()
       setToast({ type: 'ok', msg: 'Documentos salvos!' })
     } catch (e) {
       setToast({ type: 'err', msg: (e as Error).message || 'Erro ao salvar.' })
@@ -384,6 +388,28 @@ export function DocumentosTab({ candidateId, initialDocs, showDesligamento = fal
       setTimeout(() => setToast(null), 4000)
     }
   }
+
+  // ── Auto-save (ao anexar/remover/alterar) ─────────────────────────────────
+  const firstRender = useRef(true)
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return }
+    if (autoTimer.current) clearTimeout(autoTimer.current)
+    autoTimer.current = setTimeout(async () => {
+      setAutoStatus('saving')
+      try {
+        await persist()
+        setAutoStatus('saved')
+        setTimeout(() => setAutoStatus('idle'), 2500)
+      } catch {
+        setAutoStatus('idle')
+        setToast({ type: 'err', msg: 'Falha ao salvar automaticamente. Use o botão Salvar.' })
+        setTimeout(() => setToast(null), 4000)
+      }
+    }, 700)
+    return () => { if (autoTimer.current) clearTimeout(autoTimer.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs, treinamentos, circulares, recibos, desligamentoDocs])
 
   const done = COMPANY_DOCS.filter(d => {
     const s = docs[d.key]
@@ -408,9 +434,17 @@ export function DocumentosTab({ candidateId, initialDocs, showDesligamento = fal
             <h2 className="text-base font-bold text-gray-900">Documentos da Empresa</h2>
             <p className="text-[12px] text-muted-foreground mt-0.5">Documentos que o colaborador deve assinar/entregar</p>
           </div>
-          <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full ${done === total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-            {done}/{total} concluídos
-          </span>
+          <div className="flex items-center gap-2">
+            {autoStatus === 'saving' && (
+              <span className="flex items-center gap-1 text-[12px] text-muted-foreground"><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando…</span>
+            )}
+            {autoStatus === 'saved' && (
+              <span className="flex items-center gap-1 text-[12px] text-emerald-600 font-medium"><Save className="w-3.5 h-3.5" />Salvo automaticamente</span>
+            )}
+            <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full ${done === total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+              {done}/{total} concluídos
+            </span>
+          </div>
         </div>
 
         <div className="space-y-2">
