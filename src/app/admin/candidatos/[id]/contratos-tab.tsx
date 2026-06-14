@@ -321,17 +321,15 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                           {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><PenTool className="w-4 h-4" />Enviar para assinatura</>}
                         </button>
                       ) : c.d4sign_status === 'assinado' ? (
-                        <>
-                          <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-4 h-4" />Documento assinado
-                          </span>
-                          {c.signed_file_url && (
-                            <a href={c.signed_file_url} target="_blank" rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors">
-                              <Download className="w-4 h-4" />Baixar assinado
-                            </a>
-                          )}
-                        </>
+                        <a
+                          href={`/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign/download`}
+                          target="_blank" rel="noreferrer"
+                          title="Baixar o PDF assinado"
+                          className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />Documento assinado
+                          <Download className="w-3.5 h-3.5 opacity-70" />
+                        </a>
                       ) : (
                         <button
                           onClick={() => handleD4Check(c)}
