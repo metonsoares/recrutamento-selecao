@@ -34,6 +34,8 @@ export interface ContractData {
   adjustments: Adjustment[]
   absences: Absence[]
   faltas?: number
+  rg_cpf_file?: UploadedFile | null
+  comprovante_residencia_file?: UploadedFile | null
 }
 
 export interface CompanyOption { id: string; apelido: string | null; razao_social: string | null; cnpj: string | null }
@@ -147,6 +149,53 @@ function AdjustmentRow({ candidateId, item, onChange, onRemove, onSave }: {
         </div>
       )}
     </div>
+  )
+}
+
+// ─── Campo de upload de documento ─────────────────────────────────────────────
+
+function DocUploadField({ candidateId, docKey, label, value, onChange }: {
+  candidateId: string
+  docKey: string
+  label: string
+  value: UploadedFile | null | undefined
+  onChange: (f: UploadedFile | null) => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return; setErr('')
+    if (f.size > 15 * 1024 * 1024) { setErr('Arquivo excede 15 MB.'); return }
+    setUploading(true)
+    const fd = new FormData(); fd.append('file', f); fd.append('docKey', docKey)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, { method: 'POST', body: fd })
+      const d = await res.json()
+      if (res.ok) onChange({ url: d.url, name: f.name, path: d.path })
+      else setErr(d.error || 'Erro no upload')
+    } catch { setErr('Erro no upload') }
+    finally { setUploading(false); if (e.target) e.target.value = '' }
+  }
+
+  return field(label,
+    <>
+      {value ? (
+        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-md px-2.5 py-1.5">
+          <FileText className="w-4 h-4 text-red-500 shrink-0" />
+          <a href={value.url} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{value.name}</a>
+          <button onClick={() => onChange(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+        </div>
+      ) : (
+        <button disabled={uploading} onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-2 rounded-md border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50 w-full justify-center">
+          {uploading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Enviando...</> : <><Upload className="w-3.5 h-3.5" />Anexar arquivo (PDF, imagem, Word)</>}
+        </button>
+      )}
+      <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx" className="hidden" onChange={handleFile} />
+      {err && <p className="text-[11px] text-red-600">{err}</p>}
+    </>
   )
 }
 
@@ -274,6 +323,10 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
             {field('CEP', <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">{address?.cep || '—'}</div>)}
           </div>
           {field('Endereço completo', <div className="min-h-9 flex items-center px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">{enderecoCompleto}</div>)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DocUploadField candidateId={candidateId} docKey="rg_cpf" label="RG / CPF" value={form.rg_cpf_file} onChange={f => set('rg_cpf_file', f)} />
+            <DocUploadField candidateId={candidateId} docKey="comprovante_residencia" label="Comprovante de residência" value={form.comprovante_residencia_file} onChange={f => set('comprovante_residencia_file', f)} />
+          </div>
         </div>
 
         {/* Contrato */}
