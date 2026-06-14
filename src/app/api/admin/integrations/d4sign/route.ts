@@ -39,16 +39,32 @@ export async function POST(req: NextRequest) {
     try {
       const ctrl = new AbortController()
       const t = setTimeout(() => ctrl.abort(), 20000)
-      const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal })
+      const res = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (compatible; BrowniePesquisa/1.0)',
+        },
+        signal: ctrl.signal,
+      })
       clearTimeout(t)
-      const data = await res.json().catch(() => null)
+      const rawText = await res.text()
+      let data: unknown = null
+      try { data = JSON.parse(rawText) } catch { /* resposta não-JSON */ }
+
       if (!res.ok) {
-        const msg = (data && (data.mensagem_pt || data.message)) || 'Credenciais inválidas.'
-        return NextResponse.json({ error: `D4Sign recusou a conexão: ${msg}` }, { status: 400 })
+        const d = data as Record<string, unknown> | null
+        const apiMsg = (d?.mensagem_pt as string) || (d?.message as string)
+        const snippet = rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+        const detail = apiMsg || snippet || 'sem detalhe'
+        // Dica de causa comum: token não corresponde ao ambiente selecionado
+        const hint = res.status === 401
+          ? ` Verifique se o Token API é do ambiente "${env === 'sandbox' ? 'Sandbox' : 'Produção'}" (tokens de produção não funcionam no sandbox e vice-versa) e se foi copiado por inteiro, sem espaços.`
+          : ''
+        return NextResponse.json({ error: `D4Sign recusou a conexão (HTTP ${res.status}): ${detail}.${hint}` }, { status: 400 })
       }
-      cofresCount = Array.isArray(data) ? data.length : null
+      cofresCount = Array.isArray(data) ? (data as unknown[]).length : null
     } catch {
-      return NextResponse.json({ error: 'Não foi possível contatar a D4Sign. Tente novamente.' }, { status: 502 })
+      return NextResponse.json({ error: 'Não foi possível contatar a D4Sign (tempo esgotado ou rede). Tente novamente.' }, { status: 502 })
     }
 
     const supabase = await createSupabaseServiceClient()
