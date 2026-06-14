@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import {
   Loader2, Save, CheckCircle2, AlertCircle, Search,
-  Upload, X, FileText, ImageIcon, Clock,
+  Upload, X, FileText, ImageIcon, Clock, Eye, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -327,62 +327,69 @@ function DocRow({
         </label>
       </div>
 
-      {/* Solicitar documento ao funcionário via WhatsApp (apenas quando pendente) */}
-      {!isNA && overallStatus === 'pending' && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={requestViaWhatsApp}
-            disabled={reqState === 'sending'}
-            title="Enviar ao funcionário um link por WhatsApp para anexar este documento"
-            className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10 transition-colors disabled:opacity-60"
-          >
-            {reqState === 'sending'
-              ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</>
-              : reqState === 'sent'
-                ? <><CheckCircle2 className="w-3 h-3" />Solicitação enviada</>
-                : <><WppIcon className="w-3 h-3" />Solicitar via WhatsApp</>}
-          </button>
-          {reqState === 'sent' && <span className="text-[11px] text-emerald-600">Link enviado ao funcionário.</span>}
-          {reqError && <span className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{reqError}</span>}
-        </div>
-      )}
-
       {/* Upload slots */}
       {!isNA && (
         <div className="mt-2 space-y-1.5">
           {Array.from({ length: slots }, (_, i) => {
             const uploaded = files[i]
+            const viewUrl = uploaded ? `/api/img?u=${encodeURIComponent(uploaded.url)}` : ''
+            const dlUrl = uploaded ? `${viewUrl}&dl=1&name=${encodeURIComponent(uploaded.name)}` : ''
             return (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex items-center gap-2 flex-wrap">
                 {docDef.perChild && childrenCount > 1 && (
                   <span className="text-[10px] text-muted-foreground shrink-0 w-12">Filho {i + 1}</span>
                 )}
                 {uploaded ? (
-                  <div className="flex items-center gap-1.5 flex-1 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
-                    {uploaded.name.endsWith('.pdf')
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
+                    {uploaded.name.toLowerCase().endsWith('.pdf')
                       ? <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
                       : <ImageIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                     }
-                    <a href={uploaded.url} target="_blank" rel="noreferrer"
-                      className="text-[11px] text-emerald-700 hover:underline truncate max-w-[200px]">
-                      {uploaded.name}
-                    </a>
-                    <button onClick={() => handleRemove(i)} className="ml-auto text-gray-400 hover:text-red-500 transition-colors shrink-0">
-                      <X className="w-3 h-3" />
-                    </button>
+                    <span className="text-[11px] text-emerald-700 truncate min-w-0 flex-1">{uploaded.name}</span>
+                    <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                      <a href={viewUrl} target="_blank" rel="noreferrer" title="Visualizar"
+                        className="p-1 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        <Eye className="w-3.5 h-3.5" />
+                      </a>
+                      <a href={dlUrl} download={uploaded.name} title="Baixar"
+                        className="p-1 rounded-md text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                        <Download className="w-3.5 h-3.5" />
+                      </a>
+                      <button type="button" onClick={() => handleRemove(i)} title="Remover"
+                        className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <button
-                    disabled={uploading === i}
-                    onClick={() => fileRefs.current[i]?.click()}
-                    className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-                  >
-                    {uploading === i
-                      ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</>
-                      : <><Upload className="w-3 h-3" />Anexar arquivo</>
-                    }
-                  </button>
+                  <>
+                    <button
+                      disabled={uploading === i}
+                      onClick={() => fileRefs.current[i]?.click()}
+                      className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                    >
+                      {uploading === i
+                        ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</>
+                        : <><Upload className="w-3 h-3" />Anexar arquivo</>
+                      }
+                    </button>
+                    {/* Solicitar ao funcionário via WhatsApp — ao lado do Anexar (só no 1º slot) */}
+                    {i === 0 && (
+                      <button
+                        type="button"
+                        onClick={requestViaWhatsApp}
+                        disabled={reqState === 'sending'}
+                        title="Enviar ao funcionário um link por WhatsApp para anexar este documento"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10 transition-colors disabled:opacity-60"
+                      >
+                        {reqState === 'sending'
+                          ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</>
+                          : reqState === 'sent'
+                            ? <><CheckCircle2 className="w-3 h-3" />Solicitação enviada</>
+                            : <><WppIcon className="w-3 h-3" />Solicitar via WhatsApp</>}
+                      </button>
+                    )}
+                  </>
                 )}
                 <input
                   ref={el => { fileRefs.current[i] = el }}
@@ -394,6 +401,11 @@ function DocRow({
               </div>
             )
           })}
+          {(reqState === 'sent' || reqError) && (
+            <p className={`text-[11px] flex items-center gap-1 ${reqError ? 'text-red-600' : 'text-emerald-600'}`}>
+              {reqError ? <><AlertCircle className="w-3 h-3" />{reqError}</> : 'Link enviado ao funcionário por WhatsApp.'}
+            </p>
+          )}
           {uploadError && (
             <p className="text-[11px] text-red-600 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />{uploadError}
