@@ -468,7 +468,7 @@ export default async function CandidatePage({
             {activeTab === 'curriculo' && ['novo', 'apto_para_entrevista'].includes(currentStatus) && (
               <InviteInterviewButton candidateId={id} />
             )}
-            {activeTab === 'curriculo' && (
+            {activeTab === 'curriculo' && !showResumoPanel && (
               <NotifyRecruiterButton candidateId={id} />
             )}
             <Link
