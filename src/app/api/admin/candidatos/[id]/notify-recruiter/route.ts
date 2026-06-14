@@ -25,6 +25,16 @@ function unquote(text: string | null | undefined): string {
   try { const p = JSON.parse(text); return typeof p === 'string' ? p : String(p) } catch { return text }
 }
 
+/** Formata telefone brasileiro: (DD) XXXXX-XXXX. Mantém o original se não reconhecer. */
+function formatBrPhone(raw: string | null | undefined): string {
+  if (!raw) return ''
+  let d = raw.replace(/\D/g, '')
+  if (d.startsWith('55') && d.length > 11) d = d.slice(2) // remove DDI
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return raw.trim()
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await createSupabaseServerClient()
@@ -52,7 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // ── Candidato ─────────────────────────────────────────────────────────────
     const { data: candidate } = await supabase
       .from('candidates')
-      .select('id, full_name, latest_application_id')
+      .select('id, full_name, phone, email, latest_application_id')
       .eq('id', id).maybeSingle()
     if (!candidate) return NextResponse.json({ error: 'Candidato não encontrado.' }, { status: 404 })
 
@@ -60,12 +70,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let app: Record<string, unknown> | null = null
     if (candidate.latest_application_id) {
       const { data } = await supabase.from('applications')
-        .select('id, job_id, ai_recommendation, ai_raw_response').eq('id', candidate.latest_application_id).maybeSingle()
+        .select('id, job_id, ai_summary, ai_recommendation, ai_raw_response').eq('id', candidate.latest_application_id).maybeSingle()
       app = data as Record<string, unknown> | null
     }
     if (!app) {
       const { data } = await supabase.from('applications')
-        .select('id, job_id, ai_recommendation, ai_raw_response')
+        .select('id, job_id, ai_summary, ai_recommendation, ai_raw_response')
         .eq('candidate_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
       app = data as Record<string, unknown> | null
     }
@@ -99,13 +109,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     if (!vaga) vaga = 'Não informada'
 
-    // Parecer da IA
-    let parecer = (app?.ai_recommendation as string | null) || ''
+    // Parecer da IA — o mesmo texto exibido no painel "Parecer da IA" (resumo)
+    let parecer = (app?.ai_summary as string | null) || ''
     if (!parecer) {
       const raw = app?.ai_raw_response as Record<string, unknown> | null
-      parecer = (raw?.parecer_ia as string) || (raw?.resumo_candidato as string) || ''
+      parecer = (raw?.resumo_candidato as string) || (app?.ai_recommendation as string | null) || (raw?.parecer_ia as string) || ''
     }
     if (!parecer) parecer = 'Análise de IA ainda não disponível para este candidato.'
+
+    // Contato do candidato
+    const fonePretty = formatBrPhone(candidate.phone as string | null)
+    const email = (candidate.email as string | null)?.trim() || ''
 
     // ── Monta e envia a mensagem ──────────────────────────────────────────────
     const linhas = [
@@ -114,6 +128,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       `*Nome:* ${candidate.full_name}`,
       `*Idade:* ${idade != null ? `${idade} anos` : 'Não informada'}`,
       `*Vaga:* ${vaga}`,
+      '',
+      `*Contato do candidato:*`,
+      fonePretty ? `📱 ${fonePretty}` : '📱 Telefone não informado',
+      ...(email ? [`✉️ ${email}`] : []),
       '',
       `*Parecer da IA:*`,
       parecer,

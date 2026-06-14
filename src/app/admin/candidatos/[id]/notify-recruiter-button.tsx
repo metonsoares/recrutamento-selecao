@@ -85,7 +85,7 @@ export function NotifyRecruiterButton({ candidateId }: Props) {
               <>
                 <div className="px-5 py-4 space-y-3">
                   <p className="text-[12px] text-muted-foreground">
-                    Selecione o recrutador. Ele receberá no WhatsApp uma mensagem com o nome, idade, vaga e o parecer da IA deste candidato.
+                    Selecione o recrutador. Ele receberá no WhatsApp uma mensagem com o nome, idade, vaga, contato e o parecer da IA deste candidato.
                   </p>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-gray-600">Recrutador *</label>
