@@ -31,9 +31,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Informe o Token API da D4Sign.' }, { status: 400 })
     }
 
-    // Testa a conexão: lista os cofres. cryptKey só é enviada se informada
-    // (a D4Sign exige cryptKey apenas quando habilitada na conta).
-    const url = `${baseUrl(env)}/cofres?tokenAPI=${encodeURIComponent(token)}`
+    // Testa a conexão: lista os cofres (endpoint oficial é /safes, não /cofres).
+    // cryptKey só é enviada se informada (a D4Sign exige apenas quando habilitada).
+    const url = `${baseUrl(env)}/safes?tokenAPI=${encodeURIComponent(token)}`
       + (crypt ? `&cryptKey=${encodeURIComponent(crypt)}` : '')
     let cofresCount: number | null = null
     try {
