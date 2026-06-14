@@ -13,6 +13,7 @@ import { DesligarFuncionarioButton } from './desligar-funcionario'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
 import { InviteInterviewButton } from './invite-interview-button'
+import { NotifyRecruiterButton } from './notify-recruiter-button'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
 import { DocumentosTab } from './documentos-tab'
 import { AdvertenciasTab } from './advertencias-tab'
@@ -454,6 +455,9 @@ export default async function CandidatePage({
           <div className="shrink-0 flex items-center gap-2">
             {activeTab === 'curriculo' && ['novo', 'apto_para_entrevista'].includes(currentStatus) && (
               <InviteInterviewButton candidateId={id} />
+            )}
+            {activeTab === 'curriculo' && (
+              <NotifyRecruiterButton candidateId={id} />
             )}
             <Link
               href={activeTab === 'ficha'
