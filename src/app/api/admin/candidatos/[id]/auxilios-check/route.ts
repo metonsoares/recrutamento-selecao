@@ -162,9 +162,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const beneficios: AuxilioItem[] = []
     const fontes = new Set<string>()
+    const restritos = new Set<string>() // programas que exigem nível de acesso superior (HTTP 403)
     let recebendo = false
     let rateLimited = false
-    let authError = false
+    let authError = false // chave inválida/inexistente (HTTP 401)
+    let consultouAlgo = false // ao menos um endpoint respondeu 2xx
 
     const months = recentMonths(4)
 
@@ -175,24 +177,29 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       { label: 'Bolsa Família', path: m => `${API}/bolsa-familia-disponivel-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1` },
     ]
 
-    let authStatus = 0
     let authDetail = ''
     for (const prog of monthlyPrograms) {
       let hitMonth: string | null = null
       let valor: string | undefined
+      let restritoAqui = false
       for (const m of months) {
         const r = await fetchJSON(prog.path(m), token)
-        if (r.status === 401 || r.status === 403) { authError = true; authStatus = r.status; authDetail = r.detail || ''; break }
+        if (r.status === 401) { authError = true; authDetail = r.detail || ''; break }
+        if (r.status === 403) { restritoAqui = true; break } // endpoint exige nível de acesso superior — pula
         if (r.status === 429) { rateLimited = true; break }
-        if (r.ok && Array.isArray(r.data) && r.data.length > 0) {
-          fontes.add(prog.label)
-          const first = r.data[0] as Record<string, unknown>
-          valor = brl(first?.valor ?? first?.valorSaque ?? (first as Record<string, unknown>)?.['valorBeneficio'])
-          if (!hitMonth) hitMonth = m
-          break // achou no mês mais recente disponível
+        if (r.ok) {
+          consultouAlgo = true
+          if (Array.isArray(r.data) && r.data.length > 0) {
+            fontes.add(prog.label)
+            const first = r.data[0] as Record<string, unknown>
+            valor = brl(first?.valor ?? first?.valorSaque ?? (first as Record<string, unknown>)?.['valorBeneficio'])
+            if (!hitMonth) hitMonth = m
+            break // achou no mês mais recente disponível
+          }
         }
       }
       if (authError || rateLimited) break
+      if (restritoAqui) { restritos.add(prog.label); continue }
       if (hitMonth) {
         recebendo = true
         const ym = `${hitMonth.slice(4, 6)}/${hitMonth.slice(0, 4)}`
@@ -204,29 +211,52 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     if (!authError && !rateLimited) {
       // Auxílio Emergencial (2020-2021)
       const ae = await fetchJSON(`${API}/auxilio-emergencial-por-cpf-ou-nis?codigoBeneficiario=${cpf}&pagina=1`, token)
-      if (ae.status === 401 || ae.status === 403) authError = true
+      if (ae.status === 401) { authError = true; authDetail = authDetail || ae.detail || '' }
+      else if (ae.status === 403) restritos.add('Auxílio Emergencial')
       else if (ae.status === 429) rateLimited = true
-      else if (ae.ok && Array.isArray(ae.data) && ae.data.length > 0) {
-        fontes.add('Auxílio Emergencial')
-        beneficios.push({ programa: 'Auxílio Emergencial (2020-2021)', situacao: 'recebeu', detalhe: 'Recebeu auxílio emergencial.' })
+      else if (ae.ok) {
+        consultouAlgo = true
+        if (Array.isArray(ae.data) && ae.data.length > 0) {
+          fontes.add('Auxílio Emergencial')
+          beneficios.push({ programa: 'Auxílio Emergencial (2020-2021)', situacao: 'recebeu', detalhe: 'Recebeu auxílio emergencial.' })
+        }
       }
     }
 
     if (!authError && !rateLimited) {
       // Auxílio Brasil (2021-2022) — consulta um mês representativo
       const ab = await fetchJSON(`${API}/auxilio-brasil-disponivel-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=202212&pagina=1`, token)
-      if (ab.ok && Array.isArray(ab.data) && ab.data.length > 0) {
-        fontes.add('Auxílio Brasil')
-        beneficios.push({ programa: 'Auxílio Brasil (2021-2022)', situacao: 'recebeu', detalhe: 'Recebeu Auxílio Brasil.' })
+      if (ab.status === 401) { authError = true; authDetail = authDetail || ab.detail || '' }
+      else if (ab.status === 403) restritos.add('Auxílio Brasil')
+      else if (ab.status === 429) rateLimited = true
+      else if (ab.ok) {
+        consultouAlgo = true
+        if (Array.isArray(ab.data) && ab.data.length > 0) {
+          fontes.add('Auxílio Brasil')
+          beneficios.push({ programa: 'Auxílio Brasil (2021-2022)', situacao: 'recebeu', detalhe: 'Recebeu Auxílio Brasil.' })
+        }
       }
     }
 
+    // HTTP 401 = chave inválida/inexistente → erro real. (403 é tratado por endpoint, não aqui.)
     if (authError) {
-      const base = authStatus === 403
-        ? 'O Portal da Transparência recusou a requisição (HTTP 403). Isso costuma ser bloqueio do servidor à origem da consulta ou chave sem permissão.'
-        : 'Falha de autenticação na API do Portal da Transparência (HTTP 401) — verifique se a chave está correta e ativa.'
       const tip = ' Gere/valide a chave gratuita em portaldatransparencia.gov.br/api-de-dados/cadastrar-email e cole em Configurações → Configuração IA.'
-      return NextResponse.json({ error: `${base}${authDetail ? ` Detalhe: ${authDetail}.` : ''}${tip}` }, { status: 400 })
+      return NextResponse.json({ error: `Falha de autenticação na API do Portal da Transparência (HTTP 401) — a chave parece inválida ou inativa.${authDetail ? ` Detalhe: ${authDetail}.` : ''}${tip}` }, { status: 400 })
+    }
+
+    // Nenhum endpoint respondeu 2xx e todos os tentados foram restritos → chave sem nível de acesso.
+    if (!consultouAlgo && restritos.size > 0) {
+      return NextResponse.json({
+        error: `A chave de API é válida, mas não tem nível de acesso para nenhum dos programas consultados (${Array.from(restritos).join(', ')}). Esses dados por CPF exigem nível de acesso elevado no Portal da Transparência — solicite o aumento de nível pelo e-mail cadastrado em portaldatransparencia.gov.br/api-de-dados.`,
+      }, { status: 400 })
+    }
+
+    const obsPartes: string[] = []
+    if (restritos.size > 0) {
+      obsPartes.push(`Programas não verificados por exigirem nível de acesso superior da API: ${Array.from(restritos).join(', ')}. Solicite o aumento de nível da chave no Portal da Transparência para incluí-los.`)
+    }
+    if (rateLimited) {
+      obsPartes.push('A consulta atingiu o limite de requisições da API e pode estar incompleta. Tente novamente em alguns minutos.')
     }
 
     const encontrado = beneficios.length > 0
@@ -237,12 +267,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         ? (recebendo
             ? `${candidate.full_name} consta como beneficiário ATIVO de programa social.`
             : `${candidate.full_name} recebeu auxílio governamental no passado, sem benefício ativo identificado nos meses recentes.`)
-        : 'Nenhum auxílio governamental encontrado para este CPF no Portal da Transparência.',
+        : 'Nenhum auxílio governamental encontrado para este CPF nos programas verificados do Portal da Transparência.',
       beneficios,
       fontes_consultadas: Array.from(fontes).length ? Array.from(fontes) : ['Portal da Transparência'],
-      observacao: rateLimited
-        ? 'A consulta atingiu o limite de requisições da API e pode estar incompleta. Tente novamente em alguns minutos.'
-        : undefined,
+      observacao: obsPartes.length ? obsPartes.join(' ') : undefined,
     }
 
     await supabase.from('candidates').update({
