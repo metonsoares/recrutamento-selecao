@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatDateTime } from '@/lib/helpers'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ interface Props {
   candidate: Candidate; jobTitle: string | null; companyName: string | null
   initialData: AdmissionFormData | null
   companies: CompanyOption[]
+  docRequestDates?: Record<string, string>
 }
 
 // ─── Docs definition ──────────────────────────────────────────────────────────
@@ -207,19 +209,21 @@ function WppIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
 }
 
 function DocRow({
-  docDef, state, onChange, candidateId, childrenCount,
+  docDef, state, onChange, candidateId, childrenCount, initialRequestedAt,
 }: {
   docDef: typeof ALL_DOCS[number]
   state: DocState
   onChange: (s: DocState) => void
   candidateId: string
   childrenCount: number
+  initialRequestedAt?: string | null
 }) {
   const fileRefs = useRef<(HTMLInputElement | null)[]>([])
   const [uploading, setUploading] = useState<number | null>(null)
   const [uploadError, setUploadError] = useState('')
-  const [reqState, setReqState] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [reqState, setReqState] = useState<'idle' | 'sending'>('idle')
   const [reqError, setReqError] = useState('')
+  const [requestedAt, setRequestedAt] = useState<string | null>(initialRequestedAt ?? null)
 
   async function requestViaWhatsApp() {
     setReqState('sending'); setReqError('')
@@ -230,11 +234,11 @@ function DocRow({
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) throw new Error(d.error || 'Erro ao enviar solicitação.')
-      setReqState('sent')
-      setTimeout(() => setReqState('idle'), 6000)
+      setRequestedAt((d.last_requested_at as string) || new Date().toISOString())
     } catch (e) {
-      setReqState('idle')
       setReqError((e as Error).message || 'Erro ao enviar solicitação.')
+    } finally {
+      setReqState('idle')
     }
   }
 
@@ -384,9 +388,7 @@ function DocRow({
                       >
                         {reqState === 'sending'
                           ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</>
-                          : reqState === 'sent'
-                            ? <><CheckCircle2 className="w-3 h-3" />Solicitação enviada</>
-                            : <><WppIcon className="w-3 h-3" />Solicitar via WhatsApp</>}
+                          : <><WppIcon className="w-3 h-3" />{requestedAt ? 'Reenviar solicitação' : 'Solicitar via WhatsApp'}</>}
                       </button>
                     )}
                   </>
@@ -401,9 +403,11 @@ function DocRow({
               </div>
             )
           })}
-          {(reqState === 'sent' || reqError) && (
-            <p className={`text-[11px] flex items-center gap-1 ${reqError ? 'text-red-600' : 'text-emerald-600'}`}>
-              {reqError ? <><AlertCircle className="w-3 h-3" />{reqError}</> : 'Link enviado ao funcionário por WhatsApp.'}
+          {reqError ? (
+            <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{reqError}</p>
+          ) : requestedAt && (
+            <p className="text-[11px] text-emerald-600 flex items-center gap-1">
+              <WppIcon className="w-3 h-3" />Última solicitação enviada em {formatDateTime(requestedAt)}
             </p>
           )}
           {uploadError && (
@@ -419,7 +423,7 @@ function DocRow({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies }: Props) {
+export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies, docRequestDates = {} }: Props) {
   const [form, setForm] = useState<AdmissionFormData>(() =>
     initialData ? migrateData(initialData, candidate, jobTitle) : makeEmpty(candidate, jobTitle)
   )
@@ -688,6 +692,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               onChange={s => setDoc(doc.key, s)}
               candidateId={candidate.id}
               childrenCount={childrenCount}
+              initialRequestedAt={docRequestDates[doc.key] || null}
             />
           ))}
         </div>

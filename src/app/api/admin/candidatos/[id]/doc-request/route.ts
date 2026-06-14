@@ -39,17 +39,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     let token = existing?.token as string | undefined
     let shortCode = existing?.short_code as string | undefined
+    const requestedAt = new Date().toISOString()
 
     if (existing) {
       await supabase.from('doc_requests').update({
-        doc_label, application_id: app?.id ?? null, updated_at: new Date().toISOString(),
+        doc_label, application_id: app?.id ?? null, last_requested_at: requestedAt, updated_at: requestedAt,
       }).eq('id', existing.id)
     } else {
       token = generateToken()
       shortCode = generateShortCode()
       const { error } = await supabase.from('doc_requests').insert({
         token, short_code: shortCode, candidate_id: id, application_id: app?.id ?? null,
-        doc_key, doc_label, status: 'pendente',
+        doc_key, doc_label, status: 'pendente', last_requested_at: requestedAt,
       })
       if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     }
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: `Falha ao enviar WhatsApp: ${sent.error}`, link }, { status: 502 })
     }
 
-    return NextResponse.json({ ok: true, link })
+    return NextResponse.json({ ok: true, link, last_requested_at: requestedAt })
   } catch (err) {
     console.error('[doc-request]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })

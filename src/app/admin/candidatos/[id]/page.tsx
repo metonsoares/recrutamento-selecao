@@ -239,6 +239,17 @@ export default async function CandidatePage({
     .from('freelancer_contracts').select('*').eq('candidate_id', id).order('contract_date', { ascending: false })
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
 
+  // ── Última solicitação via WhatsApp por documento (para "Reenviar solicitação") ──
+  const { data: docReqRows } = await service
+    .from('doc_requests').select('doc_key, last_requested_at').eq('candidate_id', id)
+  const docRequestDates: Record<string, string> = {}
+  for (const r of docReqRows || []) {
+    const key = r.doc_key as string
+    const at = r.last_requested_at as string | null
+    if (!key || !at) continue
+    if (!docRequestDates[key] || at > docRequestDates[key]) docRequestDates[key] = at
+  }
+
   // ── Linha cronológica do colaborador ──────────────────────────────────────
   const admForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
   const timeline: { date: string; label: string; type: string }[] = [
@@ -494,6 +505,7 @@ export default async function CandidatePage({
           companyName={brand?.company_name ?? null}
           initialData={admissionForm}
           companies={fichaCompanies}
+          docRequestDates={docRequestDates}
         />
       )}
 
