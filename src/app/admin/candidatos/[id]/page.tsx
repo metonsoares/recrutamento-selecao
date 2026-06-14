@@ -29,6 +29,8 @@ import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
 import { normalizeRole } from '@/lib/permissions'
+import { getGrantedPerms } from '@/lib/permissions-server'
+import { StatusSelect } from './status-select'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
 import { ContratosTab, ContractItem } from './contratos-tab'
 import { FileDown, Globe, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
@@ -151,8 +153,11 @@ export default async function CandidatePage({
   const supabase = await createSupabaseServerClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  const role = (normalizeRole(user?.user_metadata?.role as string | undefined) === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
+  const realRole = normalizeRole(user?.user_metadata?.role as string | undefined)
+  const role = (realRole === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
   const isMaster = role === 'master'
+  // Permissão de alterar status (Master tem tudo; demais conforme a matriz — ex.: RH)
+  const canChangeStatus = isMaster || (await getGrantedPerms(realRole)).has('candidatos.status')
 
   const { data: candidate } = await supabase
     .from('candidates').select('*').eq('id', id).single()
@@ -460,6 +465,10 @@ export default async function CandidatePage({
             candidateCpf={(candidate.cpf as string | null) ?? null}
             hasExistingAnalysis={!!latestApp?.ai_summary}
           />}
+          {/* Perfis não-master com permissão (ex.: RH) — seletor de status apenas */}
+          {!isMaster && canChangeStatus && activeTab === 'curriculo' && (
+            <StatusSelect applicationId={latestApp?.id} currentStatus={currentStatus} />
+          )}
         </div>
 
         {/* Ações canto superior direito (só Currículo e Ficha) */}
