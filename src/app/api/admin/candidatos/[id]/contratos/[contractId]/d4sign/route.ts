@@ -20,11 +20,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const auth = await createSupabaseServerClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
-    const companyEmail = user.email || ''
 
     const { id, contractId } = await params
     const creds = await getD4SignCreds()
     if (!creds) return NextResponse.json({ error: 'D4Sign não conectada. Conecte em Configurações → Integrações.' }, { status: 400 })
+
+    // Assinante da empresa = e-mail de cadastro na D4Sign (fallback: admin logado)
+    const companyEmail = creds.accountEmail || user.email || ''
 
     const supabase = await createSupabaseServiceClient()
     const { data: contract } = await supabase
@@ -36,7 +38,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const { data: candidate } = await supabase.from('candidates').select('full_name, email').eq('id', id).maybeSingle()
     const employeeEmail = (candidate?.email as string | null)?.trim() || ''
     if (!employeeEmail) return NextResponse.json({ error: 'Funcionário sem e-mail cadastrado — necessário para a assinatura.' }, { status: 400 })
-    if (!companyEmail) return NextResponse.json({ error: 'Seu usuário não tem e-mail para assinar pela empresa.' }, { status: 400 })
+    if (!companyEmail) return NextResponse.json({ error: 'Defina o e-mail de cadastro na D4Sign (Integrações) — ele assina pela empresa.' }, { status: 400 })
 
     // Cofre destino (primeiro cofre da conta)
     const safes = await listSafes(creds)

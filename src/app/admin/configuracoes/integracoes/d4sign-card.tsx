@@ -10,9 +10,10 @@ interface Props {
   initialEnvironment: 'producao' | 'sandbox'
   initialConnectedAt: string | null
   initialCofres: number | null
+  initialAccountEmail: string
 }
 
-export function D4SignCard({ initialStatus, initialEnvironment, initialConnectedAt, initialCofres }: Props) {
+export function D4SignCard({ initialStatus, initialEnvironment, initialConnectedAt, initialCofres, initialAccountEmail }: Props) {
   const [status, setStatus] = useState(initialStatus)
   const [environment, setEnvironment] = useState<'producao' | 'sandbox'>(initialEnvironment)
   const [connectedAt, setConnectedAt] = useState(initialConnectedAt)
@@ -20,11 +21,29 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
 
   const [tokenApi, setTokenApi] = useState('')
   const [cryptKey, setCryptKey] = useState('')
+  const [accountEmail, setAccountEmail] = useState(initialAccountEmail)
+  const [savedEmail, setSavedEmail] = useState(initialAccountEmail)
+  const [savingEmail, setSavingEmail] = useState(false)
+  const [emailOk, setEmailOk] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
   const [editing, setEditing] = useState(initialStatus !== 'connected')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [guideOpen, setGuideOpen] = useState(false)
+
+  async function saveEmail() {
+    setSavingEmail(true); setEmailOk(false); setError('')
+    try {
+      const res = await fetch('/api/admin/integrations/d4sign', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountEmail }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) { setError(d.error || 'Falha ao salvar e-mail.'); return }
+      setSavedEmail(d.account_email || '')
+      setEmailOk(true); setTimeout(() => setEmailOk(false), 2500)
+    } catch { setError('Falha ao salvar e-mail.') } finally { setSavingEmail(false) }
+  }
 
   async function connect() {
     setError('')
@@ -33,7 +52,7 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
     try {
       const res = await fetch('/api/admin/integrations/d4sign', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokenApi, cryptKey, environment }),
+        body: JSON.stringify({ tokenApi, cryptKey, environment, accountEmail }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) { setError(d.error || 'Falha ao conectar.'); return }
@@ -93,11 +112,28 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
       {/* Corpo: formulário de conexão ou estado conectado */}
       <div className="p-5 space-y-3">
         {status === 'connected' && !editing ? (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setEditing(true)} disabled={loading}>Atualizar credenciais</Button>
-            <Button variant="outline" onClick={disconnect} disabled={loading} className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />}Desconectar
-            </Button>
+          <div className="space-y-4">
+            {/* E-mail de cadastro na D4Sign (assina pela empresa) */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">E-mail de cadastro na D4Sign <span className="text-muted-foreground font-normal">(assina pela empresa)</span></label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input type="email" value={accountEmail} onChange={e => { setAccountEmail(e.target.value); setEmailOk(false) }}
+                  placeholder="email@empresa.com" autoComplete="off" className="flex-1 min-w-[220px]" />
+                <Button onClick={saveEmail} disabled={savingEmail || accountEmail.trim() === savedEmail.trim()} className="gap-1.5 shrink-0">
+                  {savingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : emailOk ? <CheckCircle2 className="w-4 h-4" /> : null}
+                  {emailOk ? 'Salvo' : 'Salvar e-mail'}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">É o e-mail da sua conta D4Sign. Os contratos enviados para assinatura usam esse e-mail como assinante da empresa.</p>
+              {error && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}
+            </div>
+
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              <Button variant="outline" onClick={() => setEditing(true)} disabled={loading}>Atualizar credenciais</Button>
+              <Button variant="outline" onClick={disconnect} disabled={loading} className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />}Desconectar
+              </Button>
+            </div>
           </div>
         ) : (
           <>
@@ -164,6 +200,13 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
                   {showSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">E-mail de cadastro na D4Sign <span className="text-muted-foreground font-normal">(assina pela empresa)</span></label>
+              <Input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)}
+                placeholder="email@empresa.com" autoComplete="off" />
+              <p className="text-[11px] text-muted-foreground">Usado como assinante da empresa nos contratos enviados para assinatura.</p>
             </div>
 
             {error && <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}

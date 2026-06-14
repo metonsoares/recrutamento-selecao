@@ -11,7 +11,7 @@ export default async function IntegracoesPage() {
   const supabase = await createSupabaseServiceClient()
   const { data: d4 } = await supabase
     .from('integrations')
-    .select('environment, status, connected_at, meta')
+    .select('environment, status, connected_at, meta, account_email')
     .eq('provider', 'd4sign')
     .maybeSingle()
 
@@ -41,6 +41,7 @@ export default async function IntegracoesPage() {
           initialEnvironment={d4Env}
           initialConnectedAt={(d4?.connected_at as string | null) ?? null}
           initialCofres={d4Cofres}
+          initialAccountEmail={(d4?.account_email as string | null) ?? ''}
         />
       </div>
     </div>

@@ -22,9 +22,10 @@ export async function POST(req: NextRequest) {
     const denied = await requireMasterApi()
     if (denied) return denied
 
-    const { tokenApi, cryptKey, environment } = await req.json()
+    const { tokenApi, cryptKey, environment, accountEmail } = await req.json()
     const token = String(tokenApi || '').trim()
     const crypt = String(cryptKey || '').trim() // opcional — só se habilitado na conta
+    const accEmail = String(accountEmail || '').trim().toLowerCase()
     const env = environment === 'sandbox' ? 'sandbox' : 'producao'
 
     if (!token) {
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
       environment: env,
       token_api_encrypted: encryptToken(token),
       crypt_key_encrypted: crypt ? encryptToken(crypt) : null,
+      account_email: accEmail || null,
       status: 'connected',
       connected_at: now,
       meta: { cofres: cofresCount },
@@ -87,6 +89,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, connected_at: now, environment: env, cofres: cofresCount })
   } catch (err) {
     console.error('[d4sign connect]', err)
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
+  }
+}
+
+/** PUT — atualiza apenas o e-mail de cadastro na D4Sign (assinante da empresa). */
+export async function PUT(req: NextRequest) {
+  try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
+
+    const { accountEmail } = await req.json()
+    const email = String(accountEmail || '').trim().toLowerCase()
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'E-mail inválido.' }, { status: 400 })
+    }
+
+    const supabase = await createSupabaseServiceClient()
+    const { error } = await supabase.from('integrations')
+      .update({ account_email: email || null, updated_at: new Date().toISOString() })
+      .eq('provider', 'd4sign')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({ ok: true, account_email: email || null })
+  } catch (err) {
+    console.error('[d4sign update email]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
   }
 }

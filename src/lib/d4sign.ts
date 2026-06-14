@@ -8,13 +8,13 @@ import { decryptToken } from '@/lib/helpers'
  * /createlist, /sendtosigner, /download. Base: api/v1.
  */
 
-export interface D4SignCreds { token: string; crypt: string; base: string }
+export interface D4SignCreds { token: string; crypt: string; base: string; accountEmail: string }
 
 export async function getD4SignCreds(): Promise<D4SignCreds | null> {
   const supabase = await createSupabaseServiceClient()
   const { data } = await supabase
     .from('integrations')
-    .select('environment, status, token_api_encrypted, crypt_key_encrypted')
+    .select('environment, status, token_api_encrypted, crypt_key_encrypted, account_email')
     .eq('provider', 'd4sign').maybeSingle()
   if (!data || data.status !== 'connected' || !data.token_api_encrypted) return null
   let token = '', crypt = ''
@@ -23,7 +23,7 @@ export async function getD4SignCreds(): Promise<D4SignCreds | null> {
   const base = data.environment === 'sandbox'
     ? 'https://sandbox.d4sign.com.br/api/v1'
     : 'https://secure.d4sign.com.br/api/v1'
-  return { token, crypt, base }
+  return { token, crypt, base, accountEmail: (data.account_email as string | null) || '' }
 }
 
 function authQuery(c: D4SignCreds): string {
