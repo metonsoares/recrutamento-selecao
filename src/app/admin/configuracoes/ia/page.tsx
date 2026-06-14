@@ -54,13 +54,6 @@ export default async function IaConfigPage() {
       whatsappPrompt={settings?.whatsapp_agent_prompt ?? ''}
       companyProvider={settings?.company_provider ?? null}
       companyPrompt={settings?.company_prompt ?? ''}
-      searchUrl1={settings?.search_url_1 ?? ''}
-      searchUrl1Label={settings?.search_url_1_label ?? ''}
-      searchUrl2={settings?.search_url_2 ?? ''}
-      searchUrl2Label={settings?.search_url_2_label ?? ''}
-      searchUrl3={settings?.search_url_3 ?? ''}
-      searchUrl3Label={settings?.search_url_3_label ?? ''}
-      hasDatajudKey={!!settings?.datajud_api_key}
       hasEscavadorKey={!!settings?.escavador_api_key}
       hasTransparenciaKey={!!settings?.transparencia_api_key}
     />
