@@ -23,7 +23,6 @@ interface AdminUser {
   id: string
   email: string
   name: string
-  phone: string
   role: UserRole
   created_at: string
   last_sign_in: string | null
@@ -107,7 +106,6 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
   // form fields
   const [fName, setFName] = useState('')
   const [fEmail, setFEmail] = useState('')
-  const [fPhone, setFPhone] = useState('')
   const [fPassword, setFPassword] = useState('')
   const [fRole, setFRole] = useState<UserRole>('recrutador')
   const [fError, setFError] = useState('')
@@ -118,13 +116,13 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
   }
 
   function openCreate() {
-    setFName(''); setFEmail(''); setFPhone(''); setFPassword(''); setFRole('recrutador'); setFError('')
+    setFName(''); setFEmail(''); setFPassword(''); setFRole('recrutador'); setFError('')
     setSelected(null)
     setModal('create')
   }
 
   function openEdit(u: AdminUser) {
-    setFName(u.name); setFEmail(u.email); setFPhone(u.phone || ''); setFPassword(''); setFRole(u.role); setFError('')
+    setFName(u.name); setFEmail(u.email); setFPassword(''); setFRole(u.role); setFError('')
     setSelected(u)
     setModal('edit')
   }
@@ -149,7 +147,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
     const res = await fetch('/api/admin/usuarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: fName, email: fEmail, phone: fPhone, password: fPassword, role: fRole }),
+      body: JSON.stringify({ name: fName, email: fEmail, password: fPassword, role: fRole }),
     })
     const data = await res.json()
     setSaving(false)
@@ -158,7 +156,6 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
       id: data.user.id,
       email: data.user.email,
       name: data.user.user_metadata?.full_name || '',
-      phone: data.user.user_metadata?.phone || '',
       role: (data.user.user_metadata?.role as UserRole) || 'recrutador',
       created_at: data.user.created_at,
       last_sign_in: data.user.last_sign_in_at || null,
@@ -177,7 +174,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
     const res = await fetch(`/api/admin/usuarios/${selected.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: fName, email: fEmail, phone: fPhone, password: fPassword || undefined, role: fRole }),
+      body: JSON.stringify({ name: fName, email: fEmail, password: fPassword || undefined, role: fRole }),
     })
     const data = await res.json()
     setSaving(false)
@@ -186,7 +183,6 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
       ...u,
       name: data.user.user_metadata?.full_name || fName,
       email: data.user.email || fEmail,
-      phone: data.user.user_metadata?.phone ?? fPhone,
       role: (data.user.user_metadata?.role as UserRole) || fRole,
     } : u))
     closeModal()
@@ -275,7 +271,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
                     </span>
                   )}
                 </div>
-                <p className="text-[12px] text-muted-foreground truncate">{u.email}{u.phone ? ` · 📱 ${u.phone}` : ''}</p>
+                <p className="text-[12px] text-muted-foreground truncate">{u.email}</p>
                 <p className="text-[11px] text-muted-foreground/60 mt-0.5">
                   Criado em {formatDate(u.created_at)}
                   {u.last_sign_in && ` · Último acesso ${formatDate(u.last_sign_in)}`}
@@ -317,10 +313,6 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">E-mail *</label>
               <Input type="email" value={fEmail} onChange={e => setFEmail(e.target.value)} placeholder="email@exemplo.com" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">WhatsApp <span className="text-muted-foreground font-normal">(para receber notificações)</span></label>
-              <Input value={fPhone} onChange={e => setFPhone(e.target.value)} placeholder="(11) 99999-9999" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Senha *</label>
@@ -379,10 +371,6 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">E-mail *</label>
               <Input type="email" value={fEmail} onChange={e => setFEmail(e.target.value)} placeholder="email@exemplo.com" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">WhatsApp <span className="text-muted-foreground font-normal">(para receber notificações)</span></label>
-              <Input value={fPhone} onChange={e => setFPhone(e.target.value)} placeholder="(11) 99999-9999" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">

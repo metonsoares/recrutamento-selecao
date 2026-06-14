@@ -17,7 +17,7 @@ export async function GET() {
 /** POST /api/admin/usuarios — cria novo usuário */
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, password, role, phone } = await req.json()
+    const { name, email, password, role } = await req.json()
     if (!email?.trim() || !password?.trim()) {
       return NextResponse.json({ error: 'E-mail e senha são obrigatórios.' }, { status: 400 })
     }
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       email: email.trim(),
       password,
       email_confirm: true,
-      user_metadata: { full_name: name?.trim() || '', role: role || 'recrutador', phone: (phone || '').trim() },
+      user_metadata: { full_name: name?.trim() || '', role: role || 'recrutador' },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ user: data.user })

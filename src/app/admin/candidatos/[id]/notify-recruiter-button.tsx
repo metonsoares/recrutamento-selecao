@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 
 interface Props { candidateId: string }
 
-interface Recruiter { id: string; name: string; role: string; roleLabel: string; phone: string }
+interface Recruiter { id: string; name: string; phone: string | null }
 
 function WhatsAppIcon() {
   return (
@@ -27,9 +27,9 @@ export function NotifyRecruiterButton({ candidateId }: Props) {
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    fetch('/api/admin/recruiters')
+    fetch('/api/admin/interviews/interviewers')
       .then(r => r.json())
-      .then(d => setRecruiters(d.recruiters || []))
+      .then(d => setRecruiters((d.interviewers || []).map((i: { id: string; name: string; phone: string | null }) => ({ id: i.id, name: i.name, phone: i.phone }))))
       .catch(() => setError('Erro ao carregar recrutadores.'))
       .finally(() => setLoading(false))
   }, [open])
@@ -93,13 +93,13 @@ export function NotifyRecruiterButton({ candidateId }: Props) {
                       <option value="">Selecione...</option>
                       {recruiters.map(r => (
                         <option key={r.id} value={r.id} disabled={!r.phone}>
-                          {r.name} ({r.roleLabel}){!r.phone ? ' — sem WhatsApp' : ''}
+                          {r.name}{!r.phone ? ' — sem WhatsApp' : ''}
                         </option>
                       ))}
                     </select>
-                    {recruiters.length === 0 && <p className="text-[11px] text-amber-600">Nenhum recrutador cadastrado. Cadastre em Configurações → Usuários.</p>}
+                    {recruiters.length === 0 && <p className="text-[11px] text-amber-600">Nenhum recrutador cadastrado. Cadastre em Agenda de entrevistas → Entrevistadores.</p>}
                     {selected && !selected.phone && (
-                      <p className="text-[11px] text-amber-600">Este recrutador não tem WhatsApp. Adicione o número em Configurações → Usuários.</p>
+                      <p className="text-[11px] text-amber-600">Este recrutador não tem WhatsApp. Adicione o número em Agenda de entrevistas → Entrevistadores.</p>
                     )}
                     {selected && selected.phone && (
                       <p className="text-[11px] text-muted-foreground">WhatsApp: {selected.phone}</p>

@@ -37,16 +37,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const supabase = await createSupabaseServiceClient()
 
-    // ── Recrutador (usuário admin) — nome e WhatsApp ──────────────────────────
-    const { data: recruiterRes, error: recErr } = await supabase.auth.admin.getUserById(recruiter_id)
-    if (recErr || !recruiterRes?.user) {
+    // ── Recrutador (entrevistador cadastrado) — nome e WhatsApp ────────────────
+    const { data: recruiter, error: recErr } = await supabase
+      .from('interviewers').select('id, name, phone').eq('id', recruiter_id).maybeSingle()
+    if (recErr || !recruiter) {
       return NextResponse.json({ error: 'Recrutador não encontrado.' }, { status: 404 })
     }
-    const meta = recruiterRes.user.user_metadata || {}
-    const recruiterName = (meta.full_name as string | undefined)?.trim() || 'recrutador(a)'
-    const recruiterPhone = (meta.phone as string | undefined)?.trim() || ''
+    const recruiterName = (recruiter.name as string | null)?.trim() || 'recrutador(a)'
+    const recruiterPhone = (recruiter.phone as string | null)?.trim() || ''
     if (!recruiterPhone) {
-      return NextResponse.json({ error: 'Este recrutador não tem WhatsApp cadastrado. Edite o usuário em Configurações → Usuários.' }, { status: 400 })
+      return NextResponse.json({ error: 'Este recrutador não tem WhatsApp cadastrado. Edite-o em Agenda de entrevistas → Entrevistadores.' }, { status: 400 })
     }
 
     // ── Candidato ─────────────────────────────────────────────────────────────
