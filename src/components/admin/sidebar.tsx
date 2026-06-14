@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -79,6 +79,7 @@ function SidebarContent({
   const inPlataforma =
     pathname.startsWith('/admin/configuracoes/whatsapp') ||
     pathname.startsWith('/admin/configuracoes/ia') ||
+    pathname.startsWith('/admin/configuracoes/integracoes') ||
     inEmpresa || inUsuarios
 
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos || inConfigCurriculos)
@@ -324,6 +325,11 @@ function SidebarContent({
                   {can('config.ia') && (
                   <Link href="/admin/configuracoes/ia" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/ia') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                     <BrainCircuit className="w-3 h-3 shrink-0 opacity-50" />Configuração IA
+                  </Link>
+                  )}
+                  {isMaster && (
+                  <Link href="/admin/configuracoes/integracoes" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/integracoes') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Plug className="w-3 h-3 shrink-0 opacity-50" />Integrações
                   </Link>
                   )}
 
