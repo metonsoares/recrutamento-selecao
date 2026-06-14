@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { decryptToken } from '@/lib/helpers'
+import { inferSex } from '@/lib/infer-sex'
 
 export const maxDuration = 60
 
@@ -15,6 +16,24 @@ const NOVO_STATUSES = [
 // Campos do formulário que NÃO descrevem o perfil (contato/endereço) — ocultados.
 const HIDE_TYPES = new Set(['date', 'celular', 'email', 'job_select', 'address', 'file_upload', 'cpf', 'cep'])
 const HIDE_WORDS = ['nome completo', 'endereço', 'bairro', 'cidade', 'telefone', 'e-mail', 'email', 'vaga de interesse', 'anexe']
+
+/** Idade a partir de 'YYYY-MM-DD' ou 'DD/MM/YYYY'. */
+function ageFrom(birth?: string | null): number | null {
+  if (!birth) return null
+  let y = 0, m = 0, d = 0
+  const iso = birth.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3] }
+  else {
+    const br = birth.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    if (!br) return null
+    d = +br[1]; m = +br[2]; y = +br[3]
+  }
+  const t = new Date()
+  let age = t.getFullYear() - y
+  const mo = t.getMonth() + 1
+  if (mo < m || (mo === m && t.getDate() < d)) age--
+  return age >= 0 && age < 120 ? age : null
+}
 
 function parseAnswer(text: string | null | undefined): string {
   if (!text) return ''
@@ -66,7 +85,7 @@ export async function POST(req: NextRequest) {
     // ── Candidatos da coluna "Novo Currículo" ─────────────────────────────────
     const { data: apps } = await supabase
       .from('applications')
-      .select('id, candidate_id, status, ai_summary, candidates(full_name)')
+      .select('id, candidate_id, status, ai_summary, candidates(full_name, city, neighborhood)')
       .in('status', NOVO_STATUSES)
 
     const appList = (apps || []) as Array<Record<string, unknown>>
@@ -90,14 +109,30 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Monta perfil textual compacto por candidato ───────────────────────────
+    type CandRel = { full_name?: string; city?: string | null; neighborhood?: string | null }
     const profiles: { candidateId: string; name: string; text: string }[] = []
     for (const app of appList) {
       const candidateId = app.candidate_id as string | null
       if (!candidateId) continue
-      const candRel = app.candidates as { full_name?: string } | { full_name?: string }[] | null
-      const name = (Array.isArray(candRel) ? candRel[0]?.full_name : candRel?.full_name) || 'Sem nome'
+      const candRelRaw = app.candidates as CandRel | CandRel[] | null
+      const cand = (Array.isArray(candRelRaw) ? candRelRaw[0] : candRelRaw) || {}
+      const name = cand.full_name || 'Sem nome'
 
       const fa = faByApp.get(app.id as string) || []
+
+      // Idade: a data de nascimento vem da resposta do tipo "date" no formulário
+      const dateAnswer = fa.find(a => (a.form_questions as { field_type?: string } | null)?.field_type === 'date')
+      const birth = parseAnswer(dateAnswer?.answer_text as string | null) || null
+      const age = ageFrom(birth)
+      const sex = inferSex(name)
+
+      // Dados estruturados (sexo/idade/cidade) — necessários para filtros demográficos
+      const demo: string[] = []
+      demo.push(`Sexo: ${sex === 'M' ? 'Masculino' : sex === 'F' ? 'Feminino' : 'Indefinido'}`)
+      if (age != null) demo.push(`Idade: ${age} anos`)
+      if (cand.city) demo.push(`Cidade: ${cand.city}`)
+      if (cand.neighborhood) demo.push(`Bairro: ${cand.neighborhood}`)
+
       const formText = fa
         .filter(a => {
           const q = a.form_questions as { field_type?: string; question_text?: string } | null
@@ -113,11 +148,11 @@ export async function POST(req: NextRequest) {
         .join(' | ')
 
       const summary = (app.ai_summary as string | null) || ''
-      let text = formText
-      if (summary && summary !== 'Análise em andamento...') text += (text ? ' || ' : '') + `Resumo: ${summary}`
-      text = text.slice(0, 800) // limita tamanho por candidato
+      let text = demo.join(' | ')
+      if (formText) text += `\nExperiência/perfil: ${formText.slice(0, 700)}`
+      if (summary && summary !== 'Análise em andamento...') text += `\nResumo: ${summary.slice(0, 300)}`
 
-      profiles.push({ candidateId, name, text: text || '(sem informações de currículo preenchidas)' })
+      profiles.push({ candidateId, name, text })
     }
 
     // ── Prompt para a IA ──────────────────────────────────────────────────────
@@ -125,24 +160,30 @@ export async function POST(req: NextRequest) {
       .map((p, i) => `[${i + 1}] ${p.name}\n${p.text}`)
       .join('\n\n')
 
-    const systemPrompt = `Você é um recrutador especialista. Sua tarefa é filtrar uma lista de currículos e identificar quais candidatos correspondem a um perfil desejado descrito em linguagem natural. Avalie SOMENTE com base nas informações fornecidas de cada candidato. Não invente dados. Seja criterioso: só inclua quem realmente tem aderência ao que foi pedido.`
+    const systemPrompt = `Você é um recrutador especialista. Sua tarefa é filtrar uma lista de candidatos e identificar quais atendem a um pedido descrito em linguagem natural. Cada candidato traz campos estruturados confiáveis (Sexo, Idade, Cidade, Bairro) e texto de experiência/perfil. Avalie SOMENTE com base nessas informações. Não invente dados.`
 
-    const userPrompt = `PERFIL/REQUISITOS DESEJADOS NO CURRÍCULO:
+    const userPrompt = `PEDIDO DO RECRUTADOR (o que ele procura nos candidatos):
 "${description}"
 
 LISTA DE CANDIDATOS (cada um precedido por seu número entre colchetes):
 ${candidatesBlock}
 
-INSTRUÇÕES:
-- Selecione apenas os candidatos cujo currículo tem aderência real ao perfil desejado.
-- Atribua um score de 0 a 100 indicando o grau de aderência (100 = encaixe perfeito).
-- Inclua na resposta SOMENTE candidatos com score >= 50.
-- Ordene do maior para o menor score.
-- "motivo" deve ser curto (máx. 12 palavras), citando a evidência do currículo.
+COMO FILTRAR:
+- O pedido pode ser um filtro OBJETIVO (ex.: "homens com mais de 30 anos", "mulheres de Fortaleza") e/ou de EXPERIÊNCIA/PERFIL (ex.: "experiência como cozinheiro").
+- Para critérios objetivos use os campos estruturados: Sexo (Masculino/Feminino), Idade (em anos), Cidade, Bairro. Aplique os operadores exatamente como pedido ("mais de 30" = idade > 30; "entre 25 e 40" = 25..40; etc.).
+- Para critérios de experiência/perfil, use o texto de experiência/perfil e o resumo.
+- INCLUA TODOS os candidatos que satisfazem o pedido — não limite a quantidade. Se o pedido for puramente objetivo (ex.: sexo/idade), todo candidato que satisfaz deve entrar.
+- EXCLUA quem claramente não satisfaz. Em caso de critério objetivo, exclua quem não bate (ex.: idade desconhecida quando o pedido exige idade específica).
 
-Retorne APENAS JSON válido, sem markdown, no formato:
-{"matches":[{"n":1,"score":85,"motivo":"experiência de 2 anos como cozinheira"}]}
-Se nenhum candidato corresponder, retorne {"matches":[]}.`
+SCORE (0 a 100):
+- Para filtros objetivos: 100 se satisfaz plenamente.
+- Para perfil/experiência: quanto maior a aderência, maior o score.
+- Inclua candidatos com score >= 50. Ordene do maior para o menor.
+- "motivo" curto (máx. 12 palavras) citando a evidência (ex.: "Masculino, 34 anos" ou "2 anos como cozinheira").
+
+Retorne APENAS JSON válido, sem markdown:
+{"matches":[{"n":1,"score":100,"motivo":"Masculino, 34 anos"}]}
+Se ninguém atender, retorne {"matches":[]}.`
 
     // ── Chama IA ──────────────────────────────────────────────────────────────
     let rawMatches: Match[] | null = null
@@ -156,7 +197,7 @@ Se nenhum candidato corresponder, retorne {"matches":[]}.`
           headers: { 'x-api-key': useAnthropic, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
           body: JSON.stringify({
             model: 'claude-haiku-4-5-20251001',
-            max_tokens: 4096, temperature: 0,
+            max_tokens: 8192, temperature: 0,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
           }),
@@ -180,7 +221,7 @@ Se nenhum candidato corresponder, retorne {"matches":[]}.`
           method: 'POST', signal: ctrl.signal,
           headers: { 'Authorization': `Bearer ${useOpenAI}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'gpt-4o-mini', temperature: 0, max_tokens: 4096,
+            model: 'gpt-4o-mini', temperature: 0, max_tokens: 8192,
             response_format: { type: 'json_object' },
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
           }),
