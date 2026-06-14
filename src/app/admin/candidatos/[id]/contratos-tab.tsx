@@ -79,9 +79,10 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
 
   // ── Assinatura D4Sign ─────────────────────────────────────────────────────
   const [d4BusyId, setD4BusyId] = useState<string | null>(null)
+  const [confirmSend, setConfirmSend] = useState<ContractItem | null>(null)
 
-  async function handleD4Send(c: ContractItem) {
-    if (!confirm('Enviar este contrato para assinatura na D4Sign? A empresa e o funcionário receberão para assinar.')) return
+  async function doD4Send(c: ContractItem) {
+    setConfirmSend(null)
     setD4BusyId(c.id)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign`, { method: 'POST' })
@@ -235,6 +236,26 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
         </div>
       )}
 
+      {/* Confirmação de envio para assinatura (D4Sign) — sem confirm() bloqueante */}
+      {confirmSend && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setConfirmSend(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b flex items-center gap-2">
+              <PenTool className="w-5 h-5 text-[#0b5cff]" />
+              <h2 className="text-base font-semibold text-gray-900">Enviar para assinatura</h2>
+            </div>
+            <div className="px-5 py-4 text-sm text-gray-600 space-y-1.5">
+              <p>Enviar o contrato <strong>{confirmSend.title}</strong> para assinatura na D4Sign?</p>
+              <p className="text-[12px] text-muted-foreground">A empresa e o funcionário receberão o convite por e-mail para assinar.</p>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setConfirmSend(null)}>Cancelar</Button>
+              <Button onClick={() => doD4Send(confirmSend)} className="gap-1.5"><PenTool className="w-4 h-4" />Enviar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <FileSignature className="w-5 h-5 text-[#333]" />
@@ -292,7 +313,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {!c.d4sign_uuid ? (
                         <button
-                          onClick={() => handleD4Send(c)}
+                          onClick={() => setConfirmSend(c)}
                           disabled={d4BusyId === c.id}
                           title="Enviar o contrato para assinatura eletrônica na D4Sign"
                           className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#0b5cff] text-[#0b5cff] hover:bg-[#0b5cff]/10 transition-colors disabled:opacity-60"
