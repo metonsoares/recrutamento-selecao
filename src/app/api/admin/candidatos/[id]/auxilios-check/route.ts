@@ -6,14 +6,23 @@ export const maxDuration = 45
 
 const API = 'https://api.portaldatransparencia.gov.br/api-de-dados'
 
-async function fetchJSON(url: string, token: string, ms = 9000): Promise<{ ok: boolean; status: number; data: unknown }> {
+async function fetchJSON(url: string, token: string, ms = 9000): Promise<{ ok: boolean; status: number; data: unknown; detail?: string }> {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), ms)
   try {
-    const res = await fetch(url, { headers: { 'chave-api-dados': token, Accept: 'application/json' }, signal: ctrl.signal })
+    const res = await fetch(url, {
+      headers: {
+        'chave-api-dados': token,
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+      signal: ctrl.signal,
+    })
+    const text = await res.text()
     let data: unknown = null
-    try { data = await res.json() } catch { /* ignore */ }
-    return { ok: res.ok, status: res.status, data }
+    try { data = JSON.parse(text) } catch { /* não-JSON */ }
+    const detail = !res.ok ? (((data as Record<string, unknown>)?.message as string) || text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)) : undefined
+    return { ok: res.ok, status: res.status, data, detail }
   } catch {
     return { ok: false, status: 0, data: null }
   } finally { clearTimeout(t) }
@@ -166,12 +175,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       { label: 'Bolsa Família', path: m => `${API}/bolsa-familia-disponivel-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1` },
     ]
 
+    let authStatus = 0
+    let authDetail = ''
     for (const prog of monthlyPrograms) {
       let hitMonth: string | null = null
       let valor: string | undefined
       for (const m of months) {
         const r = await fetchJSON(prog.path(m), token)
-        if (r.status === 401 || r.status === 403) { authError = true; break }
+        if (r.status === 401 || r.status === 403) { authError = true; authStatus = r.status; authDetail = r.detail || ''; break }
         if (r.status === 429) { rateLimited = true; break }
         if (r.ok && Array.isArray(r.data) && r.data.length > 0) {
           fontes.add(prog.label)
@@ -211,7 +222,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (authError) {
-      return NextResponse.json({ error: 'Falha de autenticação na API do Portal da Transparência. Verifique a chave em Configuração IA.' }, { status: 400 })
+      const base = authStatus === 403
+        ? 'O Portal da Transparência recusou a requisição (HTTP 403). Isso costuma ser bloqueio do servidor à origem da consulta ou chave sem permissão.'
+        : 'Falha de autenticação na API do Portal da Transparência (HTTP 401) — verifique se a chave está correta e ativa.'
+      const tip = ' Gere/valide a chave gratuita em portaldatransparencia.gov.br/api-de-dados/cadastrar-email e cole em Configurações → Configuração IA.'
+      return NextResponse.json({ error: `${base}${authDetail ? ` Detalhe: ${authDetail}.` : ''}${tip}` }, { status: 400 })
     }
 
     const encontrado = beneficios.length > 0
