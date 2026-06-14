@@ -46,6 +46,26 @@ function brl(v: unknown): string | undefined {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+/**
+ * Procura recursivamente o primeiro campo "nis" (11 dígitos) numa resposta da API.
+ * O NIS é necessário para consultar Novo Bolsa Família e Auxílio Brasil, cujos
+ * endpoints só aceitam NIS (não CPF).
+ */
+function extractNis(data: unknown): string | null {
+  const stack: unknown[] = [data]
+  while (stack.length) {
+    const cur = stack.pop()
+    if (Array.isArray(cur)) { for (const v of cur) stack.push(v); continue }
+    if (cur && typeof cur === 'object') {
+      for (const [k, v] of Object.entries(cur as Record<string, unknown>)) {
+        if (k.toLowerCase() === 'nis' && typeof v === 'string' && /^\d{11}$/.test(v)) return v
+        if (v && typeof v === 'object') stack.push(v)
+      }
+    }
+  }
+  return null
+}
+
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   Accept: 'application/json, text/plain, */*',
@@ -162,62 +182,48 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const beneficios: AuxilioItem[] = []
     const fontes = new Set<string>()
-    const restritos = new Set<string>() // programas que exigem nível de acesso superior (HTTP 403)
     let recebendo = false
     let rateLimited = false
     let authError = false // chave inválida/inexistente (HTTP 401)
     let consultouAlgo = false // ao menos um endpoint respondeu 2xx
+    let authDetail = ''
+    let nis: string | null = null // NIS do beneficiário (necessário p/ Novo Bolsa Família e Auxílio Brasil)
 
     const months = recentMonths(4)
 
-    // ── Programas mensais (situação ATUAL — "continua recebendo?") ──────────────
-    // Novo Bolsa Família é o programa social vigente; BPC é benefício contínuo.
-    // (Bolsa Família "clássico" virou Auxílio Brasil e depois Novo Bolsa Família,
-    //  por isso é consultado separadamente como histórico, mais abaixo.)
-    const monthlyPrograms: { label: string; path: (m: string) => string }[] = [
-      { label: 'Novo Bolsa Família', path: m => `${API}/novo-bolsa-familia-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1` },
-      { label: 'BPC (Benefício de Prestação Continuada)', path: m => `${API}/bpc-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1` },
-    ]
-
-    let authDetail = ''
-    for (const prog of monthlyPrograms) {
+    // ── 1) BPC — benefício contínuo, situação ATUAL (endpoint aceita CPF) ────────
+    {
       let hitMonth: string | null = null
       let valor: string | undefined
-      let restritoAqui = false
       for (const m of months) {
-        const r = await fetchJSON(prog.path(m), token)
+        const r = await fetchJSON(`${API}/bpc-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1`, token)
         if (r.status === 401) { authError = true; authDetail = r.detail || ''; break }
-        if (r.status === 403) { restritoAqui = true; break } // endpoint exige nível de acesso superior — pula
         if (r.status === 429) { rateLimited = true; break }
         if (r.ok) {
           consultouAlgo = true
+          nis ||= extractNis(r.data)
           if (Array.isArray(r.data) && r.data.length > 0) {
-            fontes.add(prog.label)
             const first = r.data[0] as Record<string, unknown>
-            valor = brl(first?.valor ?? first?.valorSaque ?? (first as Record<string, unknown>)?.['valorBeneficio'])
-            if (!hitMonth) hitMonth = m
-            break // achou no mês mais recente disponível
+            valor = brl(first?.valor ?? first?.valorSaque ?? first?.['valorBeneficio'])
+            hitMonth = m; break
           }
         }
       }
-      if (authError || rateLimited) break
-      if (restritoAqui) { restritos.add(prog.label); continue }
       if (hitMonth) {
         recebendo = true
         const ym = `${hitMonth.slice(4, 6)}/${hitMonth.slice(0, 4)}`
-        beneficios.push({ programa: prog.label, situacao: 'recebendo', periodo: ym, valor, detalhe: `Benefício ativo em ${ym}.` })
+        beneficios.push({ programa: 'BPC (Benefício de Prestação Continuada)', situacao: 'recebendo', periodo: ym, valor, detalhe: `Benefício ativo em ${ym}.` })
       }
     }
 
-    // ── Programas históricos (recebeu no passado) ───────────────────────────────
+    // ── 2) Auxílio Emergencial 2020-2021 (endpoint aceita CPF) ──────────────────
     if (!authError && !rateLimited) {
-      // Auxílio Emergencial (2020-2021)
       const ae = await fetchJSON(`${API}/auxilio-emergencial-por-cpf-ou-nis?codigoBeneficiario=${cpf}&pagina=1`, token)
       if (ae.status === 401) { authError = true; authDetail = authDetail || ae.detail || '' }
-      else if (ae.status === 403) restritos.add('Auxílio Emergencial')
       else if (ae.status === 429) rateLimited = true
       else if (ae.ok) {
         consultouAlgo = true
+        nis ||= extractNis(ae.data)
         if (Array.isArray(ae.data) && ae.data.length > 0) {
           fontes.add('Auxílio Emergencial')
           beneficios.push({ programa: 'Auxílio Emergencial (2020-2021)', situacao: 'recebeu', detalhe: 'Recebeu auxílio emergencial.' })
@@ -225,25 +231,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    if (!authError && !rateLimited) {
-      // Auxílio Brasil (2021-2022) — consulta um mês representativo
-      const ab = await fetchJSON(`${API}/auxilio-brasil-disponivel-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=202212&pagina=1`, token)
-      if (ab.status === 401) { authError = true; authDetail = authDetail || ab.detail || '' }
-      else if (ab.status === 403) restritos.add('Auxílio Brasil')
-      else if (ab.status === 429) rateLimited = true
-      else if (ab.ok) {
-        consultouAlgo = true
-        if (Array.isArray(ab.data) && ab.data.length > 0) {
-          fontes.add('Auxílio Brasil')
-          beneficios.push({ programa: 'Auxílio Brasil (2021-2022)', situacao: 'recebeu', detalhe: 'Recebeu Auxílio Brasil.' })
-        }
-      }
-    }
-
-    // ── Bolsa Família "clássico" (até ~out/2021) — varredura histórica ──────────
-    // O endpoint "disponível" responde 200 com a chave básica, mas só nos meses em
-    // que o programa existiu. Varremos meses descendentes (denso em 2021, trimestral
-    // antes) e paramos no 1º registro encontrado.
+    // ── 3) Bolsa Família "clássico" (até out/2021) — varredura histórica (CPF) ──
+    // O endpoint "disponível" aceita CPF e responde 200 nos meses em que o programa
+    // existiu. Varremos meses descendentes (denso em 2021, trimestral antes) e
+    // paramos no 1º registro. Também extrai o NIS, usado nos passos 4a/4b.
     if (!authError && !rateLimited) {
       const bfMonths: string[] = []
       for (let y = 2021; y >= 2019; y--) {
@@ -255,38 +246,92 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       for (const m of bfMonths) {
         const r = await fetchJSON(`${API}/bolsa-familia-disponivel-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1`, token)
         if (r.status === 401) { authError = true; authDetail = authDetail || r.detail || ''; break }
-        if (r.status === 403) { restritos.add('Bolsa Família'); break }
         if (r.status === 429) { rateLimited = true; break }
         if (r.ok) {
           consultouAlgo = true
+          nis ||= extractNis(r.data)
           if (Array.isArray(r.data) && r.data.length > 0) {
             const first = r.data[0] as Record<string, unknown>
-            const valor = brl(first?.valor ?? first?.valorSaque ?? (first as Record<string, unknown>)?.['valorBeneficio'])
+            const valor = brl(first?.valor ?? first?.valorSaque ?? first?.['valorBeneficio'])
             const ym = `${m.slice(4, 6)}/${m.slice(0, 4)}`
             fontes.add('Bolsa Família')
-            beneficios.push({ programa: 'Bolsa Família', situacao: 'recebeu', periodo: ym, valor, detalhe: `Recebeu Bolsa Família (registro localizado em ${ym}).` })
+            beneficios.push({ programa: 'Bolsa Família (até 2021)', situacao: 'recebeu', periodo: ym, valor, detalhe: `Recebeu Bolsa Família (registro em ${ym}).` })
             break // basta um registro para confirmar que recebeu
           }
         }
       }
     }
 
-    // HTTP 401 = chave inválida/inexistente → erro real. (403 é tratado por endpoint, não aqui.)
+    // ── 4) Programas que SÓ aceitam NIS (precisamos do NIS dos passos anteriores) ─
+    //   4a) Novo Bolsa Família — programa ATUAL ("continua recebendo?")
+    //   4b) Auxílio Brasil — transição nov/2021 a dez/2022
+    let nisIndisponivel = false
+    if (!authError && !rateLimited && !nis) {
+      // Sem NIS não é possível consultar Novo Bolsa Família / Auxílio Brasil.
+      // Só sinalizamos isso se o CPF realmente puder ser beneficiário (nada encontrado
+      // nos programas abertos => provavelmente não é beneficiário, sem necessidade de aviso).
+      nisIndisponivel = beneficios.length > 0
+    }
+
+    if (!authError && !rateLimited && nis) {
+      // 4a) Novo Bolsa Família — varre os últimos 12 meses; 1º hit = registro mais recente
+      const nbfMonths = recentMonths(12)
+      for (let i = 0; i < nbfMonths.length; i++) {
+        const m = nbfMonths[i]
+        const r = await fetchJSON(`${API}/novo-bolsa-familia-sacado-por-nis?nis=${nis}&anoMesReferencia=${m}&pagina=1`, token)
+        if (r.status === 401) { authError = true; authDetail = authDetail || r.detail || ''; break }
+        if (r.status === 429) { rateLimited = true; break }
+        if (r.ok) {
+          consultouAlgo = true
+          if (Array.isArray(r.data) && r.data.length > 0) {
+            const first = r.data[0] as Record<string, unknown>
+            const valor = brl(first?.valorSaque ?? first?.valor)
+            const ym = `${m.slice(4, 6)}/${m.slice(0, 4)}`
+            const ativo = i < 3 // registro num dos 3 meses mais recentes → considera ativo
+            if (ativo) recebendo = true
+            fontes.add('Novo Bolsa Família')
+            beneficios.push({
+              programa: 'Novo Bolsa Família',
+              situacao: ativo ? 'recebendo' : 'recebeu',
+              periodo: ym, valor,
+              detalhe: ativo ? `Benefício ativo (último registro em ${ym}).` : `Recebeu (último registro em ${ym}).`,
+            })
+            break
+          }
+        }
+      }
+    }
+
+    if (!authError && !rateLimited && nis) {
+      // 4b) Auxílio Brasil — nov/2021 a dez/2022
+      const abMonths = ['202212', '202211', '202210', '202209', '202208', '202207', '202206', '202205', '202204', '202203', '202202', '202201', '202112', '202111']
+      for (const m of abMonths) {
+        const r = await fetchJSON(`${API}/auxilio-brasil-sacado-por-nis?nis=${nis}&anoMesReferencia=${m}&pagina=1`, token)
+        if (r.status === 401) { authError = true; authDetail = authDetail || r.detail || ''; break }
+        if (r.status === 429) { rateLimited = true; break }
+        if (r.ok) {
+          consultouAlgo = true
+          if (Array.isArray(r.data) && r.data.length > 0) {
+            const first = r.data[0] as Record<string, unknown>
+            const valor = brl(first?.valorSaque ?? first?.valor)
+            const ym = `${m.slice(4, 6)}/${m.slice(0, 4)}`
+            fontes.add('Auxílio Brasil')
+            beneficios.push({ programa: 'Auxílio Brasil (2021-2022)', situacao: 'recebeu', periodo: ym, valor, detalhe: `Recebeu Auxílio Brasil (registro em ${ym}).` })
+            break
+          }
+        }
+      }
+    }
+
+    // HTTP 401 = chave inválida/inexistente → erro real.
     if (authError) {
       const tip = ' Gere/valide a chave gratuita em portaldatransparencia.gov.br/api-de-dados/cadastrar-email e cole em Configurações → Configuração IA.'
       return NextResponse.json({ error: `Falha de autenticação na API do Portal da Transparência (HTTP 401) — a chave parece inválida ou inativa.${authDetail ? ` Detalhe: ${authDetail}.` : ''}${tip}` }, { status: 400 })
     }
 
-    // Nenhum endpoint respondeu 2xx e todos os tentados foram restritos → chave sem nível de acesso.
-    if (!consultouAlgo && restritos.size > 0) {
-      return NextResponse.json({
-        error: `A chave de API é válida, mas não tem nível de acesso para nenhum dos programas consultados (${Array.from(restritos).join(', ')}). Esses dados por CPF exigem nível de acesso elevado no Portal da Transparência — solicite o aumento de nível pelo e-mail cadastrado em portaldatransparencia.gov.br/api-de-dados.`,
-      }, { status: 400 })
-    }
-
     const obsPartes: string[] = []
-    if (restritos.size > 0) {
-      obsPartes.push(`Programas não verificados por exigirem nível de acesso superior da API: ${Array.from(restritos).join(', ')}. Solicite o aumento de nível da chave no Portal da Transparência para incluí-los.`)
+    if (nisIndisponivel) {
+      obsPartes.push('Não foi possível localizar o NIS deste CPF nos programas de acesso aberto; por isso Novo Bolsa Família e Auxílio Brasil (que só podem ser consultados por NIS) não foram verificados.')
     }
     if (rateLimited) {
       obsPartes.push('A consulta atingiu o limite de requisições da API e pode estar incompleta. Tente novamente em alguns minutos.')
