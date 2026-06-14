@@ -83,10 +83,18 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Candidatos da coluna "Novo Currículo" ─────────────────────────────────
-    const { data: apps } = await supabase
+    // OBS: não usar embed candidates(...) — há 2 FKs entre applications e
+    // candidates (candidate_id e latest_application_id), o que torna o embed
+    // ambíguo e faz a query falhar. Buscamos os candidatos numa 2ª query.
+    const { data: apps, error: appsErr } = await supabase
       .from('applications')
-      .select('id, candidate_id, status, ai_summary, candidates(full_name, city, neighborhood)')
+      .select('id, candidate_id, status, ai_summary')
       .in('status', NOVO_STATUSES)
+
+    if (appsErr) {
+      console.error('[search-curriculos] applications query', appsErr.message)
+      return NextResponse.json({ error: 'Erro ao carregar candidatos.' }, { status: 500 })
+    }
 
     const appList = (apps || []) as Array<Record<string, unknown>>
     if (appList.length === 0) {
@@ -94,6 +102,17 @@ export async function POST(req: NextRequest) {
     }
 
     const appIds = appList.map(a => a.id as string)
+    const candIds = Array.from(new Set(appList.map(a => a.candidate_id as string).filter(Boolean)))
+
+    // Candidatos (nome, cidade, bairro) numa query separada
+    const { data: candRows } = await supabase
+      .from('candidates')
+      .select('id, full_name, city, neighborhood')
+      .in('id', candIds)
+    const candById = new Map<string, { full_name?: string; city?: string | null; neighborhood?: string | null }>()
+    for (const c of (candRows || []) as Array<Record<string, unknown>>) {
+      candById.set(c.id as string, { full_name: c.full_name as string, city: c.city as string | null, neighborhood: c.neighborhood as string | null })
+    }
 
     // ── Respostas do formulário (currículo) de todos de uma vez ───────────────
     const { data: faRows } = await supabase
@@ -109,13 +128,13 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Monta perfil textual compacto por candidato ───────────────────────────
-    type CandRel = { full_name?: string; city?: string | null; neighborhood?: string | null }
     const profiles: { candidateId: string; name: string; text: string }[] = []
+    const seen = new Set<string>()
     for (const app of appList) {
       const candidateId = app.candidate_id as string | null
-      if (!candidateId) continue
-      const candRelRaw = app.candidates as CandRel | CandRel[] | null
-      const cand = (Array.isArray(candRelRaw) ? candRelRaw[0] : candRelRaw) || {}
+      if (!candidateId || seen.has(candidateId)) continue
+      seen.add(candidateId)
+      const cand = candById.get(candidateId) || {}
       const name = cand.full_name || 'Sem nome'
 
       const fa = faByApp.get(app.id as string) || []
