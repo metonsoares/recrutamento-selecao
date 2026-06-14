@@ -170,11 +170,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const months = recentMonths(4)
 
-    // ── Programas mensais (situação atual): Novo Bolsa Família, BPC ──────────────
+    // ── Programas mensais (situação ATUAL — "continua recebendo?") ──────────────
+    // Novo Bolsa Família é o programa social vigente; BPC é benefício contínuo.
+    // (Bolsa Família "clássico" virou Auxílio Brasil e depois Novo Bolsa Família,
+    //  por isso é consultado separadamente como histórico, mais abaixo.)
     const monthlyPrograms: { label: string; path: (m: string) => string }[] = [
       { label: 'Novo Bolsa Família', path: m => `${API}/novo-bolsa-familia-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1` },
       { label: 'BPC (Benefício de Prestação Continuada)', path: m => `${API}/bpc-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1` },
-      { label: 'Bolsa Família', path: m => `${API}/bolsa-familia-disponivel-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1` },
     ]
 
     let authDetail = ''
@@ -234,6 +236,37 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         if (Array.isArray(ab.data) && ab.data.length > 0) {
           fontes.add('Auxílio Brasil')
           beneficios.push({ programa: 'Auxílio Brasil (2021-2022)', situacao: 'recebeu', detalhe: 'Recebeu Auxílio Brasil.' })
+        }
+      }
+    }
+
+    // ── Bolsa Família "clássico" (até ~out/2021) — varredura histórica ──────────
+    // O endpoint "disponível" responde 200 com a chave básica, mas só nos meses em
+    // que o programa existiu. Varremos meses descendentes (denso em 2021, trimestral
+    // antes) e paramos no 1º registro encontrado.
+    if (!authError && !rateLimited) {
+      const bfMonths: string[] = []
+      for (let y = 2021; y >= 2019; y--) {
+        const maxM = y === 2021 ? 10 : 12 // programa encerrou em out/2021
+        for (let m = maxM; m >= 1; m--) {
+          if (y === 2021 || m % 3 === 1) bfMonths.push(`${y}${String(m).padStart(2, '0')}`)
+        }
+      }
+      for (const m of bfMonths) {
+        const r = await fetchJSON(`${API}/bolsa-familia-disponivel-por-cpf-ou-nis?codigo=${cpf}&anoMesReferencia=${m}&pagina=1`, token)
+        if (r.status === 401) { authError = true; authDetail = authDetail || r.detail || ''; break }
+        if (r.status === 403) { restritos.add('Bolsa Família'); break }
+        if (r.status === 429) { rateLimited = true; break }
+        if (r.ok) {
+          consultouAlgo = true
+          if (Array.isArray(r.data) && r.data.length > 0) {
+            const first = r.data[0] as Record<string, unknown>
+            const valor = brl(first?.valor ?? first?.valorSaque ?? (first as Record<string, unknown>)?.['valorBeneficio'])
+            const ym = `${m.slice(4, 6)}/${m.slice(0, 4)}`
+            fontes.add('Bolsa Família')
+            beneficios.push({ programa: 'Bolsa Família', situacao: 'recebeu', periodo: ym, valor, detalhe: `Recebeu Bolsa Família (registro localizado em ${ym}).` })
+            break // basta um registro para confirmar que recebeu
+          }
         }
       }
     }
