@@ -48,7 +48,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: `Falha ao enviar WhatsApp: ${sent.error}` }, { status: 502 })
     }
 
-    return NextResponse.json({ ok: true })
+    const sentAt = new Date().toISOString()
+    await supabase.from('climate_assignments').update({ whatsapp_sent_at: sentAt }).eq('id', assignmentId)
+
+    return NextResponse.json({ ok: true, whatsapp_sent_at: sentAt })
   } catch (err) {
     console.error('[climate notify]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })

@@ -207,7 +207,7 @@ export default async function CandidatePage({
 
   // ── Pesquisas de clima (atribuições + respostas + lista para dropdown) ─────
   const [{ data: climateAssignData }, { data: climateRespData }, { data: allSurveysData }] = await Promise.all([
-    service.from('climate_assignments').select('id, survey_id, created_at, climate_surveys(title, token)').eq('candidate_id', id),
+    service.from('climate_assignments').select('id, survey_id, created_at, whatsapp_sent_at, climate_surveys(title, token)').eq('candidate_id', id),
     service.from('climate_responses').select('id, survey_id, created_at, total_score, max_score').eq('candidate_id', id).order('created_at', { ascending: false }),
     service.from('climate_surveys').select('id, title, token').order('created_at', { ascending: false }),
   ])
@@ -228,6 +228,7 @@ export default async function CandidatePage({
       title: s?.title || 'Pesquisa',
       token: s?.token || '',
       created_at: a.created_at as string,
+      whatsapp_sent_at: (a.whatsapp_sent_at as string | null) ?? null,
       response: respBySurvey[a.survey_id as string] ?? null,
     }
   })

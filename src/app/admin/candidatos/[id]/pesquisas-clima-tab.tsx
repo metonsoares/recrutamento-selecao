@@ -14,6 +14,7 @@ export interface ClimateAssignment {
   title: string
   token: string
   created_at: string
+  whatsapp_sent_at: string | null
   response: AssignmentResponse | null
 }
 export interface SurveyOption { id: string; title: string; token: string }
@@ -51,7 +52,9 @@ export function PesquisasClimaTab({ candidateId, isMaster, appUrl, surveys, init
       const res = await fetch(`/api/admin/candidatos/${candidateId}/climate-assignments/${a.id}/notify`, { method: 'POST' })
       const json = await res.json().catch(() => ({}))
       if (!res.ok || !json.ok) { showToast('err', json.error || 'Erro ao enviar a pesquisa.'); return }
-      showToast('ok', 'Pesquisa enviada por WhatsApp ao funcionário.')
+      const sentAt = (json.whatsapp_sent_at as string) || new Date().toISOString()
+      setAssignments(prev => prev.map(x => x.id === a.id ? { ...x, whatsapp_sent_at: sentAt } : x))
+      showToast('ok', a.whatsapp_sent_at ? 'Pesquisa reenviada por WhatsApp.' : 'Pesquisa enviada por WhatsApp ao funcionário.')
     } catch {
       showToast('err', 'Erro ao enviar a pesquisa.')
     } finally { setSendingId(null) }
@@ -89,7 +92,7 @@ export function PesquisasClimaTab({ candidateId, isMaster, appUrl, surveys, init
         id: a.id, survey_id: a.survey_id,
         title: a.climate_surveys?.title || survey?.title || 'Pesquisa',
         token: a.climate_surveys?.token || survey?.token || '',
-        created_at: a.created_at, response: null,
+        created_at: a.created_at, whatsapp_sent_at: null, response: null,
       }, ...prev])
       setSelectedSurvey('')
       showToast('ok', 'Pesquisa adicionada à ficha.')
@@ -172,18 +175,23 @@ export function PesquisasClimaTab({ candidateId, isMaster, appUrl, surveys, init
                         ? `Preenchida em ${formatDateTime(a.response!.created_at)}`
                         : `Adicionada em ${formatDate(a.created_at)} — aguardando preenchimento`}
                     </p>
+                    {!done && a.whatsapp_sent_at && (
+                      <p className="text-[11px] text-emerald-600 mt-0.5 flex items-center gap-1">
+                        <WppIcon className="w-3 h-3" />Enviada por WhatsApp em {formatDateTime(a.whatsapp_sent_at)}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {!done && (
                       <button
                         onClick={() => handleSend(a)}
                         disabled={sendingId === a.id}
-                        title="Enviar pesquisa por WhatsApp ao funcionário"
+                        title={a.whatsapp_sent_at ? 'Reenviar pesquisa por WhatsApp ao funcionário' : 'Enviar pesquisa por WhatsApp ao funcionário'}
                         className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10 transition-colors disabled:opacity-60"
                       >
                         {sendingId === a.id
                           ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Enviando...</>
-                          : <><WppIcon className="w-3.5 h-3.5" />Enviar pesquisa</>}
+                          : <><WppIcon className="w-3.5 h-3.5" />{a.whatsapp_sent_at ? 'Reenviar pesquisa' : 'Enviar pesquisa'}</>}
                       </button>
                     )}
                     <button onClick={() => setLinkModal(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Link / QR Code"><QrCode className="w-4 h-4" /></button>
