@@ -49,7 +49,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const fileRes = await fetch(contract.file_url as string)
     if (!fileRes.ok) return NextResponse.json({ error: 'Não foi possível ler o arquivo do contrato.' }, { status: 502 })
     const base64 = Buffer.from(await fileRes.arrayBuffer()).toString('base64')
-    const fileName = (contract.file_name as string | null) || `contrato-${contractId}.docx`
+    // Nome do documento na D4Sign: "Nome do Candidato - Nome do contrato"
+    const ext = ((contract.file_name as string | null)?.split('.').pop() || (contract.file_type === 'pdf' ? 'pdf' : 'docx')).toLowerCase()
+    const candidateName = (candidate?.full_name as string | null)?.trim() || 'Funcionário'
+    const contractTitle = (contract.title as string | null)?.trim() || 'Contrato'
+    const docName = `${candidateName} - ${contractTitle}`.replace(/\s+/g, ' ').trim()
+    const fileName = `${docName}.${ext}`
 
     // 1) Upload
     const up = await uploadBinary(creds, safeUuid, base64, mimeFor(fileName), fileName)
