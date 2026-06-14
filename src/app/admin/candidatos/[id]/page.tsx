@@ -263,9 +263,9 @@ export default async function CandidatePage({
   // Ficha Admissão (não em_contrato)
   const showFicha = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
   // Dados para contrato: em_contrato
-  const showContract = currentStatus === 'em_contrato'
+  const showContract = ['em_contrato', 'aprovado_processo', 'aprovado_barraca', 'aprovado_carrinho'].includes(currentStatus)
   // Documentos
-  const showDocumentos = ['contratado', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  const showDocumentos = ['contratado', 'aprovado', 'aprovado_processo', 'aprovado_barraca', 'aprovado_carrinho', 'em_contrato', 'desligado'].includes(currentStatus)
   // Férias: contratado e desligado
   const showVacationTab = ['contratado', 'desligado'].includes(currentStatus)
   // Advertências + Atestados: contratado e desligado
