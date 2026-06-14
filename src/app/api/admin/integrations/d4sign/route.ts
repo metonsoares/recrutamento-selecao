@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
       const res = await fetch(url, {
         headers: {
           Accept: 'application/json',
+          // o SDK oficial envia o tokenAPI também no header (além da query)
+          tokenAPI: token,
           'User-Agent': 'Mozilla/5.0 (compatible; BrowniePesquisa/1.0)',
         },
         signal: ctrl.signal,
