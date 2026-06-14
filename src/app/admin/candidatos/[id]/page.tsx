@@ -397,7 +397,7 @@ export default async function CandidatePage({
     <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
 
       {/* ── Back button — volta para a página anterior (lista de onde veio) ── */}
-      <BackButton label="Voltar" />
+      <BackButton status={currentStatus} />
 
       {/* ── Header ── */}
       <div className="flex items-start gap-4 flex-wrap">
