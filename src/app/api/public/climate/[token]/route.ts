@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { interpretClimateResponse } from '@/lib/climate-interpret'
+
+export const maxDuration = 40
 
 interface QuestionOption { text: string; weight: number }
 interface Question { id: string; text: string; type?: 'texto' | 'multipla'; options: QuestionOption[] }
@@ -32,15 +35,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       if (chosen != null && q.options[chosen]) total += Number(q.options[chosen].weight) || 0
     }
 
-    const { error } = await supabase.from('climate_responses').insert({
+    const { data: inserted, error } = await supabase.from('climate_responses').insert({
       survey_id: survey.id,
       candidate_id: candidate_id || null,
       respondent_name: respondent_name || null,
       answers: answers || {},
       total_score: total,
       max_score: max,
-    })
+    }).select('id').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Interpretação automática da IA, gravada junto ao resultado.
+    // A resposta já está salva; se a IA falhar, apenas seguimos sem interpretação
+    // (pode ser gerada depois pelo botão na tela de resultado).
+    try {
+      await interpretClimateResponse(supabase, survey.id as string, inserted.id as string)
+    } catch (e) {
+      console.error('[public climate] auto-interpret falhou:', e)
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[public climate POST]', err)

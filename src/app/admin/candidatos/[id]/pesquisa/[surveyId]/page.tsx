@@ -51,6 +51,7 @@ export default async function ResultadoPesquisaPage({ params }: { params: Promis
       totalScore={(response.total_score as number | null) ?? null}
       maxScore={(response.max_score as number | null) ?? null}
       rows={rows}
+      initialAnalysis={(response.ai_interpretation as string | null) ?? null}
     />
   )
 }

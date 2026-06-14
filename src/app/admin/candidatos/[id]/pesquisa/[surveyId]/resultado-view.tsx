@@ -16,11 +16,12 @@ interface Props {
   totalScore: number | null
   maxScore: number | null
   rows: AnswerRow[]
+  initialAnalysis?: string | null
 }
 
-export function PesquisaResultadoView({ surveyId, responseId, candidateName, surveyTitle, companyName, filledAt, pct, totalScore, maxScore, rows }: Props) {
+export function PesquisaResultadoView({ surveyId, responseId, candidateName, surveyTitle, companyName, filledAt, pct, totalScore, maxScore, rows, initialAnalysis }: Props) {
   const [analyzing, setAnalyzing] = useState(false)
-  const [analysis, setAnalysis] = useState('')
+  const [analysis, setAnalysis] = useState(initialAnalysis || '')
 
   function tone(p: number) { return p >= 70 ? 'text-emerald-600' : p >= 50 ? 'text-amber-600' : 'text-red-600' }
 
@@ -47,7 +48,7 @@ export function PesquisaResultadoView({ surveyId, responseId, candidateName, sur
         </div>
         <div className="flex gap-2">
           <Button onClick={analyze} disabled={analyzing} className="gap-1.5">
-            {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" />Analisando...</> : <><Brain className="w-4 h-4" />Interpretar com IA</>}
+            {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" />Analisando...</> : <><Brain className="w-4 h-4" />{analysis ? 'Reinterpretar com IA' : 'Interpretar com IA'}</>}
           </Button>
           <Button variant="outline" onClick={() => window.print()} className="gap-1.5"><FileDown className="w-4 h-4" />Exportar PDF</Button>
         </div>
