@@ -1,11 +1,11 @@
-import { requirePermission } from '@/lib/auth-guard'
+import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { TemplatesManager, ContractTemplate } from './templates-manager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function TemplatesContratoPage() {
-  await requirePermission('documentos_empresa')
+  await requireMaster()
   const supabase = await createSupabaseServiceClient()
   const [{ data: templates }, { data: companies }] = await Promise.all([
     supabase.from('contract_templates').select('*').order('created_at', { ascending: false }),

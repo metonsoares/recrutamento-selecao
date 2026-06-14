@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import mammoth from 'mammoth'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { groupVariables } from '@/lib/template-vars'
+import { requireMasterApi } from '@/lib/auth-guard'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -46,6 +47,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const { id } = await params
     const { mappings } = await req.json()
     if (!mappings || typeof mappings !== 'object') {

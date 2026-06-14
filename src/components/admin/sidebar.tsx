@@ -266,9 +266,11 @@ function SidebarContent({
               <Link href="/admin/documentos-empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/documentos-empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <FolderArchive className="w-3 h-3 shrink-0 opacity-50" />Documentos da empresa
               </Link>
-              <Link href="/admin/documentos-empresa/templates" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/documentos-empresa/templates') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                <FileSignature className="w-3 h-3 shrink-0 opacity-50" />Templates de contrato
-              </Link>
+              {isMaster && (
+                <Link href="/admin/documentos-empresa/templates" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/documentos-empresa/templates') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                  <FileSignature className="w-3 h-3 shrink-0 opacity-50" />Templates de contrato
+                </Link>
+              )}
             </div>
           )}
         </div>

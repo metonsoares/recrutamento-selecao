@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requireMasterApi } from '@/lib/auth-guard'
 
 const MAX_SIZE = 15 * 1024 * 1024 // 15 MB
 const ALLOWED = [
@@ -22,6 +23,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const name = (formData.get('name') as string | null)?.trim()

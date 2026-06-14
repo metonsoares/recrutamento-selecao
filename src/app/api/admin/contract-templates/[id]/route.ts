@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requireMasterApi } from '@/lib/auth-guard'
 
 const MAX_SIZE = 15 * 1024 * 1024
 const ALLOWED = [
@@ -10,6 +11,8 @@ const ALLOWED = [
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const { id } = await params
     const formData = await req.formData()
     const name = (formData.get('name') as string | null)?.trim()
@@ -48,6 +51,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const { id } = await params
     const supabase = await createSupabaseServiceClient()
     const { data: t } = await supabase.from('contract_templates').select('file_path').eq('id', id).maybeSingle()
