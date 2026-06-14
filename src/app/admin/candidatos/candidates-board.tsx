@@ -7,7 +7,7 @@ import { CandidateStatus } from '@/types'
 import { formatDate } from '@/lib/helpers'
 import { inferSex } from '@/lib/infer-sex'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { Search, SortAsc, GripVertical, BrainCircuit, Loader2, AlertCircle } from 'lucide-react'
+import { Search, SortAsc, GripVertical, BrainCircuit, Loader2, AlertCircle, Sparkles, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 /** Idade a partir da data de nascimento ('YYYY-MM-DD' ou 'DD/MM/YYYY'). */
@@ -208,6 +208,45 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
   const [filterAge, setFilterAge] = useState('all')
   const [filterSex, setFilterSex] = useState('all')
 
+  // ── Busca semântica por IA na coluna "Novo Currículo" ─────────────────────
+  const [aiQuery, setAiQuery] = useState('')
+  const [aiSearching, setAiSearching] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  // null = busca inativa; Map = resultado ativo (candidateId -> {score, reason})
+  const [aiMatches, setAiMatches] = useState<Map<string, { score: number; reason: string }> | null>(null)
+  const [aiQueryActive, setAiQueryActive] = useState('')
+
+  async function handleAiSearch() {
+    const q = aiQuery.trim()
+    if (q.length < 3) { setAiError('Descreva o perfil desejado (mín. 3 caracteres).'); return }
+    setAiSearching(true)
+    setAiError(null)
+    try {
+      const res = await fetch('/api/admin/ai/search-curriculos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: q }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro na busca.')
+      const map = new Map<string, { score: number; reason: string }>()
+      for (const m of (data.matches || []) as Array<{ candidateId: string; score: number; reason: string }>) {
+        map.set(m.candidateId, { score: m.score, reason: m.reason })
+      }
+      setAiMatches(map)
+      setAiQueryActive(q)
+    } catch (e) {
+      setAiError((e as Error).message || 'Erro na busca.')
+    } finally {
+      setAiSearching(false)
+    }
+  }
+
+  function clearAiSearch() {
+    setAiMatches(null)
+    setAiQueryActive('')
+    setAiError(null)
+  }
+
   // ── Drag state (candidatos) ───────────────────────────────────────────────
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null)
@@ -303,6 +342,8 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
   const getItems = useCallback((statuses: readonly string[]) => {
     return candidates
       .filter(c => statuses.includes(c.applications?.status ?? 'novo'))
+      // Busca por IA ativa: mantém apenas os currículos que casaram com a descrição
+      .filter(c => !aiMatches || aiMatches.has(c.id))
       .filter(c => {
         if (!search.trim()) return true
         const q = search.toLowerCase()
@@ -325,12 +366,14 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         return inferSex(c.full_name) === filterSex
       })
       .sort((a, b) => {
+        // Com busca por IA ativa, ordena pelo grau de aderência (maior primeiro)
+        if (aiMatches) return (aiMatches.get(b.id)?.score ?? 0) - (aiMatches.get(a.id)?.score ?? 0)
         if (sortBy === 'name') return a.full_name.localeCompare(b.full_name, 'pt-BR')
         if (sortBy === 'score') return (b.applications?.final_score ?? -1) - (a.applications?.final_score ?? -1)
         if (sortBy === 'date_asc') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
-  }, [candidates, search, filterJob, filterAge, filterSex, sortBy])
+  }, [candidates, search, filterJob, filterAge, filterSex, sortBy, aiMatches])
 
   // ── Drag & Drop (candidatos) ──────────────────────────────────────────────
   async function handleDrop(candidateId: string, targetStatus: CandidateStatus) {
@@ -511,6 +554,47 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         </Select>
       </div>
 
+      {/* Busca semântica por IA (coluna "Novo Currículo") */}
+      <div className="shrink-0 space-y-2">
+        <div className="flex flex-wrap items-stretch gap-2">
+          <div className="relative flex-1 min-w-[260px]">
+            <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500" />
+            <Input
+              className="pl-9 border-purple-200 focus-visible:ring-purple-400"
+              placeholder="Descreva o currículo que procura (ex.: experiência como cozinheiro e disponibilidade noturna)..."
+              value={aiQuery}
+              onChange={e => { setAiQuery(e.target.value); setAiError(null) }}
+              onKeyDown={e => { if (e.key === 'Enter' && !aiSearching) handleAiSearch() }}
+            />
+          </div>
+          <Button
+            onClick={handleAiSearch}
+            disabled={aiSearching || aiQuery.trim().length < 3}
+            className="gap-1.5 shrink-0 bg-purple-600 hover:bg-purple-700 text-white"
+            title="Buscar currículos com IA na coluna Novo Currículo"
+          >
+            {aiSearching
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Buscando...</>
+              : <><Sparkles className="w-4 h-4" />Buscar com IA</>
+            }
+          </Button>
+          {aiMatches && (
+            <Button variant="outline" onClick={clearAiSearch} className="gap-1.5 shrink-0" title="Limpar busca por IA">
+              <X className="w-4 h-4" />Limpar
+            </Button>
+          )}
+        </div>
+        {aiError && (
+          <p className="text-[12px] text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" />{aiError}</p>
+        )}
+        {aiMatches && !aiError && (
+          <p className="text-[12px] text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span><strong>{aiMatches.size}</strong> currículo{aiMatches.size !== 1 ? 's' : ''} compatíve{aiMatches.size !== 1 ? 'is' : 'l'} com: <em>“{aiQueryActive}”</em></span>
+          </p>
+        )}
+      </div>
+
       {/* Legenda de compatibilidade */}
       <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground shrink-0">
         <span className="font-medium text-[11px] text-gray-500">Compatibilidade:</span>
@@ -628,6 +712,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
                       isDragging={dragId === c.id}
                       draggable={!lockedForRecruiter}
                       jobTitleFallback={c.applications?.id ? appJobTitleMap[c.applications.id] : undefined}
+                      aiMatch={aiMatches?.get(c.id) ?? null}
                       onDragStart={() => setDragId(c.id)}
                       onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
                       onClick={() => router.push(`/admin/candidatos/${c.id}`)}
@@ -650,6 +735,7 @@ function CandidateCard({
   isDragging,
   draggable = true,
   jobTitleFallback,
+  aiMatch = null,
   onDragStart,
   onDragEnd,
   onClick,
@@ -658,6 +744,7 @@ function CandidateCard({
   isDragging: boolean
   draggable?: boolean
   jobTitleFallback?: string
+  aiMatch?: { score: number; reason: string } | null
   onDragStart: () => void
   onDragEnd: () => void
   onClick: () => void
@@ -719,6 +806,20 @@ function CandidateCard({
       <div className="mt-1 pl-5">
         <p className="text-[10px] text-muted-foreground">{formatDate(c.created_at)}</p>
       </div>
+
+      {/* Aderência da busca por IA */}
+      {aiMatch && (
+        <div className="mt-1.5 pl-5">
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 rounded-full px-1.5 py-0.5">
+              <Sparkles className="w-2.5 h-2.5" />{aiMatch.score}% aderência
+            </span>
+          </div>
+          {aiMatch.reason && (
+            <p className="text-[10px] text-muted-foreground italic mt-0.5 leading-snug">{aiMatch.reason}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
