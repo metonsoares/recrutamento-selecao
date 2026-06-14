@@ -6,6 +6,8 @@ const ALLOWED = [
   'application/pdf', 'image/jpeg', 'image/png',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.ms-excel', // .xls
 ]
 
 export async function POST(

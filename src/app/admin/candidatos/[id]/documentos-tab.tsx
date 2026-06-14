@@ -79,9 +79,9 @@ function DocRow({
     const file = e.target.files?.[0]
     if (!file) return
     setUploadError('')
-    if (file.size > 4 * 1024 * 1024) { setUploadError('Arquivo excede 4 MB'); return }
-    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) {
-      setUploadError('Use PDF, JPG ou PNG'); return
+    if (file.size > 15 * 1024 * 1024) { setUploadError('Arquivo excede 15 MB'); return }
+    if (!['application/pdf', 'image/jpeg', 'image/png', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'].includes(file.type)) {
+      setUploadError('Use PDF, JPG, PNG, Word ou Excel'); return
     }
     setUploading(true)
     const fd = new FormData()
@@ -180,7 +180,7 @@ function DocRow({
                 : <><Upload className="w-3 h-3" />Anexar arquivo</>}
             </button>
           )}
-          <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleFile} />
+          <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx,.xls,.xlsx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFile} />
           {uploadError && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{uploadError}</p>}
         </div>
       )}
@@ -205,8 +205,8 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
     const file = e.target.files?.[0]
     if (!file) return
     setErr('')
-    if (file.size > 4 * 1024 * 1024) { setErr('Arquivo excede 4 MB'); return }
-    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) { setErr('Use PDF, JPG ou PNG'); return }
+    if (file.size > 15 * 1024 * 1024) { setErr('Arquivo excede 15 MB'); return }
+    if (!['application/pdf', 'image/jpeg', 'image/png', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'].includes(file.type)) { setErr('Use PDF, JPG, PNG, Word ou Excel'); return }
     setUploading(true)
     const fd = new FormData(); fd.append('file', file); fd.append('docKey', 'custom')
     try {
@@ -262,7 +262,7 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
           className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
           {uploading ? <><Loader2 className="w-3 h-3 animate-spin" />Enviando...</> : <><Upload className="w-3 h-3" />Anexar arquivo</>}
         </button>
-        <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleFile} />
+        <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx,.xls,.xlsx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFile} />
         {err && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</p>}
       </div>
     </div>
