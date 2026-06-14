@@ -106,8 +106,8 @@ export async function createSignerList(c: D4SignCreds, docUuid: string, signers:
   return { ok: r.ok, error: r.ok ? '' : d4signError(r) }
 }
 
-/** Envia o documento para assinatura. workflow='1' respeita a ordem dos signatários. */
-export async function sendToSigner(c: D4SignCreds, docUuid: string, message = '', workflow = '1') {
+/** Envia o documento para assinatura. workflow='0' = sem ordem (todos podem assinar); '1' = ordem dos signatários. */
+export async function sendToSigner(c: D4SignCreds, docUuid: string, message = '', workflow = '0') {
   const r = await call(c, `/documents/${docUuid}/sendtosigner`, 'POST', {
     message: JSON.stringify(message),
     workflow: JSON.stringify(workflow),

@@ -53,7 +53,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const up = await uploadBinary(creds, safeUuid, base64, mimeFor(fileName), fileName)
     if (!up.ok || !up.uuid) return NextResponse.json({ error: `Falha no upload para a D4Sign: ${up.error}` }, { status: 502 })
 
-    // 2) Signatários: empresa (assina 1º) e funcionário (assina depois)
+    // 2) Signatários: empresa e funcionário (sem ordem obrigatória)
     const signers: D4Signer[] = [
       { email: companyEmail },
       { email: employeeEmail },
@@ -61,8 +61,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const list = await createSignerList(creds, up.uuid, signers)
     if (!list.ok) return NextResponse.json({ error: `Falha ao cadastrar signatários: ${list.error}` }, { status: 502 })
 
-    // 3) Envia para assinatura (workflow respeita a ordem: empresa → funcionário)
-    const send = await sendToSigner(creds, up.uuid, 'Contrato para assinatura.', '1')
+    // 3) Envia para assinatura (workflow='0' — empresa e funcionário podem assinar em qualquer ordem)
+    const send = await sendToSigner(creds, up.uuid, 'Contrato para assinatura.', '0')
     if (!send.ok) return NextResponse.json({ error: `Falha ao enviar para assinatura: ${send.error}` }, { status: 502 })
 
     const now = new Date().toISOString()

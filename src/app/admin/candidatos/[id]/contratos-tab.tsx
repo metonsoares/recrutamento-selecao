@@ -81,7 +81,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
   const [d4BusyId, setD4BusyId] = useState<string | null>(null)
 
   async function handleD4Send(c: ContractItem) {
-    if (!confirm('Enviar este contrato para assinatura na D4Sign? A empresa assina primeiro e depois o funcionário.')) return
+    if (!confirm('Enviar este contrato para assinatura na D4Sign? A empresa e o funcionário receberão para assinar.')) return
     setD4BusyId(c.id)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign`, { method: 'POST' })
