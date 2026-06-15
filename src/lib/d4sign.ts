@@ -163,6 +163,15 @@ export async function listSignatures(c: D4SignCreds, docUuid: string): Promise<S
   return out
 }
 
+/** Reenvia o e-mail com o link de assinatura para um signatário. */
+export async function resendSignatureEmail(c: D4SignCreds, docUuid: string, email: string, keySigner = '') {
+  const r = await call(c, `/documents/${docUuid}/resend`, 'POST', {
+    email: JSON.stringify(email),
+    key_signer: JSON.stringify(keySigner || ''),
+  })
+  return { ok: r.ok, error: r.ok ? '' : d4signError(r) }
+}
+
 /** Obtém o link de assinatura de um signatário (por key_signer). */
 export async function getSignatureLink(c: D4SignCreds, docUuid: string, keySigner: string): Promise<string | null> {
   const r = await call(c, `/documents/${docUuid}/signaturelink/${encodeURIComponent(keySigner)}`, 'GET')

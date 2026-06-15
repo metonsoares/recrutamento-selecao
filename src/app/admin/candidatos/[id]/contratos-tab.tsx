@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download, Eye, Pencil,
-  CheckCircle2, AlertCircle, FileSignature, PenTool, Clock,
+  CheckCircle2, AlertCircle, FileSignature, PenTool, Clock, RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,6 +124,21 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
       setContracts(prev => prev.map(x => x.id === c.id ? { ...x, d4sign_status: d.status, d4sign_status_raw: d.status_raw, signed_file_url: d.signed_file_url ?? x.signed_file_url } : x))
       showToast('ok', d.status === 'assinado' ? 'Documento assinado!' : `Status: ${d.status_raw || 'aguardando assinatura'}`)
     } catch { showToast('err', 'Erro ao consultar status.') } finally { setD4BusyId(null) }
+  }
+
+  async function handleD4Resend(c: ContractItem) {
+    setD4BusyId(c.id)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign/resend`, { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) { showToast('err', d.error || 'Erro ao reenviar.'); return }
+      if (d.uuid) setContracts(prev => prev.map(x => x.id === c.id ? { ...x, d4sign_uuid: d.uuid, d4sign_status: 'enviado' } : x))
+      const parts: string[] = []
+      if (d.recreated) parts.push('contrato gerado novamente')
+      if (d.emailResent) parts.push('e-mail')
+      if (d.whatsappSent) parts.push('WhatsApp')
+      showToast('ok', `Link reenviado${parts.length ? ' (' + parts.join(' + ') + ')' : ''}.`)
+    } catch { showToast('err', 'Erro ao reenviar.') } finally { setD4BusyId(null) }
   }
 
   function resetForm() {
@@ -353,14 +368,24 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                           <Download className="w-3.5 h-3.5 opacity-70" />
                         </a>
                       ) : (
-                        <button
-                          onClick={() => handleD4Check(c)}
-                          disabled={d4BusyId === c.id}
-                          title="Clique para verificar o status da assinatura na D4Sign"
-                          className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-60"
-                        >
-                          {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Verificando...</> : <><Clock className="w-4 h-4" />Aguardando assinatura</>}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleD4Check(c)}
+                            disabled={d4BusyId === c.id}
+                            title="Clique para verificar o status da assinatura na D4Sign"
+                            className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-60"
+                          >
+                            {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Verificando...</> : <><Clock className="w-4 h-4" />Aguardando assinatura</>}
+                          </button>
+                          <button
+                            onClick={() => handleD4Resend(c)}
+                            disabled={d4BusyId === c.id}
+                            title="Reenviar o link de assinatura por e-mail e WhatsApp (gera o contrato de novo se necessário)"
+                            className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#0b5cff] text-[#0b5cff] hover:bg-[#0b5cff]/10 transition-colors disabled:opacity-60"
+                          >
+                            <RefreshCw className="w-4 h-4" />Reenviar
+                          </button>
+                        </>
                       )}
                       {c.d4sign_uuid && c.d4sign_status !== 'assinado' && c.d4sign_status_raw && (
                         <span className="text-[11px] text-muted-foreground">{c.d4sign_status_raw}</span>
