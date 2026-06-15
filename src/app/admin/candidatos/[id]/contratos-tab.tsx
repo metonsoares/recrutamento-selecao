@@ -268,7 +268,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
             </div>
             <div className="px-5 py-4 text-sm text-gray-600 space-y-1.5">
               <p>Enviar o contrato <strong>{confirmSend.title}</strong> para assinatura na D4Sign?</p>
-              <p className="text-[12px] text-muted-foreground">O funcionário assina primeiro; depois a empresa recebe o convite para assinar.</p>
+              <p className="text-[12px] text-muted-foreground">O funcionário receberá o convite por e-mail para assinar.</p>
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
               <Button variant="outline" onClick={() => setConfirmSend(null)}>Cancelar</Button>

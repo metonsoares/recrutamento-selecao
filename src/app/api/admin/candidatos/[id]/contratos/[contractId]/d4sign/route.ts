@@ -26,9 +26,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const creds = await getD4SignCreds()
     if (!creds) return NextResponse.json({ error: 'D4Sign não conectada. Conecte em Configurações → Integrações.' }, { status: 400 })
 
-    // Assinante da empresa = e-mail de cadastro na D4Sign (fallback: admin logado)
-    const companyEmail = creds.accountEmail || user.email || ''
-
     const supabase = await createSupabaseServiceClient()
     const { data: contract } = await supabase
       .from('freelancer_contracts').select('*').eq('id', contractId).eq('candidate_id', id).maybeSingle()
@@ -39,7 +36,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const { data: candidate } = await supabase.from('candidates').select('full_name, email').eq('id', id).maybeSingle()
     const employeeEmail = (candidate?.email as string | null)?.trim() || ''
     if (!employeeEmail) return NextResponse.json({ error: 'Funcionário sem e-mail cadastrado — necessário para a assinatura.' }, { status: 400 })
-    if (!companyEmail) return NextResponse.json({ error: 'Defina o e-mail de cadastro na D4Sign (Integrações) — ele assina pela empresa.' }, { status: 400 })
 
     // Cofre destino (primeiro cofre da conta)
     const safes = await listSafes(creds)
@@ -61,17 +57,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const up = await uploadBinary(creds, safeUuid, base64, mimeFor(fileName), fileName)
     if (!up.ok || !up.uuid) return NextResponse.json({ error: `Falha no upload para a D4Sign: ${up.error}` }, { status: 502 })
 
-    // 2) Signatários — o funcionário SEMPRE assina primeiro, depois a empresa.
-    //    A ordem da lista define a ordem de assinatura (com workflow='1').
+    // 2) Signatário — apenas o funcionário assina (a empresa não é signatária).
     const signers: D4Signer[] = [
-      { email: employeeEmail }, // 1º: funcionário
-      { email: companyEmail },  // 2º: empresa
+      { email: employeeEmail },
     ]
     const list = await createSignerList(creds, up.uuid, signers)
     if (!list.ok) return NextResponse.json({ error: `Falha ao cadastrar signatários: ${list.error}` }, { status: 502 })
 
-    // 3) Envia para assinatura (workflow='1' — respeita a ordem: funcionário → empresa)
-    const send = await sendToSigner(creds, up.uuid, 'Contrato para assinatura.', '1')
+    // 3) Envia para assinatura
+    const send = await sendToSigner(creds, up.uuid, 'Contrato para assinatura.', '0')
     if (!send.ok) return NextResponse.json({ error: `Falha ao enviar para assinatura: ${send.error}` }, { status: 502 })
 
     // 4) Registra o webhook (POSTBack) para atualizar o status automaticamente.
@@ -83,7 +77,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       d4sign_uuid: up.uuid, d4sign_status: 'enviado', d4sign_status_raw: 'Aguardando assinaturas', d4sign_sent_at: now,
     }).eq('id', contractId)
 
-    return NextResponse.json({ ok: true, status: 'enviado', uuid: up.uuid, company: companyEmail, employee: employeeEmail })
+    return NextResponse.json({ ok: true, status: 'enviado', uuid: up.uuid, employee: employeeEmail })
   } catch (err) {
     console.error('[contrato d4sign POST]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
