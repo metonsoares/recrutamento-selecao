@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import {
   getD4SignCreds, listSafes, uploadBinary, createSignerList, sendToSigner,
-  getDocument, isSigned, getSignedFileUrl, webhookAdd, listSignatures, signersProgress, type D4Signer,
+  getDocument, isSigned, getSignedFileUrl, webhookAdd, listSignatures, signersProgress,
+  getSignatureLink, type D4Signer,
 } from '@/lib/d4sign'
 import { publicAppUrl } from '@/lib/helpers'
+import { sendWhatsAppRaw } from '@/lib/whatsapp'
 
 export const maxDuration = 60
 
@@ -33,7 +35,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     if (!contract.file_url) return NextResponse.json({ error: 'Este contrato não tem arquivo para enviar.' }, { status: 400 })
     if (contract.d4sign_uuid) return NextResponse.json({ error: 'Este contrato já foi enviado para assinatura.' }, { status: 409 })
 
-    const { data: candidate } = await supabase.from('candidates').select('full_name, email').eq('id', id).maybeSingle()
+    const { data: candidate } = await supabase.from('candidates').select('full_name, email, phone').eq('id', id).maybeSingle()
     const employeeEmail = (candidate?.email as string | null)?.trim() || ''
     if (!employeeEmail) return NextResponse.json({ error: 'Funcionário sem e-mail cadastrado — necessário para a assinatura.' }, { status: 400 })
 
@@ -72,12 +74,29 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     //    Falha aqui não impede o envio (o status ainda pode ser checado manualmente).
     try { await webhookAdd(creds, up.uuid, `${publicAppUrl()}/api/webhooks/d4sign`) } catch { /* ignora */ }
 
+    // 5) Além do e-mail da D4Sign, envia o link de assinatura por WhatsApp ao funcionário.
+    let whatsappSent = false
+    const phone = (candidate?.phone as string | null)?.trim() || ''
+    if (phone) {
+      try {
+        const signers2 = await listSignatures(creds, up.uuid)
+        const keySigner = signers2?.[0]?.keySigner || ''
+        const link = keySigner ? await getSignatureLink(creds, up.uuid, keySigner) : null
+        const firstName = String(candidate?.full_name || '').split(' ')[0] || 'tudo bem'
+        const msg = link
+          ? `Olá ${firstName}! Seu contrato *${contractTitle}* está pronto para assinatura. ✍️\n\nAssine pelo link:\n${link}\n\n(Você também recebeu por e-mail.) Obrigado!`
+          : `Olá ${firstName}! Enviamos o contrato *${contractTitle}* para assinatura no seu e-mail (${employeeEmail}). Por favor, verifique a caixa de entrada e assine. Obrigado!`
+        const sent = await sendWhatsAppRaw(phone, msg, 'contract_signature')
+        whatsappSent = sent.ok
+      } catch { /* não bloqueia o envio */ }
+    }
+
     const now = new Date().toISOString()
     await supabase.from('freelancer_contracts').update({
       d4sign_uuid: up.uuid, d4sign_status: 'enviado', d4sign_status_raw: 'Aguardando assinaturas', d4sign_sent_at: now,
     }).eq('id', contractId)
 
-    return NextResponse.json({ ok: true, status: 'enviado', uuid: up.uuid, employee: employeeEmail })
+    return NextResponse.json({ ok: true, status: 'enviado', uuid: up.uuid, employee: employeeEmail, whatsappSent })
   } catch (err) {
     console.error('[contrato d4sign POST]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })

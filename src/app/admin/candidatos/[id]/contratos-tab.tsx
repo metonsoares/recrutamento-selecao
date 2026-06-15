@@ -111,7 +111,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) { showToast('err', d.error || 'Erro ao enviar para assinatura.'); return }
       setContracts(prev => prev.map(x => x.id === c.id ? { ...x, d4sign_uuid: d.uuid, d4sign_status: 'enviado' } : x))
-      showToast('ok', 'Contrato enviado para assinatura na D4Sign.')
+      showToast('ok', d.whatsappSent ? 'Contrato enviado para assinatura (e-mail + WhatsApp).' : 'Contrato enviado para assinatura na D4Sign.')
     } catch { showToast('err', 'Erro ao enviar para assinatura.') } finally { setD4BusyId(null) }
   }
 

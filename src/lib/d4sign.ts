@@ -132,7 +132,7 @@ export async function getDocument(c: D4SignCreds, docUuid: string) {
   return { ok: r.ok && !!doc, doc, error: r.ok ? '' : d4signError(r) }
 }
 
-export interface SignerStatus { email: string; name: string; signed: boolean }
+export interface SignerStatus { email: string; name: string; signed: boolean; keySigner: string }
 
 /** Lista os signatários do documento e se cada um já assinou. */
 export async function listSignatures(c: D4SignCreds, docUuid: string): Promise<SignerStatus[] | null> {
@@ -154,12 +154,26 @@ export async function listSignatures(c: D4SignCreds, docUuid: string): Promise<S
     const email = String(s.email || s.user_email || '').trim().toLowerCase()
     if (!email) continue
     const name = String(s.display_name || s.user_name || s.name || '')
+    const keySigner = String(s.key_signer || s.keySigner || '')
     const signed = s.signed === '1' || s.signed === 1 || s.signed === true
       || !!(s.signed_when || s.signature_date || s.dataAssinatura || s.when)
       || /assinad|signed|done|conclu/i.test(String(s.status || s.signature_status || ''))
-    out.push({ email, name, signed })
+    out.push({ email, name, signed, keySigner })
   }
   return out
+}
+
+/** Obtém o link de assinatura de um signatário (por key_signer). */
+export async function getSignatureLink(c: D4SignCreds, docUuid: string, keySigner: string): Promise<string | null> {
+  const r = await call(c, `/documents/${docUuid}/signaturelink/${encodeURIComponent(keySigner)}`, 'GET')
+  if (!r.ok) return null
+  const d = r.data as Record<string, unknown> | null
+  let url = String((d?.url as string) || (d?.link as string) || (d?.signature_link as string) || (d?.message as string) || '')
+  if (!/^https?:\/\//.test(url)) {
+    const m = r.raw.match(/https?:\/\/[^\s"'<>]+/)
+    url = m ? m[0] : ''
+  }
+  return /^https?:\/\//.test(url) ? url : null
 }
 
 /** Texto amigável de progresso das assinaturas. */
