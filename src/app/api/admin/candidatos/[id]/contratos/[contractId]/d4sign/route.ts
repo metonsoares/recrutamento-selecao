@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import {
   getD4SignCreds, listSafes, uploadBinary, createSignerList, sendToSigner,
-  getDocument, isSigned, getSignedFileUrl, type D4Signer,
+  getDocument, isSigned, getSignedFileUrl, webhookAdd, type D4Signer,
 } from '@/lib/d4sign'
+import { publicAppUrl } from '@/lib/helpers'
 
 export const maxDuration = 60
 
@@ -71,6 +72,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // 3) Envia para assinatura (workflow='0' — empresa e funcionário podem assinar em qualquer ordem)
     const send = await sendToSigner(creds, up.uuid, 'Contrato para assinatura.', '0')
     if (!send.ok) return NextResponse.json({ error: `Falha ao enviar para assinatura: ${send.error}` }, { status: 502 })
+
+    // 4) Registra o webhook (POSTBack) para atualizar o status automaticamente.
+    //    Falha aqui não impede o envio (o status ainda pode ser checado manualmente).
+    try { await webhookAdd(creds, up.uuid, `${publicAppUrl()}/api/webhooks/d4sign`) } catch { /* ignora */ }
 
     const now = new Date().toISOString()
     await supabase.from('freelancer_contracts').update({

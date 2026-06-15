@@ -116,6 +116,12 @@ export async function sendToSigner(c: D4SignCreds, docUuid: string, message = ''
   return { ok: r.ok, error: r.ok ? '' : d4signError(r) }
 }
 
+/** Registra um webhook (POSTBack) para o documento — D4Sign avisa quando o status muda. */
+export async function webhookAdd(c: D4SignCreds, docUuid: string, url: string) {
+  const r = await call(c, `/documents/${docUuid}/webhooks`, 'POST', { url: JSON.stringify(url) })
+  return { ok: r.ok, error: r.ok ? '' : d4signError(r) }
+}
+
 /** Consulta o documento; retorna o statusName/statusId crus. */
 export async function getDocument(c: D4SignCreds, docUuid: string) {
   const r = await call(c, `/documents/${docUuid}`, 'GET')

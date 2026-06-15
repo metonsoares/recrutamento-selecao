@@ -81,6 +81,28 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
   const [d4BusyId, setD4BusyId] = useState<string | null>(null)
   const [confirmSend, setConfirmSend] = useState<ContractItem | null>(null)
 
+  // Atualização automática: enquanto houver contrato aguardando assinatura, lê o
+  // status do banco (atualizado pelo webhook da D4Sign) a cada 30s.
+  const pendingSign = contracts.some(c => c.d4sign_uuid && c.d4sign_status !== 'assinado')
+  useEffect(() => {
+    if (!pendingSign) return
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/d4sign-status`)
+        const d = await res.json().catch(() => ({}))
+        const map = new Map<string, { d4sign_status?: string | null; d4sign_status_raw?: string | null; signed_file_url?: string | null }>()
+        for (const r of (d.contracts || [])) map.set(r.id, r)
+        setContracts(prev => prev.map(c => {
+          const u = map.get(c.id)
+          if (!u) return c
+          return { ...c, d4sign_status: u.d4sign_status ?? c.d4sign_status, d4sign_status_raw: u.d4sign_status_raw ?? c.d4sign_status_raw, signed_file_url: u.signed_file_url ?? c.signed_file_url }
+        }))
+      } catch { /* ignora */ }
+    }
+    const interval = setInterval(tick, 30000)
+    return () => clearInterval(interval)
+  }, [pendingSign, candidateId])
+
   async function doD4Send(c: ContractItem) {
     setConfirmSend(null)
     setD4BusyId(c.id)
