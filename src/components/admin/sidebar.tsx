@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -85,9 +85,11 @@ function SidebarContent({
   const [curriculosOpen, setCurriculosOpen] = useState(inCurriculos || inConfigCurriculos)
   const [configCurriculosOpen, setConfigCurriculosOpen] = useState(inConfigCurriculos)
   const inPesquisas = pathname.startsWith('/admin/pesquisas-clima')
+  const inTreinamentos = pathname.startsWith('/admin/treinamentos')
   const inDocumentos = pathname.startsWith('/admin/documentos-empresa')
   const [colaboradoresOpen, setColaboradoresOpen] = useState(inColaboradores)
   const [pesquisasOpen, setPesquisasOpen] = useState(inPesquisas)
+  const [treinamentosOpen, setTreinamentosOpen] = useState(inTreinamentos)
   const [documentosOpen, setDocumentosOpen] = useState(inDocumentos)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
@@ -228,6 +230,25 @@ function SidebarContent({
           )}
         </div>
         )}
+
+        {/* Treinamentos ▾ */}
+        <div>
+          <button onClick={() => setTreinamentosOpen(o => !o)} className={cn(NAV_BASE, inTreinamentos ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <GraduationCap className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            <span className="flex-1 text-left">Treinamentos</span>
+            <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', treinamentosOpen && 'rotate-180')} />
+          </button>
+          {treinamentosOpen && (
+            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link href="/admin/treinamentos/cadastrar" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/treinamentos/cadastrar') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Cadastrar treinamentos
+              </Link>
+              <Link href="/admin/treinamentos/relatorios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/treinamentos/relatorios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <BarChart3 className="w-3 h-3 shrink-0 opacity-50" />Relatórios de treinamentos
+              </Link>
+            </div>
+          )}
+        </div>
 
         {/* Pesquisas de clima ▾ */}
         {showPesquisasGroup && (
