@@ -56,16 +56,17 @@ export async function POST(req: NextRequest) {
     if (!doc.ok) return NextResponse.json({ ok: true, ignored: 'falha ao consultar documento' })
 
     const signers = await listSignatures(creds, uuid)
-    const allSigned = !!signers && signers.length > 0 && signers.every(s => s.signed)
+    const anySigned = !!signers && signers.some(s => s.signed)
     const { data: cand } = await supabase.from('candidates').select('email').eq('id', contract.candidate_id as string).maybeSingle()
     const progress = signersProgress(signers, creds.accountEmail, (cand?.email as string | null) || '')
     const baseRaw = String((doc.doc?.statusName ?? doc.doc?.status_name ?? doc.doc?.status ?? '')) || 'Aguardando assinaturas'
 
-    if (isSigned(doc.doc) || allSigned) {
+    // Basta UMA assinatura para considerar assinado (ou documento finalizado)
+    if (isSigned(doc.doc) || anySigned) {
       let url = (contract.signed_file_url as string | null) || null
       if (!url) url = await getSignedFileUrl(creds, uuid)
       await supabase.from('freelancer_contracts').update({
-        d4sign_status: 'assinado', d4sign_status_raw: 'Todos assinaram', signed_file_url: url,
+        d4sign_status: 'assinado', d4sign_status_raw: progress || 'Assinado', signed_file_url: url,
         d4sign_signed_at: new Date().toISOString(),
       }).eq('id', contract.id)
       return NextResponse.json({ ok: true, status: 'assinado' })

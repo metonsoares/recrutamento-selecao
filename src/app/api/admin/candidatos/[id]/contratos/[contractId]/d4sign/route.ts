@@ -110,22 +110,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     // Progresso por signatário (quem já assinou)
     const signers = await listSignatures(creds, contract.d4sign_uuid as string)
-    const allSigned = !!signers && signers.length > 0 && signers.every(s => s.signed)
+    const anySigned = !!signers && signers.some(s => s.signed)
     const { data: cand } = await supabase.from('candidates').select('email').eq('id', id).maybeSingle()
     const progress = signersProgress(signers, creds.accountEmail, (cand?.email as string | null) || '')
     const baseRaw = String((doc.doc?.statusName ?? doc.doc?.status_name ?? doc.doc?.status ?? '')) || 'Aguardando assinaturas'
     const statusRaw = progress || baseRaw
 
-    const signed = isSigned(doc.doc) || allSigned
+    // Basta UMA assinatura para considerar assinado (ou documento finalizado)
+    const signed = isSigned(doc.doc) || anySigned
 
     if (signed) {
       let url = (contract.signed_file_url as string | null) || null
       if (!url) url = await getSignedFileUrl(creds, contract.d4sign_uuid as string)
       const now = new Date().toISOString()
       await supabase.from('freelancer_contracts').update({
-        d4sign_status: 'assinado', d4sign_status_raw: 'Todos assinaram', signed_file_url: url, d4sign_signed_at: now,
+        d4sign_status: 'assinado', d4sign_status_raw: statusRaw, signed_file_url: url, d4sign_signed_at: now,
       }).eq('id', contractId)
-      return NextResponse.json({ ok: true, status: 'assinado', status_raw: 'Todos assinaram', signed_file_url: url })
+      return NextResponse.json({ ok: true, status: 'assinado', status_raw: statusRaw, signed_file_url: url })
     }
 
     await supabase.from('freelancer_contracts').update({ d4sign_status: 'enviado', d4sign_status_raw: statusRaw }).eq('id', contractId)
