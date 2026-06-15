@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import {
   getD4SignCreds, listSafes, uploadBinary, createSignerList, sendToSigner,
-  getDocument, isSigned, getSignedFileUrl, webhookAdd, type D4Signer,
+  getDocument, isSigned, getSignedFileUrl, webhookAdd, listSignatures, signersProgress, type D4Signer,
 } from '@/lib/d4sign'
 import { publicAppUrl } from '@/lib/helpers'
 
@@ -108,17 +108,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const doc = await getDocument(creds, contract.d4sign_uuid as string)
     if (!doc.ok) return NextResponse.json({ error: `Falha ao consultar a D4Sign: ${doc.error}` }, { status: 502 })
 
-    const statusRaw = String((doc.doc?.statusName ?? doc.doc?.status_name ?? doc.doc?.status ?? '')) || 'Aguardando assinaturas'
-    const signed = isSigned(doc.doc)
+    // Progresso por signatário (quem já assinou)
+    const signers = await listSignatures(creds, contract.d4sign_uuid as string)
+    const allSigned = !!signers && signers.length > 0 && signers.every(s => s.signed)
+    const { data: cand } = await supabase.from('candidates').select('email').eq('id', id).maybeSingle()
+    const progress = signersProgress(signers, creds.accountEmail, (cand?.email as string | null) || '')
+    const baseRaw = String((doc.doc?.statusName ?? doc.doc?.status_name ?? doc.doc?.status ?? '')) || 'Aguardando assinaturas'
+    const statusRaw = progress || baseRaw
+
+    const signed = isSigned(doc.doc) || allSigned
 
     if (signed) {
       let url = (contract.signed_file_url as string | null) || null
       if (!url) url = await getSignedFileUrl(creds, contract.d4sign_uuid as string)
       const now = new Date().toISOString()
       await supabase.from('freelancer_contracts').update({
-        d4sign_status: 'assinado', d4sign_status_raw: statusRaw, signed_file_url: url, d4sign_signed_at: now,
+        d4sign_status: 'assinado', d4sign_status_raw: 'Todos assinaram', signed_file_url: url, d4sign_signed_at: now,
       }).eq('id', contractId)
-      return NextResponse.json({ ok: true, status: 'assinado', status_raw: statusRaw, signed_file_url: url })
+      return NextResponse.json({ ok: true, status: 'assinado', status_raw: 'Todos assinaram', signed_file_url: url })
     }
 
     await supabase.from('freelancer_contracts').update({ d4sign_status: 'enviado', d4sign_status_raw: statusRaw }).eq('id', contractId)

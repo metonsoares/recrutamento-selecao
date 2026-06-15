@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { getD4SignCreds, getDocument, isSigned, getSignedFileUrl } from '@/lib/d4sign'
+import { getD4SignCreds, getDocument, isSigned, getSignedFileUrl, listSignatures, signersProgress } from '@/lib/d4sign'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,19 +55,23 @@ export async function POST(req: NextRequest) {
     const doc = await getDocument(creds, uuid)
     if (!doc.ok) return NextResponse.json({ ok: true, ignored: 'falha ao consultar documento' })
 
-    const statusRaw = String((doc.doc?.statusName ?? doc.doc?.status_name ?? doc.doc?.status ?? '')) || 'Aguardando assinaturas'
+    const signers = await listSignatures(creds, uuid)
+    const allSigned = !!signers && signers.length > 0 && signers.every(s => s.signed)
+    const { data: cand } = await supabase.from('candidates').select('email').eq('id', contract.candidate_id as string).maybeSingle()
+    const progress = signersProgress(signers, creds.accountEmail, (cand?.email as string | null) || '')
+    const baseRaw = String((doc.doc?.statusName ?? doc.doc?.status_name ?? doc.doc?.status ?? '')) || 'Aguardando assinaturas'
 
-    if (isSigned(doc.doc)) {
+    if (isSigned(doc.doc) || allSigned) {
       let url = (contract.signed_file_url as string | null) || null
       if (!url) url = await getSignedFileUrl(creds, uuid)
       await supabase.from('freelancer_contracts').update({
-        d4sign_status: 'assinado', d4sign_status_raw: statusRaw, signed_file_url: url,
+        d4sign_status: 'assinado', d4sign_status_raw: 'Todos assinaram', signed_file_url: url,
         d4sign_signed_at: new Date().toISOString(),
       }).eq('id', contract.id)
       return NextResponse.json({ ok: true, status: 'assinado' })
     }
 
-    await supabase.from('freelancer_contracts').update({ d4sign_status: 'enviado', d4sign_status_raw: statusRaw }).eq('id', contract.id)
+    await supabase.from('freelancer_contracts').update({ d4sign_status: 'enviado', d4sign_status_raw: progress || baseRaw }).eq('id', contract.id)
     return NextResponse.json({ ok: true, status: 'enviado' })
   } catch (err) {
     console.error('[webhook d4sign]', err)

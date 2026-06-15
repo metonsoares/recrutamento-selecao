@@ -132,6 +132,48 @@ export async function getDocument(c: D4SignCreds, docUuid: string) {
   return { ok: r.ok && !!doc, doc, error: r.ok ? '' : d4signError(r) }
 }
 
+export interface SignerStatus { email: string; name: string; signed: boolean }
+
+/** Lista os signatários do documento e se cada um já assinou. */
+export async function listSignatures(c: D4SignCreds, docUuid: string): Promise<SignerStatus[] | null> {
+  const r = await call(c, `/documents/${docUuid}/list`, 'GET')
+  if (!r.ok) return null
+  const d = r.data as Record<string, unknown> | unknown[] | null
+  let arr: unknown[] = []
+  if (Array.isArray(d)) arr = d
+  else if (d && typeof d === 'object') {
+    const o = d as Record<string, unknown>
+    if (Array.isArray(o.message)) arr = o.message
+    else if (Array.isArray(o.list)) arr = o.list
+    else if (Array.isArray(o.signers)) arr = o.signers
+    else arr = Object.values(o).filter(v => v && typeof v === 'object')
+  }
+  const out: SignerStatus[] = []
+  for (const it of arr) {
+    const s = it as Record<string, unknown>
+    const email = String(s.email || s.user_email || '').trim().toLowerCase()
+    if (!email) continue
+    const name = String(s.display_name || s.user_name || s.name || '')
+    const signed = s.signed === '1' || s.signed === 1 || s.signed === true
+      || !!(s.signed_when || s.signature_date || s.dataAssinatura || s.when)
+      || /assinad|signed|done|conclu/i.test(String(s.status || s.signature_status || ''))
+    out.push({ email, name, signed })
+  }
+  return out
+}
+
+/** Texto amigável de progresso das assinaturas. */
+export function signersProgress(signers: SignerStatus[] | null, companyEmail: string, candidateEmail: string): string | null {
+  if (!signers || signers.length === 0) return null
+  const ce = companyEmail.trim().toLowerCase(), fe = candidateEmail.trim().toLowerCase()
+  const label = (email: string) => email === ce ? `empresa (${email})` : email === fe ? 'funcionário' : email
+  const total = signers.length
+  const signedCount = signers.filter(s => s.signed).length
+  const pending = signers.filter(s => !s.signed).map(s => label(s.email))
+  if (signedCount >= total) return 'Todos assinaram'
+  return `${signedCount} de ${total} assinaram${pending.length ? ` · falta: ${pending.join(', ')}` : ''}`
+}
+
 /** Documento finalizado/assinado? (heurística sobre statusId/statusName). */
 export function isSigned(doc: Record<string, unknown> | null): boolean {
   if (!doc) return false
