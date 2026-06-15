@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { CandidateStatus } from '@/types'
 import { formatDate } from '@/lib/helpers'
 import { inferSex } from '@/lib/infer-sex'
@@ -139,6 +139,15 @@ const COLUMNS = [
 
 type ColKey = typeof COLUMNS[number]['key']
 type SortOption = 'date_desc' | 'date_asc' | 'name' | 'score'
+
+// Rótulos exibidos no gatilho de cada filtro (categoria quando "all"/padrão)
+const AGE_LABELS: Record<string, string> = {
+  all: 'Faixa etária', '18-24': '18 a 24 anos', '25-34': '25 a 34 anos',
+  '35-44': '35 a 44 anos', '45-54': '45 a 54 anos', '55+': '55+ anos',
+}
+const SORT_LABELS: Record<SortOption, string> = {
+  date_desc: 'Ordenação', date_asc: 'Data (antigo)', name: 'Nome A→Z', score: 'Nota (maior)',
+}
 
 // ─── Compatibilidade: borda esquerda + badge de nota ─────────────────────────
 
@@ -510,7 +519,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         </div>
         <Select value={filterJob} onValueChange={v => v && setFilterJob(v)}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Vaga" />
+            <span className="line-clamp-1 text-left flex-1">{filterJob === 'all' ? 'Vagas' : (jobs.find(j => j.id === filterJob)?.title ?? 'Vagas')}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as vagas</SelectItem>
@@ -519,7 +528,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         </Select>
         <Select value={filterAge} onValueChange={v => v && setFilterAge(v)}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Faixa etária" />
+            <span className="line-clamp-1 text-left flex-1">{AGE_LABELS[filterAge] ?? 'Faixa etária'}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as idades</SelectItem>
@@ -532,7 +541,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         </Select>
         <Select value={filterSex} onValueChange={v => v && setFilterSex(v)}>
           <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Sexo" />
+            <span className="line-clamp-1 text-left flex-1">{filterSex === 'F' ? 'Feminino' : filterSex === 'M' ? 'Masculino' : 'Sexo'}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Ambos os sexos</SelectItem>
@@ -543,7 +552,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
         <Select value={sortBy} onValueChange={v => v && setSortBy(v as SortOption)}>
           <SelectTrigger className="w-[160px]">
             <SortAsc className="w-4 h-4 mr-1.5 text-muted-foreground" />
-            <SelectValue />
+            <span className="line-clamp-1 text-left flex-1">{SORT_LABELS[sortBy] ?? 'Ordenação'}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="date_desc">Data (recente)</SelectItem>
