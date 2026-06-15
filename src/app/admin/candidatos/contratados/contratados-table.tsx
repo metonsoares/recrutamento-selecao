@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 
 interface ContratadoRow {
   id: string
@@ -70,7 +70,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
         </div>
         <Select value={companyFilter} onValueChange={v => v && setCompanyFilter(v)}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Empresa" />
+            <span className="line-clamp-1 text-left flex-1">{companyFilter === 'all' ? 'Empresa' : companyFilter}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as empresas</SelectItem>
