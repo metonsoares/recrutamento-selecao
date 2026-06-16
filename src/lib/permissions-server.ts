@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import {
   ALL_ROLES, PERMISSION_MATRIX, MASTER_ONLY_PERMS, defaultLevel, levelGrants,
@@ -11,8 +12,12 @@ function applyHardRules(role: Role, perm: Permission, level: Level): Level {
   return level
 }
 
-/** Mapa nível por permissão para um perfil (DB sobre padrão). */
-export async function getLevelsForRole(role: Role): Promise<Record<Permission, Level>> {
+/**
+ * Mapa nível por permissão para um perfil (DB sobre padrão).
+ * Memoizado por request (React cache): layout + requirePermission + a página
+ * pedem a mesma coisa — assim consulta role_permissions uma única vez.
+ */
+export const getLevelsForRole = cache(async (role: Role): Promise<Record<Permission, Level>> => {
   const supabase = await createSupabaseServiceClient()
   const { data } = await supabase.from('role_permissions').select('perm, level').eq('role', role)
   const db = new Map<string, Level>((data || []).map(r => [r.perm as string, r.level as Level]))
@@ -22,7 +27,7 @@ export async function getLevelsForRole(role: Role): Promise<Record<Permission, L
     out[perm] = applyHardRules(role, perm, lvl)
   }
   return out
-}
+})
 
 /** Conjunto de permissões concedidas (nível != none) para um perfil. */
 export async function getGrantedPerms(role: Role): Promise<Set<Permission>> {

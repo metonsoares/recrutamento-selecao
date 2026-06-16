@@ -156,66 +156,68 @@ export default async function CandidatePage({
   const realRole = normalizeRole(user?.user_metadata?.role as string | undefined)
   const role = (realRole === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
   const isMaster = role === 'master'
-  // Permissão de alterar status (Master tem tudo; demais conforme a matriz — ex.: RH)
-  const canChangeStatus = isMaster || (await getGrantedPerms(realRole)).has('candidatos.status')
 
-  const { data: candidate } = await supabase
-    .from('candidates').select('*').eq('id', id).single()
+  // Queries que dependem só do id — em paralelo (evita waterfall de round-trips)
+  const [granted, { data: candidate }, { data: applications }, { data: notes }, { data: allJobs }] = await Promise.all([
+    isMaster ? Promise.resolve(null) : getGrantedPerms(realRole),
+    supabase.from('candidates').select('*').eq('id', id).single(),
+    supabase.from('applications').select('*, jobs(title)').eq('candidate_id', id).order('created_at', { ascending: false }),
+    supabase.from('admin_notes').select('*').eq('candidate_id', id).order('created_at', { ascending: false }),
+    supabase.from('jobs').select('id, title').eq('is_active', true).order('title'),
+  ])
   if (!candidate) notFound()
-
-  const { data: applications } = await supabase
-    .from('applications').select('*, jobs(title)')
-    .eq('candidate_id', id).order('created_at', { ascending: false })
+  // Permissão de alterar status (Master tem tudo; demais conforme a matriz — ex.: RH)
+  const canChangeStatus = isMaster || !!(granted && granted.has('candidatos.status'))
 
   const latestApp = applications?.[0]
 
-  const { data: formAnswers } = latestApp ? await supabase
-    .from('form_answers')
-    .select('*, form_questions(question_text, field_type, category)')
-    .eq('application_id', latestApp.id) : { data: [] }
+  // Respostas do formulário + teste cultural (dependem da candidatura) em paralelo
+  const [{ data: formAnswers }, { data: cultureAnswers }] = latestApp ? await Promise.all([
+    supabase.from('form_answers').select('*, form_questions(question_text, field_type, category)').eq('application_id', latestApp.id),
+    supabase.from('culture_answers').select('*, culture_questions(question_text, culture_value, options)').eq('application_id', latestApp.id),
+  ]) : [{ data: [] }, { data: [] }]
 
-  const { data: cultureAnswers } = latestApp ? await supabase
-    .from('culture_answers')
-    .select('*, culture_questions(question_text, culture_value, options)')
-    .eq('application_id', latestApp.id) : { data: [] }
-
-  const { data: notes } = await supabase
-    .from('admin_notes').select('*').eq('candidate_id', id)
-    .order('created_at', { ascending: false })
-
-  const { data: allJobs } = await supabase
-    .from('jobs').select('id, title').eq('is_active', true).order('title')
-
-  // Dados extras para a aba Ficha Admissão
+  // ── Dados extras (todos via service, independentes do id) em UM Promise.all ──
   const service = await createSupabaseServiceClient()
-  const [{ data: brand }, { data: companiesData }] = await Promise.all([
+  const [
+    { data: brand },
+    { data: companiesData },
+    { data: warningsData },
+    { data: vacationsData },
+    { data: certificatesData },
+    { data: absencesData },
+    { data: empFilesData },
+    { data: recordsData },
+    { data: climateAssignData },
+    { data: climateRespData },
+    { data: allSurveysData },
+    { data: contractsData },
+    { data: docReqRows },
+  ] = await Promise.all([
     service.from('ai_settings').select('company_name').limit(1).single(),
     service.from('companies').select('id, apelido, razao_social, cnpj').order('created_at', { ascending: false }),
-  ])
-  const fichaCompanies = (companiesData || []) as CompanyOption[]
-  const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
-  const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
-  const bankData = (latestApp?.bank_data as BankData | null) ?? null
-
-  // Advertências + Férias + Atestados + Faltas + Contracheques/Folhas
-  const [{ data: warningsData }, { data: vacationsData }, { data: certificatesData }, { data: absencesData }, { data: empFilesData }, { data: recordsData }] = await Promise.all([
     service.from('warnings').select('*').eq('candidate_id', id).order('occurred_at', { ascending: false }),
     service.from('vacations').select('*').eq('candidate_id', id).order('start_date', { ascending: false }),
     service.from('medical_certificates').select('*').eq('candidate_id', id).order('certificate_date', { ascending: false }),
     service.from('absences').select('*').eq('candidate_id', id).order('absence_date', { ascending: false }),
     service.from('employee_files').select('*').eq('candidate_id', id).order('created_at', { ascending: false }),
     service.from('records').select('*').eq('candidate_id', id).order('record_date', { ascending: false }),
+    service.from('climate_assignments').select('id, survey_id, created_at, whatsapp_sent_at, climate_surveys(title, token)').eq('candidate_id', id),
+    service.from('climate_responses').select('id, survey_id, created_at, total_score, max_score').eq('candidate_id', id).order('created_at', { ascending: false }),
+    service.from('climate_surveys').select('id, title, token').order('created_at', { ascending: false }),
+    service.from('freelancer_contracts').select('*').eq('candidate_id', id).order('contract_date', { ascending: false }),
+    service.from('doc_requests').select('doc_key, last_requested_at').eq('candidate_id', id),
   ])
+
+  const fichaCompanies = (companiesData || []) as CompanyOption[]
+  const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
+  const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
+  const bankData = (latestApp?.bank_data as BankData | null) ?? null
+
   const contracheques = (empFilesData || []).filter(f => f.kind === 'contracheque') as EmployeeFile[]
   const folhasPonto = (empFilesData || []).filter(f => f.kind === 'folha_ponto') as EmployeeFile[]
   const recibos = (empFilesData || []).filter(f => f.kind === 'recibo') as EmployeeFile[]
 
-  // ── Pesquisas de clima (atribuições + respostas + lista para dropdown) ─────
-  const [{ data: climateAssignData }, { data: climateRespData }, { data: allSurveysData }] = await Promise.all([
-    service.from('climate_assignments').select('id, survey_id, created_at, whatsapp_sent_at, climate_surveys(title, token)').eq('candidate_id', id),
-    service.from('climate_responses').select('id, survey_id, created_at, total_score, max_score').eq('candidate_id', id).order('created_at', { ascending: false }),
-    service.from('climate_surveys').select('id, title, token').order('created_at', { ascending: false }),
-  ])
   const respBySurvey: Record<string, { id: string; created_at: string; total_score: number | null; max_score: number | null }> = {}
   for (const r of climateRespData || []) {
     if (!respBySurvey[r.survey_id as string]) {
@@ -239,14 +241,7 @@ export default async function CandidatePage({
   })
   const climateSurveyOptions: SurveyOption[] = (allSurveysData || []).map(s => ({ id: s.id as string, title: s.title as string, token: s.token as string }))
 
-  // ── Contratos do freelancer ────────────────────────────────────────────────
-  const { data: contractsData } = await service
-    .from('freelancer_contracts').select('*').eq('candidate_id', id).order('contract_date', { ascending: false })
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
-
-  // ── Última solicitação via WhatsApp por documento (para "Reenviar solicitação") ──
-  const { data: docReqRows } = await service
-    .from('doc_requests').select('doc_key, last_requested_at').eq('candidate_id', id)
   const docRequestDates: Record<string, string> = {}
   for (const r of docReqRows || []) {
     const key = r.doc_key as string
