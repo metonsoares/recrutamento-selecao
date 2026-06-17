@@ -233,8 +233,13 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
     const payload: Record<string, unknown> = {
       title, contract_date: date, period_start: start || null, period_end: end || null, value, notes,
     }
-    if (templateId && vars.length > 0) { payload.template_id = templateId; payload.variables = variablesObj }
-    if (file && (!templateId || templatePdf)) { payload.file_url = file.url; payload.file_name = file.name; payload.file_path = file.path }
+    // Precedência: se há arquivo anexado (ex.: PDF pronto), usa o arquivo;
+    // caso contrário, gera a partir do template selecionado.
+    if (file) {
+      payload.file_url = file.url; payload.file_name = file.name; payload.file_path = file.path
+    } else if (templateId && vars.length > 0) {
+      payload.template_id = templateId; payload.variables = variablesObj
+    }
     try {
       const url = editingId
         ? `/api/admin/candidatos/${candidateId}/contratos/${editingId}`
@@ -423,8 +428,8 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                 <label className="text-xs font-medium text-gray-600">Título / tipo do contrato *</label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Contrato de prestação de serviço - Evento X" />
               </div>
-              {/* Data/Valor/Período só no fluxo manual — com template, os dados vêm das variáveis */}
-              {(!templateId || templatePdf) && (
+              {/* Data/Valor/Período no fluxo manual ou quando há arquivo anexado */}
+              {(!templateId || templatePdf || !!file) && (
                 <>
                   <div className="flex gap-2">
                     <div className="flex-1 space-y-1"><label className="text-xs font-medium text-gray-600">Data *</label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
@@ -486,8 +491,8 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                 </div>
               )}
 
-              {/* Observações só no fluxo manual */}
-              {(!templateId || templatePdf) && (
+              {/* Observações no fluxo manual ou quando há arquivo anexado */}
+              {(!templateId || templatePdf || !!file) && (
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-gray-600">Observações</label>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
@@ -495,10 +500,13 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                 </div>
               )}
 
-              {/* Anexo manual (quando sem template ou template pdf) */}
-              {(!templateId || templatePdf) && (
+              {/* Anexo de arquivo — sempre disponível (PDF pronto tem precedência sobre o template) */}
+              {true && (
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600">Arquivo do contrato (PDF/DOC/imagem)</label>
+                  <label className="text-xs font-medium text-gray-600">
+                    Anexar arquivo do contrato (PDF/DOC/imagem)
+                    {templateId && !templatePdf && <span className="ml-1 text-[10px] text-amber-600">— se anexar, será usado no lugar do template</span>}
+                  </label>
                   {file ? (
                     <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                       <FileText className="w-4 h-4 text-red-500 shrink-0" />
