@@ -292,8 +292,8 @@ export default async function CandidatePage({
   const showRegistros = isContratado
   // Pesquisas de clima: colaboradores (contratado, freelancer, em contrato, intermitente, desligado)
   const showClima = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
-  // Contratos e Recibos: apenas freelancer
-  const showContratos = currentStatus === 'freelancer'
+  // Contratos: freelancer e intermitente (aprovado) · Recibos: apenas freelancer
+  const showContratos = ['freelancer', 'aprovado'].includes(currentStatus)
   const showRecibos = currentStatus === 'freelancer'
   // Painel completo para contratado e desligado; enxuto para os demais
   const minimalResumo = showResumoPanel && !isContratado && !isDesligado
