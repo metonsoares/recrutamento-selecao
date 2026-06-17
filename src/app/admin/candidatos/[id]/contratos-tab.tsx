@@ -126,6 +126,30 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
     } catch { showToast('err', 'Erro ao consultar status.') } finally { setD4BusyId(null) }
   }
 
+  const signedUploadRef = useRef<HTMLInputElement>(null)
+  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null)
+
+  function triggerUploadSigned(c: ContractItem) {
+    setUploadTargetId(c.id)
+    signedUploadRef.current?.click()
+  }
+
+  async function handleUploadSignedFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    const cid = uploadTargetId
+    if (e.target) e.target.value = ''
+    if (!f || !cid) return
+    setD4BusyId(cid)
+    try {
+      const fd = new FormData(); fd.append('file', f)
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/${cid}/upload-signed`, { method: 'POST', body: fd })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) { showToast('err', d.error || 'Erro ao enviar arquivo.'); return }
+      setContracts(prev => prev.map(x => x.id === cid ? { ...x, d4sign_status: 'assinado', signed_file_url: d.signed_file_url } : x))
+      showToast('ok', 'Arquivo anexado. Contrato marcado como assinado.')
+    } catch { showToast('err', 'Erro ao enviar arquivo.') } finally { setD4BusyId(null); setUploadTargetId(null) }
+  }
+
   async function handleD4Resend(c: ContractItem) {
     setD4BusyId(c.id)
     try {
@@ -272,6 +296,8 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
 
   return (
     <div className="max-w-3xl space-y-4">
+      {/* Input oculto para upload manual de contrato assinado */}
+      <input ref={signedUploadRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx" className="hidden" onChange={handleUploadSignedFile} />
       {toast && (
         <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
           {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}{toast.msg}
@@ -350,29 +376,22 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     </p>
                   )}
 
-                  {/* Assinatura via D4Sign */}
+                  {/* Assinatura via D4Sign / upload manual */}
                   {c.file_url && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {!c.d4sign_uuid ? (
-                        <button
-                          onClick={() => setConfirmSend(c)}
-                          disabled={d4BusyId === c.id}
-                          title="Enviar o contrato para assinatura eletrônica na D4Sign"
-                          className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#0b5cff] text-[#0b5cff] hover:bg-[#0b5cff]/10 transition-colors disabled:opacity-60"
-                        >
-                          {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><PenTool className="w-4 h-4" />Enviar para assinatura</>}
-                        </button>
-                      ) : c.d4sign_status === 'assinado' ? (
+                      {c.d4sign_status === 'assinado' ? (
                         <a
-                          href={`/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign/download`}
+                          href={c.d4sign_uuid
+                            ? `/api/admin/candidatos/${candidateId}/contratos/${c.id}/d4sign/download`
+                            : `/api/img?u=${encodeURIComponent(c.signed_file_url || '')}&dl=1&name=${encodeURIComponent((c.title || 'contrato') + ' (assinado)')}`}
                           target="_blank" rel="noreferrer"
-                          title="Baixar o PDF assinado"
+                          title="Baixar o documento assinado"
                           className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
                         >
                           <CheckCircle2 className="w-4 h-4" />Documento assinado
                           <Download className="w-3.5 h-3.5 opacity-70" />
                         </a>
-                      ) : (
+                      ) : c.d4sign_uuid ? (
                         <>
                           <button
                             onClick={() => handleD4Check(c)}
@@ -389,6 +408,25 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                             className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#0b5cff] text-[#0b5cff] hover:bg-[#0b5cff]/10 transition-colors disabled:opacity-60"
                           >
                             <RefreshCw className="w-4 h-4" />Reenviar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setConfirmSend(c)}
+                            disabled={d4BusyId === c.id}
+                            title="Enviar o contrato para assinatura eletrônica na D4Sign"
+                            className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#0b5cff] text-[#0b5cff] hover:bg-[#0b5cff]/10 transition-colors disabled:opacity-60"
+                          >
+                            {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><PenTool className="w-4 h-4" />Enviar para assinatura</>}
+                          </button>
+                          <button
+                            onClick={() => triggerUploadSigned(c)}
+                            disabled={d4BusyId === c.id}
+                            title="Anexar manualmente um arquivo (ex.: contrato já assinado) — o contrato passa a 'assinado'"
+                            className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                          >
+                            {d4BusyId === c.id ? <><Loader2 className="w-4 h-4 animate-spin" />Enviando...</> : <><Upload className="w-4 h-4" />Upload arquivo</>}
                           </button>
                         </>
                       )}
