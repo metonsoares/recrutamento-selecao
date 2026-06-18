@@ -641,6 +641,7 @@ export default async function CandidatePage({
             fichaPending={showFicha ? countFichaPending(admissionForm) : 0}
             companyDocsPending={showDocumentos ? countCompanyPending(companyDocs) : 0}
             timeline={timeline}
+            isMaster={isMaster}
           />
         </div>
       )}

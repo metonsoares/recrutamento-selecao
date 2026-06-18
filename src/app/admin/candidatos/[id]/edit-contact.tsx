@@ -1,25 +1,29 @@
 'use client'
-import { useState } from 'react'
+import { useState, type ElementType } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, Check, X, Loader2 } from 'lucide-react'
+import { Pencil, Check, X, Loader2, Phone, Mail } from 'lucide-react'
 
 interface Props {
   candidateId: string
   initialPhone: string | null
   initialEmail: string | null
+  /** Exibe ícones (Telefone/E-mail) no modo leitura — combina com o card do ResumoColaborador */
+  withIcons?: boolean
 }
 
-function Row({ label, value }: { label: string; value: string | null }) {
+function Row({ icon: Icon, label, value }: { icon?: ElementType; label: string; value: string | null }) {
   return (
-    <div className="flex justify-between gap-3 text-sm">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-muted-foreground shrink-0 flex items-center gap-1.5">
+        {Icon && <Icon className="w-3.5 h-3.5 opacity-60" />}{label}
+      </span>
       <span className="text-gray-900 text-right break-all">{value || '—'}</span>
     </div>
   )
 }
 
 /** Telefone + E-mail do candidato, editáveis pelo Master. */
-export function EditContact({ candidateId, initialPhone, initialEmail }: Props) {
+export function EditContact({ candidateId, initialPhone, initialEmail, withIcons = false }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [phone, setPhone] = useState(initialPhone || '')
@@ -44,8 +48,8 @@ export function EditContact({ candidateId, initialPhone, initialEmail }: Props) 
   if (!editing) {
     return (
       <div className="space-y-2">
-        <Row label="Telefone" value={initialPhone} />
-        <Row label="E-mail" value={initialEmail} />
+        <Row icon={withIcons ? Phone : undefined} label="Telefone" value={initialPhone} />
+        <Row icon={withIcons ? Mail : undefined} label="E-mail" value={initialEmail} />
         <button
           onClick={() => { setPhone(initialPhone || ''); setEmail(initialEmail || ''); setError(''); setEditing(true) }}
           className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"

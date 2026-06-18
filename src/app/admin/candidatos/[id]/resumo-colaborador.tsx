@@ -5,6 +5,7 @@ import {
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
   ClipboardList, FolderArchive, Stethoscope, UserMinus,
 } from 'lucide-react'
+import { EditContact } from './edit-contact'
 
 interface Props {
   fullName: string
@@ -26,6 +27,8 @@ interface Props {
   fichaPending?: number          // pendências na Ficha de Admissão
   companyDocsPending?: number    // pendências em Documentos
   timeline?: { date: string; label: string; type: string }[]
+  /** Master pode editar telefone/e-mail do colaborador */
+  isMaster?: boolean
 }
 
 // ─── Helpers de tempo ─────────────────────────────────────────────────────────
@@ -52,7 +55,7 @@ export function ResumoColaborador({
   fullName, jobTitle, companyName, statusLabel,
   cpf, phone, email, city, age,
   admissionDate, salary, registeredAt, warningsCount,
-  minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0, timeline = [],
+  minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0, timeline = [], isMaster = false,
 }: Props) {
   const now = new Date()
   const admission = admissionDate ? new Date(admissionDate + 'T00:00:00') : null
@@ -194,8 +197,14 @@ export function ResumoColaborador({
           <CardContent className="space-y-2 text-sm">
             <InfoRow icon={User} label="Idade" value={age != null ? `${age} anos` : '—'} />
             <InfoRow label="CPF" value={cpf || '—'} />
-            <InfoRow icon={Phone} label="Telefone" value={phone || '—'} />
-            <InfoRow icon={Mail} label="E-mail" value={email || '—'} />
+            {isMaster && candidateId ? (
+              <EditContact candidateId={candidateId} initialPhone={phone} initialEmail={email} withIcons />
+            ) : (
+              <>
+                <InfoRow icon={Phone} label="Telefone" value={phone || '—'} />
+                <InfoRow icon={Mail} label="E-mail" value={email || '—'} />
+              </>
+            )}
             <InfoRow icon={MapPin} label="Cidade" value={city || '—'} />
           </CardContent>
         </Card>
