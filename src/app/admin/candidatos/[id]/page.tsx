@@ -25,6 +25,7 @@ import { AtestadosTab } from './atestados-tab'
 import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
 import { BackButton } from './back-button'
+import { EditContact } from './edit-contact'
 import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
@@ -672,8 +673,14 @@ export default async function CandidatePage({
                   />
                 )}
                 {cpf !== '—' && <Row label="CPF" value={cpf} />}
-                <ChangedRow label="Telefone" value={candidate.phone} changes={changes} />
-                <ChangedRow label="E-mail" value={candidate.email} changes={changes} />
+                {isMaster ? (
+                  <EditContact candidateId={id} initialPhone={candidate.phone as string | null} initialEmail={candidate.email as string | null} />
+                ) : (
+                  <>
+                    <ChangedRow label="Telefone" value={candidate.phone} changes={changes} />
+                    <ChangedRow label="E-mail" value={candidate.email} changes={changes} />
+                  </>
+                )}
                 {addressRaw !== '—' && <Row label="Endereço" value={addressRaw} />}
                 {candidate.neighborhood && <Row label="Bairro" value={candidate.neighborhood} />}
                 <ChangedRow label="Cidade" value={candidate.city} changes={changes} />

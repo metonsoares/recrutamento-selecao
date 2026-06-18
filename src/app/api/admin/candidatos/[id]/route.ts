@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requireMasterApi } from '@/lib/auth-guard'
 
 export async function GET(
   _req: NextRequest,
@@ -55,6 +56,50 @@ export async function GET(
     cultureAnswers: cultureAnswers ?? [],
     notes: notes ?? [],
   })
+}
+
+/**
+ * PATCH /api/admin/candidatos/[id]
+ * Atualiza dados de contato do candidato (telefone/e-mail). Apenas Master.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
+
+    const { id } = await params
+    const body = await req.json().catch(() => ({}))
+    const update: Record<string, unknown> = {}
+
+    if (typeof body.phone === 'string') {
+      const phone = body.phone.trim()
+      update.phone = phone || null
+      update.phone_normalized = phone.replace(/\D/g, '') || null
+    }
+    if (typeof body.email === 'string') {
+      const email = body.email.trim().toLowerCase()
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return NextResponse.json({ error: 'E-mail inválido.' }, { status: 400 })
+      }
+      update.email = email || null
+    }
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: 'Nada para atualizar.' }, { status: 400 })
+    }
+    update.updated_at = new Date().toISOString()
+
+    const service = await createSupabaseServiceClient()
+    const { error } = await service.from('candidates').update(update).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[candidate PATCH]', err)
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
+  }
 }
 
 /**
