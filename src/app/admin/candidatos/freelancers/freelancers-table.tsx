@@ -1,5 +1,7 @@
 'use client'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { Search, X } from 'lucide-react'
 import { formatDate } from '@/lib/helpers'
 
 interface FreelancerRow {
@@ -26,11 +28,44 @@ function scoreColor(v: number | null) {
   return 'text-red-500'
 }
 
+/** Remove acentos e normaliza para busca tolerante (Márcia → marcia). */
+const normalize = (s: string) =>
+  s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+
 export function FreelancersTable({ rows }: Props) {
   const router = useRouter()
+  const [query, setQuery] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = normalize(query)
+    if (!q) return rows
+    return rows.filter(c => normalize(c.full_name || '').includes(q))
+  }, [rows, query])
 
   return (
-    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+    <div className="space-y-3">
+      {/* Busca por nome */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Buscar por nome..."
+          className="w-full h-10 pl-9 pr-9 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            aria-label="Limpar busca"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
@@ -43,7 +78,7 @@ export function FreelancersTable({ rows }: Props) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {rows.map(c => (
+          {filtered.map(c => (
             <tr
               key={c.id}
               className="hover:bg-gray-50 transition-colors cursor-pointer group"
@@ -118,6 +153,13 @@ export function FreelancersTable({ rows }: Props) {
           ))}
         </tbody>
       </table>
+
+      {filtered.length === 0 && (
+        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+          Nenhum freelancer encontrado para &ldquo;{query}&rdquo;.
+        </div>
+      )}
+      </div>
     </div>
   )
 }
