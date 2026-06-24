@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import {
-  UserPlus, Trash2, Loader2, X, CheckCircle2, AlertCircle, Users, Eye, EyeOff, KeyRound, Check,
+  UserPlus, Trash2, Loader2, X, CheckCircle2, AlertCircle, Users, KeyRound, Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,8 +69,6 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
   const [empresa, setEmpresa] = useState('')
   const [selectedId, setSelectedId] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('123456')
-  const [showPwd, setShowPwd] = useState(false)
   const [code, setCode] = useState('')
   const [perfil, setPerfil] = useState('operador')
   const [saving, setSaving] = useState(false)
@@ -82,7 +80,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
 
   function openModal() {
-    setEmpresa(''); setSelectedId(''); setEmail(''); setPassword('123456'); setCode(''); setPerfil('operador'); setError('')
+    setEmpresa(''); setSelectedId(''); setEmail(''); setCode(''); setPerfil('operador'); setError('')
     setModalOpen(true)
   }
 
@@ -104,14 +102,13 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
     setError('')
     if (!selectedId) { setError('Selecione um colaborador.'); return }
     if (!email.trim()) { setError('E-mail obrigatório (preencha no cadastro do colaborador).'); return }
-    if (!password || password.length < 6) { setError('Senha precisa ter ao menos 6 caracteres.'); return }
     const sel = available.find(a => a.id === selectedId)
     setSaving(true)
     try {
       const res = await fetch('/api/admin/system-users', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          candidate_id: selectedId, full_name: sel?.full_name, email, password, code, empresa, perfil,
+          candidate_id: selectedId, full_name: sel?.full_name, email, password: '123456', code, empresa, perfil,
         }),
       })
       const data = await res.json()
@@ -294,17 +291,6 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
                 <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Buscado do colaborador" />
               </div>
 
-              {/* Senha */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Senha *</label>
-                <div className="relative">
-                  <Input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="pr-9" />
-                  <button type="button" onClick={() => setShowPwd(s => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">Senha padrão: 123456</p>
-              </div>
 
               {/* Código */}
               <div className="space-y-1">
