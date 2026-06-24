@@ -59,11 +59,11 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // Redefinição de senha (linha da tabela)
-  const [resetId, setResetId] = useState<string | null>(null)   // usuário com o form de redefinir aberto
+  // Redefinição de senha (modal)
+  const [resetId, setResetId] = useState<string | null>(null)   // usuário sendo redefinido
   const [resetPwd, setResetPwd] = useState('')
   const [resetSaving, setResetSaving] = useState(false)
-  const [revealed, setRevealed] = useState<Record<string, string>>({})  // userId → nova senha exibida uma vez
+  const [resetDone, setResetDone] = useState<string | null>(null)  // nova senha revelada após sucesso
 
   // form
   const [empresa, setEmpresa] = useState('')
@@ -139,8 +139,8 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
     } else showToast('ok', 'Usuário removido.')
   }
 
-  function openReset(id: string) { setResetId(id); setResetPwd('123456') }
-  function cancelReset() { setResetId(null); setResetPwd('') }
+  function openReset(id: string) { setResetId(id); setResetPwd('123456'); setResetDone(null) }
+  function closeReset() { setResetId(null); setResetPwd(''); setResetDone(null) }
 
   async function saveReset(u: SystemUser) {
     if (!resetPwd || resetPwd.length < 6) { showToast('err', 'Senha precisa ter ao menos 6 caracteres.'); return }
@@ -152,8 +152,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setRevealed(prev => ({ ...prev, [u.id]: resetPwd }))   // mostra a nova senha uma vez
-      cancelReset()
+      setResetDone(resetPwd)   // mostra a nova senha no modal
       showToast('ok', 'Senha redefinida.')
     } catch (e) {
       showToast('err', (e as Error).message || 'Erro ao redefinir senha.')
@@ -190,7 +189,6 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
             <tr className="border-b bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
               <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Nome do usuário</th>
               <th className="px-4 py-3 text-left font-medium">E-mail</th>
-              <th className="px-4 py-3 text-left font-medium">Senha</th>
               <th className="px-4 py-3 text-left font-medium">Código</th>
               <th className="px-4 py-3 text-left font-medium">Empresa</th>
               <th className="px-4 py-3 text-left font-medium">Perfil</th>
@@ -204,32 +202,6 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
                   <p className="font-medium text-gray-900 whitespace-nowrap">{u.name || '—'}</p>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{u.email || '—'}</td>
-                <td className="px-4 py-3">
-                  {revealed[u.id] ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="font-mono text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">{revealed[u.id]}</span>
-                      <span className="text-[10px] text-muted-foreground">nova senha</span>
-                    </span>
-                  ) : resetId === u.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <Input value={resetPwd} onChange={e => setResetPwd(e.target.value)} className="h-7 w-28 text-xs" autoFocus />
-                      <button onClick={() => saveReset(u)} disabled={resetSaving} title="Salvar nova senha"
-                        className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-50">
-                        {resetSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      </button>
-                      <button onClick={cancelReset} disabled={resetSaving} title="Cancelar"
-                        className="p-1 rounded-md text-gray-400 hover:bg-gray-100"><X className="w-3.5 h-3.5" /></button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400 tracking-widest select-none">••••••</span>
-                      <button onClick={() => openReset(u.id)}
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
-                        <KeyRound className="w-3 h-3" />Redefinir
-                      </button>
-                    </div>
-                  )}
-                </td>
                 <td className="px-4 py-3"><span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{u.code}</span></td>
                 <td className="px-4 py-3 text-gray-700">{u.empresa || '—'}</td>
                 <td className="px-4 py-3">
@@ -239,19 +211,68 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
                   }`}>{PERFIL_LABEL[u.perfil] || u.perfil}</span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button onClick={() => handleDelete(u)} disabled={deletingId === u.id}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remover">
-                    {deletingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  </button>
+                  <div className="inline-flex items-center gap-1">
+                    <button onClick={() => openReset(u.id)} title="Redefinir senha"
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors">
+                      <KeyRound className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDelete(u)} disabled={deletingId === u.id}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remover">
+                      {deletingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum usuário cadastrado.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum usuário cadastrado.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Modal Redefinir senha */}
+      {resetId && (() => {
+        const u = users.find(x => x.id === resetId)
+        if (!u) return null
+        return (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2"><KeyRound className="w-4 h-4" />Redefinir senha</h2>
+                <button onClick={closeReset} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-sm text-gray-700 font-medium">{u.name || u.email}</p>
+                {resetDone ? (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">Nova senha (anote e repasse ao colaborador):</p>
+                    <span className="font-mono text-sm bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded inline-block">{resetDone}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-600">Nova senha</label>
+                    <Input value={resetPwd} onChange={e => setResetPwd(e.target.value)} autoFocus />
+                    <p className="text-[11px] text-muted-foreground">Mínimo 6 caracteres. Padrão: 123456</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+                {resetDone ? (
+                  <Button onClick={closeReset}>Fechar</Button>
+                ) : (
+                  <>
+                    <Button variant="outline" onClick={closeReset} disabled={resetSaving}>Cancelar</Button>
+                    <Button onClick={() => saveReset(u)} disabled={resetSaving} className="gap-1.5">
+                      {resetSaving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Check className="w-4 h-4" />Salvar</>}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Modal Adicionar */}
       {modalOpen && (
