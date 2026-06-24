@@ -20,16 +20,39 @@ export default function LoginPage() {
   )
 
   useEffect(() => {
+    // Captura o hash ANTES de inicializar o client (evita corrida com o
+    // detectSessionInUrl do Supabase, que pode limpar o hash antes da leitura).
+    const hash = window.location.hash.replace(/^#/, '')
     const supabase = createSupabaseBrowserClient()
-    let done = false
-    const goAdmin = () => { if (!done) { done = true; router.replace('/admin'); router.refresh() } }
-    // detectSessionInUrl processa o magic link e dispara o evento de login
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => { if (session) goAdmin() })
-    supabase.auth.getSession().then(({ data }) => { if (data.session) goAdmin() })
-    // fallback: se nada logar, libera o formulário
-    const t = setTimeout(() => setSsoProcessing(false), 4000)
-    return () => { sub.subscription.unsubscribe(); clearTimeout(t) }
-  }, [router])
+    let cancelled = false
+
+    async function enterFromPortal() {
+      // O magic link do Portal volta com a sessão no hash:
+      // #access_token=...&refresh_token=...&type=magiclink
+      if (hash.includes('access_token')) {
+        const p = new URLSearchParams(hash)
+        const access_token = p.get('access_token')
+        const refresh_token = p.get('refresh_token')
+        if (access_token && refresh_token) {
+          const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+          if (!error) {
+            // reload completo garante que o servidor leia o cookie da sessão
+            window.location.replace('/admin')
+            return
+          }
+        }
+      }
+      // Já autenticado? entra direto
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return
+      if (data.session) { window.location.replace('/admin'); return }
+      // Sem SSO/sessão: libera o formulário local (fallback)
+      setSsoProcessing(false)
+    }
+
+    enterFromPortal()
+    return () => { cancelled = true }
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
