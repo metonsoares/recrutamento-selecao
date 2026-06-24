@@ -49,8 +49,15 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
     : (rawJobs as { title?: string } | null)?.title) ?? null
 
   const f = (app?.admission_form as AdmissionFormData | null) ?? null
-  const today = new Date().toLocaleDateString('pt-BR')
   const companyName = brand?.company_name || 'Brownie do Ton'
+
+  // Empresa contratante (Razão Social + CNPJ) selecionada na ficha
+  let empresa: { razao_social?: string | null; cnpj?: string | null } | null = null
+  if (f?.selected_company_id) {
+    const { data } = await service
+      .from('companies').select('razao_social, cnpj').eq('id', f.selected_company_id).maybeSingle()
+    empresa = data
+  }
 
   function yn(v: boolean | null | undefined) {
     if (v === true) return 'Sim'
@@ -62,6 +69,12 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
     const d = (v || '').replace(/\D/g, '')
     if (d.length !== 11) return v || ''
     return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+  }
+
+  function maskCnpj(v: string | null | undefined) {
+    const d = (v || '').replace(/\D/g, '')
+    if (d.length !== 14) return v || ''
+    return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
   }
 
   return (
@@ -126,7 +139,6 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="cabecalho-texto">
             <p className="empresa">{companyName}</p>
             <h1 className="titulo">Ficha Cadastral para Admissão de Funcionários</h1>
-            <p className="data-preenchi">Data do Preenchimento: {today}</p>
           </div>
           <div className="foto-box">
             {photoSrc
@@ -178,6 +190,10 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
 
         {/* ── Dados do Empregador ── */}
         <p className="secao">Dados do Empregador</p>
+        <div className="grid2">
+          <div className="field"><label>Empresa Contratante (Razão Social)</label><div className="val filled">{empresa?.razao_social || companyName || '—'}</div></div>
+          <div className="field"><label>CNPJ</label><div className="val filled">{maskCnpj(empresa?.cnpj) || '—'}</div></div>
+        </div>
         <div className="grid2">
           <div className="field"><label>Função / Cargo</label><div className="val filled">{f?.function_title || jobTitle || '—'}</div></div>
           <div className="field"><label>Salário Base</label><div className="val filled">{f?.salary || '—'}</div></div>
