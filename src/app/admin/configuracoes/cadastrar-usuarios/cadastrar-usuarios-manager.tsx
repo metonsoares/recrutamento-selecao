@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import {
-  UserPlus, Trash2, Loader2, X, CheckCircle2, AlertCircle, Users, Eye, EyeOff,
+  UserPlus, Trash2, Loader2, X, CheckCircle2, AlertCircle, Users, Eye, EyeOff, KeyRound, Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,6 +58,12 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
   const [modalOpen, setModalOpen] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Redefinição de senha (linha da tabela)
+  const [resetId, setResetId] = useState<string | null>(null)   // usuário com o form de redefinir aberto
+  const [resetPwd, setResetPwd] = useState('')
+  const [resetSaving, setResetSaving] = useState(false)
+  const [revealed, setRevealed] = useState<Record<string, string>>({})  // userId → nova senha exibida uma vez
 
   // form
   const [empresa, setEmpresa] = useState('')
@@ -136,6 +142,27 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
     } else showToast('ok', 'Usuário removido.')
   }
 
+  function openReset(id: string) { setResetId(id); setResetPwd('123456') }
+  function cancelReset() { setResetId(null); setResetPwd('') }
+
+  async function saveReset(u: SystemUser) {
+    if (!resetPwd || resetPwd.length < 6) { showToast('err', 'Senha precisa ter ao menos 6 caracteres.'); return }
+    setResetSaving(true)
+    try {
+      const res = await fetch(`/api/admin/system-users/${u.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: resetPwd }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setRevealed(prev => ({ ...prev, [u.id]: resetPwd }))   // mostra a nova senha uma vez
+      cancelReset()
+      showToast('ok', 'Senha redefinida.')
+    } catch (e) {
+      showToast('err', (e as Error).message || 'Erro ao redefinir senha.')
+    } finally { setResetSaving(false) }
+  }
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl space-y-6">
       {toast && (
@@ -165,6 +192,8 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
           <thead>
             <tr className="border-b bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
               <th className="px-4 py-3 text-left font-medium">Nome do usuário</th>
+              <th className="px-4 py-3 text-left font-medium">E-mail</th>
+              <th className="px-4 py-3 text-left font-medium">Senha</th>
               <th className="px-4 py-3 text-left font-medium">Código</th>
               <th className="px-4 py-3 text-left font-medium">Empresa</th>
               <th className="px-4 py-3 text-left font-medium">Perfil</th>
@@ -176,7 +205,33 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
               <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   <p className="font-medium text-gray-900">{u.name || '—'}</p>
-                  <p className="text-[11px] text-muted-foreground">{u.email}</p>
+                </td>
+                <td className="px-4 py-3 text-gray-600">{u.email || '—'}</td>
+                <td className="px-4 py-3">
+                  {revealed[u.id] ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="font-mono text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">{revealed[u.id]}</span>
+                      <span className="text-[10px] text-muted-foreground">nova senha</span>
+                    </span>
+                  ) : resetId === u.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input value={resetPwd} onChange={e => setResetPwd(e.target.value)} className="h-7 w-28 text-xs" autoFocus />
+                      <button onClick={() => saveReset(u)} disabled={resetSaving} title="Salvar nova senha"
+                        className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-50">
+                        {resetSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      </button>
+                      <button onClick={cancelReset} disabled={resetSaving} title="Cancelar"
+                        className="p-1 rounded-md text-gray-400 hover:bg-gray-100"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 tracking-widest select-none">••••••</span>
+                      <button onClick={() => openReset(u.id)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
+                        <KeyRound className="w-3 h-3" />Redefinir
+                      </button>
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3"><span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{u.code}</span></td>
                 <td className="px-4 py-3 text-gray-700">{u.empresa || '—'}</td>
@@ -195,7 +250,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum usuário cadastrado.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum usuário cadastrado.</td></tr>
             )}
           </tbody>
         </table>

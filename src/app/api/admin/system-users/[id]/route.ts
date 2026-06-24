@@ -26,6 +26,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
+/** PATCH — redefine apenas a senha do usuário (não altera metadados). */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const { password } = await req.json()
+    if (!password || String(password).trim().length < 6) {
+      return NextResponse.json({ error: 'Senha precisa ter ao menos 6 caracteres.' }, { status: 400 })
+    }
+    const supabase = await createSupabaseServiceClient()
+    const { error } = await supabase.auth.admin.updateUserById(id, { password: String(password).trim() })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[system-users PATCH]', err)
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
+  }
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
