@@ -18,7 +18,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
 
   const { data: app } = await supabase
     .from('applications')
-    .select('admission_form, job_id, jobs(title)')
+    .select('id, admission_form, job_id, jobs(title)')
     .eq('candidate_id', id)
     .eq('is_latest', true)
     .maybeSingle()
@@ -26,6 +26,22 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
   const service = await createSupabaseServiceClient()
   const { data: brand } = await service
     .from('ai_settings').select('company_name').limit(1).single()
+
+  // Foto do candidato (1ª resposta de upload) — servida via proxy same-origin
+  let photoUrl: string | null = null
+  if (app?.id) {
+    const { data: fileQs } = await service.from('form_questions').select('id').eq('field_type', 'file_upload')
+    const fileIds = (fileQs || []).map(q => q.id as string)
+    if (fileIds.length) {
+      const { data: anss } = await service.from('form_answers')
+        .select('answer_text').eq('application_id', app.id as string).in('question_id', fileIds)
+      for (const a of anss || []) {
+        const raw = a.answer_text ? String(a.answer_text).replace(/^"|"$/g, '') : ''
+        if (raw.startsWith('http')) { photoUrl = raw; break }
+      }
+    }
+  }
+  const photoSrc = photoUrl ? `/api/img?u=${encodeURIComponent(photoUrl)}` : null
 
   const rawJobs = (app as Record<string, unknown> | null)?.jobs
   const jobTitle = (Array.isArray(rawJobs)
@@ -42,12 +58,19 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
     return '—'
   }
 
+  function maskCpf(v: string) {
+    const d = (v || '').replace(/\D/g, '')
+    if (d.length !== 11) return v || ''
+    return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+  }
+
   return (
     <>
       <style>{`
-        @page { size: A4 portrait; margin: 1.5cm; }
+        @page { size: A4 portrait; margin: 1.2cm; }
         *, *::before, *::after { box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; margin: 0; background: white; line-height: 1.5; }
+        html, body { width: 100%; }
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; margin: 0; background: white; line-height: 1.35; }
 
         /* Sidebar e nav fixados não aparecem no print por padrão (position:fixed),
            mas escondemos explicitamente por segurança */
@@ -60,14 +83,22 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
 
         h1.titulo { font-size: 15px; font-weight: bold; text-align: center; margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.5px; }
         .empresa { font-size: 10px; text-align: center; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 2px; }
-        .data-preenchi { font-size: 10px; text-align: center; color: #555; margin-bottom: 12px; }
-        hr.divider { border: none; border-top: 2px solid #1a5c38; margin: 10px 0 8px; }
+        .data-preenchi { font-size: 10px; text-align: center; color: #555; margin-bottom: 4px; }
+        hr.divider { border: none; border-top: 2px solid #1a5c38; margin: 6px 0; }
 
-        .secao { font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; text-align: center; margin: 14px 0 6px; }
+        /* Cabeçalho com foto no canto (estilo currículo) */
+        .cabecalho { display: flex; align-items: center; gap: 10px; }
+        .cabecalho-texto { flex: 1; }
+        .foto-box { width: 2.3cm; height: 2.9cm; flex-shrink: 0; border: 1px solid #9ca3af; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f9fafb; }
+        .foto-box img { width: 100%; height: 100%; object-fit: cover; }
+        .foto-vazia { font-size: 8px; color: #9ca3af; text-align: center; line-height: 1.2; }
+        .foto-spacer { width: 2.3cm; flex-shrink: 0; }
 
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 6px; }
-        .grid3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px 16px; margin-bottom: 6px; }
-        .field { margin-bottom: 5px; }
+        .secao { font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; text-align: center; margin: 8px 0 4px; }
+
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 16px; margin-bottom: 3px; }
+        .grid3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 3px 16px; margin-bottom: 3px; }
+        .field { margin-bottom: 3px; }
         .field label { display: block; font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 1px; }
         .field .val { border-bottom: 1px solid #9ca3af; min-height: 16px; font-size: 11px; padding: 1px 2px; }
         .field .val.filled { color: #1a1a1a; }
@@ -78,7 +109,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
         .checkbox-list li span.mark { font-size: 12px; line-height: 1; margin-top: 1px; }
         .checkbox-list li span.label-text { flex: 1; }
 
-        .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+        .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 14px; }
         .assinatura-box { text-align: center; }
         .assinatura-box .linha { border-bottom: 1px solid #374151; height: 30px; margin-bottom: 4px; }
         .assinatura-box p { font-size: 9px; color: #6b7280; margin: 0; }
@@ -89,10 +120,21 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
       <AutoPrint />
 
       <div className="page">
-        {/* Cabeçalho */}
-        <p className="empresa">{companyName}</p>
-        <h1 className="titulo">Ficha Cadastral para Admissão de Funcionários</h1>
-        <p className="data-preenchi">Data do Preenchimento: {today}</p>
+        {/* Cabeçalho com foto no canto (estilo currículo) */}
+        <div className="cabecalho">
+          <div className="foto-spacer" />
+          <div className="cabecalho-texto">
+            <p className="empresa">{companyName}</p>
+            <h1 className="titulo">Ficha Cadastral para Admissão de Funcionários</h1>
+            <p className="data-preenchi">Data do Preenchimento: {today}</p>
+          </div>
+          <div className="foto-box">
+            {photoSrc
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={photoSrc} alt="Foto do candidato" />
+              : <span className="foto-vazia">Foto 3x4</span>}
+          </div>
+        </div>
         <hr className="divider" />
 
         {/* ── Dados do funcionário ── */}
@@ -102,7 +144,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="val filled">{candidate.full_name}</div>
         </div>
         <div className="grid2">
-          <div className="field"><label>CPF</label><div className="val filled">{f?.cpf_value || (candidate as {cpf?:string}).cpf || '—'}</div></div>
+          <div className="field"><label>CPF</label><div className="val filled">{maskCpf(f?.cpf_value || (candidate as {cpf?:string}).cpf || '') || '—'}</div></div>
           <div className="field"><label>E-mail</label><div className="val filled">{candidate.email || '—'}</div></div>
         </div>
         <div className="grid2">
@@ -173,7 +215,6 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="assinatura-box"><div className="linha" /><p>Assinatura Empresa</p></div>
         </div>
 
-        <p className="rodape">Tel. Médico do Trabalho: (24) 2242-0310 – Paulo Bittencourt | Dr. Moreirão: (24) 2243-8608</p>
       </div>
     </>
   )

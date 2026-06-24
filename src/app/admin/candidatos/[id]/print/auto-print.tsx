@@ -3,8 +3,24 @@ import { useEffect } from 'react'
 
 export function AutoPrint() {
   useEffect(() => {
-    const t = setTimeout(() => window.print(), 700)
-    return () => clearTimeout(t)
+    let done = false
+    const fire = () => { if (!done) { done = true; window.print() } }
+
+    // Espera as imagens (ex.: foto do candidato) carregarem antes de imprimir,
+    // com um fallback para não travar caso alguma falhe.
+    const pending = Array.from(document.images).filter(img => !img.complete)
+    if (pending.length === 0) {
+      const t = setTimeout(fire, 500)
+      return () => clearTimeout(t)
+    }
+    let loaded = 0
+    const onDone = () => { loaded++; if (loaded >= pending.length) fire() }
+    pending.forEach(img => { img.addEventListener('load', onDone); img.addEventListener('error', onDone) })
+    const fallback = setTimeout(fire, 3000)
+    return () => {
+      clearTimeout(fallback)
+      pending.forEach(img => { img.removeEventListener('load', onDone); img.removeEventListener('error', onDone) })
+    }
   }, [])
 
   return (
