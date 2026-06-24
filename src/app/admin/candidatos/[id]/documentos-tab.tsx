@@ -34,8 +34,8 @@ const COMPANY_DOCS = [
   { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: false, na: false },
   { key: 'vale_transporte',     label: 'Termo declaração vale transporte',               multiple: false, na: true  },
   { key: 'uniformes_epis',      label: 'Termo entrega de uniformes/EPIs',                multiple: false, na: false },
-  { key: 'acrm_geral',          label: 'Termo entrega geral - ACRM',                    multiple: true,  na: false },
-  { key: 'acrm_escala',         label: 'ACRM - Acordo individual de escala 12×36',      multiple: false, na: true  },
+  { key: 'acrm_geral',          label: 'Termo entrega geral',                           multiple: true,  na: false },
+  { key: 'acrm_escala',         label: 'Acordo individual de escala 12×36',             multiple: false, na: true  },
 ]
 
 function emptyDoc(): DocState { return { not_applicable: false, files: [] } }
