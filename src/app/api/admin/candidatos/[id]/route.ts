@@ -86,6 +86,13 @@ export async function PATCH(
       }
       update.email = email || null
     }
+    if (typeof body.cnpj === 'string') {
+      const cnpj = body.cnpj.trim()
+      if (cnpj && cnpj.replace(/\D/g, '').length !== 14) {
+        return NextResponse.json({ error: 'CNPJ inválido (precisa ter 14 dígitos).' }, { status: 400 })
+      }
+      update.cnpj = cnpj || null
+    }
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'Nada para atualizar.' }, { status: 400 })
     }

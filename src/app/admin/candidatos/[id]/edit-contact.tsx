@@ -1,14 +1,23 @@
 'use client'
 import { useState, type ElementType } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, Check, X, Loader2, Phone, Mail } from 'lucide-react'
+import { Pencil, Check, X, Loader2, Phone, Mail, Building2 } from 'lucide-react'
 
 interface Props {
   candidateId: string
   initialPhone: string | null
   initialEmail: string | null
+  initialCnpj?: string | null
   /** Exibe ícones (Telefone/E-mail) no modo leitura — combina com o card do ResumoColaborador */
   withIcons?: boolean
+}
+
+/** Formata 14 dígitos como CNPJ (00.000.000/0000-00); senão mostra como está. */
+function formatCnpj(v: string | null): string {
+  if (!v) return ''
+  const d = v.replace(/\D/g, '')
+  if (d.length !== 14) return v
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
 }
 
 function Row({ icon: Icon, label, value }: { icon?: ElementType; label: string; value: string | null }) {
@@ -23,11 +32,12 @@ function Row({ icon: Icon, label, value }: { icon?: ElementType; label: string; 
 }
 
 /** Telefone + E-mail do candidato, editáveis pelo Master. */
-export function EditContact({ candidateId, initialPhone, initialEmail, withIcons = false }: Props) {
+export function EditContact({ candidateId, initialPhone, initialEmail, initialCnpj = null, withIcons = false }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [phone, setPhone] = useState(initialPhone || '')
   const [email, setEmail] = useState(initialEmail || '')
+  const [cnpj, setCnpj] = useState(initialCnpj || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -36,7 +46,7 @@ export function EditContact({ candidateId, initialPhone, initialEmail, withIcons
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, email }),
+        body: JSON.stringify({ phone, email, cnpj }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) { setError(d.error || 'Erro ao salvar.'); return }
@@ -48,13 +58,14 @@ export function EditContact({ candidateId, initialPhone, initialEmail, withIcons
   if (!editing) {
     return (
       <div className="space-y-2">
+        <Row icon={withIcons ? Building2 : undefined} label="CNPJ" value={formatCnpj(initialCnpj)} />
         <Row icon={withIcons ? Phone : undefined} label="Telefone" value={initialPhone} />
         <Row icon={withIcons ? Mail : undefined} label="E-mail" value={initialEmail} />
         <button
-          onClick={() => { setPhone(initialPhone || ''); setEmail(initialEmail || ''); setError(''); setEditing(true) }}
+          onClick={() => { setPhone(initialPhone || ''); setEmail(initialEmail || ''); setCnpj(initialCnpj || ''); setError(''); setEditing(true) }}
           className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
         >
-          <Pencil className="w-3 h-3" />Editar contato
+          <Pencil className="w-3 h-3" />Editar dados
         </button>
       </div>
     )
@@ -62,6 +73,11 @@ export function EditContact({ candidateId, initialPhone, initialEmail, withIcons
 
   return (
     <div className="space-y-2 border border-primary/30 rounded-lg p-2.5 bg-primary/5">
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600">CNPJ</label>
+        <input value={cnpj} onChange={e => setCnpj(e.target.value)} placeholder="00.000.000/0000-00"
+          className="h-8 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
+      </div>
       <div className="space-y-1">
         <label className="text-[11px] font-medium text-gray-600">Telefone</label>
         <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(24) 99999-9999"
