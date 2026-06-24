@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,23 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // SSO via Portal BDT: o magic link redireciona pra cá com a sessão na URL (#access_token).
+  // Enquanto processa, mostramos "Entrando..." em vez do formulário.
+  const [ssoProcessing, setSsoProcessing] = useState(
+    typeof window !== 'undefined' && window.location.hash.includes('access_token'),
+  )
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    let done = false
+    const goAdmin = () => { if (!done) { done = true; router.replace('/admin'); router.refresh() } }
+    // detectSessionInUrl processa o magic link e dispara o evento de login
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => { if (session) goAdmin() })
+    supabase.auth.getSession().then(({ data }) => { if (data.session) goAdmin() })
+    // fallback: se nada logar, libera o formulário
+    const t = setTimeout(() => setSsoProcessing(false), 4000)
+    return () => { sub.subscription.unsubscribe(); clearTimeout(t) }
+  }, [router])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -40,6 +57,12 @@ export default function LoginPage() {
           <CardDescription>Acesso restrito ao painel administrativo</CardDescription>
         </CardHeader>
         <CardContent>
+          {ssoProcessing ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <p className="text-sm text-muted-foreground">Entrando pelo Portal BDT…</p>
+            </div>
+          ) : (
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
@@ -74,6 +97,7 @@ export default function LoginPage() {
               {loading ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
+          )}
         </CardContent>
       </Card>
     </div>
