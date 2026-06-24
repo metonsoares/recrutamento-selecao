@@ -118,6 +118,13 @@ function validateCPF(cpf: string) {
   return calc(9) === +d[9] && calc(10) === +d[10]
 }
 
+/** Máscara de moeda BR: digita "300000" → "R$ 3.000,00". */
+function maskBRL(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  return (Number(digits) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
 function maskPIS(v: string) {
   const d = v.replace(/\D/g, '').slice(0, 11)
   if (d.length <= 3) return d
@@ -642,7 +649,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Salário Base">
-              <Input value={form.salary} onChange={e => set('salary', e.target.value)} placeholder="R$ 0.000,00" />
+              <Input value={form.salary} onChange={e => set('salary', maskBRL(e.target.value))} inputMode="numeric" placeholder="R$ 0.000,00" />
             </Field>
             <Field label="Data de Admissão">
               <Input type="date" value={form.admission_date} onChange={e => set('admission_date', e.target.value)} />
