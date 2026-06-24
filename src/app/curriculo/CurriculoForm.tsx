@@ -308,8 +308,19 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    const badCPF = questions.find(q => q.field_type === 'cpf' && cpfErrors[q.id])
-    if (badCPF) { setError('CPF inválido. Verifique o campo e tente novamente.'); return }
+    // Bloqueia CPF incompleto (< 11 dígitos) OU inválido (dígito verificador)
+    const badCPF = questions.find(q => {
+      if (q.field_type !== 'cpf') return false
+      const raw = (answers[q.id] as string) || ''
+      const digits = raw.replace(/\D/g, '')
+      if (!digits) return false // vazio é tratado pelo "required" do navegador
+      return digits.length !== 11 || !validateCPF(raw)
+    })
+    if (badCPF) {
+      setCpfErrors(p => ({ ...p, [badCPF.id]: true }))
+      setError('CPF inválido ou incompleto. Verifique o campo e tente novamente.')
+      return
+    }
 
     for (const q of questions.filter(q => q.field_type === 'file_upload' && usedIds.has(q.id))) {
       const fi = fileInfos[q.id]
@@ -461,16 +472,20 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
 
       case 'cpf': {
         const val = (answers[q.id] as string) || ''
+        const digits = val.replace(/\D/g, '')
         const err = cpfErrors[q.id]
         return (
           <div className="space-y-1">
             <div className="relative">
               <Input id={q.id} type="text" inputMode="numeric" placeholder="000.000.000-00" maxLength={14} required={q.is_required} className={`h-11 text-base pr-9 ${err ? 'border-red-400' : ''}`} value={val}
-                onChange={e => { const m = maskCPF(e.target.value); setAnswer(q.id, m); if (m.replace(/\D/g, '').length === 11) setCpfErrors(p => ({ ...p, [q.id]: !validateCPF(m) })) }}
+                onChange={e => { const m = maskCPF(e.target.value); setAnswer(q.id, m); const d = m.replace(/\D/g, ''); setCpfErrors(p => ({ ...p, [q.id]: d.length === 11 ? !validateCPF(m) : false })) }}
+                onBlur={() => { if (digits.length > 0 && digits.length !== 11) setCpfErrors(p => ({ ...p, [q.id]: true })) }}
               />
-              {val.replace(/\D/g, '').length === 11 && <div className="absolute right-3 top-1/2 -translate-y-1/2">{err ? <AlertCircle className="w-4 h-4 text-red-500" /> : <CheckCircle2 className="w-4 h-4 text-green-500" />}</div>}
+              {err
+                ? <div className="absolute right-3 top-1/2 -translate-y-1/2"><AlertCircle className="w-4 h-4 text-red-500" /></div>
+                : digits.length === 11 && <div className="absolute right-3 top-1/2 -translate-y-1/2"><CheckCircle2 className="w-4 h-4 text-green-500" /></div>}
             </div>
-            {err && <p className="text-xs text-red-500">CPF inválido.</p>}
+            {err && <p className="text-xs text-red-500">{digits.length === 11 ? 'CPF inválido.' : 'CPF incompleto.'}</p>}
           </div>
         )
       }
