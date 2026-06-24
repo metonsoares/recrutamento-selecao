@@ -14,18 +14,26 @@ export interface AuditLog {
   created_at: string
 }
 
-interface Props { logs: AuditLog[] }
+interface Props { logs: AuditLog[]; names?: Record<string, string> }
 
 function fmt(dt: string) {
   return new Date(dt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
 }
 
+/** Descrição detalhada + nome do candidato envolvido (quando houver). */
+function describeAction(l: AuditLog, names: Record<string, string> = {}): string {
+  const label = baseAction(l)
+  const m = (l.path || '').match(/\/(?:candidatos|applications)\/([0-9a-f-]{36})/i)
+  const name = m ? names[m[1].toLowerCase()] : undefined
+  return name ? `${label} — ${name}` : label
+}
+
 /**
- * Descrição detalhada da atividade, re-derivada de method+path.
+ * Descrição base da atividade, re-derivada de method+path.
  * Funciona também para logs antigos (não depende do texto já gravado).
  * Para navegação (páginas) mantém o rótulo amigável já salvo.
  */
-function describeAction(l: AuditLog): string {
+function baseAction(l: AuditLog): string {
   const path = l.path || ''
   const method = (l.method || '').toUpperCase()
   if (!path.startsWith('/api')) return l.action || 'Atividade'
@@ -85,7 +93,7 @@ function describeAction(l: AuditLog): string {
   return `${verb}: ${resource || path}`
 }
 
-export function AuditoriaManager({ logs }: Props) {
+export function AuditoriaManager({ logs, names = {} }: Props) {
   const [userFilter, setUserFilter] = useState('all')
   const [search, setSearch] = useState('')
 
@@ -113,10 +121,10 @@ export function AuditoriaManager({ logs }: Props) {
     if (userFilter !== 'all' && (l.user_email || 'desconhecido') !== userFilter) return false
     if (search.trim()) {
       const q = search.toLowerCase()
-      return [describeAction(l), l.user_email, l.ip, l.path].filter(Boolean).join(' ').toLowerCase().includes(q)
+      return [describeAction(l, names), l.user_email, l.ip, l.path].filter(Boolean).join(' ').toLowerCase().includes(q)
     }
     return true
-  }).slice(0, 500), [logs, userFilter, search])
+  }).slice(0, 500), [logs, userFilter, search, names])
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
@@ -199,7 +207,7 @@ export function AuditoriaManager({ logs }: Props) {
                 <tr key={l.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 whitespace-nowrap text-gray-600"><span className="inline-flex items-center gap-1"><Clock className="w-3 h-3 text-gray-400" />{fmt(l.created_at)}</span></td>
                   <td className="px-4 py-2 text-gray-800">{l.user_email || '—'}</td>
-                  <td className="px-4 py-2 text-gray-800">{describeAction(l)}</td>
+                  <td className="px-4 py-2 text-gray-800">{describeAction(l, names)}</td>
                   <td className="px-4 py-2 text-gray-500"><span className="inline-flex items-center gap-1"><Globe className="w-3 h-3 text-gray-400" />{l.ip || '—'}</span></td>
                 </tr>
               ))}
