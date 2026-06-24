@@ -95,13 +95,6 @@ export async function PATCH(
       }
       update.email = email || null
     }
-    if (typeof body.cnpj === 'string') {
-      const cnpj = body.cnpj.trim()
-      if (cnpj && cnpj.replace(/\D/g, '').length !== 14) {
-        return NextResponse.json({ error: 'CNPJ inválido (precisa ter 14 dígitos).' }, { status: 400 })
-      }
-      update.cnpj = cnpj || null
-    }
     // CPF — valida 11 dígitos; guarda a versão mascarada p/ sincronizar a resposta do formulário
     let cpfMaskedSync: string | null | undefined = undefined
     if (typeof body.cpf === 'string') {

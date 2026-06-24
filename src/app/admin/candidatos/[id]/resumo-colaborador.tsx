@@ -13,7 +13,6 @@ interface Props {
   companyName: string | null
   statusLabel: string
   cpf: string | null
-  cnpj?: string | null
   phone: string | null
   email: string | null
   city: string | null
@@ -54,7 +53,7 @@ function addMonths(d: Date, months: number): Date {
 
 export function ResumoColaborador({
   fullName, jobTitle, companyName, statusLabel,
-  cpf, cnpj = null, phone, email, city, age,
+  cpf, phone, email, city, age,
   admissionDate, salary, registeredAt, warningsCount,
   minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0, timeline = [], isMaster = false,
 }: Props) {
@@ -199,7 +198,7 @@ export function ResumoColaborador({
             <InfoRow icon={User} label="Idade" value={age != null ? `${age} anos` : '—'} />
             {!(isMaster && candidateId) && <InfoRow label="CPF" value={cpf || '—'} />}
             {isMaster && candidateId ? (
-              <EditContact candidateId={candidateId} initialPhone={phone} initialEmail={email} initialCnpj={cnpj} initialCpf={cpf} withIcons />
+              <EditContact candidateId={candidateId} initialPhone={phone} initialEmail={email} initialCpf={cpf} withIcons />
             ) : (
               <>
                 <InfoRow icon={Phone} label="Telefone" value={phone || '—'} />

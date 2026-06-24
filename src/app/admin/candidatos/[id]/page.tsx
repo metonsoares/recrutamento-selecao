@@ -632,7 +632,6 @@ export default async function CandidatePage({
               ?? null}
             statusLabel={STATUS_LABELS[currentStatus]}
             cpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)}
-            cnpj={candidate.cnpj as string | null}
             phone={candidate.phone as string | null}
             email={candidate.email as string | null}
             city={candidate.city as string | null}
@@ -680,7 +679,7 @@ export default async function CandidatePage({
                 )}
                 {!isMaster && cpf !== '—' && <Row label="CPF" value={cpf} />}
                 {isMaster ? (
-                  <EditContact candidateId={id} initialPhone={candidate.phone as string | null} initialEmail={candidate.email as string | null} initialCnpj={candidate.cnpj as string | null} initialCpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)} />
+                  <EditContact candidateId={id} initialPhone={candidate.phone as string | null} initialEmail={candidate.email as string | null} initialCpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)} />
                 ) : (
                   <>
                     <ChangedRow label="Telefone" value={candidate.phone} changes={changes} />
