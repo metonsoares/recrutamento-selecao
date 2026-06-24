@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,9 @@ const EMPTY_FORM = {
 
 type FormState = typeof EMPTY_FORM
 
+/** Normaliza para busca tolerante a acento/caixa (Açaí → acai). */
+const normalize = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+
 export function JobsManager({ jobs }: { jobs: Job[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -29,6 +32,15 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
   const [saving, setSaving] = useState(false)
   const [searchingCbo, setSearchingCbo] = useState(false)
   const [cboStatus, setCboStatus] = useState<'idle' | 'found' | 'not_found'>('idle')
+  const [query, setQuery] = useState('')
+
+  // Ordena por nome (A→Z) e filtra pela busca
+  const visibleJobs = useMemo(() => {
+    const q = normalize(query)
+    return [...jobs]
+      .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'))
+      .filter(j => !q || normalize(j.title).includes(q))
+  }, [jobs, query])
 
   function openCreate() {
     setEditing(null)
@@ -129,6 +141,23 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
         </Button>
       </div>
 
+      {/* Busca por nome da vaga */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Buscar pelo nome da vaga..."
+          className="pl-9 pr-9"
+        />
+        {query && (
+          <button onClick={() => setQuery('')} aria-label="Limpar busca"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <XCircle className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Tabela */}
       <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -151,7 +180,14 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
                 </td>
               </tr>
             )}
-            {jobs.map(job => (
+            {jobs.length > 0 && visibleJobs.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                  Nenhuma vaga encontrada para &ldquo;{query}&rdquo;.
+                </td>
+              </tr>
+            )}
+            {visibleJobs.map(job => (
               <tr key={job.id} className="border-b last:border-0 hover:bg-muted/10 transition-colors">
                 <td className="px-4 py-3">
                   <p className="font-medium">{job.title}</p>
