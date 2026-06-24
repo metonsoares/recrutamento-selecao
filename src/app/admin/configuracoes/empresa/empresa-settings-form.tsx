@@ -18,7 +18,6 @@ type FieldKey =
   | 'ideal_candidate_profile'
   | 'desired_behaviors'
   | 'alert_behaviors'
-  | 'whatsapp_agent_prompt'
   | 'analysis_prompt'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -140,7 +139,6 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
   // ── Config da IA ──────────────────────────────────────────────────────────
   const [savingAi, setSavingAi] = useState(false)
   const [aiForm, setAiForm] = useState({
-    whatsapp_agent_prompt: settings?.whatsapp_agent_prompt || '',
     analysis_prompt: settings?.analysis_prompt || '',
     culture_weight: settings?.culture_weight ?? 0.5,
     experience_weight: settings?.experience_weight ?? 0.35,
@@ -180,7 +178,6 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
     setSavingAi(true)
     const supabase = createSupabaseBrowserClient()
     const data = {
-      whatsapp_agent_prompt: aiForm.whatsapp_agent_prompt,
       analysis_prompt: aiForm.analysis_prompt,
       culture_weight: Number(aiForm.culture_weight),
       experience_weight: Number(aiForm.experience_weight),
@@ -459,17 +456,6 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
         )}
 
         {/* Prompts */}
-        <div>
-          <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Prompt da IA Atendente (WhatsApp)" field="whatsapp_agent_prompt" />
-          <Textarea
-            value={aiForm.whatsapp_agent_prompt}
-            onChange={e => setAiForm(f => ({ ...f, whatsapp_agent_prompt: e.target.value }))}
-            rows={6}
-            className="text-base resize-none font-mono text-xs"
-            placeholder="Você é um assistente de recrutamento da Brownie do Ton. Seja simpático e profissional..."
-          />
-        </div>
-
         <div>
           <FieldLabel improvingField={improvingField} onImprove={handleImprove} label="Prompt da IA Analista (Análise de Candidatos)" field="analysis_prompt" />
           <Textarea
