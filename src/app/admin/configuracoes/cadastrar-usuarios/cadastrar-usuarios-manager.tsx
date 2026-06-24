@@ -164,7 +164,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl space-y-6">
       {toast && (
         <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
           {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -191,7 +191,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
-              <th className="px-4 py-3 text-left font-medium">Nome do usuário</th>
+              <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Nome do usuário</th>
               <th className="px-4 py-3 text-left font-medium">E-mail</th>
               <th className="px-4 py-3 text-left font-medium">Senha</th>
               <th className="px-4 py-3 text-left font-medium">Código</th>
@@ -204,7 +204,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
             {users.map(u => (
               <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
-                  <p className="font-medium text-gray-900">{u.name || '—'}</p>
+                  <p className="font-medium text-gray-900 whitespace-nowrap">{u.name || '—'}</p>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{u.email || '—'}</td>
                 <td className="px-4 py-3">
