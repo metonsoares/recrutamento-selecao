@@ -678,9 +678,9 @@ export default async function CandidatePage({
                     value={`${formatDate(birthDate)}${age != null ? ` (${age} anos)` : ''}`}
                   />
                 )}
-                {cpf !== '—' && <Row label="CPF" value={cpf} />}
+                {!isMaster && cpf !== '—' && <Row label="CPF" value={cpf} />}
                 {isMaster ? (
-                  <EditContact candidateId={id} initialPhone={candidate.phone as string | null} initialEmail={candidate.email as string | null} initialCnpj={candidate.cnpj as string | null} />
+                  <EditContact candidateId={id} initialPhone={candidate.phone as string | null} initialEmail={candidate.email as string | null} initialCnpj={candidate.cnpj as string | null} initialCpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)} />
                 ) : (
                   <>
                     <ChangedRow label="Telefone" value={candidate.phone} changes={changes} />

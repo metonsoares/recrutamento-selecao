@@ -8,8 +8,32 @@ interface Props {
   initialPhone: string | null
   initialEmail: string | null
   initialCnpj?: string | null
+  initialCpf?: string | null
   /** Exibe ícones (Telefone/E-mail) no modo leitura — combina com o card do ResumoColaborador */
   withIcons?: boolean
+}
+
+/** Máscara progressiva de CPF (000.000.000-00). */
+function maskCPF(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  return d
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
+/** Valida CPF pelos dígitos verificadores. */
+function validateCPF(cpf: string): boolean {
+  const d = cpf.replace(/\D/g, '')
+  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false
+  let s = 0
+  for (let i = 0; i < 9; i++) s += +d[i] * (10 - i)
+  let r1 = (s * 10) % 11; if (r1 >= 10) r1 = 0
+  if (r1 !== +d[9]) return false
+  s = 0
+  for (let i = 0; i < 10; i++) s += +d[i] * (11 - i)
+  let r2 = (s * 10) % 11; if (r2 >= 10) r2 = 0
+  return r2 === +d[10]
 }
 
 /** Formata 14 dígitos como CNPJ (00.000.000/0000-00); senão mostra como está. */
@@ -18,6 +42,13 @@ function formatCnpj(v: string | null): string {
   const d = v.replace(/\D/g, '')
   if (d.length !== 14) return v
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
+}
+
+/** Exibe CPF mascarado quando tem 11 dígitos; senão mostra o valor como está. */
+function formatCpf(v: string | null): string {
+  if (!v) return ''
+  const d = v.replace(/\D/g, '')
+  return d.length === 11 ? maskCPF(d) : v
 }
 
 function Row({ icon: Icon, label, value }: { icon?: ElementType; label: string; value: string | null }) {
@@ -31,22 +62,27 @@ function Row({ icon: Icon, label, value }: { icon?: ElementType; label: string; 
   )
 }
 
-/** Telefone + E-mail do candidato, editáveis pelo Master. */
-export function EditContact({ candidateId, initialPhone, initialEmail, initialCnpj = null, withIcons = false }: Props) {
+/** CPF, CNPJ, Telefone e E-mail do candidato, editáveis pelo Master. */
+export function EditContact({ candidateId, initialPhone, initialEmail, initialCnpj = null, initialCpf = null, withIcons = false }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
+  const [cpf, setCpf] = useState(maskCPF(initialCpf || ''))
   const [phone, setPhone] = useState(initialPhone || '')
   const [email, setEmail] = useState(initialEmail || '')
   const [cnpj, setCnpj] = useState(initialCnpj || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const cpfDigits = cpf.replace(/\D/g, '')
+  const cpfInvalid = cpfDigits.length > 0 && (cpfDigits.length !== 11 || !validateCPF(cpf))
+
   async function save() {
+    if (cpfInvalid) { setError('CPF inválido. Verifique o campo.'); return }
     setSaving(true); setError('')
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, email, cnpj }),
+        body: JSON.stringify({ cpf, phone, email, cnpj }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) { setError(d.error || 'Erro ao salvar.'); return }
@@ -58,11 +94,12 @@ export function EditContact({ candidateId, initialPhone, initialEmail, initialCn
   if (!editing) {
     return (
       <div className="space-y-2">
+        <Row label="CPF" value={formatCpf(initialCpf)} />
         <Row icon={withIcons ? Building2 : undefined} label="CNPJ" value={formatCnpj(initialCnpj)} />
         <Row icon={withIcons ? Phone : undefined} label="Telefone" value={initialPhone} />
         <Row icon={withIcons ? Mail : undefined} label="E-mail" value={initialEmail} />
         <button
-          onClick={() => { setPhone(initialPhone || ''); setEmail(initialEmail || ''); setCnpj(initialCnpj || ''); setError(''); setEditing(true) }}
+          onClick={() => { setCpf(maskCPF(initialCpf || '')); setPhone(initialPhone || ''); setEmail(initialEmail || ''); setCnpj(initialCnpj || ''); setError(''); setEditing(true) }}
           className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
         >
           <Pencil className="w-3 h-3" />Editar dados
@@ -73,6 +110,12 @@ export function EditContact({ candidateId, initialPhone, initialEmail, initialCn
 
   return (
     <div className="space-y-2 border border-primary/30 rounded-lg p-2.5 bg-primary/5">
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600">CPF</label>
+        <input value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" inputMode="numeric"
+          className={`h-8 w-full border rounded-md px-2.5 text-sm bg-white ${cpfInvalid ? 'border-red-400' : 'border-gray-300'}`} />
+        {cpfInvalid && <p className="text-[10px] text-red-600">{cpfDigits.length === 11 ? 'CPF inválido.' : 'CPF incompleto.'}</p>}
+      </div>
       <div className="space-y-1">
         <label className="text-[11px] font-medium text-gray-600">CNPJ</label>
         <input value={cnpj} onChange={e => setCnpj(e.target.value)} placeholder="00.000.000/0000-00"
@@ -90,7 +133,7 @@ export function EditContact({ candidateId, initialPhone, initialEmail, initialCn
       </div>
       {error && <p className="text-[11px] text-red-600">{error}</p>}
       <div className="flex gap-2 pt-0.5">
-        <button onClick={save} disabled={saving}
+        <button onClick={save} disabled={saving || cpfInvalid}
           className="inline-flex items-center gap-1 text-[12px] font-semibold px-2.5 py-1 rounded-md bg-primary text-primary-foreground disabled:opacity-60">
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Salvar
         </button>

@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requireMasterApi } from '@/lib/auth-guard'
 
+/** Máscara de CPF (000.000.000-00) a partir dos dígitos. */
+function maskCpf(digits: string): string {
+  const d = digits.replace(/\D/g, '').slice(0, 11)
+  return d
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -93,6 +102,16 @@ export async function PATCH(
       }
       update.cnpj = cnpj || null
     }
+    // CPF — valida 11 dígitos; guarda a versão mascarada p/ sincronizar a resposta do formulário
+    let cpfMaskedSync: string | null | undefined = undefined
+    if (typeof body.cpf === 'string') {
+      const digits = body.cpf.replace(/\D/g, '')
+      if (digits && digits.length !== 11) {
+        return NextResponse.json({ error: 'CPF inválido (precisa ter 11 dígitos).' }, { status: 400 })
+      }
+      update.cpf = digits || null
+      cpfMaskedSync = digits ? maskCpf(digits) : null
+    }
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'Nada para atualizar.' }, { status: 400 })
     }
@@ -101,6 +120,22 @@ export async function PATCH(
     const service = await createSupabaseServiceClient()
     const { error } = await service.from('candidates').update(update).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // CPF é exibido na ficha a partir da resposta do formulário — mantém em sincronia.
+    if (cpfMaskedSync !== undefined) {
+      const { data: cand } = await service
+        .from('candidates').select('latest_application_id').eq('id', id).single()
+      const appId = cand?.latest_application_id as string | null | undefined
+      if (appId) {
+        const { data: q } = await service
+          .from('form_questions').select('id').eq('field_type', 'cpf').limit(1).maybeSingle()
+        if (q?.id) {
+          await service.from('form_answers')
+            .update({ answer_text: JSON.stringify(cpfMaskedSync ?? '') })
+            .eq('application_id', appId).eq('question_id', q.id)
+        }
+      }
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {

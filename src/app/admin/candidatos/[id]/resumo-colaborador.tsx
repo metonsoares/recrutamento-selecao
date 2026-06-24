@@ -197,9 +197,9 @@ export function ResumoColaborador({
           <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground" />Dados Pessoais</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             <InfoRow icon={User} label="Idade" value={age != null ? `${age} anos` : '—'} />
-            <InfoRow label="CPF" value={cpf || '—'} />
+            {!(isMaster && candidateId) && <InfoRow label="CPF" value={cpf || '—'} />}
             {isMaster && candidateId ? (
-              <EditContact candidateId={candidateId} initialPhone={phone} initialEmail={email} initialCnpj={cnpj} withIcons />
+              <EditContact candidateId={candidateId} initialPhone={phone} initialEmail={email} initialCnpj={cnpj} initialCpf={cpf} withIcons />
             ) : (
               <>
                 <InfoRow icon={Phone} label="Telefone" value={phone || '—'} />
