@@ -61,10 +61,10 @@ export function AccessMatrix({ initialLevels }: { initialLevels: LevelsMap }) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="text-left px-4 py-2 text-[11px] uppercase font-medium text-muted-foreground sticky left-0 bg-gray-50">Módulo</th>
-              <th className="text-left px-4 py-2 text-[11px] uppercase font-medium text-muted-foreground">Ação</th>
+              <th className="text-left px-4 py-2 text-[11px] uppercase font-medium text-muted-foreground sticky left-0 bg-gray-50 min-w-[140px]">Módulo</th>
+              <th className="text-left px-4 py-2 text-[11px] uppercase font-medium text-muted-foreground min-w-[200px]">Ação</th>
               {ALL_ROLES.map(r => (
-                <th key={r} className="px-3 py-2 text-[11px] uppercase font-medium text-muted-foreground text-center whitespace-nowrap">{ROLE_LABELS[r]}</th>
+                <th key={r} className="px-3 py-2 text-[11px] uppercase font-medium text-muted-foreground text-center whitespace-nowrap w-[128px]">{ROLE_LABELS[r]}</th>
               ))}
             </tr>
           </thead>
@@ -86,7 +86,7 @@ export function AccessMatrix({ initialLevels }: { initialLevels: LevelsMap }) {
                           disabled={locked}
                           onChange={e => setCell(r, row.perm, e.target.value as Level)}
                           title={LEVEL_LABEL[lvl]}
-                          className={`text-[11px] rounded-md border px-1.5 py-1 disabled:opacity-60 disabled:cursor-not-allowed ${LEVEL_CLASS[lvl]}`}
+                          className={`w-full text-[11px] rounded-md border px-1.5 py-1 disabled:opacity-60 disabled:cursor-not-allowed ${LEVEL_CLASS[lvl]}`}
                         >
                           {LEVELS.map(l => <option key={l} value={l}>{LEVEL_SHORT[l]}</option>)}
                         </select>

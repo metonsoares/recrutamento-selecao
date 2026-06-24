@@ -206,7 +206,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-3xl space-y-6">
+    <div className="p-4 sm:p-6 max-w-5xl space-y-6">
 
       {toast && <Toast type={toast.type} msg={toast.msg} onClose={() => setToast(null)} />}
 
