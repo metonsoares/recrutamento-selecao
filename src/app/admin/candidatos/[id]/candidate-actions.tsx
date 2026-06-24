@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult } from '@/types'
 import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus, HandCoins } from 'lucide-react'
@@ -636,7 +636,8 @@ export function CandidateActions({
         {applicationId && (
           <Select value={status} onValueChange={handleStatusChange} disabled={savingStatus}>
             <SelectTrigger className="w-[200px]">
-              <SelectValue />
+              {/* Base UI mostra o valor cru no SelectValue; usamos o rótulo computado */}
+              <span>{statusOptionLabel(status as CandidateStatus)}</span>
             </SelectTrigger>
             <SelectContent>
               {(ALLOWED_STATUSES.includes(status as CandidateStatus)
