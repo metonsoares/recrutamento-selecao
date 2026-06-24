@@ -394,11 +394,6 @@ function SidebarContent({
                           <UserCheck className="w-3 h-3 shrink-0 opacity-50" />Perfil de usuário
                         </Link>
                         )}
-                        {can('config.usuarios_cadastro') && (
-                        <Link href="/admin/configuracoes/cadastrar-usuarios" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastrar-usuarios') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                          <Users className="w-3 h-3 shrink-0 opacity-50" />Cadastro de usuários
-                        </Link>
-                        )}
                       </div>
                     )}
                   </div>
