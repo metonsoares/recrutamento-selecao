@@ -526,7 +526,12 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
       )}
 
       <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
-        <h2 className="text-xl font-bold text-center text-gray-900 mb-6">Ficha Cadastral</h2>
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Ficha Cadastral</h2>
+          <Button onClick={handleSave} disabled={saving || !!cpfError} size="sm" className="gap-1.5 shrink-0">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
+          </Button>
+        </div>
 
         {/* ── Empresa contratante ──────────────────────────────────────── */}
         {companies.length > 0 && (
