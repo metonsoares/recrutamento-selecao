@@ -164,7 +164,7 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nome do Cargo</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell w-24">CBO</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell w-28 whitespace-nowrap">CBO</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Título CBO</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Descrição</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground w-20">Status</th>
@@ -196,9 +196,9 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
                     <p className="text-xs font-mono text-muted-foreground sm:hidden mt-0.5">CBO {job.cbo_code}</p>
                   )}
                 </td>
-                <td className="px-4 py-3 hidden sm:table-cell">
+                <td className="px-4 py-3 hidden sm:table-cell whitespace-nowrap">
                   {job.cbo_code
-                    ? <span className="font-mono text-xs bg-[#f5f5f5] border px-1.5 py-0.5 rounded">{job.cbo_code}</span>
+                    ? <span className="font-mono text-xs bg-[#f5f5f5] border px-1.5 py-0.5 rounded whitespace-nowrap">{job.cbo_code}</span>
                     : <span className="text-muted-foreground">—</span>
                   }
                 </td>
