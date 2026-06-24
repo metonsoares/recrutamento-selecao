@@ -20,6 +20,71 @@ function fmt(dt: string) {
   return new Date(dt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
 }
 
+/**
+ * Descrição detalhada da atividade, re-derivada de method+path.
+ * Funciona também para logs antigos (não depende do texto já gravado).
+ * Para navegação (páginas) mantém o rótulo amigável já salvo.
+ */
+function describeAction(l: AuditLog): string {
+  const path = l.path || ''
+  const method = (l.method || '').toUpperCase()
+  if (!path.startsWith('/api')) return l.action || 'Atividade'
+
+  const verb = method === 'POST' ? 'Criou' : method === 'DELETE' ? 'Removeu' : 'Atualizou'
+
+  const rules: [RegExp, string][] = [
+    [/\/applications\/[^/]+\/status/, 'Alterou o status da candidatura'],
+    [/\/contratos\/[^/]+\/d4sign\/resend/, 'Reenviou o contrato para assinatura (D4Sign)'],
+    [/\/contratos\/[^/]+\/d4sign\/download/, 'Baixou o contrato assinado'],
+    [/\/contratos\/[^/]+\/upload-signed/, 'Anexou o contrato assinado manualmente'],
+    [/\/contratos\/[^/]+\/d4sign/, 'Enviou o contrato para assinatura (D4Sign)'],
+    [/\/contratos\/[^/]+\/prepare/, 'Preparou um contrato'],
+    [/\/contratos\/[^/]+/, method === 'DELETE' ? 'Removeu um contrato' : 'Editou um contrato'],
+    [/\/contratos\b/, 'Criou um contrato'],
+    [/\/candidatos\/[^/]+\/status/, 'Alterou o status do candidato'],
+    [/\/candidatos\/[^/]+\/background-check/, 'Executou Check de Processos (judicial)'],
+    [/\/candidatos\/[^/]+\/auxilios-check/, 'Executou Check de Auxílios (Portal da Transparência)'],
+    [/\/candidatos\/[^/]+\/desligar/, 'Desligou o colaborador'],
+    [/\/candidatos\/[^/]+\/admission-docs/, 'Anexou/atualizou documento da ficha de admissão'],
+    [/\/candidatos\/[^/]+\/(company-docs|company-files)/, 'Anexou/atualizou documento da empresa'],
+    [/\/candidatos\/[^/]+\/notify-recruiter/, 'Notificou o recrutador via WhatsApp'],
+    [/\/candidatos\/[^/]+\/warnings/, method === 'DELETE' ? 'Removeu uma advertência' : 'Registrou uma advertência'],
+    [/\/candidatos\/[^/]+\/vacations/, method === 'DELETE' ? 'Removeu um registro de férias' : 'Registrou férias'],
+    [/\/candidatos\/[^/]+\/(medical-certificates|atestados)/, method === 'DELETE' ? 'Removeu um atestado' : 'Registrou um atestado'],
+    [/\/candidatos\/[^/]+\/(employee-files|recibos|payroll)/, 'Gerenciou arquivos do colaborador (recibos/contracheques)'],
+    [/\/candidatos\/[^/]+\/(bank|dados-bancarios)/, 'Atualizou os dados bancários'],
+    [/\/candidatos\/[^/]+\/climate-assignments/, 'Enviou/atualizou pesquisa de clima do colaborador'],
+    [/\/candidatos\/[^/]+\/records/, 'Atualizou registros do colaborador'],
+    [/\/candidatos\/[^/]+$/, method === 'DELETE' ? 'Excluiu o candidato' : 'Editou os dados do candidato (contato/CPF)'],
+    [/\/doc-requests|\/solicitar/, 'Solicitou documento via WhatsApp'],
+    [/\/ai\/analyze-candidate/, 'Rodou a análise de IA do candidato'],
+    [/\/ai\/search-curriculos/, 'Buscou currículos com IA'],
+    [/\/ai\/improve-text/, 'Ajustou um texto com IA'],
+    [/\/ai\//, 'Alterou configuração de IA'],
+    [/\/climate-surveys\/[^/]+\/responses\//, 'Removeu uma resposta de pesquisa de clima'],
+    [/\/climate-surveys\/[^/]+/, method === 'DELETE' ? 'Removeu uma pesquisa de clima' : 'Editou uma pesquisa de clima'],
+    [/\/climate-surveys/, 'Criou uma pesquisa de clima'],
+    [/\/(interview-invite|invite-interview)/, 'Enviou convite de entrevista'],
+    [/\/interviews\/locations/, 'Configurou locais de entrevista'],
+    [/\/interviews\/interviewers/, 'Configurou entrevistadores'],
+    [/\/interviews/, 'Atualizou agendamento de entrevista'],
+    [/\/system-users\/[^/]+/, method === 'DELETE' ? 'Removeu um usuário' : method === 'PATCH' ? 'Redefiniu a senha de um usuário' : 'Editou um usuário'],
+    [/\/system-users/, 'Cadastrou um usuário'],
+    [/\/(jobs|vagas)/, verb === 'Criou' ? 'Criou uma vaga' : verb === 'Removeu' ? 'Removeu uma vaga' : 'Editou uma vaga'],
+    [/\/integrations/, 'Configurou uma integração'],
+    [/\/(templates|documentos-empresa)/, 'Gerenciou modelos/documentos da empresa'],
+    [/\/zapi/, 'Alterou configuração de WhatsApp (Z-API)'],
+    [/\/(companies|empresa)/, 'Atualizou dados/cultura da empresa'],
+    [/\/kanban/, 'Configurou colunas do Kanban'],
+    [/\/(form-questions|sections|secoes|formulario)/, 'Editou o formulário / seções'],
+  ]
+  for (const [re, label] of rules) if (re.test(path)) return label
+
+  // Fallback: verbo + recurso (sem o prefixo e sem UUIDs)
+  const resource = path.replace(/^\/api\/admin\//, '').replace(/\/[0-9a-f-]{36}/gi, '').replace(/\/+$/, '')
+  return `${verb}: ${resource || path}`
+}
+
 export function AuditoriaManager({ logs }: Props) {
   const [userFilter, setUserFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -48,7 +113,7 @@ export function AuditoriaManager({ logs }: Props) {
     if (userFilter !== 'all' && (l.user_email || 'desconhecido') !== userFilter) return false
     if (search.trim()) {
       const q = search.toLowerCase()
-      return [l.action, l.user_email, l.ip, l.path].filter(Boolean).join(' ').toLowerCase().includes(q)
+      return [describeAction(l), l.user_email, l.ip, l.path].filter(Boolean).join(' ').toLowerCase().includes(q)
     }
     return true
   }).slice(0, 500), [logs, userFilter, search])
@@ -134,7 +199,7 @@ export function AuditoriaManager({ logs }: Props) {
                 <tr key={l.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 whitespace-nowrap text-gray-600"><span className="inline-flex items-center gap-1"><Clock className="w-3 h-3 text-gray-400" />{fmt(l.created_at)}</span></td>
                   <td className="px-4 py-2 text-gray-800">{l.user_email || '—'}</td>
-                  <td className="px-4 py-2 text-gray-800">{l.action}</td>
+                  <td className="px-4 py-2 text-gray-800">{describeAction(l)}</td>
                   <td className="px-4 py-2 text-gray-500"><span className="inline-flex items-center gap-1"><Globe className="w-3 h-3 text-gray-400" />{l.ip || '—'}</span></td>
                 </tr>
               ))}
