@@ -19,18 +19,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Sem permissão para alterar status.' }, { status: 403 })
     }
 
+    const supabase = await createSupabaseServiceClient()
+
+    // Status atual — usado para detectar a transição freelancer → reprovado
+    const { data: current } = await supabase
+      .from('applications').select('status').eq('id', id).single()
+
     const now = new Date().toISOString()
     const payload: Record<string, unknown> = { status, updated_at: now }
     if (status === 'desligado') payload.terminated_at = now
-    // Bloqueio de freelancer: marca a flag (mantém abas de freelancer na ficha mesmo reprovado).
-    // Qualquer status diferente de "reprovado" limpa o bloqueio (desbloqueio).
+    // Freelancer bloqueado: marca a flag quando um freelancer vira "reprovado"
+    // (pelo botão "Bloquear Freelancer" OU pelo seletor de status). Mantém as abas
+    // de freelancer na ficha. Qualquer status diferente de "reprovado" limpa o bloqueio.
     if (status === 'reprovado') {
-      if (freelancerBlocked === true) payload.freelancer_blocked = true
+      if (current?.status === 'freelancer' || freelancerBlocked === true) {
+        payload.freelancer_blocked = true
+      }
     } else {
       payload.freelancer_blocked = false
     }
 
-    const supabase = await createSupabaseServiceClient()
     const { error } = await supabase.from('applications').update(payload).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
