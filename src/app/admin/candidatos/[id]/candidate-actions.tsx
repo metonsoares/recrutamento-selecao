@@ -476,7 +476,7 @@ export function CandidateActions({
     setTimeout(() => setToast(null), durationMs)
   }
 
-  async function handleStatusChange(newStatus: string | null) {
+  async function handleStatusChange(newStatus: string | null, extra?: Record<string, unknown>) {
     if (!newStatus || !applicationId) return
     setStatus(newStatus as CandidateStatus)
     setSavingStatus(true)
@@ -484,7 +484,7 @@ export function CandidateActions({
       const res = await fetch(`/api/admin/applications/${applicationId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, ...extra }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) {
@@ -657,7 +657,7 @@ export function CandidateActions({
             disabled={savingStatus}
             onClick={() => {
               if (confirm('Bloquear este freelancer? O status passará para "Reprovado".')) {
-                handleStatusChange('reprovado')
+                handleStatusChange('reprovado', { freelancerBlocked: true })
               }
             }}
             className="gap-1 border-red-300 text-red-700 hover:bg-red-50"

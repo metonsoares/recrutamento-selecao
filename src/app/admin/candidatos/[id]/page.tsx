@@ -271,10 +271,14 @@ export default async function CandidatePage({
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
   const isContratado = currentStatus === 'contratado'
   const isDesligado = currentStatus === 'desligado'
+  // Freelancer bloqueado: status "reprovado" marcado via "Bloquear Freelancer".
+  // Mantém as mesmas abas de freelancer (Resumo, Dados Bancários, Contratos, Recibos, Pesquisas de clima).
+  const isBlockedFreelancer = currentStatus === 'reprovado'
+    && (latestApp as { freelancer_blocked?: boolean } | null | undefined)?.freelancer_blocked === true
   // Painel Resumo (faixa de colaborador) + aba renomeada para "Resumo"
-  const showResumoPanel = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  const showResumoPanel = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Dados Bancários
-  const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Ficha Admissão (não em_contrato)
   const showFicha = ['contratado', 'aprovado', 'desligado'].includes(currentStatus)
   // Dados para contrato: em_contrato
@@ -292,10 +296,10 @@ export default async function CandidatePage({
   // Registros: apenas contratado
   const showRegistros = isContratado
   // Pesquisas de clima: colaboradores (contratado, freelancer, em contrato, intermitente, desligado)
-  const showClima = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  const showClima = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Contratos: freelancer e intermitente (aprovado) · Recibos: apenas freelancer
-  const showContratos = ['freelancer', 'aprovado'].includes(currentStatus)
-  const showRecibos = currentStatus === 'freelancer'
+  const showContratos = ['freelancer', 'aprovado'].includes(currentStatus) || isBlockedFreelancer
+  const showRecibos = currentStatus === 'freelancer' || isBlockedFreelancer
   // Painel completo para contratado e desligado; enxuto para os demais
   const minimalResumo = showResumoPanel && !isContratado && !isDesligado
 
