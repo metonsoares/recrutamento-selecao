@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { perfilToRole } from '@/lib/permissions'
 
 /** GET — lista usuários do sistema (criados a partir de colaboradores) */
 export async function GET() {
@@ -44,6 +45,8 @@ export async function POST(req: NextRequest) {
         code: code.trim().toUpperCase(),
         empresa: empresa || '',
         perfil: perfil || 'operador',
+        // role de acesso coerente com o perfil cadastrado (evita herdar Master)
+        role: perfilToRole(perfil),
         candidate_id: candidate_id || '',
       },
     })

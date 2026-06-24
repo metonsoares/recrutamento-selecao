@@ -69,6 +69,20 @@ export function normalizeRole(raw: string | null | undefined): Role {
   return 'master'
 }
 
+/**
+ * Converte o "perfil" da tela Cadastrar Usuários (administrador/gestor/operador)
+ * no role de acesso (RBAC). Mantém o acesso coerente com o que foi cadastrado —
+ * um operador NÃO deve herdar acesso Master.
+ */
+export function perfilToRole(perfil: string | null | undefined): Role {
+  switch (perfil) {
+    case 'administrador': return 'master'
+    case 'gestor': return 'gestor'
+    case 'operador': return 'operador'
+    default: return 'operador'
+  }
+}
+
 /** Verifica se um perfil tem determinada permissão. */
 export function can(role: Role, perm: Permission): boolean {
   if (role === 'master') return true

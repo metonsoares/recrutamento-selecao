@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { perfilToRole } from '@/lib/permissions'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,6 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         code: (code || '').toUpperCase(),
         empresa: empresa || '',
         perfil: perfil || 'operador',
+        role: perfilToRole(perfil),
         candidate_id: candidate_id || '',
       },
     }
