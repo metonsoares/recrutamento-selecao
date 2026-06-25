@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
-import { normalizeRole } from '@/lib/permissions'
+import { roleFromMetadata } from '@/lib/permissions'
+import { resolvePortalRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -13,7 +14,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const auth = await createSupabaseServerClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    const role = normalizeRole((user.user_metadata?.perfil ?? user.user_metadata?.role) as string | undefined)
+    const role = (await resolvePortalRole(user.email ?? '')) ?? roleFromMetadata(user.user_metadata)
     const granted = await getGrantedPerms(role)
     if (!granted.has('candidatos.status')) {
       return NextResponse.json({ error: 'Sem permissão para alterar status.' }, { status: 403 })

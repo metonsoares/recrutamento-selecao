@@ -1,16 +1,15 @@
 import { redirect } from 'next/navigation'
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
-import { normalizeRole } from '@/lib/permissions'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { getEffectiveRole } from '@/lib/portal-perfil'
 import { AuditoriaManager, AuditLog } from './auditoria-manager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AuditoriaPage() {
-  const auth = await createSupabaseServerClient()
-  const { data: { user } } = await auth.auth.getUser()
+  // Perfil AO VIVO do Portal (metadata pode estar desatualizado).
+  const { user, role } = await getEffectiveRole()
   if (!user) redirect('/login')
-  const isMaster = normalizeRole((user.user_metadata?.perfil ?? user.user_metadata?.role) as string | undefined) === 'master'
-  if (!isMaster) redirect('/admin')
+  if (role !== 'master') redirect('/admin')
 
   const service = await createSupabaseServiceClient()
   const { data: logs } = await service

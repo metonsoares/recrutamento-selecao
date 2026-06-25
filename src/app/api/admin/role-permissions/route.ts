@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import {
-  normalizeRole, ALL_ROLES, PERMISSION_MATRIX, MASTER_ONLY_PERMS, LEVELS,
+  roleFromMetadata, ALL_ROLES, PERMISSION_MATRIX, MASTER_ONLY_PERMS, LEVELS,
   type Role, type Level,
 } from '@/lib/permissions'
+import { resolvePortalRole } from '@/lib/portal-perfil'
 
 const VALID_PERMS = new Set(PERMISSION_MATRIX.map(r => r.perm))
 const VALID_LEVELS = new Set(LEVELS)
@@ -14,7 +15,8 @@ export async function PUT(req: NextRequest) {
     const auth = await createSupabaseServerClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    if (normalizeRole((user.user_metadata?.perfil ?? user.user_metadata?.role) as string | undefined) !== 'master') {
+    const role = (await resolvePortalRole(user.email ?? '')) ?? roleFromMetadata(user.user_metadata)
+    if (role !== 'master') {
       return NextResponse.json({ error: 'Apenas o perfil Master pode alterar permissões.' }, { status: 403 })
     }
 

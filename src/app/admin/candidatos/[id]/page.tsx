@@ -29,7 +29,7 @@ import { EditContact } from './edit-contact'
 import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
-import { normalizeRole } from '@/lib/permissions'
+import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
 import { StatusSelect } from './status-select'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
@@ -153,10 +153,10 @@ export default async function CandidatePage({
 
   const supabase = await createSupabaseServerClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const realRole = normalizeRole((user?.user_metadata?.perfil ?? user?.user_metadata?.role) as string | undefined)
-  const role = (realRole === 'master' ? 'master' : 'gestor') as 'master' | 'gestor'
-  const isMaster = role === 'master'
+  // Perfil AO VIVO do Portal (o metadata pode estar desatualizado — ex.: o Portal
+  // grava o perfil geral 'operador' mesmo para quem é Master/super_admin).
+  const { role: realRole } = await getEffectiveRole()
+  const isMaster = realRole === 'master'
 
   // Queries que dependem só do id — em paralelo (evita waterfall de round-trips)
   const [granted, { data: candidate }, { data: applications }, { data: notes }, { data: allJobs }] = await Promise.all([
