@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { notifyInterviewerScheduled } from '@/lib/interview-notify'
 
 const SLOT_MIN = 30
 const TZ = '-03:00' // Horário de Brasília
@@ -81,6 +82,9 @@ export async function POST(req: NextRequest) {
       status: 'agendada',
     }).select('*, candidates(full_name, phone), interviewers(name, phone), interview_locations(name, address)').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+    // Notifica o entrevistador responsável sobre o novo agendamento
+    await notifyInterviewerScheduled(data.id)
 
     // Atualiza status da candidatura mais recente para "entrevista_agendada"
     const { data: cand } = await supabase.from('candidates').select('latest_application_id').eq('id', b.candidate_id).maybeSingle()

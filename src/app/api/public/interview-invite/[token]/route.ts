@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { sendWhatsAppRaw } from '@/lib/whatsapp'
+import { notifyInterviewerScheduled } from '@/lib/interview-notify'
 import { slotsForDay, windowLabel, weekdayOf, SLOT_MIN, Win } from '@/lib/interview-slots'
 import { publicAppUrl } from '@/lib/helpers'
 
@@ -72,6 +73,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const link = `${publicAppUrl()}/e/${invite.short_code || ''}`
     const msg = `Olá ${firstName}, sua entrevista foi agendada! ✅\n\n📅 Dia: ${diaFmt}\n🕐 Horário de atendimento: ${janela}\n📍 Local: ${localTxt}${procureLine}\n\n* Chegue dentro da janela de horário\n* O atendimento é por ordem de chegada.\n\nSe precisar cancelar, acesse o mesmo link e informe o motivo:\n${link}\n\nAté lá!`
     if (candidate?.phone) await sendWhatsAppRaw(candidate.phone, msg, 'interview_confirmation')
+
+    // Notifica o entrevistador responsável sobre o novo agendamento
+    await notifyInterviewerScheduled(interview.id)
 
     return NextResponse.json({
       ok: true,
