@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { roleFromMetadata, Role, Permission } from '@/lib/permissions'
+import { Role, Permission } from '@/lib/permissions'
 import { getGrantedPerms } from '@/lib/permissions-server'
+import { getEffectiveRole } from '@/lib/portal-perfil'
 
 /**
  * Guard para rotas de API: retorna uma NextResponse de erro se o usuário não for
@@ -10,10 +10,9 @@ import { getGrantedPerms } from '@/lib/permissions-server'
  * Uso: `const denied = await requireMasterApi(); if (denied) return denied`
  */
 export async function requireMasterApi(): Promise<NextResponse | null> {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user, role } = await getEffectiveRole()
   if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
-  if (roleFromMetadata(user.user_metadata) !== 'master') {
+  if (role !== 'master') {
     return NextResponse.json({ error: 'Acesso restrito ao administrador master.' }, { status: 403 })
   }
   return null
@@ -21,10 +20,9 @@ export async function requireMasterApi(): Promise<NextResponse | null> {
 
 /** Retorna o perfil do usuário logado (ou redireciona para login). */
 export async function getUserRole(): Promise<Role> {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user, role } = await getEffectiveRole()
   if (!user) redirect('/login')
-  return roleFromMetadata(user.user_metadata)
+  return role
 }
 
 /** Garante que o usuário tenha a permissão (conforme banco); senão redireciona. */

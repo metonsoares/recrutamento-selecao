@@ -1,16 +1,13 @@
 import { redirect } from 'next/navigation'
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AdminNav } from '@/components/admin/sidebar'
-import { roleFromMetadata } from '@/lib/permissions'
+import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user, role } = await getEffectiveRole()
 
   if (!user) redirect('/login')
-
-  const role = roleFromMetadata(user.user_metadata)
 
   // Operador e Usuário Externo não têm acesso ao painel
   if (role === 'operador' || role === 'externo') {
