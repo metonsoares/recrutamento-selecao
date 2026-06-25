@@ -47,6 +47,7 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
   const [existingFileName, setExistingFileName] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())  // vazio = tudo recolhido
 
   // form
@@ -105,13 +106,13 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover este documento?')) return
     setDeletingId(id)
     const res = await fetch(`/api/admin/company-files/${id}`, { method: 'DELETE' })
     const data = await res.json()
     setDeletingId(null)
     if (!res.ok) { showToast('err', data.error || 'Erro ao remover.'); return }
     setFiles(prev => prev.filter(f => f.id !== id))
+    setConfirmDelete(null)
     showToast('ok', 'Documento removido.')
   }
 
@@ -260,7 +261,7 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors shrink-0" title="Editar">
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => handleDelete(f.id)} disabled={deletingId === f.id}
+                              <button onClick={() => setConfirmDelete({ id: f.id, name: f.name })} disabled={deletingId === f.id}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0" title="Remover">
                                 {deletingId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                               </button>
@@ -350,6 +351,30 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving} className="gap-1.5">
                 {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : editingId ? <><CheckCircle2 className="w-3.5 h-3.5" />Salvar alterações</> : <><Plus className="w-3.5 h-3.5" />Adicionar</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmação de remoção */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b">
+              <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              <h2 className="text-base font-semibold text-gray-900">Remover documento</h2>
+            </div>
+            <div className="px-5 py-4 text-sm text-gray-600">
+              Tem certeza que deseja remover <span className="font-medium text-gray-900">{confirmDelete.name}</span>?
+              <br />Esta ação não pode ser desfeita.
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setConfirmDelete(null)} disabled={deletingId === confirmDelete.id}>Cancelar</Button>
+              <Button variant="destructive" onClick={() => handleDelete(confirmDelete.id)} disabled={deletingId === confirmDelete.id} className="gap-1.5">
+                {deletingId === confirmDelete.id ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Removendo...</> : <><Trash2 className="w-3.5 h-3.5" />Remover</>}
               </Button>
             </div>
           </div>
