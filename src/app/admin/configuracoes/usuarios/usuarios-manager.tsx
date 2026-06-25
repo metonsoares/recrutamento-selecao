@@ -15,6 +15,7 @@ const ROLE_DESC: Record<Role, string> = {
   master: 'Acesso total ao sistema',
   admin: 'Administrador — acesso total',
   gestor: 'Aprovações e gestão',
+  gestor_rh: 'Gestão de RH',
   operador: 'Operação diária',
   externo: 'Acesso restrito por token',
   visualizador: 'Apenas leitura',

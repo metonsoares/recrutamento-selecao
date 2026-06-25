@@ -1,6 +1,7 @@
 import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { normalizeRole } from '@/lib/permissions'
+import { getEffectiveRole } from '@/lib/portal-perfil'
+import { getGrantedPerms } from '@/lib/permissions-server'
 import { CandidatesBoard } from './candidates-board'
 
 export const dynamic = 'force-dynamic'
@@ -8,8 +9,10 @@ export const dynamic = 'force-dynamic'
 export default async function CandidatosPage() {
   await requirePermission('candidatos.ver')
   const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const role = (normalizeRole((user?.user_metadata?.perfil ?? user?.user_metadata?.role) as string | undefined) === 'master' ? 'master' : 'gestor') as 'master' | 'gestor'
+  const { role: effRole } = await getEffectiveRole()
+  const granted = await getGrantedPerms(effRole)
+  const role = (effRole === 'master' ? 'master' : 'gestor') as 'master' | 'gestor'
+  const canVerReprovados = granted.has('candidatos.ver_reprovados')
 
   const [{ data: candidates }, { data: jobs }, { data: settings }] = await Promise.all([
     supabase
@@ -116,6 +119,7 @@ export default async function CandidatosPage() {
       settingsId={settingsId}
       appJobTitleMap={appJobTitleMap}
       role={role}
+      canVerReprovados={canVerReprovados}
     />
   )
 }

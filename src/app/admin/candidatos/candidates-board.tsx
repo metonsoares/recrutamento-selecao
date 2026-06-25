@@ -203,11 +203,12 @@ interface Props {
   settingsId?: string | null
   appJobTitleMap?: Record<string, string>
   role?: 'master' | 'gestor'
+  canVerReprovados?: boolean
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settingsId, appJobTitleMap = {}, role = 'master' }: Props) {
+export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settingsId, appJobTitleMap = {}, role = 'master', canVerReprovados = true }: Props) {
   const isMaster = role === 'master'
   const router = useRouter()
   const [candidates, setCandidates] = useState<CandidateRow[]>(initial)
@@ -280,9 +281,11 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
   const HIDDEN_COLUMNS = new Set(['contratado', 'em_contrato', 'aprovado', 'freelancer'])
 
   // ── orderedColumns a partir do estado local ───────────────────────────────
+  // Esconde "Reprovado" para perfis sem a permissão candidatos.ver_reprovados.
   const orderedColumns = colOrder
     .map(key => COLUMNS.find(c => c.key === key))
-    .filter((c): c is typeof COLUMNS[number] => c !== undefined && !HIDDEN_COLUMNS.has(c.key))
+    .filter((c): c is typeof COLUMNS[number] =>
+      c !== undefined && !HIDDEN_COLUMNS.has(c.key) && (canVerReprovados || c.key !== 'reprovado'))
 
   // ── Salva ordem das colunas no banco ──────────────────────────────────────
   async function saveColumnOrder(order: string[]) {

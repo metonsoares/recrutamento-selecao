@@ -2,30 +2,32 @@
 // Fonte da verdade das permissões, conforme a Matriz de Acessos.
 
 // Perfis do Portal BDT (mesmo nome de perfil em todos os apps) + Master (super-admin).
-export type Role = 'master' | 'admin' | 'gestor' | 'operador' | 'externo' | 'visualizador'
+export type Role = 'master' | 'admin' | 'gestor' | 'gestor_rh' | 'operador' | 'externo' | 'visualizador'
 
 export const ROLE_LABELS: Record<Role, string> = {
   master: 'Master',
   admin: 'Administrador',
   gestor: 'Gestor',
+  gestor_rh: 'Gestor RH',
   operador: 'Operador',
   externo: 'Usuário Externo',
   visualizador: 'Visualizador',
 }
 
-export const ALL_ROLES: Role[] = ['master', 'admin', 'gestor', 'operador', 'externo', 'visualizador']
+export const ALL_ROLES: Role[] = ['master', 'admin', 'gestor', 'gestor_rh', 'operador', 'externo', 'visualizador']
 
 export type Permission =
   | 'dashboard.ver'
-  | 'candidatos.ver' | 'candidatos.status' | 'candidatos.editar_vaga'
+  | 'candidatos.ver' | 'candidatos.status' | 'candidatos.editar_vaga' | 'candidatos.ver_reprovados'
   | 'ficha.admissao' | 'ficha.contrato' | 'ficha.documentos' | 'ficha.bancarios'
   | 'ficha.ferias' | 'ficha.advertencias' | 'ficha.atestados' | 'ficha.contracheques'
   | 'ficha.folhas' | 'ficha.asos' | 'ficha.clima' | 'ficha.clima_remover' | 'ficha.registros'
-  | 'acao.analise_ia' | 'acao.teste_cultural' | 'acao.check_processos' | 'acao.convidar'
+  | 'acao.analise_ia' | 'acao.teste_cultural' | 'acao.check_processos' | 'acao.check_auxilios' | 'acao.convidar'
   | 'acao.exportar_pdf' | 'acao.desligar' | 'acao.excluir_candidato'
   | 'agenda.ver' | 'agenda.config_locais' | 'agenda.config_entrevistadores' | 'agenda.remover_agendamento'
   | 'curriculos.secoes' | 'curriculos.vagas' | 'curriculos.teste_cultural'
   | 'colaboradores.ver'
+  | 'treinamentos.ver'
   | 'pesquisas.cadastrar' | 'pesquisas.resultados' | 'pesquisas.remover_resposta'
   | 'documentos_empresa'
   | 'whatsapp.ver' | 'whatsapp.excluir'
@@ -37,13 +39,27 @@ export type Permission =
 // Permissões padrão por perfil. Master e Administrador têm tudo (tratado em can()/defaultLevel);
 // Visualizador = somente leitura e Externo = sem painel (tratados em defaultLevel).
 const GESTOR: Permission[] = [
-  'dashboard.ver', 'candidatos.ver', 'candidatos.status',
-  'acao.analise_ia', 'acao.teste_cultural', 'acao.convidar', 'acao.exportar_pdf',
-  'agenda.ver', 'agenda.remover_agendamento', 'pesquisas.resultados', 'whatsapp.ver',
+  'dashboard.ver', 'candidatos.ver', 'candidatos.status', 'candidatos.ver_reprovados',
+  'acao.analise_ia', 'acao.teste_cultural', 'acao.check_processos', 'acao.check_auxilios', 'acao.convidar', 'acao.exportar_pdf',
+  'agenda.ver', 'agenda.remover_agendamento', 'treinamentos.ver', 'pesquisas.resultados', 'whatsapp.ver',
+]
+
+// Gestor RH: RH-focado. Dashboard, Candidatos (status sim; SEM Check Auxílios/Processos,
+// SEM coluna Reprovados), Agenda (config + remover), Colaboradores + fichas, Documentos da
+// empresa. SEM Configurações/Pesquisas/Treinamentos/WhatsApp/Relatórios/Templates.
+const GESTOR_RH: Permission[] = [
+  'dashboard.ver',
+  'candidatos.ver', 'candidatos.status',
+  'agenda.ver', 'agenda.config_locais', 'agenda.config_entrevistadores', 'agenda.remover_agendamento',
+  'colaboradores.ver', 'documentos_empresa',
+  'ficha.admissao', 'ficha.contrato', 'ficha.documentos', 'ficha.bancarios', 'ficha.ferias',
+  'ficha.advertencias', 'ficha.atestados', 'ficha.contracheques', 'ficha.folhas', 'ficha.asos',
+  'ficha.clima', 'ficha.registros',
 ]
 
 const ROLE_PERMISSIONS: Record<Exclude<Role, 'master' | 'admin'>, Set<Permission>> = {
   gestor: new Set(GESTOR),
+  gestor_rh: new Set(GESTOR_RH),
   operador: new Set(),
   externo: new Set(),
   visualizador: new Set(),
@@ -75,6 +91,7 @@ export function perfilToRole(perfil: string | null | undefined): Role {
     case 'administrador':
     case 'admin': return 'admin'
     case 'gestor': return 'gestor'
+    case 'gestor_rh': return 'gestor_rh'
     case 'operador': return 'operador'
     case 'externo': return 'externo'
     case 'visualizador': return 'visualizador'
@@ -140,6 +157,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
   { module: 'Currículos', action: 'Candidatos — ver lista/quadro, buscar', perm: 'candidatos.ver' },
   { module: 'Currículos', action: 'Candidatos — mudar status', perm: 'candidatos.status' },
   { module: 'Currículos', action: 'Candidatos — editar vaga', perm: 'candidatos.editar_vaga' },
+  { module: 'Currículos', action: 'Candidatos — ver coluna Reprovados', perm: 'candidatos.ver_reprovados' },
   { module: 'Currículos', action: 'Ficha — Ficha de Admissão', perm: 'ficha.admissao' },
   { module: 'Currículos', action: 'Ficha — Dados para contrato', perm: 'ficha.contrato' },
   { module: 'Currículos', action: 'Ficha — Documentos', perm: 'ficha.documentos' },
@@ -156,6 +174,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
   { module: 'Currículos', action: 'Ação — Analisar IA', perm: 'acao.analise_ia' },
   { module: 'Currículos', action: 'Ação — Visualizar Teste Cultural', perm: 'acao.teste_cultural' },
   { module: 'Currículos', action: 'Ação — Check Processos', perm: 'acao.check_processos' },
+  { module: 'Currículos', action: 'Ação — Check Auxílios', perm: 'acao.check_auxilios' },
   { module: 'Currículos', action: 'Ação — Convidar para entrevista', perm: 'acao.convidar' },
   { module: 'Currículos', action: 'Ação — Exportar PDF', perm: 'acao.exportar_pdf' },
   { module: 'Currículos', action: 'Ação — Desligar funcionário', perm: 'acao.desligar' },
@@ -169,6 +188,8 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
   { module: 'Currículos', action: 'Config — Teste cultural', perm: 'curriculos.teste_cultural' },
 
   { module: 'Colaboradores', action: 'Ver listas (todos os status)', perm: 'colaboradores.ver' },
+
+  { module: 'Treinamentos', action: 'Ver treinamentos', perm: 'treinamentos.ver' },
 
   { module: 'Pesquisas de clima', action: 'Cadastrar pesquisas', perm: 'pesquisas.cadastrar' },
   { module: 'Pesquisas de clima', action: 'Ver resultados', perm: 'pesquisas.resultados' },

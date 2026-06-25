@@ -232,6 +232,7 @@ function SidebarContent({
         )}
 
         {/* Treinamentos ▾ */}
+        {can('treinamentos.ver') && (
         <div>
           <button onClick={() => setTreinamentosOpen(o => !o)} className={cn(NAV_BASE, inTreinamentos ? NAV_ACTIVE : NAV_DEFAULT)}>
             <GraduationCap className="w-[15px] h-[15px] shrink-0 opacity-60" />
@@ -249,6 +250,7 @@ function SidebarContent({
             </div>
           )}
         </div>
+        )}
 
         {/* Pesquisas de clima ▾ */}
         {showPesquisasGroup && (
