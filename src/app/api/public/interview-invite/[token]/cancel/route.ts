@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { sendWhatsAppRaw } from '@/lib/whatsapp'
+import { notifyInterviewerCancelled } from '@/lib/interview-notify'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (candidate?.phone) {
       await sendWhatsAppRaw(candidate.phone, `Olá ${firstName}, seu agendamento de entrevista foi cancelado conforme solicitado. Se quiser remarcar, é só nos avisar. Obrigado!`, 'interview_cancel')
     }
+
+    // Notifica o entrevistador responsável sobre o cancelamento (com o motivo)
+    await notifyInterviewerCancelled(invite.interview_id, reason)
 
     return NextResponse.json({ ok: true })
   } catch (err) {
