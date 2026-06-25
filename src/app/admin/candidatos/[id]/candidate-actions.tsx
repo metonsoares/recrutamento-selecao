@@ -634,7 +634,9 @@ export function CandidateActions({
         onRefresh={(r, at) => { setAuxResult(r); setAuxAt(at) }}
       />
 
-      <div className="flex gap-2 flex-wrap items-center mt-2">
+      <div className="mt-3 space-y-2.5">
+        {/* Linha 1 — Alterar status (+ ações de status contextuais) */}
+        <div className="flex gap-2 flex-wrap items-center">
         {/* Alterar status: dropdown + Salvar (não salva ao selecionar) */}
         {applicationId && (
           <>
@@ -709,7 +711,10 @@ export function CandidateActions({
             </Button>
           </>
         )}
+        </div>
 
+        {/* Linha 2 — Análises e verificações */}
+        <div className="flex gap-2 flex-wrap items-center pt-2.5 border-t border-gray-100">
         {/* Analisar IA */}
         {applicationId && (
           <Button
@@ -791,6 +796,7 @@ export function CandidateActions({
               </span>
             )}
           </Button>
+        </div>
 
         {/* Dialog de resultados do Teste Cultural */}
         {applicationId && (
