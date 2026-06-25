@@ -1,14 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Supabase do Portal BDT (hub central). Fonte da verdade de usuário + perfil de acesso por app.
-// URL é pública; a chave (service) fica só no servidor (env não-NEXT_PUBLIC).
+// Supabase do Portal BDT (hub). Usado apenas para verificar o perfil de acesso
+// do usuário via RPC pública `recrutamento_perfil` (que expõe só o perfil — nada
+// sensível). A chave abaixo é a PUBLISHABLE (pública por design): pode ficar no código.
 const PORTAL_URL = process.env.PORTAL_SUPABASE_URL || 'https://xhqzakikatookphvjewy.supabase.co'
+const PORTAL_PUBLISHABLE_KEY = process.env.PORTAL_SUPABASE_KEY || 'sb_publishable_5WNUgNJi51Rx3kZIQRtVfA_hVRf1tC9'
 
-/** Cliente de leitura do Supabase do Portal (server-only). Retorna null se a chave não estiver configurada. */
 export function createPortalClient() {
-  const key = process.env.PORTAL_SUPABASE_SERVICE_KEY
-  if (!key) return null
-  return createClient(PORTAL_URL, key, {
+  return createClient(PORTAL_URL, PORTAL_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 }

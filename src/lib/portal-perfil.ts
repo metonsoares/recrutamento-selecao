@@ -4,37 +4,23 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createPortalClient } from '@/lib/portal-supabase'
 import { perfilToRole, roleFromMetadata, type Role } from '@/lib/permissions'
 
-const APP_SLUG = 'recrutamento'
-
 /**
- * Perfil de acesso lido AO VIVO no Supabase do Portal BDT (por e-mail).
+ * Perfil de acesso lido AO VIVO no Supabase do Portal BDT (RPC pública por e-mail).
  * - super_admin no Portal → 'master' (acesso direto a qualquer app);
  * - colaborador com perfil para o app Recrutamento → esse perfil;
  * - colaborador sem acesso ao app → 'externo' (sem painel);
- * - NÃO é colaborador do Portal (conta local) ou Portal indisponível → null (usa fallback do metadata).
+ * - NÃO é colaborador (conta local) ou Portal indisponível → null (usa fallback do metadata).
  * Memoizado por request.
  */
 export const resolvePortalRole = cache(async (email: string): Promise<Role | null> => {
   if (!email) return null
-  const portal = createPortalClient()
-  if (!portal) return null
   try {
-    const { data: colab } = await portal
-      .from('colaboradores').select('id, user_id').ilike('email', email).limit(1).maybeSingle()
-    if (!colab) return null // conta local (ex.: Master) — resolve pelo metadata
-
-    if (colab.user_id) {
-      const { data: prof } = await portal
-        .from('profiles').select('is_super_admin').eq('id', colab.user_id).maybeSingle()
-      if (prof?.is_super_admin === true) return 'master'
-    }
-
-    const { data: app } = await portal.from('apps').select('id').eq('slug', APP_SLUG).maybeSingle()
-    if (!app) return null
-    const { data: ca } = await portal
-      .from('colaborador_apps').select('perfil').eq('colaborador_id', colab.id).eq('app_id', app.id).maybeSingle()
-    if (!ca?.perfil) return 'externo' // colaborador sem acesso a este app
-    return perfilToRole(ca.perfil as string)
+    const portal = createPortalClient()
+    const { data, error } = await portal.rpc('recrutamento_perfil', { p_email: email })
+    if (error) return null
+    const perfil = (data as string | null)?.trim()
+    if (!perfil) return null
+    return perfil === 'master' ? 'master' : perfilToRole(perfil)
   } catch {
     return null
   }
@@ -42,8 +28,8 @@ export const resolvePortalRole = cache(async (email: string): Promise<Role | nul
 
 /**
  * Usuário logado + perfil efetivo. Prioriza o perfil AO VIVO do Portal;
- * cai no metadata (perfil ?? role) quando o Portal não resolve (conta local / sem config).
- * Memoizado por request (layout + guards + páginas consultam uma única vez).
+ * cai no metadata (perfil ?? role) quando o Portal não resolve (conta local).
+ * Memoizado por request.
  */
 export const getEffectiveRole = cache(async (): Promise<{ user: User | null; role: Role }> => {
   const supabase = await createSupabaseServerClient()
