@@ -154,7 +154,7 @@ export default async function CandidatePage({
   const supabase = await createSupabaseServerClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  const realRole = normalizeRole(user?.user_metadata?.role as string | undefined)
+  const realRole = normalizeRole((user?.user_metadata?.perfil ?? user?.user_metadata?.role) as string | undefined)
   const role = (realRole === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
   const isMaster = role === 'master'
 

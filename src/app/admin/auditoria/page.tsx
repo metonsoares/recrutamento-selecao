@@ -9,7 +9,7 @@ export default async function AuditoriaPage() {
   const auth = await createSupabaseServerClient()
   const { data: { user } } = await auth.auth.getUser()
   if (!user) redirect('/login')
-  const isMaster = normalizeRole(user.user_metadata?.role as string | undefined) === 'master'
+  const isMaster = normalizeRole((user.user_metadata?.perfil ?? user.user_metadata?.role) as string | undefined) === 'master'
   if (!isMaster) redirect('/admin')
 
   const service = await createSupabaseServiceClient()

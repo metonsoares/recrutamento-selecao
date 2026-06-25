@@ -14,7 +14,7 @@ export async function PUT(req: NextRequest) {
     const auth = await createSupabaseServerClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    if (normalizeRole(user.user_metadata?.role as string | undefined) !== 'master') {
+    if (normalizeRole((user.user_metadata?.perfil ?? user.user_metadata?.role) as string | undefined) !== 'master') {
       return NextResponse.json({ error: 'Apenas o perfil Master pode alterar permissões.' }, { status: 403 })
     }
 

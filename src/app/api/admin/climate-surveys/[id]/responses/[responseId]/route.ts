@@ -10,7 +10,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const authClient = await createSupabaseServerClient()
     const { data: { user } } = await authClient.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    const role = normalizeRole(user.user_metadata?.role as string | undefined)
+    const role = normalizeRole((user.user_metadata?.perfil ?? user.user_metadata?.role) as string | undefined)
     if (role !== 'master') return NextResponse.json({ error: 'Sem permissão para remover respostas.' }, { status: 403 })
 
     const supabase = await createSupabaseServiceClient()

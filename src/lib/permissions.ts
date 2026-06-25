@@ -70,6 +70,15 @@ export function normalizeRole(raw: string | null | undefined): Role {
 }
 
 /**
+ * Lê o perfil de acesso do user_metadata priorizando `perfil` (provisionado pelo
+ * Portal BDT via SSO) sobre `role` (contas locais antigas). Mesmo nome de perfil.
+ */
+export function roleFromMetadata(meta: Record<string, unknown> | null | undefined): Role {
+  const raw = (meta?.perfil ?? meta?.role) as string | null | undefined
+  return normalizeRole(raw)
+}
+
+/**
  * Converte o "perfil" da tela Cadastrar Usuários (administrador/gestor/operador)
  * no role de acesso (RBAC). Mantém o acesso coerente com o que foi cadastrado —
  * um operador NÃO deve herdar acesso Master.

@@ -13,7 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const auth = await createSupabaseServerClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    const role = normalizeRole(user.user_metadata?.role as string | undefined)
+    const role = normalizeRole((user.user_metadata?.perfil ?? user.user_metadata?.role) as string | undefined)
     const granted = await getGrantedPerms(role)
     if (!granted.has('candidatos.status')) {
       return NextResponse.json({ error: 'Sem permissão para alterar status.' }, { status: 403 })

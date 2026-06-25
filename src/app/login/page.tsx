@@ -15,14 +15,14 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   // SSO via Portal BDT: o magic link redireciona pra cá com a sessão na URL (#access_token).
   // Enquanto processa, mostramos "Entrando..." em vez do formulário.
-  const [ssoProcessing, setSsoProcessing] = useState(
-    typeof window !== 'undefined' && window.location.hash.includes('access_token'),
-  )
+  // Inicia em `false` (igual no servidor e no cliente) para evitar erro de hidratação.
+  const [ssoProcessing, setSsoProcessing] = useState(false)
 
   useEffect(() => {
     // Captura o hash ANTES de inicializar o client (evita corrida com o
     // detectSessionInUrl do Supabase, que pode limpar o hash antes da leitura).
     const hash = window.location.hash.replace(/^#/, '')
+    if (hash.includes('access_token')) setSsoProcessing(true)
     const supabase = createSupabaseBrowserClient()
     let cancelled = false
 

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AdminNav } from '@/components/admin/sidebar'
-import { normalizeRole } from '@/lib/permissions'
+import { roleFromMetadata } from '@/lib/permissions'
 import { getGrantedPerms } from '@/lib/permissions-server'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -10,7 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
-  const role = normalizeRole(user.user_metadata?.role as string | undefined)
+  const role = roleFromMetadata(user.user_metadata)
 
   // Operador não tem nenhuma permissão de acesso ao painel
   if (role === 'operador') {
