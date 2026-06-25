@@ -1,17 +1,19 @@
 // ─── Controle de acesso por perfil (RBAC) ──────────────────────────────────────
 // Fonte da verdade das permissões, conforme a Matriz de Acessos.
 
-export type Role = 'master' | 'recrutador' | 'rh' | 'gestor' | 'operador'
+// Perfis do Portal BDT (mesmo nome de perfil em todos os apps) + Master (super-admin).
+export type Role = 'master' | 'admin' | 'gestor' | 'operador' | 'externo' | 'visualizador'
 
 export const ROLE_LABELS: Record<Role, string> = {
   master: 'Master',
-  recrutador: 'Recrutador',
-  rh: 'RH',
+  admin: 'Administrador',
   gestor: 'Gestor',
   operador: 'Operador',
+  externo: 'Usuário Externo',
+  visualizador: 'Visualizador',
 }
 
-export const ALL_ROLES: Role[] = ['master', 'recrutador', 'rh', 'gestor', 'operador']
+export const ALL_ROLES: Role[] = ['master', 'admin', 'gestor', 'operador', 'externo', 'visualizador']
 
 export type Permission =
   | 'dashboard.ver'
@@ -32,34 +34,19 @@ export type Permission =
   | 'config.usuarios_perfil' | 'config.usuarios_cadastro' | 'config.kanban'
   | 'auditoria.ver'
 
-// Permissões por perfil (Master tem tudo, tratado em can()).
-const RECRUTADOR: Permission[] = [
-  'dashboard.ver', 'candidatos.ver', 'candidatos.status',
-  'acao.analise_ia', 'acao.teste_cultural', 'acao.convidar', 'acao.exportar_pdf',
-  'agenda.ver', 'agenda.config_entrevistadores', 'agenda.remover_agendamento',
-  'pesquisas.resultados', 'whatsapp.ver',
-]
-
-const RH: Permission[] = [
-  'dashboard.ver', 'candidatos.ver', 'candidatos.status', 'candidatos.editar_vaga',
-  'ficha.admissao', 'ficha.contrato', 'ficha.documentos', 'ficha.bancarios', 'ficha.ferias',
-  'ficha.advertencias', 'ficha.atestados', 'ficha.contracheques', 'ficha.folhas', 'ficha.asos', 'ficha.clima',
-  'acao.analise_ia', 'acao.teste_cultural', 'acao.convidar', 'acao.exportar_pdf', 'acao.desligar',
-  'agenda.ver', 'agenda.config_entrevistadores', 'agenda.remover_agendamento',
-  'curriculos.vagas', 'colaboradores.ver', 'pesquisas.resultados', 'documentos_empresa', 'whatsapp.ver',
-]
-
+// Permissões padrão por perfil. Master e Administrador têm tudo (tratado em can()/defaultLevel);
+// Visualizador = somente leitura e Externo = sem painel (tratados em defaultLevel).
 const GESTOR: Permission[] = [
   'dashboard.ver', 'candidatos.ver', 'candidatos.status',
   'acao.analise_ia', 'acao.teste_cultural', 'acao.convidar', 'acao.exportar_pdf',
   'agenda.ver', 'agenda.remover_agendamento', 'pesquisas.resultados', 'whatsapp.ver',
 ]
 
-const ROLE_PERMISSIONS: Record<Exclude<Role, 'master'>, Set<Permission>> = {
-  recrutador: new Set(RECRUTADOR),
-  rh: new Set(RH),
+const ROLE_PERMISSIONS: Record<Exclude<Role, 'master' | 'admin'>, Set<Permission>> = {
   gestor: new Set(GESTOR),
   operador: new Set(),
+  externo: new Set(),
+  visualizador: new Set(),
 }
 
 /** Normaliza o valor de role vindo do user_metadata. */
@@ -85,16 +72,19 @@ export function roleFromMetadata(meta: Record<string, unknown> | null | undefine
  */
 export function perfilToRole(perfil: string | null | undefined): Role {
   switch (perfil) {
-    case 'administrador': return 'master'
+    case 'administrador':
+    case 'admin': return 'admin'
     case 'gestor': return 'gestor'
     case 'operador': return 'operador'
+    case 'externo': return 'externo'
+    case 'visualizador': return 'visualizador'
     default: return 'operador'
   }
 }
 
 /** Verifica se um perfil tem determinada permissão. */
 export function can(role: Role, perm: Permission): boolean {
-  if (role === 'master') return true
+  if (role === 'master' || role === 'admin') return true
   return ROLE_PERMISSIONS[role]?.has(perm) ?? false
 }
 
@@ -211,6 +201,9 @@ export const MASTER_ONLY_PERMS: Permission[] = ['config.usuarios_perfil', 'audit
 /** Nível PADRÃO (código) para um perfil/permissão — usado quando não há valor salvo no banco. */
 export function defaultLevel(role: Role, perm: Permission): Level {
   if (MASTER_ONLY_PERMS.includes(perm)) return role === 'master' ? 'full' : 'none'
+  if (role === 'master' || role === 'admin') return 'full'   // acesso total (admin ajustável na matriz)
+  if (role === 'visualizador') return 'view'                 // somente leitura
+  if (role === 'externo') return 'none'                      // sem acesso ao painel
   if (!can(role, perm)) return 'none'
   return naturalLevel(ACTION_OF[perm] || '')
 }

@@ -13,7 +13,7 @@ export async function PUT(
     const supabase = await createSupabaseServiceClient()
 
     const updatePayload: Record<string, unknown> = {
-      user_metadata: { full_name: name?.trim() || '', role: role || 'recrutador' },
+      user_metadata: { full_name: name?.trim() || '', role: role || 'visualizador' },
     }
     if (email?.trim()) updatePayload.email = email.trim()
     if (password?.trim()) updatePayload.password = password.trim()

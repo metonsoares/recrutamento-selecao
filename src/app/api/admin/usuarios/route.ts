@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       email: email.trim(),
       password,
       email_confirm: true,
-      user_metadata: { full_name: name?.trim() || '', role: role || 'recrutador' },
+      user_metadata: { full_name: name?.trim() || '', role: role || 'visualizador' },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ user: data.user })

@@ -155,7 +155,7 @@ export default async function CandidatePage({
 
   const { data: { user } } = await supabase.auth.getUser()
   const realRole = normalizeRole((user?.user_metadata?.perfil ?? user?.user_metadata?.role) as string | undefined)
-  const role = (realRole === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
+  const role = (realRole === 'master' ? 'master' : 'gestor') as 'master' | 'gestor'
   const isMaster = role === 'master'
 
   // Queries que dependem só do id — em paralelo (evita waterfall de round-trips)

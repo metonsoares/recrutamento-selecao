@@ -202,7 +202,7 @@ interface Props {
   columnOrder?: string[] | null
   settingsId?: string | null
   appJobTitleMap?: Record<string, string>
-  role?: 'master' | 'recrutador'
+  role?: 'master' | 'gestor'
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────

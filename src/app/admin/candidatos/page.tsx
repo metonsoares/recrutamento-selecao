@@ -9,7 +9,7 @@ export default async function CandidatosPage() {
   await requirePermission('candidatos.ver')
   const supabase = await createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const role = (normalizeRole((user?.user_metadata?.perfil ?? user?.user_metadata?.role) as string | undefined) === 'master' ? 'master' : 'recrutador') as 'master' | 'recrutador'
+  const role = (normalizeRole((user?.user_metadata?.perfil ?? user?.user_metadata?.role) as string | undefined) === 'master' ? 'master' : 'gestor') as 'master' | 'gestor'
 
   const [{ data: candidates }, { data: jobs }, { data: settings }] = await Promise.all([
     supabase

@@ -13,10 +13,11 @@ type UserRole = Role
 
 const ROLE_DESC: Record<Role, string> = {
   master: 'Acesso total ao sistema',
-  recrutador: 'Candidatos, agenda e resultados',
-  rh: 'Recrutamento + fichas e colaboradores',
-  gestor: 'Candidatos, agenda e resultados (gestão)',
-  operador: 'Sem acesso ao painel',
+  admin: 'Administrador — acesso total',
+  gestor: 'Aprovações e gestão',
+  operador: 'Operação diária',
+  externo: 'Acesso restrito por token',
+  visualizador: 'Apenas leitura',
 }
 
 interface AdminUser {
@@ -107,7 +108,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
   const [fName, setFName] = useState('')
   const [fEmail, setFEmail] = useState('')
   const [fPassword, setFPassword] = useState('')
-  const [fRole, setFRole] = useState<UserRole>('recrutador')
+  const [fRole, setFRole] = useState<UserRole>('visualizador')
   const [fError, setFError] = useState('')
 
   function showToast(type: 'ok' | 'err', msg: string) {
@@ -116,7 +117,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
   }
 
   function openCreate() {
-    setFName(''); setFEmail(''); setFPassword(''); setFRole('recrutador'); setFError('')
+    setFName(''); setFEmail(''); setFPassword(''); setFRole('visualizador'); setFError('')
     setSelected(null)
     setModal('create')
   }
@@ -156,7 +157,7 @@ export function UsuariosManager({ users: initial, currentUserId }: Props) {
       id: data.user.id,
       email: data.user.email,
       name: data.user.user_metadata?.full_name || '',
-      role: (data.user.user_metadata?.role as UserRole) || 'recrutador',
+      role: (data.user.user_metadata?.role as UserRole) || 'visualizador',
       created_at: data.user.created_at,
       last_sign_in: data.user.last_sign_in_at || null,
     }])

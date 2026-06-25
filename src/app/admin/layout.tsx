@@ -12,8 +12,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const role = roleFromMetadata(user.user_metadata)
 
-  // Operador não tem nenhuma permissão de acesso ao painel
-  if (role === 'operador') {
+  // Operador e Usuário Externo não têm acesso ao painel
+  if (role === 'operador' || role === 'externo') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 p-6 text-center">
         <div className="max-w-sm">
