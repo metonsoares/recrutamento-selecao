@@ -710,9 +710,8 @@ export function CandidateActions({
           </Button>
         )}
 
-        {/* Teste Cultural + Check Processos — agrupados para ficarem lado a lado */}
-        <div className="flex flex-wrap gap-2">
-          {applicationId && (
+        {/* Teste Cultural, Check Processos e Check Auxílios */}
+        {applicationId && (
             <Button
               variant="outline"
               size="sm"
@@ -776,7 +775,6 @@ export function CandidateActions({
               </span>
             )}
           </Button>
-        </div>
 
         {/* Dialog de resultados do Teste Cultural */}
         {applicationId && (

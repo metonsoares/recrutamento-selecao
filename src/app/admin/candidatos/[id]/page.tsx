@@ -440,35 +440,6 @@ export default async function CandidatePage({
               </Badge>
             )}
           </div>
-          {isMaster && activeTab === 'curriculo' && <CandidateActions
-            candidateId={id}
-            applicationId={latestApp?.id}
-            currentStatus={currentStatus}
-            cultureTestDone={(cultureAnswers?.length || 0) > 0}
-            cultureScore={latestApp?.culture_score}
-            cultureAnswersSummary={(cultureAnswers || []).map(a => {
-              const q = a.culture_questions as { question_text?: string; options?: string[] } | null
-              const opts: string[] = (q?.options as string[]) || []
-              const letter = (a.selected_option as string || '').toUpperCase()
-              const idx = ['A', 'B', 'C', 'D'].indexOf(letter)
-              const fullText = idx >= 0 && opts[idx] ? opts[idx] : letter
-              return {
-                question: q?.question_text || '',
-                answer: fullText,
-                score: a.score || 0,
-              }
-            })}
-            initialBackgroundCheck={(candidate.background_check_result as BackgroundCheckResult | null) ?? null}
-            initialBackgroundCheckAt={candidate.background_check_at ?? null}
-            initialAuxiliosCheck={(candidate.auxilios_check_result as AuxiliosCheckResult | null) ?? null}
-            initialAuxiliosCheckAt={candidate.auxilios_check_at ?? null}
-            candidateCpf={(candidate.cpf as string | null) ?? null}
-            hasExistingAnalysis={!!latestApp?.ai_summary}
-          />}
-          {/* Perfis não-master com permissão (ex.: RH) — seletor de status apenas */}
-          {!isMaster && canChangeStatus && activeTab === 'curriculo' && (
-            <StatusSelect applicationId={latestApp?.id} currentStatus={currentStatus} />
-          )}
         </div>
 
         {/* Ações canto superior direito (só Currículo e Ficha) */}
@@ -493,6 +464,36 @@ export default async function CandidatePage({
           </div>
         )}
       </div>
+
+      {/* ── Toolbar de ações (Currículo) — largura total ── */}
+      {isMaster && activeTab === 'curriculo' && <CandidateActions
+        candidateId={id}
+        applicationId={latestApp?.id}
+        currentStatus={currentStatus}
+        cultureTestDone={(cultureAnswers?.length || 0) > 0}
+        cultureScore={latestApp?.culture_score}
+        cultureAnswersSummary={(cultureAnswers || []).map(a => {
+          const q = a.culture_questions as { question_text?: string; options?: string[] } | null
+          const opts: string[] = (q?.options as string[]) || []
+          const letter = (a.selected_option as string || '').toUpperCase()
+          const idx = ['A', 'B', 'C', 'D'].indexOf(letter)
+          const fullText = idx >= 0 && opts[idx] ? opts[idx] : letter
+          return {
+            question: q?.question_text || '',
+            answer: fullText,
+            score: a.score || 0,
+          }
+        })}
+        initialBackgroundCheck={(candidate.background_check_result as BackgroundCheckResult | null) ?? null}
+        initialBackgroundCheckAt={candidate.background_check_at ?? null}
+        initialAuxiliosCheck={(candidate.auxilios_check_result as AuxiliosCheckResult | null) ?? null}
+        initialAuxiliosCheckAt={candidate.auxilios_check_at ?? null}
+        candidateCpf={(candidate.cpf as string | null) ?? null}
+        hasExistingAnalysis={!!latestApp?.ai_summary}
+      />}
+      {!isMaster && canChangeStatus && activeTab === 'curriculo' && (
+        <StatusSelect applicationId={latestApp?.id} currentStatus={currentStatus} />
+      )}
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
       <CandidateTabNav candidateId={id} showResumo={showResumoPanel} showBankTab={showBankTab} showVacationTab={showVacationTab} showFicha={showFicha} showContract={showContract} showDocumentos={showDocumentos} showRecords={showRecords} showPayroll={showPayroll} showAso={showAso} showClima={showClima} showContratos={showContratos} showRecibos={showRecibos} showRegistros={showRegistros} />
