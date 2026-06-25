@@ -1,9 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 const ALLOWED_STATUSES: CandidateStatus[] = [
   'novo', 'apto_para_entrevista', 'entrevista_agendada',
@@ -18,8 +19,8 @@ function statusOptionLabel(s: CandidateStatus) { return STATUS_LABEL_OVERRIDE[s]
 
 /**
  * Seletor de status independente — para perfis que têm a permissão
- * `candidatos.status` mas não são master (ex.: RH, Recrutador, Gestor),
- * que não veem o painel completo de ações.
+ * `candidatos.status` mas não são master (ex.: RH, Gestor), que não veem o
+ * painel completo de ações. O dropdown só altera o rascunho; salvar é explícito.
  */
 export function StatusSelect({ applicationId, currentStatus }: { applicationId?: string; currentStatus: CandidateStatus }) {
   const router = useRouter()
@@ -29,13 +30,12 @@ export function StatusSelect({ applicationId, currentStatus }: { applicationId?:
 
   if (!applicationId) return null
 
-  async function handleChange(newStatus: string | null) {
-    if (!newStatus || !applicationId) return
-    setStatus(newStatus as CandidateStatus)
+  async function handleSave() {
+    if (!applicationId || status === currentStatus) return
     setSaving(true); setErr('')
     try {
       const res = await fetch(`/api/admin/applications/${applicationId}/status`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) { setErr(d.error || 'Erro ao alterar status.'); setStatus(currentStatus) }
@@ -46,10 +46,11 @@ export function StatusSelect({ applicationId, currentStatus }: { applicationId?:
   }
 
   return (
-    <div className="flex items-center gap-2 mt-2">
-      <Select value={status} onValueChange={handleChange} disabled={saving}>
+    <div className="flex items-center gap-2 mt-2 flex-wrap">
+      <span className="text-sm font-medium text-gray-600">Alterar status:</span>
+      <Select value={status} onValueChange={v => v && setStatus(v as CandidateStatus)} disabled={saving}>
         <SelectTrigger className="w-[200px]">
-          {saving ? <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" />Salvando...</span> : <SelectValue />}
+          <span>{statusOptionLabel(status)}</span>
         </SelectTrigger>
         <SelectContent>
           {(ALLOWED_STATUSES.includes(status) ? ALLOWED_STATUSES : [status, ...ALLOWED_STATUSES]).map(s => (
@@ -57,6 +58,11 @@ export function StatusSelect({ applicationId, currentStatus }: { applicationId?:
           ))}
         </SelectContent>
       </Select>
+      <Button size="sm" onClick={handleSave} disabled={saving || status === currentStatus} className="gap-1.5">
+        {saving
+          ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</>
+          : <><CheckCircle2 className="w-3.5 h-3.5" />Salvar</>}
+      </Button>
       {err && <span className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</span>}
     </div>
   )

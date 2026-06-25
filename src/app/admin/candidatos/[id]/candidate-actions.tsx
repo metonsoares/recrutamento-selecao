@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
@@ -457,6 +457,9 @@ export function CandidateActions({
 }) {
   const router = useRouter()
   const [status, setStatus] = useState(currentStatus)
+  // Rascunho: o dropdown altera só o rascunho; salvar é explícito (botão Salvar).
+  const [draftStatus, setDraftStatus] = useState(currentStatus)
+  useEffect(() => { setDraftStatus(status) }, [status])
   const [cultureOpen, setCultureOpen] = useState(false)
   const [bgCheckOpen, setBgCheckOpen] = useState(false)
   const [confirmReanalyze, setConfirmReanalyze] = useState(false)
@@ -632,22 +635,35 @@ export function CandidateActions({
       />
 
       <div className="flex gap-2 flex-wrap items-center mt-2">
-        {/* Status */}
+        {/* Alterar status: dropdown + Salvar (não salva ao selecionar) */}
         {applicationId && (
-          <Select value={status} onValueChange={handleStatusChange} disabled={savingStatus}>
-            <SelectTrigger className="w-[200px]">
-              {/* Base UI mostra o valor cru no SelectValue; usamos o rótulo computado */}
-              <span>{statusOptionLabel(status as CandidateStatus)}</span>
-            </SelectTrigger>
-            <SelectContent>
-              {(ALLOWED_STATUSES.includes(status as CandidateStatus)
-                ? ALLOWED_STATUSES
-                : [status as CandidateStatus, ...ALLOWED_STATUSES]
-              ).map(s => (
-                <SelectItem key={s} value={s}>{statusOptionLabel(s)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <>
+            <span className="text-sm font-medium text-gray-600">Alterar status:</span>
+            <Select value={draftStatus} onValueChange={v => v && setDraftStatus(v as CandidateStatus)} disabled={savingStatus}>
+              <SelectTrigger className="w-[200px]">
+                {/* Base UI mostra o valor cru no SelectValue; usamos o rótulo computado */}
+                <span>{statusOptionLabel(draftStatus as CandidateStatus)}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {(ALLOWED_STATUSES.includes(draftStatus as CandidateStatus)
+                  ? ALLOWED_STATUSES
+                  : [draftStatus as CandidateStatus, ...ALLOWED_STATUSES]
+                ).map(s => (
+                  <SelectItem key={s} value={s}>{statusOptionLabel(s)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              onClick={() => handleStatusChange(draftStatus)}
+              disabled={savingStatus || draftStatus === status}
+              className="gap-1.5"
+            >
+              {savingStatus
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</>
+                : <><CheckCircle2 className="w-3.5 h-3.5" />Salvar</>}
+            </Button>
+          </>
         )}
 
         {/* Bloquear Freelancer → status reprovado */}
