@@ -444,7 +444,7 @@ export default async function CandidatePage({
 
         {/* Ações canto superior direito (só Currículo e Ficha) */}
         {(activeTab === 'curriculo' || activeTab === 'ficha') && (
-          <div className="shrink-0 flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:shrink-0">
             {activeTab === 'curriculo' && ['novo', 'apto_para_entrevista'].includes(currentStatus) && (
               <InviteInterviewButton candidateId={id} />
             )}
