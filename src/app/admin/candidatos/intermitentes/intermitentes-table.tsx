@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { formatName } from '@/lib/helpers'
 
 interface Row {
   id: string
@@ -67,7 +68,7 @@ export function IntermitentesTable({ rows, companyOptions }: Props) {
                         <span className="text-sm font-bold text-emerald-700">{c.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
                       </div>
                     )}
-                    <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{c.full_name}</p>
+                    <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{formatName(c.full_name)}</p>
                   </div>
                 </td>
                 <td className="px-4 py-3">

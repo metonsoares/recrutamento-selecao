@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { STATUS_LABELS, STATUS_COLORS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult } from '@/types'
-import { formatDate, formatDateTime } from '@/lib/helpers'
+import { formatDate, formatDateTime, formatName } from '@/lib/helpers'
 import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
@@ -426,7 +426,7 @@ export default async function CandidatePage({
         }
 
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold leading-tight">{candidate.full_name}</h1>
+          <h1 className="text-2xl font-bold leading-tight">{formatName(candidate.full_name)}</h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge className={`text-xs ${STATUS_COLORS[currentStatus]}`}>
               {STATUS_LABELS[currentStatus]}
@@ -523,7 +523,7 @@ export default async function CandidatePage({
       {activeTab === 'contrato' && showContract && (
         <DadosContratoTab
           candidateId={id}
-          fullName={candidate.full_name}
+          fullName={formatName(candidate.full_name)}
           cpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)}
           address={parsedAddress}
           jobTitle={jobTitle}
@@ -626,7 +626,7 @@ export default async function CandidatePage({
       {showResumoPanel && (
         <div className="mb-5">
           <ResumoColaborador
-            fullName={candidate.full_name}
+            fullName={formatName(candidate.full_name)}
             jobTitle={(['contratado', 'aprovado'].includes(currentStatus) && admissionForm?.function_title) ? admissionForm.function_title : jobTitle}
             companyName={fichaCompanies.find(c => c.id === admissionForm?.selected_company_id)?.apelido
               ?? fichaCompanies.find(c => c.id === admissionForm?.selected_company_id)?.razao_social
@@ -671,7 +671,7 @@ export default async function CandidatePage({
                 )}
               </CardHeader>
               <CardContent className="space-y-2">
-                <ChangedRow label="Nome" value={candidate.full_name} changes={changes} />
+                <ChangedRow label="Nome" value={formatName(candidate.full_name)} changes={changes} />
                 {birthDate && (
                   <Row
                     label="Nascimento"
@@ -923,7 +923,7 @@ export default async function CandidatePage({
       )}
 
       {/* ── Zona de perigo — somente Master ── */}
-      {isMaster && <DeleteCandidateSection candidateId={id} candidateName={candidate.full_name} />}
+      {isMaster && <DeleteCandidateSection candidateId={id} candidateName={formatName(candidate.full_name)} />}
 
       </> /* fim aba Currículo */}
 

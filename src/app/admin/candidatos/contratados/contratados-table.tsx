@@ -5,6 +5,7 @@ import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle } from 'lucide
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { formatName } from '@/lib/helpers'
 
 interface ContratadoRow {
   id: string
@@ -120,7 +121,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
                         <span className="text-sm font-bold text-emerald-700">{c.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
                       </div>
                     )}
-                    <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{c.full_name}</p>
+                    <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{formatName(c.full_name)}</p>
                   </div>
                 </td>
 
@@ -301,7 +302,7 @@ function InserirFaltasModal({
                   <label key={f.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50">
                     <input type="checkbox" checked={selected.has(f.id)} onChange={() => toggle(f.id)} className="accent-primary" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{f.full_name}</p>
+                      <p className="text-sm font-medium text-gray-800 truncate">{formatName(f.full_name)}</p>
                       <p className="text-[11px] text-muted-foreground truncate">{f.jobTitle}</p>
                     </div>
                   </label>

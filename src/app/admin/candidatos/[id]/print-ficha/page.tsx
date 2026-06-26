@@ -2,6 +2,7 @@ import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/s
 import { notFound } from 'next/navigation'
 import { AutoPrint } from '../print/auto-print'
 import { AdmissionFormData } from '../ficha-admissao/ficha-admissao-form'
+import { formatName } from '@/lib/helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -153,7 +154,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
         <p className="secao">Dados do Funcionário</p>
         <div className="field">
           <label>Nome Completo</label>
-          <div className="val filled">{candidate.full_name}</div>
+          <div className="val filled">{formatName(candidate.full_name)}</div>
         </div>
         <div className="grid2">
           <div className="field"><label>CPF</label><div className="val filled">{maskCpf(f?.cpf_value || (candidate as {cpf?:string}).cpf || '') || '—'}</div></div>

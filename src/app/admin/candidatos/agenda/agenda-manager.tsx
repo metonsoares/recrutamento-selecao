@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatName } from '@/lib/helpers'
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -151,7 +152,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className={`text-sm font-medium truncate ${it.status === 'cancelada' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{it.candidates?.full_name || 'Candidato'}</p>
+                          <p className={`text-sm font-medium truncate ${it.status === 'cancelada' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{formatName(it.candidates?.full_name) || 'Candidato'}</p>
                           {it.status === 'cancelada' && <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">Cancelado</span>}
                         </div>
                         <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
@@ -197,7 +198,7 @@ export function AgendaManager({ initialLocations, initialInterviewers, initialIn
                     </div>
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-gray-900">{it.candidates?.full_name || 'Candidato'}</p>
+                        <p className="text-sm font-semibold text-gray-900">{formatName(it.candidates?.full_name) || 'Candidato'}</p>
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${statusBadge(it.status)}`}>{statusLabel(it.status)}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[12px] text-muted-foreground">

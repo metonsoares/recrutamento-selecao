@@ -1,6 +1,6 @@
 'use client'
 import { useRouter } from 'next/navigation'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, formatName } from '@/lib/helpers'
 
 interface Row {
   id: string
@@ -53,7 +53,7 @@ export function EmContratoTable({ rows }: Props) {
                         <span className="text-sm font-bold text-teal-700">{c.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
                       </div>
                     )}
-                    <p className="font-medium text-gray-900 group-hover:text-teal-700 transition-colors">{c.full_name}</p>
+                    <p className="font-medium text-gray-900 group-hover:text-teal-700 transition-colors">{formatName(c.full_name)}</p>
                   </div>
                 </td>
                 {/* Empresa */}

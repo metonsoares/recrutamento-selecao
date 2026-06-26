@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { CandidateStatus } from '@/types'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, formatName } from '@/lib/helpers'
 import { inferSex } from '@/lib/infer-sex'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Search, SortAsc, GripVertical, BrainCircuit, Loader2, AlertCircle, Sparkles, X } from 'lucide-react'
@@ -794,7 +794,7 @@ function CandidateCard({
         <div className="flex items-start gap-1.5 min-w-0 flex-1">
           <GripVertical className="w-3 h-3 text-muted-foreground/30 shrink-0 mt-0.5 cursor-grab" />
           <div className="min-w-0">
-            <p className="font-semibold text-[13px] text-[#1a1a1a] truncate leading-tight">{c.full_name}</p>
+            <p className="font-semibold text-[13px] text-[#1a1a1a] truncate leading-tight">{formatName(c.full_name)}</p>
             {jobTitle && (
               <p className="text-[11px] text-muted-foreground truncate">{jobTitle}</p>
             )}

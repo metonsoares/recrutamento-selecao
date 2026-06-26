@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, X } from 'lucide-react'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, formatName } from '@/lib/helpers'
 
 interface FreelancerRow {
   id: string
@@ -103,7 +103,7 @@ export function FreelancersTable({ rows }: Props) {
                   )}
                   <div className="min-w-0">
                     <p className="font-medium text-gray-900 truncate group-hover:text-sky-700 transition-colors">
-                      {c.full_name}
+                      {formatName(c.full_name)}
                     </p>
                     <p className="text-xs text-muted-foreground sm:hidden">
                       {c.jobTitle}

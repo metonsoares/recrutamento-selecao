@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, formatName } from '@/lib/helpers'
 
 interface Row {
   id: string
@@ -86,7 +86,7 @@ export function DesligadosTable({ rows, companyOptions }: Props) {
                         <span className="text-sm font-bold text-rose-700">{c.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
                       </div>
                     )}
-                    <p className="font-medium text-gray-900 group-hover:text-rose-700 transition-colors">{c.full_name}</p>
+                    <p className="font-medium text-gray-900 group-hover:text-rose-700 transition-colors">{formatName(c.full_name)}</p>
                   </div>
                 </td>
                 <td className="px-4 py-3">

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatDateTime } from '@/lib/helpers'
+import { formatDateTime, formatName } from '@/lib/helpers'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -557,7 +557,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         <SectionTitle>Dados do Funcionário</SectionTitle>
         <div className="grid grid-cols-1 gap-3">
           <Field label="Nome Completo">
-            <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium">{candidate.full_name}</div>
+            <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium">{formatName(candidate.full_name)}</div>
           </Field>
           <Field label="E-mail">
             <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm truncate">{candidate.email || '—'}</div>

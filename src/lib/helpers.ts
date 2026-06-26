@@ -94,3 +94,18 @@ export function formatDateTime(date: string | null): string {
   if (!date) return '-'
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
+
+// Conectores de nomes próprios que ficam em minúsculo (exceto no início).
+const NAME_LOWER = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'di', 'du', 'van', 'von', 'der', 'la', 'le'])
+
+/**
+ * Formata nome próprio para exibição: "MARIA EDUARDA DA SILVA" -> "Maria Eduarda da Silva".
+ * Apenas apresentação — não altera o dado armazenado. Preserva acentos, hífens e apóstrofos.
+ */
+export function formatName(raw: string | null | undefined): string {
+  if (!raw) return ''
+  return raw.trim().toLowerCase().split(/\s+/).map((w, i) => {
+    if (i > 0 && NAME_LOWER.has(w)) return w
+    return w.replace(/(^|[-'])([a-zà-ÿ])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase())
+  }).join(' ')
+}

@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { CandidateTabNav } from '../candidate-tab-nav'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao-form'
 import { parseAddressAnswer } from '@/lib/parse-address'
+import { formatName } from '@/lib/helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,7 +66,7 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
       </Link>
 
       <div>
-        <h1 className="text-xl font-bold text-gray-900">{candidate.full_name}</h1>
+        <h1 className="text-xl font-bold text-gray-900">{formatName(candidate.full_name)}</h1>
         <p className="text-sm text-muted-foreground">{jobTitle || 'Sem vaga definida'}</p>
       </div>
 

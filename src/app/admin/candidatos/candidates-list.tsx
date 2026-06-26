@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { STATUS_LABELS, STATUS_COLORS, CandidateStatus } from '@/types'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, formatName } from '@/lib/helpers'
 import { Search, Eye, History } from 'lucide-react'
 
 interface Props {
@@ -96,7 +96,7 @@ export function CandidatesList({ candidates, jobs }: Props) {
                 <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3">
                     <div>
-                      <p className="font-medium">{c.full_name}</p>
+                      <p className="font-medium">{formatName(c.full_name)}</p>
                       <p className="text-muted-foreground text-xs">{c.phone || c.email || '-'}</p>
                     </div>
                   </td>

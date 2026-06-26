@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, formatName } from '@/lib/helpers'
 import { AutoPrint } from './auto-print'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 
@@ -317,7 +317,7 @@ export default async function PrintPage({ params }: { params: Promise<{ id: stri
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
-                  <h1 className="cv-name">{candidate.full_name}</h1>
+                  <h1 className="cv-name">{formatName(candidate.full_name)}</h1>
                   {jobTitle && <p className="cv-subtitle">Candidato(a) para: <strong>{jobTitle}</strong></p>}
                 </div>
                 <span className="cv-badge">Currículo</span>
