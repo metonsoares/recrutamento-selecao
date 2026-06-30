@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react'
 import { ShieldCheck, Users, Activity, CalendarDays, Search, Clock, Globe } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { OnlineUsersPanel } from './online-users-panel'
+import { OnlineUsersPanel, useOnlineUsers } from './online-users-panel'
 
 export interface AuditLog {
   id: string
@@ -127,6 +127,8 @@ export function AuditoriaManager({ logs, names = {} }: Props) {
     return true
   }).slice(0, 500), [logs, userFilter, search, names])
 
+  const online = useOnlineUsers()
+
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
@@ -138,7 +140,7 @@ export function AuditoriaManager({ logs, names = {} }: Props) {
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-xl border bg-white p-4">
           <Activity className="w-4 h-4 text-muted-foreground mb-1" />
           <p className="text-[11px] uppercase text-muted-foreground">Eventos registrados</p>
@@ -154,10 +156,18 @@ export function AuditoriaManager({ logs, names = {} }: Props) {
           <p className="text-[11px] uppercase text-muted-foreground">Usuários ativos</p>
           <p className="text-2xl font-bold">{stats.users}</p>
         </div>
+        <div className="rounded-xl border bg-white p-4">
+          <span className="relative flex h-3.5 w-3.5 mb-1">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500" />
+          </span>
+          <p className="text-[11px] uppercase text-muted-foreground">Online agora</p>
+          <p className="text-2xl font-bold">{online === null ? '—' : online.length}</p>
+        </div>
       </div>
 
       {/* Logados agora */}
-      <OnlineUsersPanel />
+      <OnlineUsersPanel online={online} />
 
       {/* Utilização por usuário */}
       <div className="bg-white rounded-xl border p-5">
@@ -196,9 +206,9 @@ export function AuditoriaManager({ logs, names = {} }: Props) {
         <div className="px-5 py-3 border-b bg-gray-50">
           <h2 className="text-sm font-bold text-gray-900">Atividades recentes ({filtered.length})</h2>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[60vh]">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white">
               <tr className="text-[11px] text-muted-foreground uppercase border-b">
                 <th className="text-left px-4 py-2 font-medium">Data / Hora</th>
                 <th className="text-left px-4 py-2 font-medium">Usuário</th>
