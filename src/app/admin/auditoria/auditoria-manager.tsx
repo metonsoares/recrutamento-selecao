@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react'
 import { ShieldCheck, Users, Activity, CalendarDays, Search, Clock, Globe } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { OnlineUsersPanel } from './online-users-panel'
 
 export interface AuditLog {
   id: string
@@ -154,6 +155,9 @@ export function AuditoriaManager({ logs, names = {} }: Props) {
           <p className="text-2xl font-bold">{stats.users}</p>
         </div>
       </div>
+
+      {/* Logados agora */}
+      <OnlineUsersPanel />
 
       {/* Utilização por usuário */}
       <div className="bg-white rounded-xl border p-5">
