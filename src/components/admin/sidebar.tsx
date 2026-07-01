@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -229,6 +229,14 @@ function SidebarContent({
             </div>
           )}
         </div>
+        )}
+
+        {/* Organograma */}
+        {can('organograma.ver') && (
+        <Link href="/admin/organograma" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/organograma') ? NAV_ACTIVE : NAV_DEFAULT)}>
+          <Network className="w-[15px] h-[15px] shrink-0 opacity-60" />
+          Organograma
+        </Link>
         )}
 
         {/* Treinamentos ▾ */}
