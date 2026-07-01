@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AdminNav } from '@/components/admin/sidebar'
-import { PresenceBeat } from '@/components/admin/presence-beat'
 import { PresenceHeartbeat } from '@/components/PresenceHeartbeat'
 import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
@@ -38,7 +37,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         role={role}
         perms={Array.from(granted)}
       />
-      <PresenceBeat />
       <PresenceHeartbeat />
       <main className="lg:pl-72 min-h-screen">
         {children}
