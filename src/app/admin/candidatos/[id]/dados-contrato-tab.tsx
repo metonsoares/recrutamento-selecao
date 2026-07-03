@@ -36,6 +36,7 @@ export interface ContractData {
   faltas?: number
   rg_cpf_file?: UploadedFile | null
   comprovante_residencia_file?: UploadedFile | null
+  quitacao_file?: UploadedFile | null
 }
 
 export interface CompanyOption { id: string; apelido: string | null; razao_social: string | null; cnpj: string | null }
@@ -240,6 +241,29 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
 
+  // ── Recibo de quitação de contrato ────────────────────────────────────────
+  const quitFileRef = useRef<HTMLInputElement>(null)
+  const [uploadingQuit, setUploadingQuit] = useState(false)
+
+  async function handleQuitacaoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.size > 4 * 1024 * 1024) { showToast('err', 'Arquivo muito grande (máx. 4 MB).'); if (e.target) e.target.value = ''; return }
+    setUploadingQuit(true)
+    const fd = new FormData(); fd.append('file', f); fd.append('docKey', 'recibo_quitacao')
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, { method: 'POST', body: fd })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Erro no upload')
+      const file: UploadedFile = { url: d.url, name: f.name, path: d.path }
+      set('quitacao_file', file)
+      // Salva já — espelha o recibo no quadro "Recibos" da aba Documentos
+      await save(undefined, { quitacao_file: file })
+    } catch (err) {
+      showToast('err', (err as Error).message || 'Erro no upload')
+    } finally { setUploadingQuit(false); if (e.target) e.target.value = '' }
+  }
+
   async function save(status?: 'contratado' | 'desligado', extra?: Partial<ContractData>) {
     setSaving(true)
     try {
@@ -412,6 +436,28 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
             <span className="font-bold text-gray-900 flex items-center gap-1.5"><Calculator className="w-4 h-4" />Valor a pagar</span>
             <span className={`font-bold text-lg ${aPagar < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtBRL(aPagar)}</span>
           </div>
+        </div>
+
+        {/* Recibo de quitação de contrato — espelhado no quadro "Recibos" (aba Documentos) */}
+        <div className="mt-3">
+          {form.quitacao_file ? (
+            <div className="inline-flex items-center gap-2 bg-white border border-emerald-300 rounded-lg px-3 py-1.5 max-w-full">
+              <FileText className="w-4 h-4 text-red-500 shrink-0" />
+              <a href={form.quitacao_file.url} target="_blank" rel="noreferrer" className="text-[12px] font-medium text-emerald-700 hover:underline truncate">
+                Recibo de quitação — {form.quitacao_file.name}
+              </a>
+              <button disabled={saving} onClick={async () => { set('quitacao_file', null); await save(undefined, { quitacao_file: null }) }}
+                className="text-gray-400 hover:text-red-500 shrink-0" title="Remover anexo">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button disabled={uploadingQuit || saving} onClick={() => quitFileRef.current?.click()}
+              className="inline-flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
+              {uploadingQuit ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Enviando...</> : <><Upload className="w-3.5 h-3.5" />Anexar recibo de quitação</>}
+            </button>
+          )}
+          <input ref={quitFileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleQuitacaoFile} />
         </div>
       </div>
 

@@ -6,16 +6,27 @@ interface Adjustment { type?: string; description?: string; receipt?: ReceiptFil
 interface CustomDoc { id: string; name: string; files: Array<{ url: string; name: string; path: string }> }
 
 /**
- * Copia os recibos anexados nos adiantamentos (Dados para contrato) para
- * company_docs.__recibos — o quadro "Recibos" da aba Documentos.
+ * Copia os recibos dos Dados para contrato (adiantamentos + quitação de
+ * contrato) para company_docs.__recibos — o quadro "Recibos" da aba Documentos.
  * Dedupe por path/url: salvar o contrato de novo não duplica o recibo.
  * Retorna o company_docs atualizado, ou null se não houver nada novo.
  */
-function mergeAdvanceReceipts(companyDocs: unknown, contractData: unknown): Record<string, unknown> | null {
-  const adjustments = (contractData as { adjustments?: Adjustment[] } | null)?.adjustments
-  if (!Array.isArray(adjustments)) return null
-  const withReceipt = adjustments.filter(a => a?.type === 'adiantamento' && a?.receipt?.url)
-  if (withReceipt.length === 0) return null
+function mergeContractReceipts(companyDocs: unknown, contractData: unknown): Record<string, unknown> | null {
+  const cd = (contractData ?? {}) as { adjustments?: Adjustment[]; quitacao_file?: ReceiptFile | null }
+
+  const entries: Array<{ name: string; file: ReceiptFile }> = []
+  if (Array.isArray(cd.adjustments)) {
+    for (const a of cd.adjustments) {
+      if (a?.type === 'adiantamento' && a?.receipt?.url) {
+        entries.push({
+          name: a.description?.trim() ? `Adiantamento — ${a.description.trim()}` : 'Adiantamento',
+          file: a.receipt,
+        })
+      }
+    }
+  }
+  if (cd.quitacao_file?.url) entries.push({ name: 'Quitação de contrato', file: cd.quitacao_file })
+  if (entries.length === 0) return null
 
   const docs: Record<string, unknown> =
     companyDocs && typeof companyDocs === 'object' ? { ...(companyDocs as Record<string, unknown>) } : {}
@@ -25,14 +36,13 @@ function mergeAdvanceReceipts(companyDocs: unknown, contractData: unknown): Reco
   for (const r of recibos) for (const f of r?.files ?? []) { const k = f?.path || f?.url; if (k) seen.add(k) }
 
   let changed = false
-  for (const a of withReceipt) {
-    const r = a.receipt as ReceiptFile
-    const key = r.path || r.url || ''
+  for (const { name, file } of entries) {
+    const key = file.path || file.url || ''
     if (!key || seen.has(key)) continue
     recibos.push({
       id: crypto.randomUUID(),
-      name: a.description?.trim() ? `Adiantamento — ${a.description.trim()}` : 'Adiantamento',
-      files: [{ url: r.url || '', name: r.name || 'Recibo', path: r.path || '' }],
+      name,
+      files: [{ url: file.url || '', name: file.name || 'Recibo', path: file.path || '' }],
     })
     seen.add(key)
     changed = true
@@ -73,8 +83,8 @@ export async function PUT(
     if (status) update.status = status
     if (status === 'desligado') update.terminated_at = new Date().toISOString()
 
-    // Espelha recibos de adiantamentos no quadro "Recibos" (aba Documentos)
-    const mergedDocs = mergeAdvanceReceipts(app.company_docs, contractData)
+    // Espelha recibos (adiantamentos + quitação) no quadro "Recibos" (aba Documentos)
+    const mergedDocs = mergeContractReceipts(app.company_docs, contractData)
     if (mergedDocs) update.company_docs = mergedDocs
 
     const { error } = await supabase.from('applications').update(update).eq('id', app.id)
