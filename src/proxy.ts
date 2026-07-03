@@ -67,13 +67,62 @@ function describe(method: string, pathname: string, isPage: boolean): string {
   return `${verb} (${pathname})`
 }
 
+/**
+ * Rotas `/api/admin/**` chamadas servidor-a-servidor (sem cookie de sessão):
+ * `analyze-candidate` é disparada em fire-and-forget pelos formulários PÚBLICOS
+ * (curriculo, culture-test) e pelo analyze-pending. Liberadas do gate de login
+ * aqui; serão protegidas por um segredo interno na Fase 2.
+ */
+const INTERNAL_ALLOW = ['/api/admin/ai/analyze-candidate']
+
+type ProxyUser = { id: string; email?: string | null } | null
+
 export async function proxy(req: NextRequest) {
+  const pathname = req.nextUrl.pathname
   const res = NextResponse.next()
-  try { await logActivity(req) } catch { /* nunca bloqueia a resposta */ }
+
+  // Resolve o usuário uma vez — usado para o GATE de auth e para a auditoria.
+  let user: ProxyUser = null
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (url && anon) {
+    const supabase = createServerClient(url, anon, {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options),
+          )
+        },
+      },
+    })
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  }
+
+  // --- Fase 1: gate de autenticação das APIs administrativas ---
+  // Bloqueia qualquer /api/admin/** sem usuário logado (exceto rotas internas).
+  const isAdminApi = pathname.startsWith('/api/admin')
+  const isInternal = INTERNAL_ALLOW.some(
+    (p) => pathname === p || pathname.startsWith(p + '/'),
+  )
+  if (isAdminApi && !isInternal && !user) {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  }
+
+  // --- Auditoria (best-effort, nunca bloqueia a resposta) ---
+  try {
+    await logActivity(req, user)
+  } catch {
+    /* nunca bloqueia a resposta */
+  }
+
   return res
 }
 
-async function logActivity(req: NextRequest) {
+async function logActivity(req: NextRequest, user: ProxyUser) {
+  if (!user) return
+
   const pathname = req.nextUrl.pathname
   const method = req.method
 
@@ -87,15 +136,8 @@ async function logActivity(req: NextRequest) {
   if (!isApiMutation && !isNavigation) return
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !anon || !service) return
-
-  const supabase = createServerClient(url, anon, {
-    cookies: { getAll: () => req.cookies.getAll(), setAll: () => {} },
-  })
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
+  if (!url || !service) return
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null
   const action = describe(method, pathname, isNavigation)
