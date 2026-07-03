@@ -1,10 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 
+interface ReceiptFile { url?: string; name?: string; path?: string }
+interface Adjustment { type?: string; description?: string; receipt?: ReceiptFile | null }
+interface CustomDoc { id: string; name: string; files: Array<{ url: string; name: string; path: string }> }
+
+/**
+ * Copia os recibos anexados nos adiantamentos (Dados para contrato) para
+ * company_docs.__recibos — o quadro "Recibos" da aba Documentos.
+ * Dedupe por path/url: salvar o contrato de novo não duplica o recibo.
+ * Retorna o company_docs atualizado, ou null se não houver nada novo.
+ */
+function mergeAdvanceReceipts(companyDocs: unknown, contractData: unknown): Record<string, unknown> | null {
+  const adjustments = (contractData as { adjustments?: Adjustment[] } | null)?.adjustments
+  if (!Array.isArray(adjustments)) return null
+  const withReceipt = adjustments.filter(a => a?.type === 'adiantamento' && a?.receipt?.url)
+  if (withReceipt.length === 0) return null
+
+  const docs: Record<string, unknown> =
+    companyDocs && typeof companyDocs === 'object' ? { ...(companyDocs as Record<string, unknown>) } : {}
+  const recibos: CustomDoc[] = Array.isArray(docs.__recibos) ? [...(docs.__recibos as CustomDoc[])] : []
+
+  const seen = new Set<string>()
+  for (const r of recibos) for (const f of r?.files ?? []) { const k = f?.path || f?.url; if (k) seen.add(k) }
+
+  let changed = false
+  for (const a of withReceipt) {
+    const r = a.receipt as ReceiptFile
+    const key = r.path || r.url || ''
+    if (!key || seen.has(key)) continue
+    recibos.push({
+      id: crypto.randomUUID(),
+      name: a.description?.trim() ? `Adiantamento — ${a.description.trim()}` : 'Adiantamento',
+      files: [{ url: r.url || '', name: r.name || 'Recibo', path: r.path || '' }],
+    })
+    seen.add(key)
+    changed = true
+  }
+  if (!changed) return null
+  docs.__recibos = recibos
+  return docs
+}
+
 /**
  * PUT /api/admin/candidatos/[id]/contract-data
  * body: { data: {...contrato}, status?: 'contratado'|'desligado' }
  * Salva contract_data e, opcionalmente, muda o status da candidatura.
+ * Recibos de adiantamentos são espelhados em company_docs.__recibos (aba Documentos).
  */
 export async function PUT(
   req: NextRequest,
@@ -17,7 +59,7 @@ export async function PUT(
     const supabase = await createSupabaseServiceClient()
     const { data: app } = await supabase
       .from('applications')
-      .select('id')
+      .select('id, company_docs')
       .eq('candidate_id', candidateId)
       .eq('is_latest', true)
       .maybeSingle()
@@ -30,6 +72,10 @@ export async function PUT(
     }
     if (status) update.status = status
     if (status === 'desligado') update.terminated_at = new Date().toISOString()
+
+    // Espelha recibos de adiantamentos no quadro "Recibos" (aba Documentos)
+    const mergedDocs = mergeAdvanceReceipts(app.company_docs, contractData)
+    if (mergedDocs) update.company_docs = mergedDocs
 
     const { error } = await supabase.from('applications').update(update).eq('id', app.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
