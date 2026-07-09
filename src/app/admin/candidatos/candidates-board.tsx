@@ -278,7 +278,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 
   // Colunas de colaboradores não aparecem no quadro de Candidatos
   // (têm menu próprio em "Colaboradores").
-  const HIDDEN_COLUMNS = new Set(['contratado', 'em_contrato', 'aprovado', 'freelancer'])
+  const HIDDEN_COLUMNS = new Set(['contratado', 'em_contrato', 'aprovado', 'freelancer', 'aprovados_barraca', 'aprovados_carrinho'])
 
   // ── orderedColumns a partir do estado local ───────────────────────────────
   // Esconde "Reprovado" para perfis sem a permissão candidatos.ver_reprovados.

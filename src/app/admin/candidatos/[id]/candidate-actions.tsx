@@ -11,7 +11,7 @@ import { formatDateTime } from '@/lib/helpers'
 // Status disponíveis no seletor (ordem definida)
 const ALLOWED_STATUSES: CandidateStatus[] = [
   'novo', 'apto_para_entrevista', 'entrevista_agendada',
-  'aprovado_processo', 'aprovado_barraca', 'aprovado_carrinho', 'contratado',
+  'aprovado_processo', 'contratado',
   'aprovado', 'em_contrato', 'freelancer', 'reprovado', 'desligado',
 ]
 // Sobrescreve rótulos só neste seletor
