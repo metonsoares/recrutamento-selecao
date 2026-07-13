@@ -27,6 +27,23 @@ interface Props {
   initialFiles: EmployeeFile[]
 }
 
+// Competência "MM/YYYY" (ou "YYYY-MM") → chave numérica AAAAMM para ordenar.
+function competenceKey(ref: string | null): number {
+  if (!ref) return -1
+  const s = ref.trim()
+  let m = s.match(/^(\d{1,2})[/\-.](\d{4})$/)   // MM/YYYY
+  if (m) return parseInt(m[2], 10) * 100 + parseInt(m[1], 10)
+  m = s.match(/^(\d{4})[/\-.](\d{1,2})$/)        // YYYY-MM
+  if (m) return parseInt(m[1], 10) * 100 + parseInt(m[2], 10)
+  return -1
+}
+// Mais recente → mais antigo (competência); empate desempata pela inserção.
+function sortByCompetence(a: EmployeeFile, b: EmployeeFile): number {
+  const ka = competenceKey(a.reference), kb = competenceKey(b.reference)
+  if (kb !== ka) return kb - ka
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+}
+
 export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, insertLabel, initialFiles }: Props) {
   const Icon = kind === 'folha_ponto' ? CalendarDays : Wallet
   const [files, setFiles] = useState<EmployeeFile[]>(initialFiles)
@@ -126,7 +143,7 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {files.map(f => (
+              {[...files].sort(sortByCompetence).map(f => (
                 <tr key={f.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-700">{f.reference || '—'}</td>
                   <td className="px-4 py-3">
