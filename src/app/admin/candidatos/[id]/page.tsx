@@ -281,8 +281,8 @@ export default async function CandidatePage({
   const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Ficha Admissão (inclui em_contrato)
   const showFicha = ['contratado', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
-  // Dados para contrato: em_contrato
-  const showContract = ['em_contrato', 'aprovado_processo', 'aprovado_barraca', 'aprovado_carrinho'].includes(currentStatus)
+  // Dados para contrato: pré-contratação + colaboradores (contratado, intermitente, freelancer, desligado)
+  const showContract = ['em_contrato', 'aprovado_processo', 'contratado', 'aprovado', 'freelancer', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Documentos
   const showDocumentos = ['contratado', 'aprovado', 'aprovado_processo', 'aprovado_barraca', 'aprovado_carrinho', 'em_contrato', 'desligado'].includes(currentStatus)
   // Férias: contratado e desligado
