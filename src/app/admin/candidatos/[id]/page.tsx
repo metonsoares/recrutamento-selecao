@@ -212,6 +212,8 @@ export default async function CandidatePage({
 
   const fichaCompanies = (companiesData || []) as CompanyOption[]
   const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
+  // Empresa contratante definida em "Dados para contrato" — puxada como padrão na Ficha de Admissão
+  const contractCompanyId = ((latestApp?.contract_data as ContractData | null)?.company_id) || ''
   const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
   const bankData = (latestApp?.bank_data as BankData | null) ?? null
 
@@ -515,6 +517,7 @@ export default async function CandidatePage({
           companyName={brand?.company_name ?? null}
           initialData={admissionForm}
           companies={fichaCompanies}
+          contractCompanyId={contractCompanyId}
           docRequestDates={docRequestDates}
         />
       )}

@@ -73,6 +73,7 @@ interface Props {
   candidate: Candidate; jobTitle: string | null; companyName: string | null
   initialData: AdmissionFormData | null
   companies: CompanyOption[]
+  contractCompanyId?: string
   docRequestDates?: Record<string, string>
 }
 
@@ -430,10 +431,13 @@ function DocRow({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies, docRequestDates = {} }: Props) {
-  const [form, setForm] = useState<AdmissionFormData>(() =>
-    initialData ? migrateData(initialData, candidate, jobTitle) : makeEmpty(candidate, jobTitle)
-  )
+export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies, contractCompanyId = '', docRequestDates = {} }: Props) {
+  const [form, setForm] = useState<AdmissionFormData>(() => {
+    const base = initialData ? migrateData(initialData, candidate, jobTitle) : makeEmpty(candidate, jobTitle)
+    // Puxa a empresa contratante da aba "Dados para contrato" quando a ficha ainda não tem uma
+    if (!base.selected_company_id && contractCompanyId) base.selected_company_id = contractCompanyId
+    return base
+  })
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [cpfError, setCpfError] = useState('')
