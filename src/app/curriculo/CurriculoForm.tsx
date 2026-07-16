@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -74,14 +74,6 @@ function isImageFile(file: File) {
   if (file.type.startsWith('image/')) return true
   const ext = file.name.split('.').pop()?.toLowerCase() || ''
   return ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'gif', 'bmp'].includes(ext)
-}
-
-function validateFile(file: File): string | null {
-  const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-  const isImage = isImageFile(file)
-  if (!isPDF && !isImage) return 'Apenas PDF ou imagem (JPG, PNG e outros) são permitidos.'
-  if (file.size > MAX_FILE_BYTES) return 'Arquivo muito grande. Máximo 5 MB.'
-  return null
 }
 
 function formatBytes(b: number) {
@@ -162,6 +154,14 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
   const [lgpd, setLgpd] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
+
+  // Garante que a mensagem de erro fique VISÍVEL quando o envio é bloqueado —
+  // sem isso, no celular o candidato clica em "Próxima etapa", nada aparece
+  // na tela e ele acha que se cadastrou.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [error])
 
   // ── Flow state ─────────────────────────────────────────────────────────────
   const [step, setStep] = useState<'form' | 'culture' | 'done'>('form')
@@ -220,14 +220,17 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
   }
 
   async function handleFileSelect(id: string, file: File) {
-    const err = validateFile(file)
-    if (err) {
-      setFileInfos(p => ({ ...p, [id]: { file, error: err } }))
+    // Tipo primeiro (PDF ou imagem)
+    const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    if (!isPDF && !isImageFile(file)) {
+      setFileInfos(p => ({ ...p, [id]: { file, error: 'Apenas PDF ou imagem (JPG, PNG e outros) são permitidos.' } }))
       return
     }
     setFileInfos(p => ({ ...p, [id]: { file, error: null, uploading: true, uploadPct: 0 } }))
     let fileToUpload = file
     if (isImageFile(file)) {
+      // Comprime ANTES de validar o tamanho — foto de câmera de celular
+      // costuma passar de 5 MB e a compressão reduz para ~2 MB.
       try {
         const compressed = await compressImageSafe(file, 2 * 1024 * 1024)
         fileToUpload = compressed
@@ -236,6 +239,11 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
           return { ...p, [id]: { ...cur, file: fileToUpload } }
         })
       } catch { /* upload original */ }
+    }
+    // Tamanho só DEPOIS da compressão (PDF é validado no tamanho original)
+    if (fileToUpload.size > MAX_FILE_BYTES) {
+      setFileInfos(p => ({ ...p, [id]: { file: fileToUpload, error: `Arquivo muito grande (${formatBytes(fileToUpload.size)}). Máximo 5 MB.` } }))
+      return
     }
     startUpload(id, fileToUpload)
   }
@@ -915,7 +923,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
 
           {/* Error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+            <div ref={errorRef} className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
             </div>
           )}
