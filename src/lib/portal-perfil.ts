@@ -2,6 +2,7 @@ import { cache } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createPortalClient } from '@/lib/portal-supabase'
+import { portalBridge } from '@/lib/portal-bridge'
 import { perfilToRole, roleFromMetadata, type Role } from '@/lib/permissions'
 
 /**
@@ -29,6 +30,19 @@ export function isOwnerEmail(email: string | null | undefined): boolean {
 export const resolvePortalRole = cache(async (email: string): Promise<Role | null> => {
   if (!email) return null
   if (isOwnerEmail(email)) return 'master' // dono nunca trava, mesmo com Portal fora do ar
+
+  // Caminho seguro: Edge Function do Portal autenticada por IMPORT_TOKEN
+  // (a bridge respondeu = resultado final, mesmo que o perfil seja null).
+  const viaBridge = await portalBridge<{ perfil: string | null }>('perfil', { email })
+  if (viaBridge) {
+    const perfil = viaBridge.perfil?.trim()
+    if (!perfil) return null
+    return perfil === 'master' ? 'master' : perfilToRole(perfil)
+  }
+
+  // Fallback legado (token ausente no env ou bridge indisponível): RPC direta
+  // com a chave publishable. Deixa de funcionar quando a migration 0067 do
+  // Portal revogar `anon` — aí a bridge acima é o único caminho.
   try {
     const portal = createPortalClient()
     const { data, error } = await portal.rpc('recrutamento_perfil', { p_email: email })

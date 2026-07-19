@@ -126,8 +126,10 @@ async function logActivity(req: NextRequest, user: ProxyUser) {
   const pathname = req.nextUrl.pathname
   const method = req.method
 
-  // ignora o próprio módulo de auditoria e prefetch do Next
+  // ignora o próprio módulo de auditoria, o heartbeat de presença (1 POST a
+  // cada ~45s por usuário — poluiria o audit_logs) e prefetch do Next
   if (pathname.startsWith('/admin/auditoria') || pathname.startsWith('/api/admin/audit')) return
+  if (pathname.startsWith('/api/admin/presence')) return
   if (req.headers.get('next-router-prefetch') || req.headers.get('purpose') === 'prefetch') return
 
   const isApiMutation = pathname.startsWith('/api/admin') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
