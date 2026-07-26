@@ -1,14 +1,16 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
-  Plane, Plus, History, Trash2, Loader2, X, CheckCircle2, AlertCircle,
-  CalendarDays, CalendarCheck, CalendarClock, DollarSign, Clock, Info,
+  Plane, Plus, History, Pencil, Trash2, Loader2, X, CheckCircle2, AlertCircle,
+  Upload, FileText, CalendarDays, CalendarCheck, CalendarClock, DollarSign, Clock, Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
+
+interface FileRef { url: string; name: string; path: string }
 
 interface Vacation {
   id: string
@@ -20,6 +22,8 @@ interface Vacation {
   adiantamento_13: boolean
   comment: string | null
   kind: 'solicitacao' | 'historico'
+  notificacao_file: FileRef | null
+  recibo_file: FileRef | null
   created_at: string
 }
 
@@ -108,7 +112,7 @@ interface VacForm {
 }
 
 function VacationFormDrawer({
-  title, mode, saldoDisponivel, periodInfo, onSave, onClose,
+  title, mode, saldoDisponivel, periodInfo, onSave, onClose, initial, isEdit = false,
 }: {
   title: string
   mode: 'solicitacao' | 'historico'
@@ -116,8 +120,10 @@ function VacationFormDrawer({
   periodInfo: { admission: string | null; limite: string | null; aquisitivo: string | null }
   onSave: (f: VacForm & { days: number; abono_days: number }) => Promise<void>
   onClose: () => void
+  initial?: VacForm
+  isEdit?: boolean
 }) {
-  const [form, setForm] = useState<VacForm>({
+  const [form, setForm] = useState<VacForm>(initial ?? {
     start_date: '', end_date: '', abono: false, adiantamento_13: false, comment: '',
   })
   const [saving, setSaving] = useState(false)
@@ -135,10 +141,10 @@ function VacationFormDrawer({
     setError('')
     if (!form.start_date || !form.end_date) { setError('Informe início e término do período.'); return }
     if (parse(form.end_date) < parse(form.start_date)) { setError('A data de término deve ser após o início.'); return }
-    if (mode === 'historico' && parse(form.start_date) > new Date()) {
+    if (!isEdit && mode === 'historico' && parse(form.start_date) > new Date()) {
       setError('No histórico só é permitido datas retroativas.'); return
     }
-    if (mode === 'solicitacao' && parse(form.start_date) < new Date(today + 'T00:00:00')) {
+    if (!isEdit && mode === 'solicitacao' && parse(form.start_date) < new Date(today + 'T00:00:00')) {
       setError('Para solicitar férias, use datas futuras (ou registre como histórico).'); return
     }
     if (saldoRestante < 0) { setError('Saldo insuficiente para esse período.'); return }
@@ -169,12 +175,12 @@ function VacationFormDrawer({
             <p className="text-[12px] text-muted-foreground mb-2">Indique os dias de início e término do período de férias.</p>
             <div className="grid grid-cols-2 gap-3">
               <Input type="date" value={form.start_date}
-                max={mode === 'historico' ? today : undefined}
-                min={mode === 'solicitacao' ? today : undefined}
+                max={mode === 'historico' && !isEdit ? today : undefined}
+                min={mode === 'solicitacao' && !isEdit ? today : undefined}
                 onChange={e => set('start_date', e.target.value)} />
               <Input type="date" value={form.end_date}
-                max={mode === 'historico' ? today : undefined}
-                min={form.start_date || (mode === 'solicitacao' ? today : undefined)}
+                max={mode === 'historico' && !isEdit ? today : undefined}
+                min={form.start_date || (mode === 'solicitacao' && !isEdit ? today : undefined)}
                 onChange={e => set('end_date', e.target.value)} />
             </div>
           </div>
@@ -218,7 +224,7 @@ function VacationFormDrawer({
 
           <div className="flex gap-2 pt-2">
             <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
-              {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-4 h-4" />{mode === 'historico' ? 'Adicionar histórico' : 'Solicitar férias'}</>}
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-4 h-4" />{isEdit ? 'Salvar alterações' : mode === 'historico' ? 'Adicionar histórico' : 'Solicitar férias'}</>}
             </Button>
             <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
           </div>
@@ -275,7 +281,8 @@ function PeriodRow({ label, value }: { label: string; value: string | null }) {
 export function FeriasTab({ candidateId, admissionDate, initialVacations, initialAbsences }: Props) {
   const [vacations, setVacations] = useState<Vacation[]>(initialVacations)
   const [absences, setAbsences] = useState<Absence[]>(initialAbsences)
-  const [drawer, setDrawer] = useState<'solicitar' | 'historico' | null>(null)
+  const [drawer, setDrawer] = useState<'solicitar' | 'historico' | 'editar' | null>(null)
+  const [editingVac, setEditingVac] = useState<Vacation | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [tabelaOpen, setTabelaOpen] = useState(false)
@@ -354,6 +361,35 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
     showToast('ok', 'Registro removido.')
   }
 
+  function openEdit(v: Vacation) { setEditingVac(v); setDrawer('editar') }
+
+  async function handleEditSave(f: VacForm & { days: number; abono_days: number }) {
+    if (!editingVac) return
+    const res = await fetch(`/api/admin/candidatos/${candidateId}/vacations/${editingVac.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        start_date: f.start_date, end_date: f.end_date, days: f.days,
+        abono: f.abono, abono_days: f.abono_days, adiantamento_13: f.adiantamento_13, comment: f.comment,
+      }),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error)
+    setVacations(prev => prev.map(v => v.id === editingVac.id ? json.vacation : v).sort((a, b) => b.start_date.localeCompare(a.start_date)))
+    setDrawer(null); setEditingVac(null)
+    showToast('ok', 'Férias atualizadas.')
+  }
+
+  // Salva/remove um anexo (Notificação ou Recibo) do lançamento e atualiza a linha.
+  async function saveVacationFile(id: string, field: 'notificacao_file' | 'recibo_file', fileRef: FileRef | null) {
+    const res = await fetch(`/api/admin/candidatos/${candidateId}/vacations/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: fileRef }),
+    })
+    const json = await res.json()
+    if (!res.ok) { showToast('err', json.error || 'Erro ao salvar anexo.'); throw new Error(json.error) }
+    setVacations(prev => prev.map(v => v.id === id ? { ...v, [field]: fileRef } : v))
+    showToast('ok', fileRef ? 'Anexo salvo.' : 'Anexo removido.')
+  }
+
   async function handleAddFalta(f: { absence_date: string; days: number; kind: string; comment: string }) {
     const res = await fetch(`/api/admin/candidatos/${candidateId}/absences`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f),
@@ -425,31 +461,18 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
               <th className="px-4 py-3 text-center font-medium">Dias</th>
               <th className="px-4 py-3 text-center font-medium">Abono</th>
               <th className="px-4 py-3 text-left font-medium">Tipo</th>
+              <th className="px-4 py-3 text-left font-medium">Documentos</th>
               <th className="px-4 py-3 text-right font-medium">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {vacations.map(v => (
-              <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(v.start_date)}</td>
-                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(v.end_date)}</td>
-                <td className="px-4 py-3 text-center font-semibold">{v.days}</td>
-                <td className="px-4 py-3 text-center">{v.abono ? `${v.abono_days} dias` : '—'}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${v.kind === 'historico' ? 'bg-gray-100 text-gray-600' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-                    {v.kind === 'historico' ? 'Histórico' : 'Solicitação'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => handleDelete(v.id)} disabled={deletingId === v.id}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remover">
-                    {deletingId === v.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  </button>
-                </td>
-              </tr>
+              <VacationRow key={v.id} v={v} candidateId={candidateId}
+                deleting={deletingId === v.id}
+                onEdit={openEdit} onDelete={handleDelete} onSaveFile={saveVacationFile} />
             ))}
             {vacations.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
                 <Plane className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                 Nenhum registro de férias.
               </td></tr>
@@ -551,6 +574,116 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
           onClose={() => setDrawer(null)}
         />
       )}
+      {drawer === 'editar' && editingVac && (
+        <VacationFormDrawer
+          title="Editar férias"
+          mode={editingVac.kind === 'historico' ? 'historico' : 'solicitacao'}
+          isEdit
+          initial={{
+            start_date: editingVac.start_date, end_date: editingVac.end_date,
+            abono: editingVac.abono, adiantamento_13: editingVac.adiantamento_13, comment: editingVac.comment || '',
+          }}
+          saldoDisponivel={calc.disponivel + (editingVac.days || 0) + (editingVac.abono_days || 0)}
+          periodInfo={periodInfo}
+          onSave={handleEditSave}
+          onClose={() => { setDrawer(null); setEditingVac(null) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Linha da tabela de férias (com anexos: Notificação + Recibo) ─────────────
+
+function VacationRow({ v, candidateId, deleting, onEdit, onDelete, onSaveFile }: {
+  v: Vacation
+  candidateId: string
+  deleting: boolean
+  onEdit: (v: Vacation) => void
+  onDelete: (id: string) => void
+  onSaveFile: (id: string, field: 'notificacao_file' | 'recibo_file', f: FileRef | null) => Promise<void>
+}) {
+  return (
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(v.start_date)}</td>
+      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(v.end_date)}</td>
+      <td className="px-4 py-3 text-center font-semibold">{v.days}</td>
+      <td className="px-4 py-3 text-center">{v.abono ? `${v.abono_days} dias` : '—'}</td>
+      <td className="px-4 py-3">
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${v.kind === 'historico' ? 'bg-gray-100 text-gray-600' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+          {v.kind === 'historico' ? 'Histórico' : 'Solicitação'}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <VacFileSlot label="Notificação" candidateId={candidateId} value={v.notificacao_file}
+            onSaved={f => onSaveFile(v.id, 'notificacao_file', f)} />
+          <VacFileSlot label="Recibo" candidateId={candidateId} value={v.recibo_file}
+            onSaved={f => onSaveFile(v.id, 'recibo_file', f)} />
+        </div>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="inline-flex items-center gap-1">
+          <button onClick={() => onEdit(v)} title="Editar"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onDelete(v.id)} disabled={deleting} title="Remover"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// ─── Slot de anexo (upload/ver/remover) usado por lançamento ──────────────────
+
+function VacFileSlot({ label, candidateId, value, onSaved }: {
+  label: string
+  candidateId: string
+  value: FileRef | null
+  onSaved: (f: FileRef | null) => Promise<void>
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 4 * 1024 * 1024) { alert('Arquivo excede 4 MB'); if (e.target) e.target.value = ''; return }
+    setBusy(true)
+    try {
+      const fd = new FormData(); fd.append('file', file); fd.append('docKey', 'ferias')
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, { method: 'POST', body: fd })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      await onSaved({ url: d.url, name: file.name, path: d.path })
+    } catch { /* toast tratado no onSaved */ }
+    finally { setBusy(false); if (e.target) e.target.value = '' }
+  }
+
+  async function remove() { setBusy(true); try { await onSaved(null) } catch { /* toast no onSaved */ } finally { setBusy(false) } }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] text-gray-400 w-[70px] shrink-0">{label}</span>
+      {value?.url ? (
+        <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 max-w-[160px]">
+          <FileText className="w-3 h-3 text-red-500 shrink-0" />
+          <a href={value.url} target="_blank" rel="noreferrer" className="text-[10px] text-emerald-700 hover:underline truncate">{value.name}</a>
+          <button onClick={remove} disabled={busy} className="text-gray-400 hover:text-red-500 shrink-0">
+            {busy ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <X className="w-2.5 h-2.5" />}
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => ref.current?.click()} disabled={busy}
+          className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
+          {busy ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Upload className="w-2.5 h-2.5" />}Anexar
+        </button>
+      )}
+      <input ref={ref} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={upload} />
     </div>
   )
 }
