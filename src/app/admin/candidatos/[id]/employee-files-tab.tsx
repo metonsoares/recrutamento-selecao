@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import {
-  Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download,
+  Plus, Pencil, Trash2, Loader2, X, Upload, FileText, FileDown, Download,
   CheckCircle2, AlertCircle, Wallet, CalendarDays,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -48,6 +48,7 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
   const Icon = kind === 'folha_ponto' ? CalendarDays : Wallet
   const [files, setFiles] = useState<EmployeeFile[]>(initialFiles)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -59,7 +60,15 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
   const fileRef = useRef<HTMLInputElement>(null)
 
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
-  function openModal() { setReference(''); setFile(null); setError(''); setModalOpen(true) }
+  function openModal() { setEditingId(null); setReference(''); setFile(null); setError(''); setModalOpen(true) }
+
+  function openEdit(f: EmployeeFile) {
+    setEditingId(f.id)
+    setReference(f.reference || '')
+    setFile(f.file_url ? { url: f.file_url, name: f.file_name || 'Arquivo', path: f.file_path || '' } : null)
+    setError('')
+    setModalOpen(true)
+  }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -82,15 +91,22 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
     if (!file) { setError('Anexe o arquivo.'); return }
     setSaving(true); setError('')
     try {
-      const res = await fetch(`/api/admin/candidatos/${candidateId}/employee-files`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, reference, file_url: file.url, file_name: file.name, file_path: file.path }),
+      const isEdit = editingId !== null
+      const url = isEdit
+        ? `/api/admin/candidatos/${candidateId}/employee-files/${editingId}`
+        : `/api/admin/candidatos/${candidateId}/employee-files`
+      const body = isEdit
+        ? { reference, file_url: file.url, file_name: file.name, file_path: file.path || null }
+        : { kind, reference, file_url: file.url, file_name: file.name, file_path: file.path }
+      const res = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      setFiles(prev => [json.file, ...prev])
+      setFiles(prev => isEdit ? prev.map(f => f.id === editingId ? json.file : f) : [json.file, ...prev])
       setModalOpen(false)
-      showToast('ok', 'Arquivo inserido.')
+      showToast('ok', isEdit ? 'Arquivo atualizado.' : 'Arquivo inserido.')
     } catch (e) { setError((e as Error).message || 'Erro ao salvar.') }
     finally { setSaving(false) }
   }
@@ -157,11 +173,17 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
                     ) : <span className="text-xs text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-gray-500 hidden md:table-cell text-xs">{formatDate(f.created_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleDelete(f.id)} disabled={deletingId === f.id}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remover">
-                      {deletingId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openEdit(f)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors" title="Editar">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(f.id)} disabled={deletingId === f.id}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remover">
+                        {deletingId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -174,7 +196,7 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h2 className="text-base font-semibold text-gray-900">{insertLabel}</h2>
+              <h2 className="text-base font-semibold text-gray-900">{editingId ? 'Editar arquivo' : insertLabel}</h2>
               <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
@@ -203,7 +225,7 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving || uploading} className="gap-1.5">
-                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />Inserir</>}
+                {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />{editingId ? 'Salvar' : 'Inserir'}</>}
               </Button>
             </div>
           </div>

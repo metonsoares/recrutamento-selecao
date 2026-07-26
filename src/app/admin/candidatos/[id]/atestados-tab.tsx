@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import {
-  Plus, Trash2, Loader2, X, Upload, FileDown, FileText,
+  Plus, Pencil, Trash2, Loader2, X, Upload, FileDown, FileText,
   Stethoscope, CheckCircle2, AlertCircle, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 export function AtestadosTab({ candidateId, initialCertificates }: Props) {
   const [certs, setCerts] = useState<Certificate[]>(initialCertificates)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -57,7 +58,17 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
   function showToast(type: 'ok' | 'err', msg: string) { setToast({ type, msg }); setTimeout(() => setToast(null), 4000) }
 
   function openModal() {
+    setEditingId(null)
     setDate(''); setComment(''); setFile(null); setError('')
+    setModalOpen(true)
+  }
+
+  function openEdit(c: Certificate) {
+    setEditingId(c.id)
+    setDate(c.certificate_date)
+    setComment(c.comment || '')
+    setFile(c.file_url ? { url: c.file_url, name: c.file_name || 'Atestado', path: c.file_path || '' } : null)
+    setError('')
     setModalOpen(true)
   }
 
@@ -89,18 +100,24 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
     setSaving(true)
     setError('')
     try {
-      const res = await fetch(`/api/admin/candidatos/${candidateId}/certificates`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const isEdit = editingId !== null
+      const url = isEdit
+        ? `/api/admin/candidatos/${candidateId}/certificates/${editingId}`
+        : `/api/admin/candidatos/${candidateId}/certificates`
+      const res = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           certificate_date: date, comment,
-          file_url: file?.url, file_name: file?.name, file_path: file?.path,
+          file_url: file?.url ?? null, file_name: file?.name ?? null, file_path: file?.path || null,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      setCerts(prev => [json.certificate, ...prev].sort((a, b) => b.certificate_date.localeCompare(a.certificate_date)))
+      setCerts(prev =>
+        (isEdit ? prev.map(c => c.id === editingId ? json.certificate : c) : [json.certificate, ...prev])
+          .sort((a, b) => b.certificate_date.localeCompare(a.certificate_date)))
       setModalOpen(false)
-      showToast('ok', 'Atestado inserido.')
+      showToast('ok', isEdit ? 'Atestado atualizado.' : 'Atestado inserido.')
     } catch (e) {
       setError((e as Error).message || 'Erro ao salvar.')
     } finally { setSaving(false) }
@@ -187,11 +204,17 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
                   <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
                     {c.comment ? <span className="line-clamp-1">{c.comment}</span> : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remover">
-                      {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openEdit(c)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors" title="Editar">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Remover">
+                        {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -200,9 +223,9 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
         </div>
       )}
 
-      {/* Modal inserir */}
+      {/* Modal inserir/editar */}
       {modalOpen && (
-        <Modal title="Inserir atestado" onClose={() => setModalOpen(false)}>
+        <Modal title={editingId ? 'Editar atestado' : 'Inserir atestado'} onClose={() => setModalOpen(false)}>
           <div className="px-5 py-4 space-y-3">
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Data do atestado *</label>
@@ -238,7 +261,7 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
           <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
             <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving || uploading} className="gap-1.5">
-              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />Inserir</>}
+              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</> : <><CheckCircle2 className="w-3.5 h-3.5" />{editingId ? 'Salvar' : 'Inserir'}</>}
             </Button>
           </div>
         </Modal>
