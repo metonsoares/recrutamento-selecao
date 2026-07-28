@@ -62,8 +62,8 @@ export default async function PrintReciboPage({ params }: { params: Promise<{ id
 
       <p>
         Recebi de <strong>{c?.company_name || 'Empresa Contratante'}</strong> a importância de{' '}
-        <strong>{fmtBRL(aPagar)}</strong>, referente à prestação de serviços na função de{' '}
-        <strong>{c?.funcao || '—'}</strong>, no período de <strong>{fmtDate(c?.start_date)}</strong> a{' '}
+        <strong>{fmtBRL(aPagar)}</strong>, referente à serviços prestados, no período de{' '}
+        <strong>{fmtDate(c?.start_date)}</strong> a{' '}
         <strong>{fmtDate(c?.end_date)}</strong>, conforme demonstrativo abaixo.
       </p>
 
