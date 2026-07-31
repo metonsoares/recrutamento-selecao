@@ -72,7 +72,7 @@ export function CandidateTabNav({ candidateId, showResumo = false, showBankTab =
           className={`${base} ${activeTab === 'ficha' ? active : inactive}`}
         >
           <ClipboardList className="w-4 h-4" />
-          Ficha Admissão
+          Ficha do funcionário
         </Link>
       )}
       {showContract && (

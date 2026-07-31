@@ -24,19 +24,19 @@ interface CustomDoc {
 
 // ─── Lista de documentos da empresa ──────────────────────────────────────────
 
-const COMPANY_DOCS = [
+const COMPANY_DOCS: { key: string; label: string; multiple: boolean; na: boolean; max?: number }[] = [
   { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: false, na: false },
   { key: 'contrato_tempo_determinado', label: 'Contrato de prestação de serviço',        multiple: true,  na: true  },
   { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: false },
   { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false },
   { key: 'regulamento_interno', label: 'Regulamento interno',                            multiple: false, na: false },
-  { key: 'banco_horas',         label: 'Acordo individual de banco de horas',            multiple: false, na: true  },
-  { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: false, na: false },
+  { key: 'banco_horas',         label: 'Acordo individual de banco de horas',            multiple: true,  na: true  },
+  { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: true,  na: false },
   { key: 'vale_transporte',     label: 'Termo declaração vale transporte',               multiple: true,  na: true  },
-  { key: 'uniformes_epis',      label: 'Termo entrega de uniformes/EPIs',                multiple: true,  na: false },
-  { key: 'acrm_geral',          label: 'Termo entrega geral',                           multiple: true,  na: false },
+  { key: 'uniformes_epis',      label: 'Termo entrega de uniformes/EPIs',                multiple: true,  na: false, max: 10 },
+  { key: 'acrm_geral',          label: 'Termo entrega geral',                           multiple: true,  na: false, max: 10 },
   { key: 'acrm_escala',         label: 'Acordo individual de escala 12×36',             multiple: false, na: true  },
-  { key: 'premio_caju',         label: 'Prêmio Caju',                                    multiple: true,  na: true  },
+  { key: 'premio_caju',         label: 'Prêmio Caju',                                    multiple: true,  na: true, max: 10 },
 ]
 
 function emptyDoc(): DocState { return { not_applicable: false, files: [] } }
@@ -95,7 +95,7 @@ function DocRow({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       const incoming = { url: data.url, name: file.name, path: data.path }
-      const newFiles = doc.multiple ? [...files, incoming].slice(0, 4) : [incoming]
+      const newFiles = doc.multiple ? [...files, incoming].slice(0, doc.max ?? 4) : [incoming]
       onChange({ ...state, files: newFiles })
     } catch (err) {
       setUploadError((err as Error).message || 'Erro no upload')
@@ -141,7 +141,7 @@ function DocRow({
         {/* Label */}
         <span className={`flex-1 text-sm font-medium leading-snug ${isNA ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
           {doc.label}
-          {doc.multiple && <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">(até 4 arquivos)</span>}
+          {doc.multiple && <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">(até {doc.max ?? 4} arquivos)</span>}
         </span>
 
         {/* N/A */}
@@ -169,8 +169,8 @@ function DocRow({
             </div>
           ))}
 
-          {/* Upload button — múltiplos até 4; single só quando sem arquivo */}
-          {((doc.multiple && files.length < 4) || files.length === 0) && (
+          {/* Upload button — múltiplos até doc.max (padrão 4); single só quando sem arquivo */}
+          {((doc.multiple && files.length < (doc.max ?? 4)) || files.length === 0) && (
             <button
               disabled={uploading}
               onClick={() => fileRef.current?.click()}
