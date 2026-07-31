@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
 
+interface FileRef { url: string; name: string; path: string }
+
 export interface EmployeeFile {
   id: string
   kind: string
@@ -15,6 +17,7 @@ export interface EmployeeFile {
   file_url: string | null
   file_name: string | null
   file_path: string | null
+  comprovante_file?: FileRef | null
   created_at: string
 }
 
@@ -46,6 +49,7 @@ function sortByCompetence(a: EmployeeFile, b: EmployeeFile): number {
 
 export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, insertLabel, initialFiles }: Props) {
   const Icon = kind === 'folha_ponto' ? CalendarDays : Wallet
+  const showComprovante = kind === 'contracheque'
   const [files, setFiles] = useState<EmployeeFile[]>(initialFiles)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -122,6 +126,17 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
     showToast('ok', 'Arquivo removido.')
   }
 
+  // Comprovante de pagamento ao lado do contracheque
+  async function saveComprovante(id: string, fileRef: FileRef | null) {
+    const res = await fetch(`/api/admin/candidatos/${candidateId}/employee-files/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comprovante_file: fileRef }),
+    })
+    const json = await res.json()
+    if (!res.ok) { showToast('err', json.error || 'Erro ao salvar comprovante.'); throw new Error(json.error) }
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, comprovante_file: fileRef } : f))
+    showToast('ok', fileRef ? 'Comprovante salvo.' : 'Comprovante removido.')
+  }
+
   return (
     <div className="max-w-3xl space-y-4">
       {toast && (
@@ -155,6 +170,7 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
                 <th className="px-4 py-3 text-left font-medium">{referenceLabel}</th>
                 <th className="px-4 py-3 text-left font-medium">Arquivo</th>
                 <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Inserido</th>
+                {showComprovante && <th className="px-4 py-3 text-left font-medium">Comprovante de pagamento</th>}
                 <th className="px-4 py-3 text-right font-medium">Ações</th>
               </tr>
             </thead>
@@ -173,6 +189,12 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
                     ) : <span className="text-xs text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-gray-500 hidden md:table-cell text-xs">{formatDate(f.created_at)}</td>
+                  {showComprovante && (
+                    <td className="px-4 py-3">
+                      <ComprovanteSlot candidateId={candidateId} value={f.comprovante_file ?? null}
+                        onSaved={fr => saveComprovante(f.id, fr)} />
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button onClick={() => openEdit(f)}
@@ -231,6 +253,53 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Slot do comprovante de pagamento (aba Contracheques) ─────────────────────
+
+function ComprovanteSlot({ candidateId, value, onSaved }: {
+  candidateId: string
+  value: FileRef | null
+  onSaved: (f: FileRef | null) => Promise<void>
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 4 * 1024 * 1024) { alert('Arquivo excede 4 MB'); if (e.target) e.target.value = ''; return }
+    setBusy(true)
+    try {
+      const fd = new FormData(); fd.append('file', file); fd.append('docKey', 'comprovante')
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, { method: 'POST', body: fd })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      await onSaved({ url: d.url, name: file.name, path: d.path })
+    } catch { /* toast tratado no onSaved */ }
+    finally { setBusy(false); if (e.target) e.target.value = '' }
+  }
+  async function remove() { setBusy(true); try { await onSaved(null) } catch { /* */ } finally { setBusy(false) } }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {value?.url ? (
+        <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded px-2 py-1 max-w-[180px]">
+          <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+          <a href={value.url} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate">{value.name}</a>
+          <button onClick={remove} disabled={busy} className="text-gray-400 hover:text-red-500 shrink-0">
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => ref.current?.click()} disabled={busy}
+          className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}Anexar
+        </button>
+      )}
+      <input ref={ref} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={upload} />
     </div>
   )
 }

@@ -8,7 +8,7 @@ export async function PUT(
 ) {
   try {
     const { id, fileId } = await params
-    const { reference, file_url, file_name, file_path } = await req.json()
+    const { reference, file_url, file_name, file_path, comprovante_file } = await req.json()
     const supabase = await createSupabaseServiceClient()
 
     const payload: Record<string, unknown> = {}
@@ -16,6 +16,7 @@ export async function PUT(
     if (file_url !== undefined) payload.file_url = file_url || null
     if (file_name !== undefined) payload.file_name = file_name || null
     if (file_path !== undefined) payload.file_path = file_path || null
+    if (comprovante_file !== undefined) payload.comprovante_file = comprovante_file
     if (Object.keys(payload).length === 0) {
       return NextResponse.json({ error: 'Nada para atualizar.' }, { status: 400 })
     }
