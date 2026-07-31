@@ -37,6 +37,7 @@ export interface ContractData {
   rg_cpf_file?: UploadedFile | null
   comprovante_residencia_file?: UploadedFile | null
   quitacao_file?: UploadedFile | null
+  nao_aplicavel?: boolean
 }
 
 export interface CompanyOption { id: string; apelido: string | null; razao_social: string | null; cnpj: string | null }
@@ -321,6 +322,14 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
           </Button>
         </div>
 
+        {/* Não aplicável — funcionário sem Contrato de prestação de serviço */}
+        <label className="flex items-center gap-2 mb-4 text-sm text-gray-600 cursor-pointer w-fit">
+          <input type="checkbox" checked={!!form.nao_aplicavel}
+            onChange={e => set('nao_aplicavel', e.target.checked)} className="accent-primary w-4 h-4" />
+          Não aplicável (funcionário sem Contrato de prestação de serviço)
+        </label>
+
+        <fieldset disabled={!!form.nao_aplicavel} className="border-0 p-0 m-0 disabled:opacity-60">
         {/* Empresa contratante */}
         <div className="mb-3">
           {field('Empresa contratante *',
@@ -459,6 +468,7 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
           )}
           <input ref={quitFileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleQuitacaoFile} />
         </div>
+        </fieldset>
       </div>
 
       {/* Ações — todas na mesma linha */}
