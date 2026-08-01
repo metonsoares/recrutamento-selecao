@@ -34,6 +34,8 @@ import { getGrantedPerms } from '@/lib/permissions-server'
 import { StatusSelect } from './status-select'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
 import { ContratosTab, ContractItem } from './contratos-tab'
+import { SalaryRaisesPanel, SalaryRaise } from './salary-raises-panel'
+import { TransferCompanySection, ArchivedFicha } from './ficha-transfer'
 import { FileDown, Globe, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,6 +61,10 @@ function parseAnswer(text: string | null): string {
     }
     return String(p)
   } catch { return text }
+}
+
+function fmtBRL(num: number): string {
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function calculateAge(dateStr: string): number | null {
@@ -194,6 +200,7 @@ export default async function CandidatePage({
     { data: allSurveysData },
     { data: contractsData },
     { data: docReqRows },
+    { data: salaryRaisesData },
   ] = await Promise.all([
     service.from('ai_settings').select('company_name').limit(1).single(),
     service.from('companies').select('id, apelido, razao_social, cnpj').order('created_at', { ascending: false }),
@@ -208,10 +215,16 @@ export default async function CandidatePage({
     service.from('climate_surveys').select('id, title, token').order('created_at', { ascending: false }),
     service.from('freelancer_contracts').select('*').eq('candidate_id', id).order('contract_date', { ascending: false }),
     service.from('doc_requests').select('doc_key, last_requested_at').eq('candidate_id', id),
+    service.from('salary_raises').select('*').eq('candidate_id', id).order('raise_date', { ascending: false }).order('created_at', { ascending: false }),
   ])
 
   const fichaCompanies = (companiesData || []) as CompanyOption[]
   const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
+  const salaryRaises = (salaryRaisesData || []) as SalaryRaise[]
+  // Fichas arquivadas por "Transferir de empresa" (mais antiga primeiro no array)
+  const admissionFormHistory = (Array.isArray(latestApp?.admission_form_history)
+    ? latestApp!.admission_form_history
+    : []) as (AdmissionFormData & { arquivada_em?: string })[]
   // Empresa contratante definida em "Dados para contrato" — puxada como padrão na Ficha de Admissão
   const contractCompanyId = ((latestApp?.contract_data as ContractData | null)?.company_id) || ''
   const companyDocs = (latestApp?.company_docs as Record<string, unknown> | null) ?? null
@@ -263,6 +276,7 @@ export default async function CandidatePage({
   for (const a of absencesData || []) timeline.push({ date: a.absence_date, label: a.kind === 'afastamento' ? `Afastamento (${a.days} dia${a.days !== 1 ? 's' : ''})` : 'Falta', type: 'falta' })
   for (const w of warningsData || []) timeline.push({ date: w.occurred_at, label: `Advertência${w.reason ? ': ' + String(w.reason).slice(0, 50) : ''}`, type: 'advertencia' })
   for (const c of certificatesData || []) timeline.push({ date: c.certificate_date, label: `Atestado${c.comment ? ': ' + String(c.comment).slice(0, 50) : ''}`, type: 'atestado' })
+  for (const r of salaryRaises) timeline.push({ date: r.raise_date, label: `Aumento de salário: ${fmtBRL(Number(r.new_value))}`, type: 'aumento' })
   if (latestApp?.terminated_at) {
     const td = latestApp.termination_data as { requester?: string } | null
     const who = td?.requester === 'funcionario' ? ' (a pedido do funcionário)' : td?.requester === 'empresa' ? ' (pela empresa)' : ''
@@ -413,6 +427,18 @@ export default async function CandidatePage({
     return 'bg-red-400'
   }
 
+  // Dados do candidato usados pela Ficha (ativa e arquivadas)
+  const fichaCandidate = {
+    id: candidate.id,
+    full_name: candidate.full_name,
+    phone: (candidate.phone as string | null) ?? null,
+    email: (candidate.email as string | null) ?? null,
+    cpf: (candidate.cpf as string | null) ?? null,
+    city: (candidate.city as string | null) ?? null,
+    neighborhood: (candidate.neighborhood as string | null) ?? null,
+    address: parsedAddress,
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
 
@@ -502,24 +528,46 @@ export default async function CandidatePage({
 
       {/* ── Aba: Ficha Admissão ── */}
       {activeTab === 'ficha' && showFicha && (
-        <FichaAdmissaoForm
-          candidate={{
-            id: candidate.id,
-            full_name: candidate.full_name,
-            phone: (candidate.phone as string | null) ?? null,
-            email: (candidate.email as string | null) ?? null,
-            cpf: (candidate.cpf as string | null) ?? null,
-            city: (candidate.city as string | null) ?? null,
-            neighborhood: (candidate.neighborhood as string | null) ?? null,
-            address: parsedAddress,
-          }}
-          jobTitle={jobTitle}
-          companyName={brand?.company_name ?? null}
-          initialData={admissionForm}
-          companies={fichaCompanies}
-          contractCompanyId={contractCompanyId}
-          docRequestDates={docRequestDates}
-        />
+        <>
+          {/* Aumentos de salário — botão + popup + histórico */}
+          <SalaryRaisesPanel candidateId={id} initialRaises={salaryRaises} />
+
+          {/* Transferir de empresa — arquiva a ficha atual e mantém a ativa editável */}
+          <TransferCompanySection candidateId={id} hasFicha={!!admissionForm} />
+
+          {/* Ficha ativa (editável) */}
+          <FichaAdmissaoForm
+            candidate={fichaCandidate}
+            jobTitle={jobTitle}
+            companyName={brand?.company_name ?? null}
+            initialData={admissionForm}
+            companies={fichaCompanies}
+            contractCompanyId={contractCompanyId}
+            docRequestDates={docRequestDates}
+          />
+
+          {/* Fichas anteriores (arquivadas em transferências) — recolhíveis, somente leitura */}
+          {[...admissionFormHistory].reverse().map((h, i) => {
+            const comp = fichaCompanies.find(c => c.id === h.selected_company_id)
+            const compLabel = comp?.razao_social || comp?.apelido || 'Empresa não informada'
+            return (
+              <ArchivedFicha
+                key={`${h.arquivada_em ?? 'ficha'}-${i}`}
+                title={`Ficha anterior — ${compLabel}`}
+                subtitle={h.arquivada_em ? `Arquivada em ${formatDateTime(h.arquivada_em)}` : undefined}
+              >
+                <FichaAdmissaoForm
+                  candidate={fichaCandidate}
+                  jobTitle={jobTitle}
+                  companyName={brand?.company_name ?? null}
+                  initialData={h}
+                  companies={fichaCompanies}
+                  readOnly
+                />
+              </ArchivedFicha>
+            )
+          })}
+        </>
       )}
 
       {/* ── Aba: Dados para contrato ── */}
@@ -650,6 +698,7 @@ export default async function CandidatePage({
             companyDocsPending={showDocumentos ? countCompanyPending(companyDocs) : 0}
             timeline={timeline}
             isMaster={isMaster}
+            salaryRaises={salaryRaises}
           />
         </div>
       )}

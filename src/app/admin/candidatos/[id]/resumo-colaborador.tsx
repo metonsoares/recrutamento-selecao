@@ -3,9 +3,10 @@ import { formatDate } from '@/lib/helpers'
 import {
   CalendarClock, User, Plane, AlertTriangle, Briefcase,
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
-  ClipboardList, FolderArchive, Stethoscope, UserMinus,
+  ClipboardList, FolderArchive, Stethoscope, UserMinus, TrendingUp,
 } from 'lucide-react'
 import { EditContact } from './edit-contact'
+import { SalaryRaise } from './salary-raises-panel'
 
 interface Props {
   fullName: string
@@ -29,6 +30,8 @@ interface Props {
   timeline?: { date: string; label: string; type: string }[]
   /** Master pode editar telefone/e-mail do colaborador */
   isMaster?: boolean
+  /** Histórico de aumentos de salário (mais recente primeiro) */
+  salaryRaises?: SalaryRaise[]
 }
 
 // ─── Helpers de tempo ─────────────────────────────────────────────────────────
@@ -51,11 +54,16 @@ function addMonths(d: Date, months: number): Date {
   const r = new Date(d); r.setMonth(r.getMonth() + months); return r
 }
 
+function fmtBRL(num: number): string {
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
 export function ResumoColaborador({
   fullName, jobTitle, companyName, statusLabel,
   cpf, phone, email, city, age,
   admissionDate, salary, registeredAt, warningsCount,
   minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0, timeline = [], isMaster = false,
+  salaryRaises = [],
 }: Props) {
   const now = new Date()
   const admission = admissionDate ? new Date(admissionDate + 'T00:00:00') : null
@@ -223,6 +231,21 @@ export function ResumoColaborador({
             )}
           </CardContent>
         </Card>
+
+        {/* Aumentos de salário (somente leitura) */}
+        {salaryRaises.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" />Aumentos de salário</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {salaryRaises.map(r => (
+                <div key={r.id} className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">{formatDate(r.raise_date)}</span>
+                  <span className="font-semibold text-emerald-700">{fmtBRL(Number(r.new_value))}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
@@ -249,6 +272,7 @@ const TIMELINE_STYLE: Record<string, { icon: React.ElementType; bg: string; fg: 
   advertencia:  { icon: ShieldAlert,   bg: 'bg-orange-100',  fg: 'text-orange-700' },
   atestado:     { icon: Stethoscope,   bg: 'bg-blue-100',    fg: 'text-blue-700' },
   desligamento: { icon: UserMinus,     bg: 'bg-rose-100',    fg: 'text-rose-700' },
+  aumento:      { icon: TrendingUp,    bg: 'bg-teal-100',    fg: 'text-teal-700' },
 }
 
 function RichTimeline({ events }: { events: { date: string; label: string; type: string }[] }) {

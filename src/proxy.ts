@@ -38,6 +38,8 @@ const API_LABELS: [RegExp, string][] = [
   [/\/candidatos\/[^/]+\/interview-invite/, 'Enviou convite de entrevista'],
   [/\/candidatos\/[^/]+\/invite-interview/, 'Enviou convite de entrevista'],
   [/\/candidatos\/[^/]+\/records/, 'Registro do colaborador'],
+  [/\/candidatos\/[^/]+\/salary-raises/, 'Aumento de salário do colaborador'],
+  [/\/candidatos\/[^/]+\/transfer-company/, 'Transferência de empresa (ficha arquivada)'],
   [/\/candidatos\/[^/]+\/climate-assignments/, 'Pesquisa de clima na ficha'],
   [/\/candidatos\/[^/]+\/admission-docs/, 'Anexou/alterou documento de candidato'],
   [/\/candidatos\/[^/]+\/background-check/, 'Executou Check de Processos'],

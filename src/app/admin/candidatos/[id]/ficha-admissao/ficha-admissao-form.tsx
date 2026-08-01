@@ -75,6 +75,8 @@ interface Props {
   companies: CompanyOption[]
   contractCompanyId?: string
   docRequestDates?: Record<string, string>
+  /** Ficha arquivada (histórico de transferência de empresa): campos desabilitados, sem Salvar */
+  readOnly?: boolean
 }
 
 // ─── Docs definition ──────────────────────────────────────────────────────────
@@ -368,7 +370,7 @@ function DocRow({
                         <Download className="w-3.5 h-3.5" />
                       </a>
                       <button type="button" onClick={() => handleRemove(i)} title="Remover"
-                        className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40 disabled:pointer-events-none">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -431,11 +433,12 @@ function DocRow({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies, contractCompanyId = '', docRequestDates = {} }: Props) {
+export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies, contractCompanyId = '', docRequestDates = {}, readOnly = false }: Props) {
   const [form, setForm] = useState<AdmissionFormData>(() => {
     const base = initialData ? migrateData(initialData, candidate, jobTitle) : makeEmpty(candidate, jobTitle)
     // Puxa a empresa contratante da aba "Dados para contrato" quando a ficha ainda não tem uma
-    if (!base.selected_company_id && contractCompanyId) base.selected_company_id = contractCompanyId
+    // (não se aplica a fichas arquivadas — elas exibem exatamente o que foi salvo)
+    if (!readOnly && !base.selected_company_id && contractCompanyId) base.selected_company_id = contractCompanyId
     return base
   })
   const [saving, setSaving] = useState(false)
@@ -532,10 +535,15 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
       <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
         <div className="flex items-center justify-between gap-3 mb-6">
           <h2 className="text-xl font-bold text-gray-900">Ficha Cadastral</h2>
-          <Button onClick={handleSave} disabled={saving || !!cpfError} size="sm" className="gap-1.5 shrink-0">
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
-          </Button>
+          {!readOnly && (
+            <Button onClick={handleSave} disabled={saving || !!cpfError} size="sm" className="gap-1.5 shrink-0">
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
+            </Button>
+          )}
         </div>
+
+        {/* Campos desabilitados quando a ficha é arquivada (somente leitura) */}
+        <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 m-0">
 
         {/* ── Empresa contratante ──────────────────────────────────────── */}
         {companies.length > 0 && (
@@ -735,14 +743,18 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           <div className="text-center"><div className="h-10 border-b border-gray-400 mb-1" /><p className="text-[11px] text-gray-500">Assinatura do Funcionário</p></div>
           <div className="text-center"><div className="h-10 border-b border-gray-400 mb-1" /><p className="text-[11px] text-gray-500">Assinatura Empresa</p></div>
         </div>
+
+        </fieldset>
       </div>
 
       {/* Salvar — final da página */}
-      <div className="mt-4 max-w-3xl">
-        <Button onClick={handleSave} disabled={saving || !!cpfError} className="gap-1.5 w-full sm:w-auto">
-          {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="mt-4 max-w-3xl">
+          <Button onClick={handleSave} disabled={saving || !!cpfError} className="gap-1.5 w-full sm:w-auto">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
+          </Button>
+        </div>
+      )}
     </>
   )
 }

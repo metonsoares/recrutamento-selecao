@@ -14,16 +14,37 @@ export async function PUT(
     // Atualiza admission_form na candidatura mais recente
     const { data: app } = await supabase
       .from('applications')
-      .select('id')
+      .select('id, contract_data')
       .eq('candidate_id', candidateId)
       .eq('is_latest', true)
       .maybeSingle()
 
     if (!app) return NextResponse.json({ error: 'Candidatura não encontrada.' }, { status: 404 })
 
+    const update: Record<string, unknown> = { admission_form: body, updated_at: new Date().toISOString() }
+
+    // Empresa da ficha ativa = empresa ATUAL do colaborador → espelha em
+    // contract_data (aba "Dados para contrato"), decisão do dono na feature
+    // "Transferir de empresa". Só grava quando a ficha tem empresa e ela
+    // difere da registrada no contrato.
+    const fichaCompanyId = typeof body?.selected_company_id === 'string' ? body.selected_company_id : ''
+    const contract = (app.contract_data as Record<string, unknown> | null) ?? null
+    if (fichaCompanyId && (contract?.company_id ?? '') !== fichaCompanyId) {
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('razao_social, apelido')
+        .eq('id', fichaCompanyId)
+        .maybeSingle()
+      update.contract_data = {
+        ...(contract || {}),
+        company_id: fichaCompanyId,
+        company_name: comp?.razao_social || comp?.apelido || '',
+      }
+    }
+
     const { error } = await supabase
       .from('applications')
-      .update({ admission_form: body, updated_at: new Date().toISOString() })
+      .update(update)
       .eq('id', app.id)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
