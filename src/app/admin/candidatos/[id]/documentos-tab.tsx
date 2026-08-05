@@ -25,7 +25,7 @@ interface CustomDoc {
 // ─── Lista de documentos da empresa ──────────────────────────────────────────
 
 const COMPANY_DOCS: { key: string; label: string; multiple: boolean; na: boolean; max?: number }[] = [
-  { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: false, na: false },
+  { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: true,  na: false, max: 2 },
   { key: 'contrato_tempo_determinado', label: 'Contrato de prestação de serviço',        multiple: true,  na: true  },
   { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: false },
   { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false },
@@ -60,6 +60,32 @@ function initDocs(saved: Record<string, unknown> | null): Record<string, DocStat
 
 // ─── Linha de documento ───────────────────────────────────────────────────────
 
+// ─── Confirmação de exclusão (modal estilizado; robusto onde o confirm() nativo é suprimido) ──
+function useConfirm() {
+  const [pending, setPending] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null)
+  const ask = (message: string) => new Promise<boolean>(resolve => setPending({ message, resolve }))
+  const close = (v: boolean) => { pending?.resolve(v); setPending(null) }
+  const dialog = pending ? (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => close(false)}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2.5 px-5 py-4 border-b">
+          <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0"><Trash2 className="w-4 h-4 text-red-600" /></div>
+          <h2 className="text-base font-semibold text-gray-900">Confirmar exclusão</h2>
+        </div>
+        <div className="px-5 py-4 text-sm text-gray-600">
+          {pending.message}
+          <span className="block mt-1 text-gray-500">Tem certeza? Esta ação não pode ser desfeita.</span>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+          <Button variant="outline" onClick={() => close(false)}>Cancelar</Button>
+          <Button variant="destructive" onClick={() => close(true)} className="gap-1.5"><Trash2 className="w-3.5 h-3.5" />Excluir</Button>
+        </div>
+      </div>
+    </div>
+  ) : null
+  return { ask, dialog }
+}
+
 function DocRow({
   doc, state, onChange, candidateId,
 }: {
@@ -71,6 +97,7 @@ function DocRow({
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const { ask, dialog } = useConfirm()
 
   const isNA = state.not_applicable
   const files = state.files ?? []
@@ -106,7 +133,7 @@ function DocRow({
   }
 
   async function handleRemove(idx: number) {
-    if (!confirm('Remover este arquivo?')) return
+    if (!(await ask('Remover este arquivo?'))) return
     const f = files[idx]
     if (f?.path) {
       await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
@@ -185,6 +212,7 @@ function DocRow({
           {uploadError && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{uploadError}</p>}
         </div>
       )}
+      {dialog}
     </div>
   )
 }
@@ -200,6 +228,7 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [err, setErr] = useState('')
+  const { ask, dialog } = useConfirm()
   const hasFile = item.files.length > 0
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -226,8 +255,8 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
     }).catch(() => {})
   }
 
-  function removeFile(idx: number) {
-    if (!confirm('Remover este arquivo?')) return
+  async function removeFile(idx: number) {
+    if (!(await ask('Remover este arquivo?'))) return
     const f = item.files[idx]
     deleteFromStorage(f?.path)
     const files = [...item.files]; files.splice(idx, 1)
@@ -235,7 +264,7 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
   }
 
   async function handleRemoveItem() {
-    if (!confirm('Remover este documento e o(s) arquivo(s) anexado(s)?')) return
+    if (!(await ask('Remover este documento e o(s) arquivo(s) anexado(s)?'))) return
     // remove todos os arquivos do storage antes de excluir o item
     await Promise.all(item.files.map(f => deleteFromStorage(f.path)))
     onRemove()
@@ -266,6 +295,7 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
         <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,.doc,.docx,.xls,.xlsx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFile} />
         {err && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</p>}
       </div>
+      {dialog}
     </div>
   )
 }
