@@ -535,6 +535,36 @@ export default async function CandidatePage({
           {/* Transferir de empresa — arquiva a ficha atual e mantém a ativa editável */}
           <TransferCompanySection candidateId={id} hasFicha={!!admissionForm} />
 
+          {/* Fichas anteriores (arquivadas em transferências) — logo após a transferência
+              e ANTES da ficha ativa, recolhíveis e somente leitura, para ficarem visíveis */}
+          {admissionFormHistory.length > 0 && (
+            <div className="space-y-2">
+              <p className="max-w-3xl text-[11px] font-bold uppercase tracking-wide text-gray-400 px-1">
+                Dados anteriores (antes da transferência)
+              </p>
+              {[...admissionFormHistory].reverse().map((h, i) => {
+                const comp = fichaCompanies.find(c => c.id === h.selected_company_id)
+                const compLabel = comp?.razao_social || comp?.apelido || 'Empresa não informada'
+                return (
+                  <ArchivedFicha
+                    key={`${h.arquivada_em ?? 'ficha'}-${i}`}
+                    title={`Ficha anterior — ${compLabel}`}
+                    subtitle={h.arquivada_em ? `Arquivada em ${formatDateTime(h.arquivada_em)}` : undefined}
+                  >
+                    <FichaAdmissaoForm
+                      candidate={fichaCandidate}
+                      jobTitle={jobTitle}
+                      companyName={brand?.company_name ?? null}
+                      initialData={h}
+                      companies={fichaCompanies}
+                      readOnly
+                    />
+                  </ArchivedFicha>
+                )
+              })}
+            </div>
+          )}
+
           {/* Ficha ativa (editável) */}
           <FichaAdmissaoForm
             candidate={fichaCandidate}
@@ -545,28 +575,6 @@ export default async function CandidatePage({
             contractCompanyId={contractCompanyId}
             docRequestDates={docRequestDates}
           />
-
-          {/* Fichas anteriores (arquivadas em transferências) — recolhíveis, somente leitura */}
-          {[...admissionFormHistory].reverse().map((h, i) => {
-            const comp = fichaCompanies.find(c => c.id === h.selected_company_id)
-            const compLabel = comp?.razao_social || comp?.apelido || 'Empresa não informada'
-            return (
-              <ArchivedFicha
-                key={`${h.arquivada_em ?? 'ficha'}-${i}`}
-                title={`Ficha anterior — ${compLabel}`}
-                subtitle={h.arquivada_em ? `Arquivada em ${formatDateTime(h.arquivada_em)}` : undefined}
-              >
-                <FichaAdmissaoForm
-                  candidate={fichaCandidate}
-                  jobTitle={jobTitle}
-                  companyName={brand?.company_name ?? null}
-                  initialData={h}
-                  companies={fichaCompanies}
-                  readOnly
-                />
-              </ArchivedFicha>
-            )
-          })}
         </>
       )}
 
