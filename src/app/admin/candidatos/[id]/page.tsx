@@ -550,6 +550,8 @@ export default async function CandidatePage({
                     key={`${h.arquivada_em ?? 'ficha'}-${i}`}
                     title={`Ficha anterior — ${compLabel}`}
                     subtitle={h.arquivada_em ? `Arquivada em ${formatDateTime(h.arquivada_em)}` : undefined}
+                    candidateId={id}
+                    arquivadaEm={h.arquivada_em}
                   >
                     <FichaAdmissaoForm
                       candidate={fichaCandidate}

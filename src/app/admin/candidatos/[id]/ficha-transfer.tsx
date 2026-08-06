@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowRightLeft, Building2, ChevronDown, ChevronUp, Loader2, X, AlertCircle,
+  ArrowRightLeft, Building2, ChevronDown, ChevronUp, Loader2, X, AlertCircle, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -91,32 +91,98 @@ export function TransferCompanySection({ candidateId, hasFicha }: { candidateId:
 
 // ─── Ficha arquivada (recolhível, somente leitura) ────────────────────────────
 
-export function ArchivedFicha({ title, subtitle, children }: {
+export function ArchivedFicha({ title, subtitle, candidateId, arquivadaEm, children }: {
   title: string
   subtitle?: string
+  candidateId: string
+  arquivadaEm?: string
   children: React.ReactNode
 }) {
+  const router = useRouter()
   const [expanded, setExpanded] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleDelete() {
+    setDeleting(true); setError('')
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/transfer-company`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ arquivada_em: arquivadaEm }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Erro ao excluir.')
+      setConfirming(false)
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message || 'Erro ao excluir.')
+    } finally { setDeleting(false) }
+  }
+
+  const toggle = () => setExpanded(e => !e)
+
   return (
     <div className="max-w-3xl rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center gap-2.5 px-4 sm:px-5 py-3.5 text-left hover:bg-gray-100 transition-colors"
-      >
-        <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
-        <span className="flex-1 min-w-0">
-          <span className="block text-sm font-semibold text-gray-700 truncate">{title}</span>
-          {subtitle && <span className="block text-[11px] text-muted-foreground">{subtitle}</span>}
-        </span>
+      <div className="w-full flex items-center gap-2.5 px-4 sm:px-5 py-3.5">
+        <button
+          type="button"
+          onClick={toggle}
+          className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:opacity-70 transition-opacity"
+        >
+          <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-semibold text-gray-700 truncate">{title}</span>
+            {subtitle && <span className="block text-[11px] text-muted-foreground">{subtitle}</span>}
+          </span>
+        </button>
         <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wide text-gray-400 bg-gray-200/70 rounded-full px-2 py-0.5 shrink-0">
           Somente leitura
         </span>
-        {expanded
-          ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
-          : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
-      </button>
+        {arquivadaEm && (
+          <button
+            type="button"
+            onClick={() => { setError(''); setConfirming(true) }}
+            title="Excluir esta ficha anterior"
+            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg px-2 py-1 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" /><span className="hidden sm:inline">Excluir</span>
+          </button>
+        )}
+        <button type="button" onClick={toggle} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+      </div>
       {expanded && <div className="border-t p-3 sm:p-4">{children}</div>}
+
+      {/* Alerta de exclusão (modal estilizado; o confirm() nativo é suprimido no tablet embarcado) */}
+      {confirming && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => { if (!deleting) setConfirming(false) }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b">
+              <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0"><Trash2 className="w-4 h-4 text-red-600" /></div>
+              <h2 className="text-base font-semibold text-gray-900">Excluir ficha anterior</h2>
+            </div>
+            <div className="px-5 py-4 text-sm text-gray-600">
+              Excluir <strong>{title}</strong>?
+              <span className="block mt-1 text-gray-500">Esta ação remove a ficha arquivada permanentemente e não pode ser desfeita.</span>
+            </div>
+            {error && (
+              <p className="px-5 -mt-1 pb-2 text-xs text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>
+            )}
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setConfirming(false)} disabled={deleting}>Cancelar</Button>
+              <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="gap-1.5">
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
