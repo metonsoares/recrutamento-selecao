@@ -742,7 +742,7 @@ export default async function CandidatePage({
                 )}
                 {!isMaster && cpf !== '—' && <Row label="CPF" value={cpf} />}
                 {isMaster ? (
-                  <EditContact candidateId={id} initialPhone={candidate.phone as string | null} initialEmail={candidate.email as string | null} initialCpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)} />
+                  <EditContact candidateId={id} initialName={candidate.full_name as string | null} initialPhone={candidate.phone as string | null} initialEmail={candidate.email as string | null} initialCpf={cpf !== '—' ? cpf : ((candidate.cpf as string | null) ?? null)} initialAddress={parsedAddress} />
                 ) : (
                   <>
                     <ChangedRow label="Telefone" value={candidate.phone} changes={changes} />

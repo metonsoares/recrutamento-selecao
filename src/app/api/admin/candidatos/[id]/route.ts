@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requireMasterApi } from '@/lib/auth-guard'
 
+type Addr = { street: string; number: string; complement: string; neighborhood: string; city: string; cep: string }
+
 /** Máscara de CPF (000.000.000-00) a partir dos dígitos. */
 function maskCpf(digits: string): string {
   const d = digits.replace(/\D/g, '').slice(0, 11)
@@ -95,6 +97,25 @@ export async function PATCH(
       }
       update.email = email || null
     }
+    if (typeof body.full_name === 'string') {
+      const name = body.full_name.trim()
+      if (name) update.full_name = name
+    }
+    // Endereço — grava cidade/bairro no candidato e prepara o espelho na ficha ativa.
+    let addressForFicha: Addr | null = null
+    if (body.address && typeof body.address === 'object') {
+      const a = body.address as Record<string, unknown>
+      addressForFicha = {
+        street: String(a.street ?? '').trim(),
+        number: String(a.number ?? '').trim(),
+        complement: String(a.complement ?? '').trim(),
+        neighborhood: String(a.neighborhood ?? '').trim(),
+        city: String(a.city ?? '').trim(),
+        cep: String(a.cep ?? '').trim(),
+      }
+      if (addressForFicha.city) update.city = addressForFicha.city
+      update.neighborhood = addressForFicha.neighborhood || null
+    }
     // CPF — valida 11 dígitos; guarda a versão mascarada p/ sincronizar a resposta do formulário
     let cpfMaskedSync: string | null | undefined = undefined
     if (typeof body.cpf === 'string') {
@@ -126,6 +147,47 @@ export async function PATCH(
           await service.from('form_answers')
             .update({ answer_text: JSON.stringify(cpfMaskedSync ?? '') })
             .eq('application_id', appId).eq('question_id', q.id)
+        }
+      }
+    }
+
+    // Espelha o endereço na resposta do formulário (exibida em "Dados Pessoais")
+    // e nos campos address_* da ficha ativa (admission_form), p/ refletir na
+    // aba "Ficha do Funcionário".
+    if (addressForFicha) {
+      const addrStr = [addressForFicha.street, addressForFicha.number, addressForFicha.neighborhood, addressForFicha.city, addressForFicha.cep]
+        .map(s => s.trim()).filter(Boolean).join(' - ')
+      const { data: app } = await service
+        .from('applications')
+        .select('id, admission_form')
+        .eq('candidate_id', id).eq('is_latest', true).maybeSingle()
+      if (app?.id) {
+        // Atualiza a resposta de endereço EXISTENTE desta candidatura (qualquer
+        // pergunta de field_type 'address'); se não houver, cria uma.
+        const { data: existingAns } = await service
+          .from('form_answers')
+          .select('id, form_questions!inner(field_type)')
+          .eq('application_id', app.id)
+          .eq('form_questions.field_type', 'address')
+          .limit(1).maybeSingle()
+        if (existingAns?.id) {
+          await service.from('form_answers').update({ answer_text: JSON.stringify(addrStr) }).eq('id', existingAns.id)
+        } else {
+          const { data: q } = await service
+            .from('form_questions').select('id').eq('field_type', 'address').limit(1).maybeSingle()
+          if (q?.id) {
+            await service.from('form_answers').insert({ application_id: app.id, question_id: q.id, answer_text: JSON.stringify(addrStr) })
+          }
+        }
+        if (app.admission_form && typeof app.admission_form === 'object') {
+          const af = { ...(app.admission_form as Record<string, unknown>) }
+          af.address_street = addressForFicha.street
+          af.address_number = addressForFicha.number
+          af.address_complement = addressForFicha.complement
+          af.address_bairro = addressForFicha.neighborhood
+          af.address_city = addressForFicha.city
+          af.address_cep = addressForFicha.cep
+          await service.from('applications').update({ admission_form: af }).eq('id', app.id)
         }
       }
     }
