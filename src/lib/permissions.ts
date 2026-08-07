@@ -28,7 +28,7 @@ export type Permission =
   | 'curriculos.secoes' | 'curriculos.vagas' | 'curriculos.teste_cultural'
   | 'colaboradores.ver'
   | 'treinamentos.ver'
-  | 'organograma.ver'
+  | 'organograma.ver' | 'organograma.editar'
   | 'pesquisas.cadastrar' | 'pesquisas.resultados' | 'pesquisas.remover_resposta'
   | 'documentos_empresa'
   | 'whatsapp.ver' | 'whatsapp.excluir'
@@ -193,6 +193,7 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
   { module: 'Treinamentos', action: 'Ver treinamentos', perm: 'treinamentos.ver' },
 
   { module: 'Organograma', action: 'Ver organograma', perm: 'organograma.ver' },
+  { module: 'Organograma', action: 'Editar estrutura e colaboradores', perm: 'organograma.editar' },
 
   { module: 'Pesquisas de clima', action: 'Cadastrar pesquisas', perm: 'pesquisas.cadastrar' },
   { module: 'Pesquisas de clima', action: 'Ver resultados', perm: 'pesquisas.resultados' },

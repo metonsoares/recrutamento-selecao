@@ -18,6 +18,20 @@ export async function requireMasterApi(): Promise<NextResponse | null> {
   return null
 }
 
+/**
+ * Guard para rotas de API por PERMISSÃO (não só master).
+ * Retorna NextResponse de erro (401/403) ou `null` se autorizado.
+ */
+export async function requirePermissionApi(perm: Permission): Promise<NextResponse | null> {
+  const { user, role } = await getEffectiveRole()
+  if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+  const granted = await getGrantedPerms(role)
+  if (!granted.has(perm)) {
+    return NextResponse.json({ error: 'Sem permissão para esta ação.' }, { status: 403 })
+  }
+  return null
+}
+
 /** Retorna o perfil do usuário logado (ou redireciona para login). */
 export async function getUserRole(): Promise<Role> {
   const { user, role } = await getEffectiveRole()
