@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -245,6 +245,9 @@ function SidebarContent({
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
               <Link href="/admin/folha-pagamento/premio-caju" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/premio-caju') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Gift className="w-3 h-3 shrink-0 opacity-50" />Prêmio Caju
+              </Link>
+              <Link href="/admin/folha-pagamento/vale-transporte" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/vale-transporte') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <Bus className="w-3 h-3 shrink-0 opacity-50" />Vale transporte
               </Link>
             </div>
           )}

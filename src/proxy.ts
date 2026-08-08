@@ -18,6 +18,8 @@ const PAGE_LABELS: [RegExp, string][] = [
   [/^\/admin\/candidatos\/?$/, 'Acessou Candidatos'],
   [/^\/admin\/pesquisas-clima\/cadastrar/, 'Acessou Cadastrar pesquisas de clima'],
   [/^\/admin\/pesquisas-clima\/resultados/, 'Acessou Resultados de pesquisas de clima'],
+  [/^\/admin\/folha-pagamento\/premio-caju/, 'Acessou Folha de pagamento: Prêmio Caju'],
+  [/^\/admin\/folha-pagamento\/vale-transporte/, 'Acessou Folha de pagamento: Vale transporte'],
   [/^\/admin\/folha-pagamento/, 'Acessou Folha de pagamento'],
   [/^\/admin\/documentos-empresa/, 'Acessou Documentos da empresa'],
   [/^\/admin\/whatsapp/, 'Acessou Mensagens WhatsApp'],
