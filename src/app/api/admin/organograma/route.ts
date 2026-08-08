@@ -86,6 +86,38 @@ export async function PATCH(req: NextRequest) {
     if (denied) return denied
 
     const b = await req.json().catch(() => ({}))
+
+    // Ação em lote: toda a unidade passa a reportar a um líder.
+    if (b.acao === 'equipe') {
+      const chefeId = String(b.chefe_id ?? '')
+      const unidadeId = String(b.unidade_id ?? '')
+      if (!chefeId || !unidadeId) {
+        return NextResponse.json({ error: 'Informe o líder e a unidade.' }, { status: 400 })
+      }
+      const supabase = await createSupabaseServiceClient()
+      const { data: todos } = await supabase.from('org_nos').select('id, reporta_a, unidade_id')
+      const lista = todos ?? []
+      const byId = new Map(lista.map(n => [n.id as string, n.reporta_a as string | null]))
+
+      // Não pode virar subordinado de quem já está abaixo dele (ciclo):
+      // preserva a cadeia de chefia do próprio líder.
+      const ancestrais = new Set<string>()
+      let cursor = byId.get(chefeId) ?? null
+      while (cursor && !ancestrais.has(cursor)) { ancestrais.add(cursor); cursor = byId.get(cursor) ?? null }
+
+      const alvos = lista
+        .filter(n => n.unidade_id === unidadeId && n.id !== chefeId && !ancestrais.has(n.id as string))
+        .map(n => n.id as string)
+      if (alvos.length === 0) return NextResponse.json({ ok: true, atualizados: 0 })
+
+      const { error } = await supabase
+        .from('org_nos')
+        .update({ reporta_a: chefeId, updated_at: new Date().toISOString() })
+        .in('id', alvos)
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ ok: true, atualizados: alvos.length })
+    }
+
     const id = String(b.id ?? '')
     if (!id) return NextResponse.json({ error: 'Nó não informado.' }, { status: 400 })
 
