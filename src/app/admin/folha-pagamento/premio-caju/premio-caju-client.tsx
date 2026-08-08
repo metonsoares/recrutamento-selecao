@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Gift, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
-  ExternalLink, History, X, ChevronLeft, ChevronRight, Ban,
+  ExternalLink, History, X, ChevronLeft, ChevronRight, Ban, Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -124,6 +124,17 @@ export function PremioCajuClient({
   const totalPagar = elegiveis.reduce((s, l) => s + valorDe(l), 0)
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
 
+  /** Replica o valor do mês nas linhas que estão listadas no filtro atual. */
+  function aplicarATodos() {
+    const texto = valorPadrao.trim()
+    setAjustes(a => {
+      const novo = { ...a }
+      for (const l of elegiveis) novo[l.candidate_id] = texto
+      return novo
+    })
+    setOk(`Valor aplicado a ${elegiveis.length} colaborador${elegiveis.length !== 1 ? 'es' : ''}${nomeEmpresa ? ` de ${nomeEmpresa}` : ''}.`)
+  }
+
   function exportar() {
     const cabecalho = ['Funcionário', 'Valor']
     const corpo = elegiveis.map(l => [formatName(l.nome), valorDe(l)])
@@ -211,11 +222,20 @@ export function PremioCajuClient({
           <option value="">Todas as empresas</option>
           {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
-        <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
-          <input value={valorPadrao} onChange={e => setValorPadrao(e.target.value.replace(/[^\d,.]/g, ''))}
-            placeholder="Valor do mês" inputMode="decimal"
-            className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white" />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
+            <input value={valorPadrao} onChange={e => setValorPadrao(e.target.value.replace(/[^\d,.]/g, ''))}
+              placeholder="Valor do mês" inputMode="decimal"
+              className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white" />
+          </div>
+          <Button
+            variant="outline" onClick={aplicarATodos} disabled={padraoNum <= 0 || elegiveis.length === 0}
+            title={nomeEmpresa ? `Aplicar a todos de ${nomeEmpresa}` : 'Aplicar a todos os listados'}
+            className="gap-1.5 shrink-0"
+          >
+            <Copy className="w-3.5 h-3.5" />Aplicar a todos
+          </Button>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={exportar} disabled={elegiveis.length === 0} className="gap-1.5 flex-1">
