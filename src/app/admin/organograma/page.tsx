@@ -22,8 +22,21 @@ export default async function OrganogramaPage() {
       .in('status', ['contratado', 'em_contrato']),
   ])
 
+  // Colaboradores ativos (contratado / em contrato). Quem foi desligado sai do
+  // organograma automaticamente — a rota de status remove o nó, e este filtro
+  // garante que nada apareça mesmo se algum registro antigo tiver sobrado.
+  const ativos = new Set(
+    (apps ?? [])
+      .filter(a => {
+        const c = a.candidates as unknown as { deleted_at: string | null } | null
+        return c && !c.deleted_at
+      })
+      .map(a => a.candidate_id as string),
+  )
+  const nosVisiveis = (nos ?? []).filter(n => !n.candidate_id || ativos.has(n.candidate_id as string))
+
   // Colaboradores contratados que ainda não estão no organograma.
-  const jaNoOrg = new Set((nos ?? []).map(n => n.candidate_id).filter(Boolean) as string[])
+  const jaNoOrg = new Set(nosVisiveis.map(n => n.candidate_id).filter(Boolean) as string[])
   const disponiveis: ColaboradorOpcao[] = (apps ?? [])
     .filter(a => {
       const c = a.candidates as unknown as { full_name: string; deleted_at: string | null } | null
@@ -44,7 +57,7 @@ export default async function OrganogramaPage() {
   return (
     <OrganogramaClient
       unidades={(unidades ?? []) as Unidade[]}
-      nos={(nos ?? []) as No[]}
+      nos={nosVisiveis as No[]}
       disponiveis={disponiveis}
       podeEditar={podeEditar}
     />

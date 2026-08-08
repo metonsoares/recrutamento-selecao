@@ -3,7 +3,8 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Network, Plus, Building2, Store, Factory, Briefcase, Users,
-  Pencil, Trash2, X, Loader2, AlertCircle, UserPlus, FolderPlus,
+  Pencil, X, Loader2, AlertCircle, UserPlus, FolderPlus,
+  ChevronDown, ChevronRight, CornerDownRight, ChevronsDownUp, ChevronsUpDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -76,9 +77,12 @@ export function OrganogramaClient({
   const [addOpen, setAddOpen] = useState(false)
   const [areaOpen, setAreaOpen] = useState(false)
   const [editando, setEditando] = useState<No | null>(null)
-  const [removendo, setRemovendo] = useState<No | null>(null)
+  // Caixas recolhidas (por id de unidade) e pessoas recolhidas (por id de nó).
+  const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set())
+  const [pessoasRecolhidas, setPessoasRecolhidas] = useState<Set<string>>(new Set())
 
   const holding = unidades.find(u => u.tipo === 'holding') ?? null
+
   const nosPorUnidade = useMemo(() => {
     const m = new Map<string, No[]>()
     for (const n of nos) {
@@ -89,9 +93,25 @@ export function OrganogramaClient({
     return m
   }, [nos])
 
+  const porId = useMemo(() => new Map(nos.map(n => [n.id, n])), [nos])
+  const unidadePorId = useMemo(() => new Map(unidades.map(u => [u.id, u])), [unidades])
+
+  /** Subordinados de um chefe que estão em OUTRA unidade (link cruzado). */
+  const subordinadosExternos = useMemo(() => {
+    const m = new Map<string, No[]>()
+    for (const n of nos) {
+      if (!n.reporta_a) continue
+      const chefe = porId.get(n.reporta_a)
+      if (!chefe || chefe.unidade_id === n.unidade_id) continue
+      const arr = m.get(chefe.id) ?? []
+      arr.push(n)
+      m.set(chefe.id, arr)
+    }
+    return m
+  }, [nos, porId])
+
   const diretoria = holding ? (nosPorUnidade.get(holding.id) ?? []) : []
 
-  // Unidades operacionais (com suas áreas) — a base das duas vistas.
   const unidadesOperacionais = unidades.filter(u => u.tipo === 'unidade')
   const areasDe = (unidadeId: string) => unidades.filter(u => u.tipo === 'area' && u.parent_id === unidadeId)
 
@@ -116,6 +136,16 @@ export function OrganogramaClient({
 
   const grupos = vista === 'juridica' ? gruposJuridicos : gruposOperacionais
   const totalPessoas = nos.length
+
+  const alternarCaixa = (id: string) => setRecolhidas(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
+  const alternarPessoa = (id: string) => setPessoasRecolhidas(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
+
+  const todasCaixas = unidades.filter(u => u.tipo === 'unidade' || u.tipo === 'area').map(u => u.id)
+  const tudoRecolhido = recolhidas.size >= todasCaixas.length && todasCaixas.length > 0
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto">
@@ -143,31 +173,41 @@ export function OrganogramaClient({
         )}
       </div>
 
-      {/* ── Alternância de vista ── */}
-      <div className="inline-flex rounded-xl border bg-white p-1 shadow-sm">
-        {([
-          { v: 'juridica' as Vista, label: 'Por empresa', hint: 'CNPJ' },
-          { v: 'operacional' as Vista, label: 'Por divisão', hint: 'Operação' },
-        ]).map(o => (
-          <button
-            key={o.v}
-            onClick={() => setVista(o.v)}
-            className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
-              vista === o.v ? 'bg-primary text-primary-foreground' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            {o.label}
-            <span className={`ml-1.5 text-[10px] font-medium ${vista === o.v ? 'text-primary-foreground/70' : 'text-gray-400'}`}>
-              {o.hint}
-            </span>
-          </button>
-        ))}
+      {/* ── Controles: vista + recolher tudo ── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="inline-flex rounded-xl border bg-white p-1 shadow-sm">
+          {([
+            { v: 'juridica' as Vista, label: 'Por empresa', hint: 'CNPJ' },
+            { v: 'operacional' as Vista, label: 'Por divisão', hint: 'Operação' },
+          ]).map(o => (
+            <button
+              key={o.v}
+              onClick={() => setVista(o.v)}
+              className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
+                vista === o.v ? 'bg-primary text-primary-foreground' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {o.label}
+              <span className={`ml-1.5 text-[10px] font-medium ${vista === o.v ? 'text-primary-foreground/70' : 'text-gray-400'}`}>
+                {o.hint}
+              </span>
+            </button>
+          ))}
+        </div>
+        <Button
+          variant="outline" size="sm"
+          onClick={() => setRecolhidas(tudoRecolhido ? new Set() : new Set(todasCaixas))}
+          className="gap-1.5"
+        >
+          {tudoRecolhido ? <ChevronsUpDown className="w-3.5 h-3.5" /> : <ChevronsDownUp className="w-3.5 h-3.5" />}
+          {tudoRecolhido ? 'Expandir tudo' : 'Recolher tudo'}
+        </Button>
       </div>
 
       {/* ── Topo: holding + diretoria ── */}
       {holding && (
         <div className="flex flex-col items-center">
-          <div className="rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-[#1a5c38] to-[#2d7a4f] text-white px-5 py-4 shadow-sm text-center min-w-[240px]">
+          <div className="rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-[#1a5c38] to-[#2d7a4f] text-white px-5 py-4 shadow-sm text-center min-w-[240px] max-w-full">
             <p className="text-[10px] uppercase tracking-widest text-emerald-100/80 font-semibold">Holding</p>
             <p className="text-lg font-bold leading-tight">{holding.nome}</p>
             {diretoria.length > 0 && (
@@ -182,10 +222,12 @@ export function OrganogramaClient({
                       <span className="block text-[10px] text-emerald-100/80">{d.cargo ?? '—'}</span>
                     </span>
                     {podeEditar && (
-                      <span className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setEditando(d)} title="Editar" className="p-1 hover:bg-white/20 rounded"><Pencil className="w-3 h-3" /></button>
-                        <button onClick={() => setRemovendo(d)} title="Remover" className="p-1 hover:bg-white/20 rounded"><Trash2 className="w-3 h-3" /></button>
-                      </span>
+                      <button
+                        onClick={() => setEditando(d)} title="Editar"
+                        className="p-1 hover:bg-white/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
                     )}
                   </div>
                 ))}
@@ -196,10 +238,10 @@ export function OrganogramaClient({
         </div>
       )}
 
-      {/* ── Grupos (empresas ou divisões) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+      {/* ── Grupos (empresas ou divisões) — layout se compacta ao recolher ── */}
+      <div className="columns-1 lg:columns-2 xl:columns-3 gap-4 [column-fill:_balance]">
         {grupos.map(g => (
-          <div key={g.chave} className="rounded-2xl border bg-gray-50/70 p-3 space-y-3">
+          <div key={g.chave} className="rounded-2xl border bg-gray-50/70 p-3 space-y-3 mb-4 break-inside-avoid">
             <div className="px-1">
               <p className="text-sm font-bold text-gray-800 leading-tight">{g.titulo}</p>
               <p className="text-[11px] text-muted-foreground">{g.legenda}</p>
@@ -212,9 +254,10 @@ export function OrganogramaClient({
                   <UnidadeCard
                     unidade={u}
                     pessoas={nosPorUnidade.get(u.id) ?? []}
-                    podeEditar={podeEditar}
-                    onEditar={setEditando}
-                    onRemover={setRemovendo}
+                    porId={porId} unidadePorId={unidadePorId} subordinadosExternos={subordinadosExternos}
+                    recolhida={recolhidas.has(u.id)} onAlternar={() => alternarCaixa(u.id)}
+                    pessoasRecolhidas={pessoasRecolhidas} onAlternarPessoa={alternarPessoa}
+                    podeEditar={podeEditar} onEditar={setEditando}
                   />
                   {areas.length > 0 && (
                     <div className="pl-4 border-l-2 border-dashed border-gray-200 ml-3 space-y-2">
@@ -223,9 +266,10 @@ export function OrganogramaClient({
                           key={a.id}
                           unidade={a}
                           pessoas={nosPorUnidade.get(a.id) ?? []}
-                          podeEditar={podeEditar}
-                          onEditar={setEditando}
-                          onRemover={setRemovendo}
+                          porId={porId} unidadePorId={unidadePorId} subordinadosExternos={subordinadosExternos}
+                          recolhida={recolhidas.has(a.id)} onAlternar={() => alternarCaixa(a.id)}
+                          pessoasRecolhidas={pessoasRecolhidas} onAlternarPessoa={alternarPessoa}
+                          podeEditar={podeEditar} onEditar={setEditando}
                         />
                       ))}
                     </div>
@@ -256,35 +300,48 @@ export function OrganogramaClient({
           onClose={() => setEditando(null)}
         />
       )}
-      {removendo && (
-        <ModalRemover no={removendo} onClose={() => setRemovendo(null)} />
-      )}
     </div>
   )
 }
 
-// ─── Card de unidade / área ───────────────────────────────────────────────────
+// ─── Card de unidade / área (recolhível) ──────────────────────────────────────
 
 function UnidadeCard({
-  unidade, pessoas, podeEditar, onEditar, onRemover,
+  unidade, pessoas, porId, unidadePorId, subordinadosExternos,
+  recolhida, onAlternar, pessoasRecolhidas, onAlternarPessoa, podeEditar, onEditar,
 }: {
   unidade: Unidade
   pessoas: No[]
+  porId: Map<string, No>
+  unidadePorId: Map<string, Unidade>
+  subordinadosExternos: Map<string, No[]>
+  recolhida: boolean
+  onAlternar: () => void
+  pessoasRecolhidas: Set<string>
+  onAlternarPessoa: (id: string) => void
   podeEditar: boolean
   onEditar: (n: No) => void
-  onRemover: (n: No) => void
 }) {
   const Icone = iconeDe(unidade)
   const isArea = unidade.tipo === 'area'
 
-  // Hierarquia interna: quem reporta a quem dentro da mesma unidade.
+  // Hierarquia dentro da unidade. Quem tem chefe fora da unidade aparece no topo
+  // da própria caixa, com a legenda de quem é o chefe (link entre unidades).
   const idsLocais = new Set(pessoas.map(p => p.id))
   const raizes = pessoas.filter(p => !p.reporta_a || !idsLocais.has(p.reporta_a))
   const filhosDe = (id: string) => pessoas.filter(p => p.reporta_a === id)
 
   return (
     <div className={`rounded-xl border bg-white shadow-sm overflow-hidden ${isArea ? 'border-gray-200' : 'border-gray-300'}`}>
-      <div className={`flex items-center gap-2 px-3 py-2.5 ${isArea ? 'bg-gray-50' : 'bg-primary/5'}`}>
+      <button
+        type="button" onClick={onAlternar}
+        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
+          isArea ? 'bg-gray-50 hover:bg-gray-100' : 'bg-primary/5 hover:bg-primary/10'
+        }`}
+      >
+        {recolhida
+          ? <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
         <Icone className={`w-4 h-4 shrink-0 ${isArea ? 'text-gray-400' : 'text-primary'}`} />
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-bold text-gray-800 truncate">{unidade.nome}</p>
@@ -307,59 +364,109 @@ function UnidadeCard({
           </div>
         </div>
         <span className="text-[11px] font-semibold text-gray-400 shrink-0">{pessoas.length}</span>
-      </div>
+      </button>
 
-      {pessoas.length > 0 ? (
-        <div className="p-2 space-y-1">
-          {raizes.map(p => (
-            <PessoaLinha
-              key={p.id} pessoa={p} nivel={0} filhosDe={filhosDe}
-              podeEditar={podeEditar} onEditar={onEditar} onRemover={onRemover}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="px-3 py-3 text-[12px] text-muted-foreground">Ninguém alocado ainda.</p>
+      {!recolhida && (
+        pessoas.length > 0 ? (
+          <div className="p-2 space-y-1">
+            {raizes.map(p => (
+              <PessoaLinha
+                key={p.id} pessoa={p} nivel={0} filhosDe={filhosDe}
+                porId={porId} unidadePorId={unidadePorId} subordinadosExternos={subordinadosExternos}
+                pessoasRecolhidas={pessoasRecolhidas} onAlternarPessoa={onAlternarPessoa}
+                podeEditar={podeEditar} onEditar={onEditar}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="px-3 py-3 text-[12px] text-muted-foreground">Ninguém alocado ainda.</p>
+        )
       )}
     </div>
   )
 }
 
 function PessoaLinha({
-  pessoa, nivel, filhosDe, podeEditar, onEditar, onRemover,
+  pessoa, nivel, filhosDe, porId, unidadePorId, subordinadosExternos,
+  pessoasRecolhidas, onAlternarPessoa, podeEditar, onEditar,
 }: {
   pessoa: No
   nivel: number
   filhosDe: (id: string) => No[]
+  porId: Map<string, No>
+  unidadePorId: Map<string, Unidade>
+  subordinadosExternos: Map<string, No[]>
+  pessoasRecolhidas: Set<string>
+  onAlternarPessoa: (id: string) => void
   podeEditar: boolean
   onEditar: (n: No) => void
-  onRemover: (n: No) => void
 }) {
   const filhos = filhosDe(pessoa.id)
+  const recolhida = pessoasRecolhidas.has(pessoa.id)
+  const externos = subordinadosExternos.get(pessoa.id) ?? []
+
+  // Chefe em outra unidade — mostra o vínculo, que senão ficaria invisível.
+  const chefe = pessoa.reporta_a ? porId.get(pessoa.reporta_a) : undefined
+  const chefeExterno = chefe && chefe.unidade_id !== pessoa.unidade_id ? chefe : undefined
+  const unidadeChefe = chefeExterno ? unidadePorId.get(chefeExterno.unidade_id) : undefined
+
   return (
     <>
       <div
-        className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-50 group"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 hover:bg-gray-50 group"
         style={{ marginLeft: nivel * 14 }}
       >
+        {filhos.length > 0 ? (
+          <button
+            onClick={() => onAlternarPessoa(pessoa.id)}
+            title={recolhida ? 'Expandir equipe' : 'Recolher equipe'}
+            className="p-0.5 text-gray-400 hover:text-gray-600 shrink-0"
+          >
+            {recolhida ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        ) : <span className="w-[18px] shrink-0" />}
+
         <span className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
           {iniciais(pessoa.nome)}
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-[13px] font-medium text-gray-800 truncate">{formatName(pessoa.nome)}</span>
+          <span className="block text-[13px] font-medium text-gray-800 truncate">
+            {formatName(pessoa.nome)}
+            {filhos.length + externos.length > 0 && (
+              <span className="ml-1.5 text-[10px] font-semibold text-primary/70">
+                +{filhos.length + externos.length}
+              </span>
+            )}
+          </span>
           <span className="block text-[11px] text-muted-foreground truncate">{pessoa.cargo ?? '—'}</span>
+          {chefeExterno && (
+            <span className="flex items-center gap-1 text-[10px] text-amber-700 mt-0.5">
+              <CornerDownRight className="w-3 h-3 shrink-0" />
+              responde a {formatName(chefeExterno.nome)}
+              {unidadeChefe ? ` · ${unidadeChefe.nome}` : ''}
+            </span>
+          )}
+          {externos.length > 0 && (
+            <span className="block text-[10px] text-gray-400 mt-0.5">
+              + {externos.length} em outra unidade: {externos.map(e => formatName(e.nome).split(' ')[0]).join(', ')}
+            </span>
+          )}
         </span>
         {podeEditar && (
-          <span className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button onClick={() => onEditar(pessoa)} title="Editar" className="p-1 text-gray-400 hover:text-primary rounded"><Pencil className="w-3.5 h-3.5" /></button>
-            <button onClick={() => onRemover(pessoa)} title="Remover" className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
-          </span>
+          <button
+            onClick={() => onEditar(pessoa)} title="Editar"
+            className="p-1 text-gray-400 hover:text-primary rounded shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
-      {filhos.map(f => (
+      {!recolhida && filhos.map(f => (
         <PessoaLinha
           key={f.id} pessoa={f} nivel={nivel + 1} filhosDe={filhosDe}
-          podeEditar={podeEditar} onEditar={onEditar} onRemover={onRemover}
+          porId={porId} unidadePorId={unidadePorId} subordinadosExternos={subordinadosExternos}
+          pessoasRecolhidas={pessoasRecolhidas} onAlternarPessoa={onAlternarPessoa}
+          podeEditar={podeEditar} onEditar={onEditar}
         />
       ))}
     </>
@@ -394,6 +501,11 @@ function ModalColaborador({
   const lotacoes = unidades.filter(u => u.tipo !== 'empresa')
   const nomeUnidade = (u: Unidade) =>
     u.tipo === 'holding' ? `${u.nome} (diretoria)` : u.tipo === 'area' ? `   ↳ ${u.nome}` : u.nome
+
+  // "Reporta a" agrupado por unidade — com 50 pessoas, lista solta é ilegível.
+  const chefesPorUnidade = lotacoes
+    .map(u => ({ unidade: u, pessoas: nos.filter(n => n.unidade_id === u.id && n.id !== editando?.id) }))
+    .filter(g => g.pessoas.length > 0)
 
   async function salvar() {
     setSaving(true); setError('')
@@ -491,10 +603,17 @@ function ModalColaborador({
             <label className="text-[11px] font-medium text-gray-600">Reporta a (opcional)</label>
             <select value={reportaA} onChange={e => setReportaA(e.target.value)} className={INPUT}>
               <option value="">Sem chefia definida</option>
-              {nos.filter(n => n.id !== editando?.id).map(n => (
-                <option key={n.id} value={n.id}>{formatName(n.nome)}{n.cargo ? ` — ${n.cargo}` : ''}</option>
+              {chefesPorUnidade.map(g => (
+                <optgroup key={g.unidade.id} label={g.unidade.nome}>
+                  {g.pessoas.map(n => (
+                    <option key={n.id} value={n.id}>{formatName(n.nome)}{n.cargo ? ` — ${n.cargo}` : ''}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
+            <p className="text-[10px] text-muted-foreground">
+              Pode escolher chefe de outra unidade — o vínculo aparece com a legenda “responde a”.
+            </p>
           </div>
 
           {error && <p className="text-[12px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}
@@ -570,53 +689,6 @@ function ModalArea({ unidades, onClose }: { unidades: Unidade[]; onClose: () => 
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
           <Button onClick={salvar} disabled={saving || !nome.trim() || !parentId} className="gap-1.5">
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}Criar
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Modal: remover (alerta estilizado) ───────────────────────────────────────
-
-function ModalRemover({ no, onClose }: { no: No; onClose: () => void }) {
-  const router = useRouter()
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  async function remover() {
-    setSaving(true); setError('')
-    try {
-      const res = await fetch('/api/admin/organograma', {
-        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: no.id }),
-      })
-      const d = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(d.error || 'Erro ao remover.')
-      onClose(); router.refresh()
-    } catch (e) {
-      setError((e as Error).message || 'Erro ao remover.')
-    } finally { setSaving(false) }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => !saving && onClose()}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b">
-          <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0"><Trash2 className="w-4 h-4 text-red-600" /></div>
-          <h2 className="text-base font-semibold text-gray-900">Remover do organograma</h2>
-        </div>
-        <div className="px-5 py-4 text-sm text-gray-600">
-          Remover <strong>{formatName(no.nome)}</strong> do organograma?
-          <span className="block mt-1 text-gray-500">
-            Isso não desliga o colaborador nem apaga a ficha — só tira da estrutura. Quem reportava a ele fica sem chefia definida.
-          </span>
-        </div>
-        {error && <p className="px-5 pb-2 text-xs text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}
-        <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button variant="destructive" onClick={remover} disabled={saving} className="gap-1.5">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}Remover
           </Button>
         </div>
       </div>

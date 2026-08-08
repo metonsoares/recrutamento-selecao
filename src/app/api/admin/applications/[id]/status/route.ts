@@ -24,7 +24,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // Status atual — usado para detectar a transição freelancer → reprovado
     const { data: current } = await supabase
-      .from('applications').select('status').eq('id', id).single()
+      .from('applications').select('status, candidate_id').eq('id', id).single()
 
     const now = new Date().toISOString()
     const payload: Record<string, unknown> = { status, updated_at: now }
@@ -42,6 +42,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { error } = await supabase.from('applications').update(payload).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+    // Desligamento tira o colaborador do organograma automaticamente.
+    // Quem reportava a ele fica sem chefia (FK on delete set null).
+    if (status === 'desligado' && current?.candidate_id) {
+      await supabase.from('org_nos').delete().eq('candidate_id', current.candidate_id)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {
