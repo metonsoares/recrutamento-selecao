@@ -46,6 +46,18 @@ export interface ColaboradorOpcao {
   cargo: string | null
   company_id: string | null
   foto_url: string | null
+  /** contratado (CLT) ou intermitente (status "aprovado" no app) */
+  vinculo: 'contratado' | 'intermitente'
+}
+
+/** Selo do vínculo — só aparece para quem não é CLT padrão. */
+function SeloVinculo({ vinculo }: { vinculo?: string }) {
+  if (vinculo !== 'intermitente') return null
+  return (
+    <span className="text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-sky-100 text-sky-700 shrink-0">
+      Intermitente
+    </span>
+  )
 }
 
 type Vista = 'juridica' | 'operacional'
@@ -97,12 +109,13 @@ function Avatar({ nome, foto, size = 28 }: { nome: string; foto?: string | null;
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function OrganogramaClient({
-  unidades, nos, colaboradores, fotos, podeEditar,
+  unidades, nos, colaboradores, fotos, vinculos, podeEditar,
 }: {
   unidades: Unidade[]
   nos: No[]
   colaboradores: ColaboradorOpcao[]
   fotos: Record<string, string>
+  vinculos: Record<string, string>
   podeEditar: boolean
 }) {
   const router = useRouter()
@@ -316,7 +329,7 @@ export function OrganogramaClient({
 
                 {g.unidades.map(u => {
                   const props = {
-                    porId, unidadePorId, subordinadosExternos, fotos,
+                    porId, unidadePorId, subordinadosExternos, fotos, vinculos,
                     pessoasRecolhidas, onAlternarPessoa: alternarPessoa,
                     podeEditar, onEditar: setEditando, onLideranca: setLideranca,
                     arrastando, alvoHover, setAlvoHover, onSoltar: soltarEm, setArrastando,
@@ -455,7 +468,10 @@ function PainelColaboradores({
               <Avatar nome={c.nome} foto={c.foto_url} size={30} />
               <span className="flex-1 min-w-0">
                 <span className="block text-[12.5px] font-medium text-gray-800 truncate">{formatName(c.nome)}</span>
-                <span className="block text-[10.5px] text-muted-foreground truncate">{c.cargo ?? '—'}</span>
+                <span className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                  <span className="truncate">{c.cargo ?? '—'}</span>
+                  <SeloVinculo vinculo={c.vinculo} />
+                </span>
                 {unidade && (
                   <span className="block text-[10px] text-emerald-700 truncate">✓ {unidade.nome}</span>
                 )}
@@ -484,6 +500,7 @@ interface CardProps {
   unidadePorId: Map<string, Unidade>
   subordinadosExternos: Map<string, No[]>
   fotos: Record<string, string>
+  vinculos: Record<string, string>
   pessoasRecolhidas: Set<string>
   onAlternarPessoa: (id: string) => void
   podeEditar: boolean
@@ -638,6 +655,7 @@ interface LinhaProps {
   unidadePorId: Map<string, Unidade>
   subordinadosExternos: Map<string, No[]>
   fotos: Record<string, string>
+  vinculos: Record<string, string>
   pessoasRecolhidas: Set<string>
   onAlternarPessoa: (id: string) => void
   podeEditar: boolean
@@ -647,7 +665,7 @@ interface LinhaProps {
 }
 
 function PessoaLinha({
-  pessoa, nivel, filhosDe, porId, unidadePorId, subordinadosExternos, fotos,
+  pessoa, nivel, filhosDe, porId, unidadePorId, subordinadosExternos, fotos, vinculos,
   pessoasRecolhidas, onAlternarPessoa, podeEditar, onEditar, onLideranca, setArrastando,
 }: LinhaProps) {
   const filhos = filhosDe(pessoa.id)
@@ -697,7 +715,10 @@ function PessoaLinha({
               </span>
             )}
           </span>
-          <span className="block text-[11px] text-muted-foreground truncate">{pessoa.cargo ?? '—'}</span>
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="truncate">{pessoa.cargo ?? '—'}</span>
+            <SeloVinculo vinculo={pessoa.candidate_id ? vinculos[pessoa.candidate_id] : undefined} />
+          </span>
           {chefeExterno && (
             <span className="flex items-center gap-1 text-[10px] text-amber-700 mt-0.5">
               <CornerDownRight className="w-3 h-3 shrink-0" />
@@ -721,7 +742,8 @@ function PessoaLinha({
       {!recolhida && filhos.map(f => (
         <PessoaLinha
           key={f.id} pessoa={f} nivel={nivel + 1} filhosDe={filhosDe}
-          porId={porId} unidadePorId={unidadePorId} subordinadosExternos={subordinadosExternos} fotos={fotos}
+          porId={porId} unidadePorId={unidadePorId} subordinadosExternos={subordinadosExternos}
+          fotos={fotos} vinculos={vinculos}
           pessoasRecolhidas={pessoasRecolhidas} onAlternarPessoa={onAlternarPessoa}
           podeEditar={podeEditar} onEditar={onEditar} onLideranca={onLideranca} setArrastando={setArrastando}
         />

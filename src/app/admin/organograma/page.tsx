@@ -27,9 +27,10 @@ export default async function OrganogramaPage() {
     supabase.from('org_nos').select('*').eq('ativo', true).order('ordem'),
     supabase
       .from('applications')
-      .select('id, candidate_id, admission_form')
-      .eq('is_latest', true)
-      .in('status', ['contratado', 'em_contrato']),
+      .select('id, candidate_id, admission_form, status')
+      // "Intermitentes" é o status `aprovado` (rótulo do app).
+      .in('status', ['contratado', 'em_contrato', 'aprovado'])
+      .eq('is_latest', true),
   ])
 
   const appsAtivos = apps ?? []
@@ -74,6 +75,7 @@ export default async function OrganogramaPage() {
         cargo: String(af?.function_title ?? '').trim() || null,
         company_id: String(af?.selected_company_id ?? '') || null,
         foto_url: fotoPorApp.get(a.id as string) ?? null,
+        vinculo: a.status === 'aprovado' ? ('intermitente' as const) : ('contratado' as const),
       }
     })
     .filter(Boolean) as ColaboradorOpcao[]
@@ -81,9 +83,13 @@ export default async function OrganogramaPage() {
   const ativos = new Set(colaboradores.map(c => c.candidate_id))
   const nosVisiveis = (nos ?? []).filter(n => !n.candidate_id || ativos.has(n.candidate_id as string))
 
-  // Foto por nó (para os cards dentro das caixas).
+  // Foto e vínculo por nó (para os cards dentro das caixas).
   const fotoPorCandidato: Record<string, string> = {}
-  for (const c of colaboradores) if (c.foto_url) fotoPorCandidato[c.candidate_id] = c.foto_url
+  const vinculoPorCandidato: Record<string, string> = {}
+  for (const c of colaboradores) {
+    if (c.foto_url) fotoPorCandidato[c.candidate_id] = c.foto_url
+    vinculoPorCandidato[c.candidate_id] = c.vinculo
+  }
 
   return (
     <OrganogramaClient
@@ -91,6 +97,7 @@ export default async function OrganogramaPage() {
       nos={nosVisiveis as No[]}
       colaboradores={colaboradores.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))}
       fotos={fotoPorCandidato}
+      vinculos={vinculoPorCandidato}
       podeEditar={podeEditar}
     />
   )
