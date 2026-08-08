@@ -1,154 +1,141 @@
-import Link from 'next/link'
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { formatName } from '@/lib/helpers'
-import { Gift, CheckCircle2, Clock, ExternalLink } from 'lucide-react'
+import { PremioCajuClient, LinhaCaju, EmpresaOpcao, PagamentoHistorico } from './premio-caju-client'
 
 export const dynamic = 'force-dynamic'
 
-interface Linha {
-  candidateId: string
-  nome: string
-  cargo: string | null
-  empresa: string | null
-  arquivos: number
+/** Competência (yyyy-mm-01) do mês fechado anterior, no fuso de São Paulo. */
+function competenciaPadrao(): string {
+  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  const d = new Date(agora.getFullYear(), agora.getMonth() - 1, 1) // mês fechado anterior
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 
-// Exclusivo do Master. Lista os colaboradores CONTRATADOS elegíveis ao
-// Prêmio Caju — quem está com "Não aplicável" marcado no documento fica fora.
-export default async function PremioCajuPage() {
+/** Último dia do mês da competência (yyyy-mm-dd). */
+function fimDoMes(competencia: string): string {
+  const [ano, mes] = competencia.split('-').map(Number)
+  const ultimo = new Date(ano, mes, 0).getDate()
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}`
+}
+
+export default async function PremioCajuPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ competencia?: string }>
+}) {
   await requireMaster()
+  const sp = await searchParams
+
+  const competencia = /^\d{4}-\d{2}-01$/.test(sp.competencia ?? '')
+    ? (sp.competencia as string)
+    : competenciaPadrao()
+  const inicio = competencia
+  const fim = fimDoMes(competencia)
 
   const supabase = await createSupabaseServiceClient()
 
-  const [{ data: apps }, { data: empresas }] = await Promise.all([
+  const [{ data: apps }, { data: empresas }, { data: ciclo }] = await Promise.all([
     supabase
       .from('applications')
       .select('candidate_id, admission_form, company_docs')
       .eq('is_latest', true)
       .eq('status', 'contratado'),
-    supabase.from('companies').select('id, apelido, razao_social'),
+    supabase.from('companies').select('id, apelido, razao_social').order('apelido'),
+    supabase.from('premio_caju_ciclos').select('*').eq('competencia', competencia).maybeSingle(),
   ])
 
   const appsList = apps ?? []
   const candIds = appsList.map(a => a.candidate_id as string).filter(Boolean)
 
-  const { data: cands } = candIds.length
-    ? await supabase.from('candidates').select('id, full_name, deleted_at').in('id', candIds)
-    : { data: [] as { id: string; full_name: string; deleted_at: string | null }[] }
+  const [{ data: cands }, { data: faltas }, { data: advertencias }, { data: itensCiclo }] = await Promise.all([
+    candIds.length
+      ? supabase.from('candidates').select('id, full_name, deleted_at').in('id', candIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string; deleted_at: string | null }[] }),
+    // Faltas injustificadas do mês fechado (afastamento/atestado não tiram o prêmio).
+    supabase.from('absences').select('candidate_id, absence_date, days')
+      .eq('kind', 'injustificada').gte('absence_date', inicio).lte('absence_date', fim),
+    supabase.from('warnings').select('candidate_id, occurred_at')
+      .gte('occurred_at', inicio).lte('occurred_at', fim),
+    ciclo?.id
+      ? supabase.from('premio_caju_itens').select('candidate_id, valor').eq('ciclo_id', ciclo.id)
+      : Promise.resolve({ data: [] as { candidate_id: string; valor: number }[] }),
+  ])
+
+  // Histórico de pagamentos aprovados (para ver mês + valor por pessoa).
+  const { data: histRaw } = await supabase
+    .from('premio_caju_itens')
+    .select('candidate_id, valor, premio_caju_ciclos!inner(competencia)')
+    .order('created_at', { ascending: false })
 
   const candPorId = new Map((cands ?? []).map(c => [c.id as string, c]))
   const empresaPorId = new Map(
-    (empresas ?? []).map(e => [e.id as string, (e.apelido as string) || (e.razao_social as string) || '']),
+    (empresas ?? []).map(e => [e.id as string, (e.apelido as string) || (e.razao_social as string) || '—']),
   )
 
-  const linhas: Linha[] = appsList
+  const faltasPorCand = new Map<string, number>()
+  for (const f of faltas ?? []) {
+    const k = f.candidate_id as string
+    faltasPorCand.set(k, (faltasPorCand.get(k) ?? 0) + (Number(f.days) || 1))
+  }
+  const advPorCand = new Map<string, number>()
+  for (const a of advertencias ?? []) {
+    const k = a.candidate_id as string
+    advPorCand.set(k, (advPorCand.get(k) ?? 0) + 1)
+  }
+  const valorAprovado = new Map((itensCiclo ?? []).map(i => [i.candidate_id as string, Number(i.valor)]))
+
+  const historico: PagamentoHistorico[] = (histRaw ?? []).map(h => {
+    const c = h.premio_caju_ciclos as unknown as { competencia: string }
+    return { candidate_id: h.candidate_id as string, competencia: c.competencia, valor: Number(h.valor) }
+  })
+
+  const linhas: LinhaCaju[] = appsList
     .map(a => {
       const c = candPorId.get(a.candidate_id as string)
       if (!c || c.deleted_at) return null
 
       const docs = a.company_docs as Record<string, unknown> | null
-      const caju = docs?.premio_caju as { not_applicable?: boolean; files?: unknown[] } | undefined
-      if (caju?.not_applicable === true) return null // "Não aplicável" não entra na lista
+      const caju = docs?.premio_caju as { not_applicable?: boolean } | undefined
+      if (caju?.not_applicable === true) return null // "Não aplicável" fica fora
 
       const af = a.admission_form as Record<string, unknown> | null
       const empresaId = String(af?.selected_company_id ?? '')
+      const id = a.candidate_id as string
+      const dias = faltasPorCand.get(id) ?? 0
+      const adv = advPorCand.get(id) ?? 0
+
       return {
-        candidateId: a.candidate_id as string,
+        candidate_id: id,
         nome: c.full_name,
         cargo: String(af?.function_title ?? '').trim() || null,
+        empresa_id: empresaId || null,
         empresa: empresaPorId.get(empresaId) ?? null,
-        arquivos: Array.isArray(caju?.files) ? caju!.files!.length : 0,
+        faltas: dias,
+        advertencias: adv,
+        elegivel: dias === 0 && adv === 0,
+        valor_aprovado: valorAprovado.get(id) ?? null,
       }
     })
-    .filter(Boolean) as Linha[]
+    .filter(Boolean) as LinhaCaju[]
 
   linhas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  const comDocumento = linhas.filter(l => l.arquivos > 0).length
+
+  const opcoesEmpresa: EmpresaOpcao[] = Array.from(
+    new Map(linhas.filter(l => l.empresa_id).map(l => [l.empresa_id as string, l.empresa ?? '—'])).entries(),
+  ).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
-      {/* Cabeçalho */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <Gift className="w-5 h-5 text-primary" />
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <h1 className="text-2xl font-bold leading-tight">Prêmio Caju</h1>
-          <p className="text-sm text-muted-foreground">
-            Colaboradores contratados elegíveis — quem está marcado como “Não aplicável” fica fora da lista.
-          </p>
-        </div>
-      </div>
-
-      {/* Resumo */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="rounded-xl border bg-white p-3.5 shadow-sm">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Elegíveis</p>
-          <p className="text-2xl font-bold text-gray-900 mt-0.5">{linhas.length}</p>
-        </div>
-        <div className="rounded-xl border bg-white p-3.5 shadow-sm">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Com documento</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-0.5">{comDocumento}</p>
-        </div>
-        <div className="rounded-xl border bg-white p-3.5 shadow-sm col-span-2 sm:col-span-1">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Pendentes</p>
-          <p className="text-2xl font-bold text-amber-600 mt-0.5">{linhas.length - comDocumento}</p>
-        </div>
-      </div>
-
-      {/* Lista */}
-      <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-2.5 font-semibold">Colaborador</th>
-                <th className="px-4 py-2.5 font-semibold">Cargo</th>
-                <th className="px-4 py-2.5 font-semibold hidden sm:table-cell">Empresa</th>
-                <th className="px-4 py-2.5 font-semibold">Documento</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {linhas.map(l => (
-                <tr key={l.candidateId} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-medium text-gray-900">{formatName(l.nome)}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{l.cargo ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-gray-600 hidden sm:table-cell">{l.empresa ?? '—'}</td>
-                  <td className="px-4 py-2.5">
-                    {l.arquivos > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        {l.arquivos} arquivo{l.arquivos !== 1 ? 's' : ''}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-amber-600">
-                        <Clock className="w-3.5 h-3.5" />Pendente
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <Link
-                      href={`/admin/candidatos/${l.candidateId}?tab=documentos`}
-                      className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
-                    >
-                      Abrir ficha<ExternalLink className="w-3 h-3" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-              {linhas.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
-                    Nenhum colaborador elegível.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <PremioCajuClient
+      competencia={competencia}
+      linhas={linhas}
+      empresas={opcoesEmpresa}
+      historico={historico}
+      cicloAprovado={ciclo ? {
+        valor_padrao: Number(ciclo.valor_padrao),
+        total: Number(ciclo.total),
+        aprovado_por: (ciclo.aprovado_por as string) ?? null,
+        aprovado_em: ciclo.aprovado_em as string,
+      } : null}
+    />
   )
 }
