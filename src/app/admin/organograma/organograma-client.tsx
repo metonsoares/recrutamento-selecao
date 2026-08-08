@@ -18,6 +18,8 @@ export interface Unidade {
   tipo: 'holding' | 'empresa' | 'unidade' | 'area'
   nome: string
   company_id: string | null
+  /** Estabelecimentos (CNPJs) que a unidade engloba — ex.: matriz + filial juntas. */
+  company_ids: string[] | null
   divisao: string | null
   matriz: boolean
   escopo: 'local' | 'grupo'
@@ -522,7 +524,9 @@ function UnidadeCard(p: CardProps) {
               <span className={`text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 ${
                 unidade.matriz ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
               }`}>
-                {unidade.matriz ? 'Matriz' : 'Filial'}
+                {(unidade.company_ids?.length ?? 0) > 1
+                  ? `Matriz + filial · ${unidade.company_ids!.length} CNPJs`
+                  : unidade.matriz ? 'Matriz' : 'Filial'}
               </span>
             )}
             {unidade.escopo === 'grupo' && (
