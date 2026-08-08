@@ -23,6 +23,8 @@ export interface Unidade {
   divisao: string | null
   matriz: boolean
   escopo: 'local' | 'grupo'
+  /** Pessoa a quem este setor responde (ex.: Produção responde à Supervisora Comercial). */
+  responsavel_no_id: string | null
   ordem: number
 }
 
@@ -47,7 +49,10 @@ export interface ColaboradorOpcao {
 }
 
 type Vista = 'juridica' | 'operacional'
-type Arrasto = { tipo: 'novo'; candidateId: string; nome: string } | { tipo: 'no'; noId: string; nome: string }
+type Arrasto =
+  | { tipo: 'novo'; candidateId: string; nome: string }
+  | { tipo: 'no'; noId: string; nome: string }
+  | { tipo: 'unidade'; unidadeId: string; nome: string }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -106,6 +111,7 @@ export function OrganogramaClient({
   const [areaOpen, setAreaOpen] = useState(false)
   const [editando, setEditando] = useState<No | null>(null)
   const [lideranca, setLideranca] = useState<No | null>(null)
+  const [setor, setSetor] = useState<Unidade | null>(null)
   const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set())
   const [pessoasRecolhidas, setPessoasRecolhidas] = useState<Set<string>>(new Set())
   const [arrastando, setArrastando] = useState<Arrasto | null>(null)
@@ -148,7 +154,6 @@ export function OrganogramaClient({
 
   const diretoria = holding ? (nosPorUnidade.get(holding.id) ?? []) : []
   const unidadesOperacionais = unidades.filter(u => u.tipo === 'unidade')
-  const areasDe = (unidadeId: string) => unidades.filter(u => u.tipo === 'area' && u.parent_id === unidadeId)
 
   const gruposJuridicos = unidades
     .filter(u => u.tipo === 'empresa')
@@ -178,17 +183,20 @@ export function OrganogramaClient({
   /** Soltar um colaborador dentro de uma unidade/área. */
   async function soltarEm(unidadeId: string) {
     if (!arrastando || soltando) return
+    if (arrastando.tipo === 'unidade' && arrastando.unidadeId === unidadeId) {
+      setArrastando(null); setAlvoHover(null); return
+    }
     setSoltando(true); setErroDrop('')
     try {
       const novo = arrastando.tipo === 'novo'
+      const corpo =
+        arrastando.tipo === 'novo' ? { candidate_id: arrastando.candidateId, unidade_id: unidadeId }
+        : arrastando.tipo === 'no' ? { id: arrastando.noId, unidade_id: unidadeId }
+        : { acao: 'mover_unidade', unidade_id: arrastando.unidadeId, parent_id: unidadeId }
       const res = await fetch('/api/admin/organograma', {
         method: novo ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          novo
-            ? { candidate_id: arrastando.candidateId, unidade_id: unidadeId }
-            : { id: arrastando.noId, unidade_id: unidadeId },
-        ),
+        body: JSON.stringify(corpo),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Não foi possível mover.')
@@ -307,12 +315,12 @@ export function OrganogramaClient({
                 </div>
 
                 {g.unidades.map(u => {
-                  const areas = areasDe(u.id)
                   const props = {
                     porId, unidadePorId, subordinadosExternos, fotos,
                     pessoasRecolhidas, onAlternarPessoa: alternarPessoa,
                     podeEditar, onEditar: setEditando, onLideranca: setLideranca,
                     arrastando, alvoHover, setAlvoHover, onSoltar: soltarEm, setArrastando,
+                    onSetor: setSetor,
                   }
                   return (
                     <div key={u.id} className="space-y-2">
@@ -321,17 +329,10 @@ export function OrganogramaClient({
                         recolhida={recolhidas.has(u.id)} onAlternar={() => alternarCaixa(u.id)}
                         {...props}
                       />
-                      {areas.length > 0 && (
-                        <div className="pl-4 border-l-2 border-dashed border-gray-200 ml-3 space-y-2">
-                          {areas.map(a => (
-                            <UnidadeCard
-                              key={a.id} unidade={a} pessoas={nosPorUnidade.get(a.id) ?? []}
-                              recolhida={recolhidas.has(a.id)} onAlternar={() => alternarCaixa(a.id)}
-                              {...props}
-                            />
-                          ))}
-                        </div>
-                      )}
+                      <SetoresFilhos
+                        parentId={u.id} unidades={unidades} nosPorUnidade={nosPorUnidade}
+                        recolhidas={recolhidas} onAlternarCaixa={alternarCaixa} props={props}
+                      />
                     </div>
                   )
                 })}
@@ -367,6 +368,11 @@ export function OrganogramaClient({
         <ModalLideranca
           no={lideranca} nos={nos} unidadePorId={unidadePorId} porId={porId}
           onClose={() => setLideranca(null)} />
+      )}
+      {setor && (
+        <ModalSetor
+          setor={setor} nos={nos} unidades={unidades} unidadePorId={unidadePorId} porId={porId}
+          onClose={() => setSetor(null)} />
       )}
     </div>
   )
@@ -488,13 +494,51 @@ interface CardProps {
   setAlvoHover: (id: string | null) => void
   onSoltar: (unidadeId: string) => void
   setArrastando: (a: Arrasto | null) => void
+  onSetor: (u: Unidade) => void
+}
+
+/** Setores aninhados — um setor pode ficar dentro de outro. */
+function SetoresFilhos({
+  parentId, unidades, nosPorUnidade, recolhidas, onAlternarCaixa, props,
+}: {
+  parentId: string
+  unidades: Unidade[]
+  nosPorUnidade: Map<string, No[]>
+  recolhidas: Set<string>
+  onAlternarCaixa: (id: string) => void
+  props: Omit<CardProps, 'unidade' | 'pessoas' | 'recolhida' | 'onAlternar'>
+}) {
+  const filhos = unidades.filter(u => u.tipo === 'area' && u.parent_id === parentId)
+  if (filhos.length === 0) return null
+  return (
+    <div className="pl-4 border-l-2 border-dashed border-gray-200 ml-3 space-y-2">
+      {filhos.map(a => (
+        <div key={a.id} className="space-y-2">
+          <UnidadeCard
+            unidade={a} pessoas={nosPorUnidade.get(a.id) ?? []}
+            recolhida={recolhidas.has(a.id)} onAlternar={() => onAlternarCaixa(a.id)}
+            {...props}
+          />
+          <SetoresFilhos
+            parentId={a.id} unidades={unidades} nosPorUnidade={nosPorUnidade}
+            recolhidas={recolhidas} onAlternarCaixa={onAlternarCaixa} props={props}
+          />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function UnidadeCard(p: CardProps) {
-  const { unidade, pessoas, recolhida, onAlternar, arrastando, alvoHover, setAlvoHover, onSoltar } = p
+  const {
+    unidade, pessoas, recolhida, onAlternar, arrastando, alvoHover, setAlvoHover,
+    onSoltar, setArrastando, podeEditar, onSetor, porId, unidadePorId,
+  } = p
   const Icone = iconeDe(unidade)
   const isArea = unidade.tipo === 'area'
   const ativo = alvoHover === unidade.id
+  const responsavel = unidade.responsavel_no_id ? porId.get(unidade.responsavel_no_id) : undefined
+  const unidadeResp = responsavel ? unidadePorId.get(responsavel.unidade_id) : undefined
 
   const idsLocais = new Set(pessoas.map(x => x.id))
   const raizes = pessoas.filter(x => !x.reporta_a || !idsLocais.has(x.reporta_a))
@@ -509,10 +553,15 @@ function UnidadeCard(p: CardProps) {
         ativo ? 'border-amber-400 ring-4 ring-amber-200/50' : isArea ? 'border-gray-200' : 'border-gray-300'
       }`}
     >
-      <button type="button" onClick={onAlternar}
-        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
+      <div
+        draggable={podeEditar && isArea}
+        onDragStart={e => { if (isArea) { e.stopPropagation(); setArrastando({ tipo: 'unidade', unidadeId: unidade.id, nome: unidade.nome }) } }}
+        onDragEnd={() => setArrastando(null)}
+        className={`w-full flex items-center gap-2 px-3 py-2.5 transition-colors ${
           isArea ? 'bg-gray-50 hover:bg-gray-100' : 'bg-primary/5 hover:bg-primary/10'
-        }`}>
+        } ${podeEditar && isArea ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      >
+        <button type="button" onClick={onAlternar} className="flex items-center gap-2 flex-1 min-w-0 text-left">
         {recolhida
           ? <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
           : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
@@ -538,9 +587,25 @@ function UnidadeCard(p: CardProps) {
               <span className="text-[10px] text-muted-foreground">{unidade.divisao}</span>
             )}
           </div>
+          {responsavel && (
+            <span className="flex items-center gap-1 text-[10px] text-amber-700 mt-0.5">
+              <CornerDownRight className="w-3 h-3 shrink-0" />
+              responde a {formatName(responsavel.nome)}
+              {responsavel.cargo ? ` · ${responsavel.cargo}` : unidadeResp ? ` · ${unidadeResp.nome}` : ''}
+            </span>
+          )}
         </div>
+        </button>
+        {podeEditar && isArea && (
+          <button
+            type="button" onClick={() => onSetor(unidade)} title="Definir a quem o setor responde"
+            className="p-1 text-gray-400 hover:text-primary rounded shrink-0"
+          >
+            <Crown className="w-3.5 h-3.5" />
+          </button>
+        )}
         <span className="text-[11px] font-semibold text-gray-400 shrink-0">{pessoas.length}</span>
-      </button>
+      </div>
 
       {ativo && (
         <p className="px-3 py-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border-t border-amber-200">
@@ -781,6 +846,114 @@ function ModalLideranca({
                 </Button>
               )
             )}
+          </div>
+
+          {error && <p className="text-[12px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Modal: setor (a quem responde + onde fica) ───────────────────────────────
+
+function ModalSetor({
+  setor, nos, unidades, unidadePorId, porId, onClose,
+}: {
+  setor: Unidade
+  nos: No[]
+  unidades: Unidade[]
+  unidadePorId: Map<string, Unidade>
+  porId: Map<string, No>
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const [responsavel, setResponsavel] = useState(setor.responsavel_no_id ?? '')
+  const [parentId, setParentId] = useState(setor.parent_id ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const atual = setor.responsavel_no_id ? porId.get(setor.responsavel_no_id) : undefined
+
+  const porUnidade = Array.from(new Set(nos.map(n => n.unidade_id)))
+    .map(uid => ({ unidade: unidadePorId.get(uid), pessoas: nos.filter(n => n.unidade_id === uid) }))
+    .filter(g => g.unidade && g.pessoas.length > 0)
+
+  // Destinos possíveis: qualquer unidade ou setor, menos ele mesmo e seus descendentes.
+  const descendentes = (() => {
+    const set = new Set<string>([setor.id])
+    let mudou = true
+    while (mudou) {
+      mudou = false
+      for (const u of unidades) {
+        if (u.parent_id && set.has(u.parent_id) && !set.has(u.id)) { set.add(u.id); mudou = true }
+      }
+    }
+    return set
+  })()
+  const destinos = unidades.filter(u => (u.tipo === 'unidade' || u.tipo === 'area') && !descendentes.has(u.id))
+
+  async function chamar(body: Record<string, unknown>) {
+    setSaving(true); setError('')
+    try {
+      const res = await fetch('/api/admin/organograma', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Erro ao salvar.')
+      onClose(); router.refresh()
+    } catch (e) {
+      setError((e as Error).message); setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => !saving && onClose()}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[88vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-2 min-w-0">
+            <Users className="w-4 h-4 text-primary shrink-0" />
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold truncate">{setor.nome}</h2>
+              <p className="text-[11px] text-muted-foreground">Setor / área</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Este setor responde a</label>
+            <select value={responsavel} onChange={e => setResponsavel(e.target.value)} className={INPUT}>
+              <option value="">Ninguém definido</option>
+              {porUnidade.map(g => (
+                <optgroup key={g.unidade!.id} label={g.unidade!.nome}>
+                  {g.pessoas.map(n => (
+                    <option key={n.id} value={n.id}>{formatName(n.nome)}{n.cargo ? ` — ${n.cargo}` : ''}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            {atual && <p className="text-[10px] text-muted-foreground">Hoje responde a {formatName(atual.nome)}.</p>}
+            <Button size="sm" className="gap-1.5 mt-1" disabled={saving || responsavel === (setor.responsavel_no_id ?? '')}
+              onClick={() => chamar({ acao: 'responsavel_setor', unidade_id: setor.id, responsavel_no_id: responsavel || null })}>
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Salvar
+            </Button>
+          </div>
+
+          <div className="border-t pt-3 space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Este setor fica dentro de</label>
+            <select value={parentId} onChange={e => setParentId(e.target.value)} className={INPUT}>
+              {destinos.map(u => (
+                <option key={u.id} value={u.id}>{u.tipo === 'area' ? `↳ ${u.nome}` : u.nome}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-muted-foreground">Também dá para arrastar a caixa do setor para o destino.</p>
+            <Button variant="outline" size="sm" className="gap-1.5 mt-1" disabled={saving || parentId === (setor.parent_id ?? '')}
+              onClick={() => chamar({ acao: 'mover_unidade', unidade_id: setor.id, parent_id: parentId })}>
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Mover setor
+            </Button>
           </div>
 
           {error && <p className="text-[12px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}

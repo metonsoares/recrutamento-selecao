@@ -87,6 +87,62 @@ export async function PATCH(req: NextRequest) {
 
     const b = await req.json().catch(() => ({}))
 
+    // Move um setor/área para dentro de outra unidade ou setor.
+    if (b.acao === 'mover_unidade') {
+      const unidadeId = String(b.unidade_id ?? '')
+      const novoPai = String(b.parent_id ?? '')
+      if (!unidadeId || !novoPai) {
+        return NextResponse.json({ error: 'Informe o setor e o destino.' }, { status: 400 })
+      }
+      if (unidadeId === novoPai) {
+        return NextResponse.json({ error: 'Um setor não pode ficar dentro de si mesmo.' }, { status: 400 })
+      }
+      const supabase = await createSupabaseServiceClient()
+      const { data: todas } = await supabase.from('org_unidades').select('id, parent_id, tipo')
+      const lista = todas ?? []
+      const paiDe = new Map(lista.map(u => [u.id as string, u.parent_id as string | null]))
+
+      // O destino não pode estar DENTRO do setor que está sendo movido.
+      let cursor: string | null = novoPai
+      const vistos = new Set<string>()
+      while (cursor) {
+        if (cursor === unidadeId) {
+          return NextResponse.json({ error: 'Não dá para mover um setor para dentro de um setor dele mesmo.' }, { status: 400 })
+        }
+        if (vistos.has(cursor)) break
+        vistos.add(cursor)
+        cursor = paiDe.get(cursor) ?? null
+      }
+
+      const alvo = lista.find(u => u.id === unidadeId)
+      if (alvo?.tipo !== 'area') {
+        return NextResponse.json({ error: 'Só setores/áreas podem ser movidos.' }, { status: 400 })
+      }
+
+      const { error } = await supabase
+        .from('org_unidades')
+        .update({ parent_id: novoPai, updated_at: new Date().toISOString() })
+        .eq('id', unidadeId)
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ ok: true })
+    }
+
+    // Define a quem um setor responde (uma pessoa do organograma).
+    if (b.acao === 'responsavel_setor') {
+      const unidadeId = String(b.unidade_id ?? '')
+      if (!unidadeId) return NextResponse.json({ error: 'Setor não informado.' }, { status: 400 })
+      const supabase = await createSupabaseServiceClient()
+      const { error } = await supabase
+        .from('org_unidades')
+        .update({
+          responsavel_no_id: b.responsavel_no_id ? String(b.responsavel_no_id) : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', unidadeId)
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ ok: true })
+    }
+
     // Ação em lote: toda a unidade passa a reportar a um líder.
     if (b.acao === 'equipe') {
       const chefeId = String(b.chefe_id ?? '')
