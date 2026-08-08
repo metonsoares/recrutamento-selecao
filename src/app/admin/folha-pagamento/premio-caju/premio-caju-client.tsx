@@ -126,6 +126,9 @@ export function PremioCajuClient({
   const elegiveis = filtradas.filter(l => l.elegivel)
   const bloqueados = filtradas.length - elegiveis.length
   const totalPagar = elegiveis.reduce((s, l) => s + valorDe(l), 0)
+  // Só entram no fechamento quem tem valor > 0 — é isso que habilita o Aprovar
+  // (antes o botão exigia o campo "Valor do mês", mesmo com valores por linha).
+  const comValor = elegiveis.filter(l => valorDe(l) > 0).length
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
 
   /** Replica o valor do mês nas linhas que estão listadas no filtro atual. */
@@ -155,6 +158,7 @@ export function PremioCajuClient({
         body: JSON.stringify({
           competencia,
           valor_padrao: padraoNum,
+          escopo_empresa: empresaFiltro || null,
           itens: elegiveis.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa, valor: valorDe(l),
@@ -246,7 +250,9 @@ export function PremioCajuClient({
             <Download className="w-3.5 h-3.5" />Exportar
           </Button>
           <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
-            disabled={elegiveis.length === 0 || padraoNum <= 0} className="gap-1.5 flex-1">
+            disabled={comValor === 0}
+            title={comValor === 0 ? 'Preencha o valor de pelo menos um colaborador' : undefined}
+            className="gap-1.5 flex-1">
             <Check className="w-3.5 h-3.5" />Aprovar
           </Button>
         </div>
@@ -282,7 +288,7 @@ export function PremioCajuClient({
                 const hist = historicoPorCand.get(l.candidate_id) ?? []
                 return (
                   <tr key={l.candidate_id} className={l.elegivel ? 'hover:bg-gray-50' : 'bg-red-50/40'}>
-                    <td className="px-4 py-2.5 font-medium text-gray-900">
+                    <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">
                       {formatName(l.nome)}
                       {l.em_experiencia ? (
                         <span
@@ -388,9 +394,19 @@ export function PremioCajuClient({
               <h2 className="text-base font-semibold">Aprovar {rotuloCompetencia(competencia)}</h2>
             </div>
             <div className="px-5 py-4 text-sm text-gray-600 space-y-1.5">
-              <p><strong>{elegiveis.length}</strong> colaboradores{nomeEmpresa ? ` de ${nomeEmpresa}` : ''} vão receber.</p>
+              <p><strong>{comValor}</strong> colaboradores{nomeEmpresa ? ` de ${nomeEmpresa}` : ''} vão receber.</p>
               <p>Total: <strong className="text-gray-900">{brl(totalPagar)}</strong>.</p>
-              <p className="text-[12px] text-gray-500">Fica registrado com seu usuário e a data. Reaprovar substitui o fechamento anterior deste mês.</p>
+              {comValor < elegiveis.length && (
+                <p className="text-[12px] text-amber-700">
+                  {elegiveis.length - comValor} sem valor preenchido ficam de fora.
+                </p>
+              )}
+              <p className="text-[12px] text-gray-500">
+                Fica registrado com seu usuário e a data.
+                {nomeEmpresa
+                  ? ` Reaprovar substitui apenas o fechamento de ${nomeEmpresa} neste mês; as outras empresas ficam intactas.`
+                  : ' Reaprovar substitui o fechamento inteiro deste mês.'}
+              </p>
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
               <Button variant="outline" onClick={() => setConfirmando(false)} disabled={salvando}>Cancelar</Button>

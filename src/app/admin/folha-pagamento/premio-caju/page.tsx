@@ -74,11 +74,14 @@ export default async function PremioCajuPage({
       : Promise.resolve({ data: [] as { candidate_id: string; valor: number }[] }),
   ])
 
-  // Histórico de pagamentos aprovados (para ver mês + valor por pessoa).
-  const { data: histRaw } = await supabase
-    .from('premio_caju_itens')
-    .select('candidate_id, valor, premio_caju_ciclos!inner(competencia)')
-    .order('created_at', { ascending: false })
+  // Histórico de pagamentos aprovados (mês + valor por pessoa).
+  // Consultas simples e cruzamento em memória — o embed do PostgREST
+  // (premio_caju_ciclos!inner) voltava vazio e o histórico nunca aparecia.
+  const [{ data: todosCiclos }, { data: todosItens }] = await Promise.all([
+    supabase.from('premio_caju_ciclos').select('id, competencia'),
+    supabase.from('premio_caju_itens').select('ciclo_id, candidate_id, valor'),
+  ])
+  const competenciaPorCiclo = new Map((todosCiclos ?? []).map(c => [c.id as string, c.competencia as string]))
 
   const candPorId = new Map((cands ?? []).map(c => [c.id as string, c]))
   const empresaPorId = new Map(
@@ -97,10 +100,13 @@ export default async function PremioCajuPage({
   }
   const valorAprovado = new Map((itensCiclo ?? []).map(i => [i.candidate_id as string, Number(i.valor)]))
 
-  const historico: PagamentoHistorico[] = (histRaw ?? []).map(h => {
-    const c = h.premio_caju_ciclos as unknown as { competencia: string }
-    return { candidate_id: h.candidate_id as string, competencia: c.competencia, valor: Number(h.valor) }
-  })
+  const historico: PagamentoHistorico[] = (todosItens ?? [])
+    .map(h => {
+      const comp = competenciaPorCiclo.get(h.ciclo_id as string)
+      if (!comp) return null
+      return { candidate_id: h.candidate_id as string, competencia: comp, valor: Number(h.valor) }
+    })
+    .filter(Boolean) as PagamentoHistorico[]
 
   const linhas: LinhaCaju[] = appsList
     .map(a => {

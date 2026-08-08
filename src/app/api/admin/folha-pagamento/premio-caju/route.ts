@@ -54,7 +54,16 @@ export async function POST(req: NextRequest) {
       .single()
     if (erroCiclo) return NextResponse.json({ error: erroCiclo.message }, { status: 400 })
 
-    await supabase.from('premio_caju_itens').delete().eq('ciclo_id', ciclo.id)
+    // Reaprovação: se veio com filtro de empresa, substitui SÓ aquela empresa —
+    // sem o filtro, substitui o mês inteiro. Antes apagava tudo e aprovar uma
+    // segunda empresa zerava a primeira.
+    const escopoEmpresa = body.escopo_empresa ? String(body.escopo_empresa) : null
+    if (escopoEmpresa) {
+      await supabase.from('premio_caju_itens')
+        .delete().eq('ciclo_id', ciclo.id).eq('empresa_id', escopoEmpresa)
+    } else {
+      await supabase.from('premio_caju_itens').delete().eq('ciclo_id', ciclo.id)
+    }
 
     const linhas = itens
       .filter(i => i.candidate_id && Number(i.valor) > 0)
@@ -73,7 +82,15 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json({ ok: true, aprovados: linhas.length, total })
+    // Total do ciclo = mês inteiro (pode ter sido aprovado empresa por empresa).
+    const { data: todos } = await supabase
+      .from('premio_caju_itens').select('valor').eq('ciclo_id', ciclo.id)
+    const totalMes = (todos ?? []).reduce((s, i) => s + Number(i.valor), 0)
+    await supabase.from('premio_caju_ciclos')
+      .update({ total: Math.round(totalMes * 100) / 100 })
+      .eq('id', ciclo.id)
+
+    return NextResponse.json({ ok: true, aprovados: linhas.length, total, total_mes: totalMes })
   } catch (err) {
     console.error('[premio-caju POST]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
