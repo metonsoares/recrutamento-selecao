@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -86,10 +86,12 @@ function SidebarContent({
   const [configCurriculosOpen, setConfigCurriculosOpen] = useState(inConfigCurriculos)
   const inPesquisas = pathname.startsWith('/admin/pesquisas-clima')
   const inTreinamentos = pathname.startsWith('/admin/treinamentos')
+  const inFolha = pathname.startsWith('/admin/folha-pagamento')
   const inDocumentos = pathname.startsWith('/admin/documentos-empresa')
   const [colaboradoresOpen, setColaboradoresOpen] = useState(inColaboradores)
   const [pesquisasOpen, setPesquisasOpen] = useState(inPesquisas)
   const [treinamentosOpen, setTreinamentosOpen] = useState(inTreinamentos)
+  const [folhaOpen, setFolhaOpen] = useState(inFolha)
   const [documentosOpen, setDocumentosOpen] = useState(inDocumentos)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
@@ -225,6 +227,24 @@ function SidebarContent({
               </Link>
               <Link href="/admin/candidatos/desligados" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/candidatos/desligados') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <UserMinus className="w-3 h-3 shrink-0 opacity-50" />Desligados
+              </Link>
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* Folha de pagamento ▾ — exclusivo do Master */}
+        {isMaster && (
+        <div>
+          <button onClick={() => setFolhaOpen(o => !o)} className={cn(NAV_BASE, inFolha ? NAV_ACTIVE : NAV_DEFAULT)}>
+            <Banknote className="w-[15px] h-[15px] shrink-0 opacity-60" />
+            <span className="flex-1 text-left">Folha de pagamento</span>
+            <ChevronDown className={cn('w-[13px] h-[13px] shrink-0 opacity-40 transition-transform duration-200', folhaOpen && 'rotate-180')} />
+          </button>
+          {folhaOpen && (
+            <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
+              <Link href="/admin/folha-pagamento/premio-caju" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/premio-caju') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <Gift className="w-3 h-3 shrink-0 opacity-50" />Prêmio Caju
               </Link>
             </div>
           )}
