@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Gift, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
-  ExternalLink, History, X, ChevronLeft, ChevronRight, Ban, Copy,
+  ExternalLink, History, ChevronLeft, ChevronRight, ChevronDown, Ban, Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -88,7 +88,11 @@ export function PremioCajuClient({
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
   const [confirmando, setConfirmando] = useState(false)
-  const [verHistorico, setVerHistorico] = useState<LinhaCaju | null>(null)
+  const [historicoAberto, setHistoricoAberto] = useState<Set<string>>(new Set())
+
+  const alternarHistorico = (id: string) => setHistoricoAberto(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
 
   const padraoNum = Number(valorPadrao.replace(/\./g, '').replace(',', '.')) || 0
 
@@ -299,10 +303,30 @@ export function PremioCajuClient({
                         </span>
                       )}
                       {hist.length > 0 && (
-                        <button onClick={() => setVerHistorico(l)}
-                          className="ml-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline align-middle">
-                          <History className="w-3 h-3" />{hist.length}×
-                        </button>
+                        <div className="mt-1">
+                          <button onClick={() => alternarHistorico(l.candidate_id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
+                            {historicoAberto.has(l.candidate_id)
+                              ? <ChevronDown className="w-3 h-3" />
+                              : <ChevronRight className="w-3 h-3" />}
+                            <History className="w-3 h-3" />
+                            {hist.length} prêmio{hist.length !== 1 ? 's' : ''} recebido{hist.length !== 1 ? 's' : ''}
+                          </button>
+                          {historicoAberto.has(l.candidate_id) && (
+                            <div className="mt-1 ml-4 pl-2.5 border-l-2 border-emerald-200 space-y-0.5">
+                              {hist.map(h => (
+                                <p key={h.competencia} className="text-[11.5px] text-gray-600 font-normal">
+                                  <span className="capitalize">{rotuloCompetencia(h.competencia)}</span>
+                                  {' — '}
+                                  <strong className="text-emerald-700">{brl(h.valor)}</strong>
+                                </p>
+                              ))}
+                              <p className="text-[11px] text-gray-500 font-normal pt-0.5 border-t mt-1">
+                                Total: <strong className="text-gray-700">{brl(hist.reduce((s, h) => s + h.valor, 0))}</strong>
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-gray-600 hidden md:table-cell">{l.cargo ?? '—'}</td>
@@ -378,34 +402,6 @@ export function PremioCajuClient({
         </div>
       )}
 
-      {/* ── Histórico da pessoa ── */}
-      {verHistorico && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setVerHistorico(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold truncate">{formatName(verHistorico.nome)}</h2>
-                <p className="text-[11px] text-muted-foreground">Prêmios recebidos</p>
-              </div>
-              <button onClick={() => setVerHistorico(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="px-5 py-3 divide-y">
-              {(historicoPorCand.get(verHistorico.candidate_id) ?? []).map(h => (
-                <div key={h.competencia} className="flex items-center justify-between py-2 text-sm">
-                  <span className="text-gray-600 capitalize">{rotuloCompetencia(h.competencia)}</span>
-                  <span className="font-semibold text-emerald-700">{brl(h.valor)}</span>
-                </div>
-              ))}
-            </div>
-            <div className="px-5 py-3 border-t bg-gray-50 rounded-b-2xl flex items-center justify-between text-sm">
-              <span className="text-gray-600 font-medium">Total recebido</span>
-              <span className="font-bold text-gray-900">
-                {brl((historicoPorCand.get(verHistorico.candidate_id) ?? []).reduce((s, h) => s + h.valor, 0))}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
