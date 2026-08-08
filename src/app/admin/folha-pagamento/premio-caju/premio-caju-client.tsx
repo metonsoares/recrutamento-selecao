@@ -5,10 +5,12 @@ import Link from 'next/link'
 import {
   Gift, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
   ExternalLink, History, ChevronLeft, ChevronRight, ChevronDown, Ban, Copy,
+  FileSpreadsheet, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
+import { gerarPdfTabela } from '@/lib/pdf'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,7 @@ export function PremioCajuClient({
   const [ok, setOk] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [historicoAberto, setHistoricoAberto] = useState<Set<string>>(new Set())
+  const [menuExportar, setMenuExportar] = useState(false)
 
   const alternarHistorico = (id: string) => setHistoricoAberto(s => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
@@ -142,12 +145,25 @@ export function PremioCajuClient({
     setOk(`Valor aplicado a ${elegiveis.length} colaborador${elegiveis.length !== 1 ? 'es' : ''}${nomeEmpresa ? ` de ${nomeEmpresa}` : ''}.`)
   }
 
-  function exportar() {
-    const cabecalho = ['Funcionário', 'Valor']
+  const CABECALHO = ['Funcionário', 'Valor']
+  const baseNome = `premio-caju-${competencia.slice(0, 7)}${nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''}`
+
+  function exportarXlsx() {
+    setMenuExportar(false)
     const corpo = elegiveis.map(l => [formatName(l.nome), valorDe(l)])
-    const rodape = [['TOTAL', totalPagar]]
-    const nome = `premio-caju-${competencia.slice(0, 7)}${nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''}.xlsx`
-    baixarArquivo(gerarXlsx([cabecalho, ...corpo, ...rodape], 'Prêmio Caju'), nome)
+    baixarArquivo(gerarXlsx([CABECALHO, ...corpo, ['TOTAL', totalPagar]], 'Prêmio Caju'), `${baseNome}.xlsx`)
+  }
+
+  async function exportarPdf() {
+    setMenuExportar(false)
+    const corpo = elegiveis.map(l => [formatName(l.nome), brl(valorDe(l))])
+    const blob = await gerarPdfTabela({
+      titulo: 'Prêmio Caju',
+      subtitulo: `${rotuloCompetencia(competencia)} · ${nomeEmpresa ?? 'Todas as empresas'} · ${elegiveis.length} colaboradores · Total ${brl(totalPagar)} · pagar até ${prazoPagamento(competencia)}`,
+      cabecalho: CABECALHO,
+      linhas: [...corpo, ['TOTAL', brl(totalPagar)]],
+    })
+    baixarArquivo(blob, `${baseNome}.pdf`)
   }
 
   async function aprovar() {
@@ -246,9 +262,30 @@ export function PremioCajuClient({
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportar} disabled={elegiveis.length === 0} className="gap-1.5 flex-1">
-            <Download className="w-3.5 h-3.5" />Exportar
-          </Button>
+          <div className="relative flex-1">
+            <Button variant="outline" onClick={() => setMenuExportar(o => !o)}
+              disabled={elegiveis.length === 0} className="gap-1.5 w-full">
+              <Download className="w-3.5 h-3.5" />Exportar
+              <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+            </Button>
+            {menuExportar && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuExportar(false)} />
+                <div className="absolute right-0 mt-1 z-20 w-52 rounded-xl border bg-white shadow-lg overflow-hidden">
+                  <button onClick={exportarXlsx}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Excel <span className="text-muted-foreground">(.xlsx)</span></span>
+                  </button>
+                  <button onClick={exportarPdf}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50 border-t">
+                    <FileText className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>PDF <span className="text-muted-foreground">(.pdf)</span></span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
             disabled={comValor === 0}
             title={comValor === 0 ? 'Preencha o valor de pelo menos um colaborador' : undefined}
