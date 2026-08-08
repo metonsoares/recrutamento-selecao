@@ -20,6 +20,10 @@ export interface LinhaCaju {
   empresa: string | null
   faltas: number
   advertencias: number
+  em_experiencia: boolean
+  /** yyyy-mm-dd — fim do período de experiência (null = sem experiência ou sem data) */
+  fim_experiencia: string | null
+  sem_data_admissao: boolean
   elegivel: boolean
   valor_aprovado: number | null
 }
@@ -190,7 +194,8 @@ export function PremioCajuClient({
 
       {/* ── Regra ── */}
       <div className="rounded-xl border bg-white p-3.5 text-[12.5px] text-gray-600 shadow-sm">
-        Recebem os contratados <strong>sem falta injustificada e sem advertência</strong> em {rotuloCompetencia(competencia)}.
+        Recebem os contratados <strong>já efetivados</strong> e <strong>sem falta injustificada e sem advertência</strong> em {rotuloCompetencia(competencia)}.
+        Quem ainda estava <strong>em experiência no último dia do mês</strong> não recebe — quem foi efetivado durante o mês recebe.
         Quem está com “Não aplicável” no documento não entra na lista. Afastamento e atestado não tiram o prêmio.
       </div>
 
@@ -255,6 +260,24 @@ export function PremioCajuClient({
                   <tr key={l.candidate_id} className={l.elegivel ? 'hover:bg-gray-50' : 'bg-red-50/40'}>
                     <td className="px-4 py-2.5 font-medium text-gray-900">
                       {formatName(l.nome)}
+                      {l.em_experiencia ? (
+                        <span
+                          title={l.fim_experiencia ? `Experiência até ${l.fim_experiencia.split('-').reverse().join('/')}` : undefined}
+                          className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-amber-100 text-amber-700 align-middle"
+                        >
+                          Em experiência
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-emerald-100 text-emerald-700 align-middle">
+                          Efetivado
+                        </span>
+                      )}
+                      {l.sem_data_admissao && (
+                        <span title="Ficha sem data de admissão — não dá para calcular a experiência"
+                          className="ml-1.5 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-gray-100 text-gray-500 align-middle">
+                          Sem data
+                        </span>
+                      )}
                       {hist.length > 0 && (
                         <button onClick={() => setVerHistorico(l)}
                           className="ml-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline align-middle">
@@ -272,7 +295,8 @@ export function PremioCajuClient({
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-red-600">
                           <Ban className="w-3.5 h-3.5" />
-                          {[l.faltas > 0 ? `${l.faltas} falta${l.faltas !== 1 ? 's' : ''}` : null,
+                          {[l.em_experiencia ? 'Em experiência' : null,
+                            l.faltas > 0 ? `${l.faltas} falta${l.faltas !== 1 ? 's' : ''}` : null,
                             l.advertencias > 0 ? `${l.advertencias} advertência${l.advertencias !== 1 ? 's' : ''}` : null,
                           ].filter(Boolean).join(' · ')}
                         </span>

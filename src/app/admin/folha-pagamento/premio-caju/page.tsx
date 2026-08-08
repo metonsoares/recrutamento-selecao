@@ -11,6 +11,19 @@ function competenciaPadrao(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 
+/**
+ * Fim do período de experiência: data de admissão + a soma dos dias do
+ * contrato ("45 + 45 dias" → 90). "Sem experiência" não tem número → 0.
+ */
+function fimDaExperiencia(admissao: string | null, contrato: string | null): string | null {
+  if (!admissao || !/^\d{4}-\d{2}-\d{2}$/.test(admissao)) return null
+  const dias = (contrato?.match(/\d+/g) ?? []).reduce((s, n) => s + Number(n), 0)
+  if (dias <= 0) return null
+  const [ano, mes, dia] = admissao.split('-').map(Number)
+  const d = new Date(ano, mes - 1, dia + dias)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 /** Último dia do mês da competência (yyyy-mm-dd). */
 function fimDoMes(competencia: string): string {
   const [ano, mes] = competencia.split('-').map(Number)
@@ -104,6 +117,12 @@ export default async function PremioCajuPage({
       const dias = faltasPorCand.get(id) ?? 0
       const adv = advPorCand.get(id) ?? 0
 
+      // Em experiência = ainda estava no período no ÚLTIMO DIA da competência.
+      // Quem terminou a experiência ao longo do mês já recebe o prêmio.
+      const admissao = String(af?.admission_date ?? '') || null
+      const fimExp = fimDaExperiencia(admissao, String(af?.trial_contract ?? '') || null)
+      const emExperiencia = fimExp !== null && fimExp >= fim
+
       return {
         candidate_id: id,
         nome: c.full_name,
@@ -112,7 +131,10 @@ export default async function PremioCajuPage({
         empresa: empresaPorId.get(empresaId) ?? null,
         faltas: dias,
         advertencias: adv,
-        elegivel: dias === 0 && adv === 0,
+        em_experiencia: emExperiencia,
+        fim_experiencia: fimExp,
+        sem_data_admissao: !admissao,
+        elegivel: dias === 0 && adv === 0 && !emExperiencia,
         valor_aprovado: valorAprovado.get(id) ?? null,
       }
     })
