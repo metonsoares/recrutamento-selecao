@@ -305,7 +305,7 @@ export function OrganogramaClient({
                         </button>
                         {podeEditar && (
                           <button onClick={() => setEditando(d)} title="Editar"
-                            className="p-1 hover:bg-white/20 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                            className="p-1 hover:bg-white/20 rounded">
                             <Pencil className="w-3 h-3" />
                           </button>
                         )}
@@ -734,7 +734,7 @@ function PessoaLinha({
 
         {podeEditar && (
           <button onClick={() => onEditar(pessoa)} title="Editar dados"
-            className="p-1 text-gray-400 hover:text-primary rounded shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            className="p-1 text-gray-400 hover:text-primary rounded shrink-0">
             <Pencil className="w-3.5 h-3.5" />
           </button>
         )}

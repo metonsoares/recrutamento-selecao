@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Gift, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
   ExternalLink, History, ChevronLeft, ChevronRight, ChevronDown, Ban, Copy,
-  FileSpreadsheet, FileText, Trash2,
+  FileSpreadsheet, FileText, Trash2, Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -99,6 +99,33 @@ export function PremioCajuClient({
   const [menuExportar, setMenuExportar] = useState(false)
   const [removendo, setRemovendo] = useState<{ linha: LinhaCaju; pagamento: PagamentoHistorico } | null>(null)
   const [excluindo, setExcluindo] = useState(false)
+  const [editandoPremio, setEditandoPremio] = useState<
+    { linha: LinhaCaju; pagamento: PagamentoHistorico; valor: string } | null
+  >(null)
+
+  async function salvarValorPremio() {
+    if (!editandoPremio) return
+    const novo = Number(editandoPremio.valor.replace(/\./g, '').replace(',', '.')) || 0
+    if (novo <= 0) { setErro('Informe um valor maior que zero.'); return }
+    setExcluindo(true); setErro('')
+    try {
+      const res = await fetch('/api/admin/folha-pagamento/premio-caju', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidate_id: editandoPremio.linha.candidate_id,
+          competencia: editandoPremio.pagamento.competencia,
+          valor: novo,
+        }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Erro ao salvar.')
+      setOk(`Prêmio de ${formatName(editandoPremio.linha.nome)} em ${rotuloCompetencia(editandoPremio.pagamento.competencia)} alterado para ${brl(novo)}.`)
+      setEditandoPremio(null)
+      router.refresh()
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally { setExcluindo(false) }
+  }
 
   async function removerPremio() {
     if (!removendo) return
@@ -386,16 +413,23 @@ export function PremioCajuClient({
                           {historicoAberto.has(l.candidate_id) && (
                             <div className="mt-1 ml-4 pl-2.5 border-l-2 border-emerald-200 space-y-0.5">
                               {hist.map(h => (
-                                <p key={h.competencia} className="text-[11.5px] text-gray-600 font-normal flex items-center gap-1.5 group/premio">
+                                <p key={h.competencia} className="text-[11.5px] text-gray-600 font-normal flex items-center gap-1">
                                   <span>
                                     {maiuscula(rotuloCompetencia(h.competencia))}
                                     {' — '}
                                     <strong className="text-emerald-700">{brl(h.valor)}</strong>
                                   </span>
                                   <button
+                                    onClick={() => setEditandoPremio({ linha: l, pagamento: h, valor: String(h.valor).replace('.', ',') })}
+                                    title="Editar o valor deste prêmio"
+                                    className="p-1 text-gray-400 hover:text-primary hover:bg-gray-100 rounded"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  <button
                                     onClick={() => setRemovendo({ linha: l, pagamento: h })}
                                     title="Remover este prêmio"
-                                    className="p-0.5 text-gray-300 hover:text-red-600 rounded opacity-0 group-hover/premio:opacity-100 focus:opacity-100 transition-opacity"
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
                                   >
                                     <Trash2 className="w-3 h-3" />
                                   </button>
@@ -486,6 +520,46 @@ export function PremioCajuClient({
               <Button variant="outline" onClick={() => setConfirmando(false)} disabled={salvando}>Cancelar</Button>
               <Button onClick={aprovar} disabled={salvando} className="gap-1.5">
                 {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Aprovar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Editar o valor de um período já aprovado ── */}
+      {editandoPremio && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => !excluindo && setEditandoPremio(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Pencil className="w-4 h-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-gray-900 truncate">{formatName(editandoPremio.linha.nome)}</h2>
+                <p className="text-[11px] text-muted-foreground">
+                  {maiuscula(rotuloCompetencia(editandoPremio.pagamento.competencia))}
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Valor do prêmio</label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
+                <input
+                  value={editandoPremio.valor} inputMode="decimal" autoFocus
+                  onChange={e => setEditandoPremio(p => p && ({ ...p, valor: e.target.value.replace(/[^\d,.]/g, '') }))}
+                  className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground pt-1">
+                Altera o fechamento já aprovado deste mês e recalcula o total.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setEditandoPremio(null)} disabled={excluindo}>Cancelar</Button>
+              <Button onClick={salvarValorPremio} disabled={excluindo} className="gap-1.5">
+                {excluindo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Salvar
               </Button>
             </div>
           </div>

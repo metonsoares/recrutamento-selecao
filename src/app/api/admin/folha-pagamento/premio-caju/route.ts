@@ -98,6 +98,52 @@ export async function POST(req: NextRequest) {
 }
 
 /**
+ * PATCH — altera o valor do prêmio de UM colaborador num mês já aprovado
+ * e recalcula o total do fechamento. Somente Master.
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
+
+    const body = await req.json().catch(() => ({}))
+    const candidateId = String(body.candidate_id ?? '')
+    const competencia = String(body.competencia ?? '')
+    const valor = Number(body.valor)
+    if (!candidateId || !/^\d{4}-\d{2}-01$/.test(competencia)) {
+      return NextResponse.json({ error: 'Informe o colaborador e a competência.' }, { status: 400 })
+    }
+    if (!Number.isFinite(valor) || valor <= 0) {
+      return NextResponse.json({ error: 'Valor inválido.' }, { status: 400 })
+    }
+
+    const supabase = await createSupabaseServiceClient()
+
+    const { data: ciclo } = await supabase
+      .from('premio_caju_ciclos').select('id').eq('competencia', competencia).maybeSingle()
+    if (!ciclo) return NextResponse.json({ error: 'Fechamento não encontrado.' }, { status: 404 })
+
+    const { error } = await supabase
+      .from('premio_caju_itens')
+      .update({ valor: Math.round(valor * 100) / 100 })
+      .eq('ciclo_id', ciclo.id).eq('candidate_id', candidateId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+    const { data: restantes } = await supabase
+      .from('premio_caju_itens').select('valor').eq('ciclo_id', ciclo.id)
+    const totalMes = (restantes ?? []).reduce((s, i) => s + Number(i.valor), 0)
+    await supabase.from('premio_caju_ciclos')
+      .update({ total: Math.round(totalMes * 100) / 100, updated_at: new Date().toISOString() })
+      .eq('id', ciclo.id)
+
+    return NextResponse.json({ ok: true, total_mes: totalMes })
+  } catch (err) {
+    console.error('[premio-caju PATCH]', err)
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
+  }
+}
+
+/**
  * DELETE — remove o prêmio de UM colaborador numa competência.
  * Recalcula o total do mês; se o mês ficar sem ninguém, o ciclo é apagado
  * (o mês volta a aparecer como não aprovado). Somente Master.
