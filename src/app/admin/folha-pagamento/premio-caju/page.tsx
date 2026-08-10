@@ -79,9 +79,11 @@ export default async function PremioCajuPage({
   // (premio_caju_ciclos!inner) voltava vazio e o histórico nunca aparecia.
   const [{ data: todosCiclos }, { data: todosItens }] = await Promise.all([
     supabase.from('premio_caju_ciclos').select('id, competencia'),
-    supabase.from('premio_caju_itens').select('ciclo_id, candidate_id, valor'),
+    supabase.from('premio_caju_itens').select('ciclo_id, candidate_id, nome, cargo, empresa_id, empresa_nome, valor'),
   ])
   const competenciaPorCiclo = new Map((todosCiclos ?? []).map(c => [c.id as string, c.competencia as string]))
+  // Meses já fechados, do mais recente para o mais antigo (seletor de exportação).
+  const competenciasAprovadas = Array.from(competenciaPorCiclo.values()).sort().reverse()
 
   const candPorId = new Map((cands ?? []).map(c => [c.id as string, c]))
   const empresaPorId = new Map(
@@ -100,11 +102,21 @@ export default async function PremioCajuPage({
   }
   const valorAprovado = new Map((itensCiclo ?? []).map(i => [i.candidate_id as string, Number(i.valor)]))
 
+  // Guarda o snapshot da aprovação (nome/cargo/empresa da época) — exportar um
+  // mês passado tem de refletir o que foi aprovado, não o cadastro de hoje.
   const historico: PagamentoHistorico[] = (todosItens ?? [])
     .map(h => {
       const comp = competenciaPorCiclo.get(h.ciclo_id as string)
       if (!comp) return null
-      return { candidate_id: h.candidate_id as string, competencia: comp, valor: Number(h.valor) }
+      return {
+        candidate_id: h.candidate_id as string,
+        competencia: comp,
+        valor: Number(h.valor),
+        nome: (h.nome as string) ?? '',
+        cargo: (h.cargo as string) ?? null,
+        empresa_id: (h.empresa_id as string) ?? null,
+        empresa_nome: (h.empresa_nome as string) ?? null,
+      }
     })
     .filter(Boolean) as PagamentoHistorico[]
 
@@ -158,6 +170,7 @@ export default async function PremioCajuPage({
       linhas={linhas}
       empresas={opcoesEmpresa}
       historico={historico}
+      competenciasAprovadas={competenciasAprovadas}
       cicloAprovado={ciclo ? {
         valor_padrao: Number(ciclo.valor_padrao),
         total: Number(ciclo.total),

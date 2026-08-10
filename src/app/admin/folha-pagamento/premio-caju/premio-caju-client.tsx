@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Gift, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
   ExternalLink, History, ChevronLeft, ChevronRight, ChevronDown, Ban, Copy,
-  FileSpreadsheet, FileText, Trash2, Pencil,
+  FileSpreadsheet, FileText, Trash2, Pencil, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -31,7 +31,16 @@ export interface LinhaCaju {
 }
 
 export interface EmpresaOpcao { id: string; nome: string }
-export interface PagamentoHistorico { candidate_id: string; competencia: string; valor: number }
+export interface PagamentoHistorico {
+  candidate_id: string
+  competencia: string
+  valor: number
+  /** Snapshot da aprovação — usado na exportação de meses passados. */
+  nome: string
+  cargo: string | null
+  empresa_id: string | null
+  empresa_nome: string | null
+}
 
 interface CicloAprovado {
   valor_padrao: number
@@ -64,6 +73,8 @@ function prazoPagamento(c: string): string {
   return `10/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
+const INPUT = 'h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white'
+
 /** Só a primeira letra em maiúscula ("julho de 2026" → "Julho de 2026"). */
 function maiuscula(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -76,12 +87,13 @@ function brl(n: number): string {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function PremioCajuClient({
-  competencia, linhas, empresas, historico, cicloAprovado,
+  competencia, linhas, empresas, historico, competenciasAprovadas, cicloAprovado,
 }: {
   competencia: string
   linhas: LinhaCaju[]
   empresas: EmpresaOpcao[]
   historico: PagamentoHistorico[]
+  competenciasAprovadas: string[]
   cicloAprovado: CicloAprovado | null
 }) {
   const router = useRouter()
@@ -200,25 +212,51 @@ export function PremioCajuClient({
     setOk(`Valor aplicado a ${elegiveis.length} colaborador${elegiveis.length !== 1 ? 'es' : ''}${nomeEmpresa ? ` de ${nomeEmpresa}` : ''}.`)
   }
 
-  const CABECALHO = ['Funcionário', 'Valor']
-  const baseNome = `premio-caju-${competencia.slice(0, 7)}${nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''}`
+  /**
+   * Exporta um período. Mês já aprovado sai do snapshot gravado (fiel ao que
+   * foi aprovado); o mês em tela ainda não aprovado sai dos valores atuais.
+   */
+  async function exportar(periodo: string, empresaId: string, formato: 'xlsx' | 'pdf') {
+    const aprovados = historico
+      .filter(h => h.competencia === periodo && (!empresaId || h.empresa_id === empresaId))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
-  function exportarXlsx() {
-    setMenuExportar(false)
-    const corpo = elegiveis.map(l => [formatName(l.nome), valorDe(l)])
-    baixarArquivo(gerarXlsx([CABECALHO, ...corpo, ['TOTAL', totalPagar]], 'Prêmio Caju'), `${baseNome}.xlsx`)
-  }
+    const daTela = periodo === competencia
+      ? linhas
+          .filter(l => l.elegivel && (!empresaId || l.empresa_id === empresaId) && valorDe(l) > 0)
+          .map(l => ({ nome: l.nome, empresa_nome: l.empresa, valor: valorDe(l) }))
+      : []
 
-  async function exportarPdf() {
+    const itens = aprovados.length > 0
+      ? aprovados.map(h => ({ nome: h.nome, empresa_nome: h.empresa_nome, valor: h.valor }))
+      : daTela
+
+    if (itens.length === 0) {
+      setErro(`Nada para exportar em ${rotuloCompetencia(periodo)}${empresaId ? ' nessa empresa' : ''}.`)
+      return
+    }
+
+    const total = itens.reduce((s, i) => s + i.valor, 0)
+    const empresaLabel = empresas.find(e => e.id === empresaId)?.nome
+    const nomeArquivo = `premio-caju-${periodo.slice(0, 7)}${empresaLabel ? '-' + empresaLabel.replace(/[^\w]+/g, '-') : ''}`
+    const cabecalho = ['Funcionário', 'Empresa', 'Valor']
+    const situacao = aprovados.length > 0 ? 'aprovado' : 'ainda não aprovado'
+
+    if (formato === 'xlsx') {
+      const corpo = itens.map(i => [formatName(i.nome), i.empresa_nome ?? '—', i.valor])
+      baixarArquivo(gerarXlsx([cabecalho, ...corpo, ['TOTAL', '', total]], 'Prêmio Caju'), `${nomeArquivo}.xlsx`)
+    } else {
+      const corpo = itens.map(i => [formatName(i.nome), i.empresa_nome ?? '—', brl(i.valor)])
+      const blob = await gerarPdfTabela({
+        titulo: 'Prêmio Caju',
+        subtitulo: `${maiuscula(rotuloCompetencia(periodo))} · ${empresaLabel ?? 'Todas as empresas'} · ${itens.length} colaboradores · Total ${brl(total)} · pagar até ${prazoPagamento(periodo)} · ${situacao}`,
+        cabecalho,
+        linhas: [...corpo, ['TOTAL', '', brl(total)]],
+      })
+      baixarArquivo(blob, `${nomeArquivo}.pdf`)
+    }
+    setOk(`${itens.length} lançamentos exportados de ${rotuloCompetencia(periodo)}.`)
     setMenuExportar(false)
-    const corpo = elegiveis.map(l => [formatName(l.nome), brl(valorDe(l))])
-    const blob = await gerarPdfTabela({
-      titulo: 'Prêmio Caju',
-      subtitulo: `${rotuloCompetencia(competencia)} · ${nomeEmpresa ?? 'Todas as empresas'} · ${elegiveis.length} colaboradores · Total ${brl(totalPagar)} · pagar até ${prazoPagamento(competencia)}`,
-      cabecalho: CABECALHO,
-      linhas: [...corpo, ['TOTAL', brl(totalPagar)]],
-    })
-    baixarArquivo(blob, `${baseNome}.pdf`)
   }
 
   async function aprovar() {
@@ -317,30 +355,10 @@ export function PremioCajuClient({
           </Button>
         </div>
         <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Button variant="outline" onClick={() => setMenuExportar(o => !o)}
-              disabled={elegiveis.length === 0} className="gap-1.5 w-full">
-              <Download className="w-3.5 h-3.5" />Exportar
-              <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-            </Button>
-            {menuExportar && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuExportar(false)} />
-                <div className="absolute right-0 mt-1 z-20 w-52 rounded-xl border bg-white shadow-lg overflow-hidden">
-                  <button onClick={exportarXlsx}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Excel <span className="text-muted-foreground">(.xlsx)</span></span>
-                  </button>
-                  <button onClick={exportarPdf}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50 border-t">
-                    <FileText className="w-4 h-4 text-red-600 shrink-0" />
-                    <span>PDF <span className="text-muted-foreground">(.pdf)</span></span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <Button variant="outline" onClick={() => { setErro(''); setOk(''); setMenuExportar(true) }}
+            className="gap-1.5 flex-1">
+            <Download className="w-3.5 h-3.5" />Exportar
+          </Button>
           <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
             disabled={comValor === 0}
             title={comValor === 0 ? 'Preencha o valor de pelo menos um colaborador' : undefined}
@@ -526,6 +544,18 @@ export function PremioCajuClient({
         </div>
       )}
 
+      {/* ── Exportar: período, empresa e formato ── */}
+      {menuExportar && (
+        <ModalExportar
+          competenciaAtual={competencia}
+          competenciasAprovadas={competenciasAprovadas}
+          empresas={empresas}
+          empresaInicial={empresaFiltro}
+          onExportar={exportar}
+          onClose={() => setMenuExportar(false)}
+        />
+      )}
+
       {/* ── Editar o valor de um período já aprovado ── */}
       {editandoPremio && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
@@ -593,6 +623,92 @@ export function PremioCajuClient({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Modal: exportar (período + empresa + formato) ────────────────────────────
+
+function ModalExportar({
+  competenciaAtual, competenciasAprovadas, empresas, empresaInicial, onExportar, onClose,
+}: {
+  competenciaAtual: string
+  competenciasAprovadas: string[]
+  empresas: EmpresaOpcao[]
+  empresaInicial: string
+  onExportar: (periodo: string, empresaId: string, formato: 'xlsx' | 'pdf') => Promise<void>
+  onClose: () => void
+}) {
+  // O mês em tela sempre aparece, mesmo que ainda não tenha sido aprovado.
+  const periodos = Array.from(new Set([competenciaAtual, ...competenciasAprovadas])).sort().reverse()
+  const [periodo, setPeriodo] = useState(competenciaAtual)
+  const [empresa, setEmpresa] = useState(empresaInicial)
+  const [formato, setFormato] = useState<'xlsx' | 'pdf'>('xlsx')
+  const [gerando, setGerando] = useState(false)
+
+  async function confirmar() {
+    setGerando(true)
+    try { await onExportar(periodo, empresa, formato) } finally { setGerando(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={() => !gerando && onClose()}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <Download className="w-4 h-4 text-primary" />Exportar Prêmio Caju
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Período</label>
+            <select value={periodo} onChange={e => setPeriodo(e.target.value)} className={INPUT}>
+              {periodos.map(p => (
+                <option key={p} value={p}>
+                  {maiuscula(rotuloCompetencia(p))}
+                  {competenciasAprovadas.includes(p) ? '' : ' — ainda não aprovado'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Empresa</label>
+            <select value={empresa} onChange={e => setEmpresa(e.target.value)} className={INPUT}>
+              <option value="">Todas as empresas</option>
+              {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Formato</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setFormato('xlsx')}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                  formato === 'xlsx' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}>
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />Excel
+              </button>
+              <button onClick={() => setFormato('pdf')}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                  formato === 'pdf' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}>
+                <FileText className="w-4 h-4 text-red-600 shrink-0" />PDF
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+          <Button variant="outline" onClick={onClose} disabled={gerando}>Cancelar</Button>
+          <Button onClick={confirmar} disabled={gerando} className="gap-1.5">
+            {gerando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}Exportar
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
