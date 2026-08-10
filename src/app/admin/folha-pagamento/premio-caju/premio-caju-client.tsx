@@ -199,9 +199,12 @@ export function PremioCajuClient({
 
   const filtradas = linhas.filter(l => {
     if (empresaFiltro && l.empresa_id !== empresaFiltro) return false
-    if (!busca.trim()) return true
-    const t = `${l.nome} ${l.cargo ?? ''}`.toLowerCase()
-    return t.includes(busca.trim().toLowerCase())
+    const termo = busca.trim()
+    if (!termo) return true
+    // Busca por CPF: compara só os dígitos, então funciona com ou sem máscara.
+    const digitos = termo.replace(/\D/g, '')
+    if (digitos.length >= 3 && (cpfs[l.candidate_id] ?? '').includes(digitos)) return true
+    return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
   })
 
   const elegiveis = filtradas.filter(l => l.elegivel)
@@ -361,7 +364,7 @@ export function PremioCajuClient({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome ou cargo…"
+          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome, cargo ou CPF…"
             className="h-9 w-full border border-gray-300 rounded-md pl-8 pr-2.5 text-sm bg-white" />
         </div>
         <select value={empresaFiltro} onChange={e => setEmpresaFiltro(e.target.value)}

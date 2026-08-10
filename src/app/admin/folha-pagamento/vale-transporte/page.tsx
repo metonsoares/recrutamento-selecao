@@ -27,8 +27,8 @@ export default async function ValeTransportePage() {
   // Consultas simples e cruzamento em memória (embeds !inner do PostgREST
   // já falharam silenciosamente neste projeto).
   const { data: cands } = candIds.length
-    ? await supabase.from('candidates').select('id, full_name, deleted_at').in('id', candIds)
-    : { data: [] as { id: string; full_name: string; deleted_at: string | null }[] }
+    ? await supabase.from('candidates').select('id, full_name, cpf, deleted_at').in('id', candIds)
+    : { data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }
 
   const candPorId = new Map((cands ?? []).map(c => [c.id as string, c]))
   const empresaPorId = new Map(
@@ -52,6 +52,7 @@ export default async function ValeTransportePage() {
       return {
         candidate_id: a.candidate_id as string,
         nome: c.full_name,
+        cpf: String(c.cpf ?? '').replace(/\D/g, '') || null,
         cargo: String(af?.function_title ?? '').trim() || null,
         empresa_id: empresaId || null,
         empresa: empresaPorId.get(empresaId) ?? null,

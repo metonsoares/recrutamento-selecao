@@ -13,6 +13,8 @@ import { gerarPdfTabela } from '@/lib/pdf'
 export interface LinhaVT {
   candidate_id: string
   nome: string
+  /** só dígitos, para a busca por CPF */
+  cpf: string | null
   cargo: string | null
   empresa_id: string | null
   empresa: string | null
@@ -43,9 +45,12 @@ export function ValeTransporteClient({
     if (situacao === 'recebe' && l.recebe !== true) return false
     if (situacao === 'nao' && l.recebe !== false) return false
     if (situacao === 'sem_info' && l.recebe !== null) return false
-    if (!busca.trim()) return true
-    const t = `${l.nome} ${l.cargo ?? ''}`.toLowerCase()
-    return t.includes(busca.trim().toLowerCase())
+    const termo = busca.trim()
+    if (!termo) return true
+    // Busca por CPF: compara só os dígitos, então funciona com ou sem máscara.
+    const digitos = termo.replace(/\D/g, '')
+    if (digitos.length >= 3 && (l.cpf ?? '').includes(digitos)) return true
+    return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
   })
 
   const recebem = filtradas.filter(l => l.recebe === true).length
@@ -122,7 +127,7 @@ export function ValeTransporteClient({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome ou cargo…"
+          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome, cargo ou CPF…"
             className="h-9 w-full border border-gray-300 rounded-md pl-8 pr-2.5 text-sm bg-white" />
         </div>
         <select value={empresaFiltro} onChange={e => setEmpresaFiltro(e.target.value)}
