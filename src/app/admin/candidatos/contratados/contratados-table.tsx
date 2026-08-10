@@ -1,11 +1,12 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle, Download } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { formatName } from '@/lib/helpers'
+import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 
 interface ContratadoRow {
   id: string
@@ -48,6 +49,22 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
       .sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'))
   }, [rows, search, companyFilter])
 
+  /** Exporta exatamente o que está na tela (busca + filtro de empresa). */
+  function exportarXlsx() {
+    const cabecalho = ['Nome', 'Empresa', 'Cargo', 'Telefone', 'E-mail', 'Cidade', 'Pendências']
+    const corpo = filtered.map(r => [
+      formatName(r.full_name),
+      r.companyName ?? '—',
+      r.jobTitle || '—',
+      r.phone ?? '',
+      r.email ?? '',
+      r.city ?? '',
+      r.pendencia === 'pendente' ? 'Pendente' : 'OK',
+    ])
+    const sufixo = companyFilter === 'all' ? '' : '-' + companyFilter.replace(/[^\w]+/g, '-')
+    baixarArquivo(gerarXlsx([cabecalho, ...corpo], 'Contratados'), `contratados${sufixo}.xlsx`)
+  }
+
   return (
     <div className="space-y-3">
       {/* Toast */}
@@ -78,6 +95,10 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
             {companyOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button variant="outline" onClick={exportarXlsx} disabled={filtered.length === 0} className="gap-1.5 shrink-0">
+          <Download className="w-4 h-4" />
+          Exportar
+        </Button>
         <Button onClick={() => setFaltaOpen(true)} className="gap-1.5 shrink-0">
           <CalendarX className="w-4 h-4" />
           Inserir faltas
