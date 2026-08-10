@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Gift, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
   ExternalLink, History, ChevronLeft, ChevronRight, ChevronDown, Ban, Copy,
-  FileSpreadsheet, FileText,
+  FileSpreadsheet, FileText, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -64,6 +64,11 @@ function prazoPagamento(c: string): string {
   return `10/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
+/** Só a primeira letra em maiúscula ("julho de 2026" → "Julho de 2026"). */
+function maiuscula(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -92,6 +97,29 @@ export function PremioCajuClient({
   const [confirmando, setConfirmando] = useState(false)
   const [historicoAberto, setHistoricoAberto] = useState<Set<string>>(new Set())
   const [menuExportar, setMenuExportar] = useState(false)
+  const [removendo, setRemovendo] = useState<{ linha: LinhaCaju; pagamento: PagamentoHistorico } | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
+
+  async function removerPremio() {
+    if (!removendo) return
+    setExcluindo(true); setErro('')
+    try {
+      const res = await fetch('/api/admin/folha-pagamento/premio-caju', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidate_id: removendo.linha.candidate_id,
+          competencia: removendo.pagamento.competencia,
+        }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Erro ao remover.')
+      setOk(`Prêmio de ${formatName(removendo.linha.nome)} removido de ${rotuloCompetencia(removendo.pagamento.competencia)}.`)
+      setRemovendo(null)
+      router.refresh()
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally { setExcluindo(false) }
+  }
 
   const alternarHistorico = (id: string) => setHistoricoAberto(s => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
@@ -358,10 +386,19 @@ export function PremioCajuClient({
                           {historicoAberto.has(l.candidate_id) && (
                             <div className="mt-1 ml-4 pl-2.5 border-l-2 border-emerald-200 space-y-0.5">
                               {hist.map(h => (
-                                <p key={h.competencia} className="text-[11.5px] text-gray-600 font-normal">
-                                  <span className="capitalize">{rotuloCompetencia(h.competencia)}</span>
-                                  {' — '}
-                                  <strong className="text-emerald-700">{brl(h.valor)}</strong>
+                                <p key={h.competencia} className="text-[11.5px] text-gray-600 font-normal flex items-center gap-1.5 group/premio">
+                                  <span>
+                                    {maiuscula(rotuloCompetencia(h.competencia))}
+                                    {' — '}
+                                    <strong className="text-emerald-700">{brl(h.valor)}</strong>
+                                  </span>
+                                  <button
+                                    onClick={() => setRemovendo({ linha: l, pagamento: h })}
+                                    title="Remover este prêmio"
+                                    className="p-0.5 text-gray-300 hover:text-red-600 rounded opacity-0 group-hover/premio:opacity-100 focus:opacity-100 transition-opacity"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
                                 </p>
                               ))}
                               <p className="text-[11px] text-gray-500 font-normal pt-0.5 border-t mt-1">
@@ -455,6 +492,33 @@ export function PremioCajuClient({
         </div>
       )}
 
+      {/* ── Remover prêmio de um período ── */}
+      {removendo && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => !excluindo && setRemovendo(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b">
+              <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              <h2 className="text-base font-semibold text-gray-900">Remover prêmio</h2>
+            </div>
+            <div className="px-5 py-4 text-sm text-gray-600">
+              Remover o prêmio de <strong>{formatName(removendo.linha.nome)}</strong> referente a{' '}
+              <strong>{rotuloCompetencia(removendo.pagamento.competencia)}</strong> ({brl(removendo.pagamento.valor)})?
+              <span className="block mt-1 text-gray-500">
+                Sai do fechamento do mês e o total é recalculado. Se ninguém mais restar no mês, o fechamento é desfeito.
+              </span>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setRemovendo(null)} disabled={excluindo}>Cancelar</Button>
+              <Button variant="destructive" onClick={removerPremio} disabled={excluindo} className="gap-1.5">
+                {excluindo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}Remover
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
