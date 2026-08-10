@@ -62,8 +62,8 @@ export default async function PremioCajuPage({
 
   const [{ data: cands }, { data: faltas }, { data: advertencias }, { data: itensCiclo }] = await Promise.all([
     candIds.length
-      ? supabase.from('candidates').select('id, full_name, deleted_at').in('id', candIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string; deleted_at: string | null }[] }),
+      ? supabase.from('candidates').select('id, full_name, cpf, deleted_at').in('id', candIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }),
     // Faltas injustificadas do mês fechado (afastamento/atestado não tiram o prêmio).
     supabase.from('absences').select('candidate_id, absence_date, days')
       .eq('kind', 'injustificada').gte('absence_date', inicio).lte('absence_date', fim),
@@ -101,6 +101,13 @@ export default async function PremioCajuPage({
     advPorCand.set(k, (advPorCand.get(k) ?? 0) + 1)
   }
   const valorAprovado = new Map((itensCiclo ?? []).map(i => [i.candidate_id as string, Number(i.valor)]))
+
+  // CPF só com dígitos — a exportação CSV do pedido de premiação exige assim.
+  const cpfs: Record<string, string> = {}
+  for (const c of cands ?? []) {
+    const digitos = String(c.cpf ?? '').replace(/\D/g, '')
+    if (digitos.length === 11) cpfs[c.id as string] = digitos
+  }
 
   // Guarda o snapshot da aprovação (nome/cargo/empresa da época) — exportar um
   // mês passado tem de refletir o que foi aprovado, não o cadastro de hoje.
@@ -171,6 +178,7 @@ export default async function PremioCajuPage({
       empresas={opcoesEmpresa}
       historico={historico}
       competenciasAprovadas={competenciasAprovadas}
+      cpfs={cpfs}
       cicloAprovado={ciclo ? {
         valor_padrao: Number(ciclo.valor_padrao),
         total: Number(ciclo.total),

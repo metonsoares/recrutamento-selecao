@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Gift, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
   ExternalLink, History, ChevronLeft, ChevronRight, ChevronDown, Ban, Copy,
-  FileSpreadsheet, FileText, Trash2, Pencil, X,
+  FileSpreadsheet, FileText, FileCode, Trash2, Pencil, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -80,6 +80,15 @@ function maiuscula(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+/**
+ * Saldo no CSV do pedido de premiação: inteiro sem casas ("250"); com
+ * centavos usa vírgula ("250,50"), padrão brasileiro do arquivo com ";".
+ */
+function valorCsv(n: number): string {
+  const v = Math.round(n * 100) / 100
+  return Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',')
+}
+
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -87,13 +96,15 @@ function brl(n: number): string {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function PremioCajuClient({
-  competencia, linhas, empresas, historico, competenciasAprovadas, cicloAprovado,
+  competencia, linhas, empresas, historico, competenciasAprovadas, cpfs, cicloAprovado,
 }: {
   competencia: string
   linhas: LinhaCaju[]
   empresas: EmpresaOpcao[]
   historico: PagamentoHistorico[]
   competenciasAprovadas: string[]
+  /** candidate_id → CPF só com dígitos (para o CSV do pedido de premiação) */
+  cpfs: Record<string, string>
   cicloAprovado: CicloAprovado | null
 }) {
   const router = useRouter()
@@ -216,7 +227,7 @@ export function PremioCajuClient({
    * Exporta um período. Mês já aprovado sai do snapshot gravado (fiel ao que
    * foi aprovado); o mês em tela ainda não aprovado sai dos valores atuais.
    */
-  async function exportar(periodo: string, empresaId: string, formato: 'xlsx' | 'pdf') {
+  async function exportar(periodo: string, empresaId: string, formato: 'xlsx' | 'pdf' | 'csv') {
     const aprovados = historico
       .filter(h => h.competencia === periodo && (!empresaId || h.empresa_id === empresaId))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
@@ -224,11 +235,11 @@ export function PremioCajuClient({
     const daTela = periodo === competencia
       ? linhas
           .filter(l => l.elegivel && (!empresaId || l.empresa_id === empresaId) && valorDe(l) > 0)
-          .map(l => ({ nome: l.nome, empresa_nome: l.empresa, valor: valorDe(l) }))
+          .map(l => ({ candidate_id: l.candidate_id, nome: l.nome, empresa_nome: l.empresa, valor: valorDe(l) }))
       : []
 
     const itens = aprovados.length > 0
-      ? aprovados.map(h => ({ nome: h.nome, empresa_nome: h.empresa_nome, valor: h.valor }))
+      ? aprovados.map(h => ({ candidate_id: h.candidate_id, nome: h.nome, empresa_nome: h.empresa_nome, valor: h.valor }))
       : daTela
 
     if (itens.length === 0) {
@@ -241,6 +252,25 @@ export function PremioCajuClient({
     const nomeArquivo = `premio-caju-${periodo.slice(0, 7)}${empresaLabel ? '-' + empresaLabel.replace(/[^\w]+/g, '-') : ''}`
     const cabecalho = ['Funcionário', 'Empresa', 'Valor']
     const situacao = aprovados.length > 0 ? 'aprovado' : 'ainda não aprovado'
+
+    if (formato === 'csv') {
+      // Modelo do pedido de premiação: "CPF;Saldo", CPF só com dígitos.
+      const comCpf = itens.filter(i => cpfs[i.candidate_id])
+      const semCpf = itens.length - comCpf.length
+      if (comCpf.length === 0) {
+        setErro('Nenhum colaborador desse período tem CPF cadastrado.')
+        return
+      }
+      const linhasCsv = comCpf.map(i => `${cpfs[i.candidate_id]};${valorCsv(i.valor)}`)
+      const conteudo = ['CPF;Saldo', ...linhasCsv].join('\r\n') + '\r\n'
+      baixarArquivo(new Blob([conteudo], { type: 'text/csv;charset=utf-8' }), `${nomeArquivo}.csv`)
+      setOk(
+        `${comCpf.length} lançamentos exportados de ${rotuloCompetencia(periodo)}.` +
+        (semCpf > 0 ? ` ${semCpf} ficaram de fora por não ter CPF cadastrado.` : ''),
+      )
+      setMenuExportar(false)
+      return
+    }
 
     if (formato === 'xlsx') {
       const corpo = itens.map(i => [formatName(i.nome), i.empresa_nome ?? '—', i.valor])
@@ -636,14 +666,14 @@ function ModalExportar({
   competenciasAprovadas: string[]
   empresas: EmpresaOpcao[]
   empresaInicial: string
-  onExportar: (periodo: string, empresaId: string, formato: 'xlsx' | 'pdf') => Promise<void>
+  onExportar: (periodo: string, empresaId: string, formato: 'xlsx' | 'pdf' | 'csv') => Promise<void>
   onClose: () => void
 }) {
   // O mês em tela sempre aparece, mesmo que ainda não tenha sido aprovado.
   const periodos = Array.from(new Set([competenciaAtual, ...competenciasAprovadas])).sort().reverse()
   const [periodo, setPeriodo] = useState(competenciaAtual)
   const [empresa, setEmpresa] = useState(empresaInicial)
-  const [formato, setFormato] = useState<'xlsx' | 'pdf'>('xlsx')
+  const [formato, setFormato] = useState<'xlsx' | 'pdf' | 'csv'>('csv')
   const [gerando, setGerando] = useState(false)
 
   async function confirmar() {
@@ -685,7 +715,17 @@ function ModalExportar({
 
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600">Formato</label>
-            <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setFormato('csv')}
+              className={`w-full flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                formato === 'csv' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}>
+              <FileCode className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="flex-1 text-left">
+                CSV — pedido de premiação
+                <span className="block text-[10px] font-normal text-muted-foreground">CPF e saldo, pronto para importar</span>
+              </span>
+            </button>
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button onClick={() => setFormato('xlsx')}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[13px] font-medium transition-colors ${
                   formato === 'xlsx' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
