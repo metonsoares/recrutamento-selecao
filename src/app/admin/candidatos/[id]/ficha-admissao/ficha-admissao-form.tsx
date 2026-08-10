@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Loader2, Save, CheckCircle2, AlertCircle, Search,
   Upload, X, FileText, ImageIcon, Clock, Eye, Download,
@@ -441,7 +442,15 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
     if (!readOnly && !base.selected_company_id && contractCompanyId) base.selected_company_id = contractCompanyId
     return base
   })
+  const router = useRouter()
   const [saving, setSaving] = useState(false)
+  // Nome/e-mail/telefone ficam no cadastro do colaborador, não no jsonb da
+  // ficha — por isso vão em estado próprio e salvam por outra rota.
+  const [contato, setContato] = useState({
+    full_name: candidate.full_name ?? '',
+    email: candidate.email ?? '',
+    phone: candidate.phone ?? '',
+  })
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [cpfError, setCpfError] = useState('')
   const [cepLoading, setCepLoading] = useState(false)
@@ -489,6 +498,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
     const digits = form.cpf_value.replace(/\D/g, '')
     if (digits.length > 0 && digits.length < 11) { setCpfError('CPF incompleto'); return }
     if (digits.length === 11 && !validateCPF(form.cpf_value)) { setCpfError('CPF inválido'); return }
+    if (!contato.full_name.trim()) { setToast({ type: 'err', msg: 'O nome não pode ficar vazio.' }); return }
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidate.id}/admission-form`, {
@@ -496,6 +506,25 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
+
+      // Nome/e-mail/telefone vão para o cadastro do colaborador (outra tabela),
+      // e só quando algum deles mudou.
+      const mudou =
+        contato.full_name.trim() !== (candidate.full_name ?? '') ||
+        contato.email.trim() !== (candidate.email ?? '') ||
+        contato.phone.trim() !== (candidate.phone ?? '')
+      if (mudou) {
+        const resContato = await fetch(`/api/admin/candidatos/${candidate.id}/contato`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_name: contato.full_name, email: contato.email, phone: contato.phone,
+          }),
+        })
+        const dContato = await resContato.json().catch(() => ({}))
+        if (!resContato.ok) throw new Error(dContato.error || 'Ficha salva, mas os dados do colaborador não foram atualizados.')
+        router.refresh()
+      }
+
       setToast({ type: 'ok', msg: 'Ficha salva com sucesso!' })
     } catch (e) {
       setToast({ type: 'err', msg: (e as Error).message || 'Erro ao salvar.' })
@@ -569,14 +598,20 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         <SectionTitle>Dados do Funcionário</SectionTitle>
         <div className="grid grid-cols-1 gap-3">
           <Field label="Nome Completo">
-            <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium">{formatName(candidate.full_name)}</div>
+            {readOnly
+              ? <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm font-medium">{formatName(candidate.full_name)}</div>
+              : <Input value={contato.full_name} onChange={e => setContato(c => ({ ...c, full_name: e.target.value }))} placeholder="Nome completo" />}
           </Field>
           <Field label="E-mail">
-            <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm truncate">{candidate.email || '—'}</div>
+            {readOnly
+              ? <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm truncate">{candidate.email || '—'}</div>
+              : <Input type="email" value={contato.email} onChange={e => setContato(c => ({ ...c, email: e.target.value }))} placeholder="email@exemplo.com" />}
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Telefone Celular">
-              <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm">{candidate.phone || '—'}</div>
+              {readOnly
+                ? <div className="h-9 flex items-center px-3 border border-gray-200 rounded-md bg-gray-50 text-sm">{candidate.phone || '—'}</div>
+                : <Input value={contato.phone} onChange={e => setContato(c => ({ ...c, phone: e.target.value }))} placeholder="(24) 99999-9999" />}
             </Field>
             <Field label="Telefone Fixo">
               <Input value={form.phone_landline} onChange={e => set('phone_landline', e.target.value)} placeholder="(  )      -    " />
