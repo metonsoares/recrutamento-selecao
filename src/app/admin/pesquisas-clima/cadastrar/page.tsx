@@ -33,15 +33,16 @@ export default async function CadastrarPesquisasPage() {
     }
   })
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+  // O QR da pesquisa aponta para o PORTAL: o colaborador entra com código e
+  // senha e o Portal o reencaminha já identificado para o formulário.
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || 'https://portal.browniedoton.com.br'
 
   return (
     <CadastrarPesquisaManager
       initialSurveys={(surveys || []) as unknown as never[]}
       companyOptions={companyOptions}
       employees={employees}
-      appUrl={appUrl}
+      portalUrl={portalUrl}
     />
   )
 }

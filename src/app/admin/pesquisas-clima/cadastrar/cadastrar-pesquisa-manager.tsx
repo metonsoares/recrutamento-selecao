@@ -22,7 +22,7 @@ interface Props {
   initialSurveys: Survey[]
   companyOptions: string[]
   employees: Employee[]
-  appUrl: string
+  portalUrl: string
 }
 
 // Apenas colaboradores: Freelancers, Em contrato, Contratado, Intermitentes
@@ -30,7 +30,7 @@ const STATUS_KEYS: CandidateStatus[] = ['freelancer', 'em_contrato', 'contratado
 
 function genId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()) }
 
-export function CadastrarPesquisaManager({ initialSurveys, companyOptions, employees, appUrl }: Props) {
+export function CadastrarPesquisaManager({ initialSurveys, companyOptions, employees, portalUrl }: Props) {
   const router = useRouter()
   const [surveys, setSurveys] = useState<Survey[]>(initialSurveys)
   const [modalOpen, setModalOpen] = useState(false)
@@ -195,7 +195,9 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
     else showToast('err', 'Erro ao remover.')
   }
 
-  function surveyUrl(token: string) { return `${appUrl || ''}/pesquisa/${token}` }
+  // Entrada pelo Portal: login com código de acesso e senha, e de lá o
+  // colaborador é reencaminhado para o formulário já identificado.
+  function surveyUrl(token: string) { return `${portalUrl}/pesquisa?t=${token}` }
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
