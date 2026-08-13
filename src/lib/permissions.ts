@@ -39,15 +39,19 @@ export type Permission =
 
 // Permissões padrão por perfil. Master e Administrador têm tudo (tratado em can()/defaultLevel);
 // Visualizador = somente leitura e Externo = sem painel (tratados em defaultLevel).
+// Gestor: enxerga APENAS o menu Currículos (com a Agenda de entrevistas, que
+// é item desse grupo). Sem Dashboard, Treinamentos, Pesquisas de clima e
+// WhatsApp — as permissões de AÇÃO abaixo continuam, pois valem dentro das
+// telas de candidato, não como menu.
 const GESTOR: Permission[] = [
-  'dashboard.ver', 'candidatos.ver', 'candidatos.status', 'candidatos.ver_reprovados',
+  'candidatos.ver', 'candidatos.status', 'candidatos.ver_reprovados',
   'acao.analise_ia', 'acao.teste_cultural', 'acao.check_processos', 'acao.check_auxilios', 'acao.convidar', 'acao.exportar_pdf',
-  'agenda.ver', 'agenda.remover_agendamento', 'treinamentos.ver', 'pesquisas.resultados', 'whatsapp.ver',
+  'agenda.ver', 'agenda.remover_agendamento',
 ]
 
 // Gestor RH: RH-focado. Dashboard, Candidatos (status sim; SEM Check Auxílios/Processos,
 // SEM coluna Reprovados), Agenda (config + remover), Colaboradores + fichas, Documentos da
-// empresa. SEM Configurações/Pesquisas/Treinamentos/WhatsApp/Relatórios/Templates.
+// empresa e Relatórios. SEM Configurações/Pesquisas/Treinamentos/WhatsApp/Templates.
 const GESTOR_RH: Permission[] = [
   'dashboard.ver',
   'candidatos.ver', 'candidatos.status',
@@ -56,6 +60,7 @@ const GESTOR_RH: Permission[] = [
   'ficha.admissao', 'ficha.contrato', 'ficha.documentos', 'ficha.bancarios', 'ficha.ferias',
   'ficha.advertencias', 'ficha.atestados', 'ficha.contracheques', 'ficha.folhas', 'ficha.asos',
   'ficha.clima', 'ficha.registros',
+  'relatorios.ver',
 ]
 
 const ROLE_PERMISSIONS: Record<Exclude<Role, 'master' | 'admin'>, Set<Permission>> = {
