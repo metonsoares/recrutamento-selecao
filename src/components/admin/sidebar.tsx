@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -320,6 +320,9 @@ function SidebarContent({
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
               <Link href="/admin/documentos-empresa" onClick={go} className={cn(DEEP_BASE, pathname === '/admin/documentos-empresa' ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <FolderArchive className="w-3 h-3 shrink-0 opacity-50" />Documentos da empresa
+              </Link>
+              <Link href="/admin/documentos-empresa/folhas-analiticas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/documentos-empresa/folhas-analiticas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <FileSpreadsheet className="w-3 h-3 shrink-0 opacity-50" />Folhas analíticas
               </Link>
               {isMaster && (
                 <Link href="/admin/documentos-empresa/templates" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/documentos-empresa/templates') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
