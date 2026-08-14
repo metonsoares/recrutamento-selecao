@@ -27,7 +27,6 @@ export interface LinhaCaju {
   fim_experiencia: string | null
   sem_data_admissao: boolean
   elegivel: boolean
-  valor_aprovado: number | null
 }
 
 export interface EmpresaOpcao { id: string; nome: string }
@@ -110,9 +109,9 @@ export function PremioCajuClient({
   const router = useRouter()
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
-  const [valorPadrao, setValorPadrao] = useState(
-    cicloAprovado ? String(cicloAprovado.valor_padrao).replace('.', ',') : '',
-  )
+  // Sempre começa em branco, mesmo em mês já aprovado: valor preenchido de
+  // saída convida a aprovar sem conferir.
+  const [valorPadrao, setValorPadrao] = useState('')
   const [ajustes, setAjustes] = useState<Record<string, string>>({})
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -177,12 +176,15 @@ export function PremioCajuClient({
 
   const padraoNum = Number(valorPadrao.replace(/\./g, '').replace(',', '.')) || 0
 
-  /** Valor efetivo da pessoa: ajuste individual > valor já aprovado > padrão do mês. */
+  /**
+   * Valor efetivo da pessoa: ajuste individual, senão o valor do mês.
+   * NÃO herda o que já foi aprovado — o fechamento anterior fica visível no
+   * histórico embaixo do nome, e a tela começa sempre zerada para o valor ser
+   * uma decisão consciente a cada rodada.
+   */
   function valorDe(l: LinhaCaju): number {
     const aj = ajustes[l.candidate_id]
-    if (aj !== undefined && aj !== '') return Number(aj.replace(/\./g, '').replace(',', '.')) || 0
-    if (aj === '') return 0
-    if (l.valor_aprovado != null) return l.valor_aprovado
+    if (aj !== undefined) return Number(aj.replace(/\./g, '').replace(',', '.')) || 0
     return padraoNum
   }
 
@@ -516,7 +518,7 @@ export function PremioCajuClient({
                         <div className="relative w-28">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400">R$</span>
                           <input
-                            value={ajustes[l.candidate_id] ?? (l.valor_aprovado != null ? String(l.valor_aprovado).replace('.', ',') : '')}
+                            value={ajustes[l.candidate_id] ?? ''}
                             onChange={e => setAjustes(a => ({ ...a, [l.candidate_id]: e.target.value.replace(/[^\d,.]/g, '') }))}
                             placeholder={padraoNum ? String(padraoNum).replace('.', ',') : '0,00'}
                             inputMode="decimal"

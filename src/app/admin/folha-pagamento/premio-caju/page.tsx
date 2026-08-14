@@ -60,7 +60,7 @@ export default async function PremioCajuPage({
   const appsList = apps ?? []
   const candIds = appsList.map(a => a.candidate_id as string).filter(Boolean)
 
-  const [{ data: cands }, { data: faltas }, { data: advertencias }, { data: itensCiclo }] = await Promise.all([
+  const [{ data: cands }, { data: faltas }, { data: advertencias }] = await Promise.all([
     candIds.length
       ? supabase.from('candidates').select('id, full_name, cpf, deleted_at').in('id', candIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }),
@@ -69,9 +69,6 @@ export default async function PremioCajuPage({
       .eq('kind', 'injustificada').gte('absence_date', inicio).lte('absence_date', fim),
     supabase.from('warnings').select('candidate_id, occurred_at')
       .gte('occurred_at', inicio).lte('occurred_at', fim),
-    ciclo?.id
-      ? supabase.from('premio_caju_itens').select('candidate_id, valor').eq('ciclo_id', ciclo.id)
-      : Promise.resolve({ data: [] as { candidate_id: string; valor: number }[] }),
   ])
 
   // Histórico de pagamentos aprovados (mês + valor por pessoa).
@@ -100,8 +97,6 @@ export default async function PremioCajuPage({
     const k = a.candidate_id as string
     advPorCand.set(k, (advPorCand.get(k) ?? 0) + 1)
   }
-  const valorAprovado = new Map((itensCiclo ?? []).map(i => [i.candidate_id as string, Number(i.valor)]))
-
   // CPF só com dígitos — a exportação CSV do pedido de premiação exige assim.
   const cpfs: Record<string, string> = {}
   for (const c of cands ?? []) {
@@ -160,7 +155,6 @@ export default async function PremioCajuPage({
         fim_experiencia: fimExp,
         sem_data_admissao: !admissao,
         elegivel: dias === 0 && adv === 0 && !emExperiencia,
-        valor_aprovado: valorAprovado.get(id) ?? null,
       }
     })
     .filter(Boolean) as LinhaCaju[]
