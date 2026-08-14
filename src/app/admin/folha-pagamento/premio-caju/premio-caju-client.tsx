@@ -333,13 +333,17 @@ export function PremioCajuClient({
             Competência <strong className="text-gray-700">{rotuloCompetencia(competencia)}</strong> · pagar até {prazoPagamento(competencia)}
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        {/* Navegador de mês: o período fica escrito entre as setas. */}
+        <div className="inline-flex items-center rounded-lg border bg-white overflow-hidden">
           <Link href={`?competencia=${competenciaVizinha(competencia, -1)}`} scroll={false}
-            className="p-2 rounded-lg border bg-white hover:bg-gray-50" title="Mês anterior">
+            className="p-2 hover:bg-gray-50" title="Mês anterior">
             <ChevronLeft className="w-4 h-4 text-gray-500" />
           </Link>
+          <span className="px-3 text-[13px] font-semibold text-gray-800 border-x whitespace-nowrap">
+            {maiuscula(rotuloCompetencia(competencia))}
+          </span>
           <Link href={`?competencia=${competenciaVizinha(competencia, 1)}`} scroll={false}
-            className="p-2 rounded-lg border bg-white hover:bg-gray-50" title="Mês seguinte">
+            className="p-2 hover:bg-gray-50" title="Mês seguinte">
             <ChevronRight className="w-4 h-4 text-gray-500" />
           </Link>
         </div>
