@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX,
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark,
 } from 'lucide-react'
 
 import { useState } from 'react'
@@ -251,6 +251,9 @@ function SidebarContent({
               </Link>
               <Link href="/admin/folha-pagamento/faltas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/faltas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <CalendarX className="w-3 h-3 shrink-0 opacity-50" />Faltas registradas
+              </Link>
+              <Link href="/admin/folha-pagamento/mensalidade-sindical" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/mensalidade-sindical') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                <Landmark className="w-3 h-3 shrink-0 opacity-50" />Mensalidade sindical
               </Link>
             </div>
           )}
