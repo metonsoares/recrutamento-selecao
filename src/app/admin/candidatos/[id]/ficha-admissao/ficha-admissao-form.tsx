@@ -40,6 +40,11 @@ export interface AdmissionFormData {
   education: string
   union_dues: boolean | null
   transport_benefit: boolean | null
+  /** Condições de remuneração do cargo (null = ficha ainda não respondeu) */
+  cargo_confianca: boolean | null
+  insalubridade_20: boolean | null
+  quebra_caixa_15: boolean | null
+  gorjeta: boolean | null
   function_title: string
   salary: string
   admission_date: string
@@ -153,6 +158,7 @@ function makeEmpty(c: Candidate, jobTitle: string | null): AdmissionFormData {
     phone_landline: '', pis: '', pis_date: '',
     identity_number: '', identity_date: '', marital_status: '', education: '',
     union_dues: null, transport_benefit: null,
+    cargo_confianca: null, insalubridade_20: null, quebra_caixa_15: null, gorjeta: null,
     function_title: jobTitle || '', salary: '', admission_date: '', trial_contract: '45 + 45 dias',
     docs: Object.fromEntries(ALL_DOCS.map(d => [d.key, emptyDoc()])),
     children_count: '0', alimony: false,
@@ -721,6 +727,22 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <option value="Sem experiência">Sem experiência</option>
             </select>
           </Field>
+
+          {/* Condições de remuneração do cargo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 pt-1">
+            <Field label="Cargo de confiança?">
+              <YesNo value={form.cargo_confianca} onChange={v => set('cargo_confianca', v)} />
+            </Field>
+            <Field label="Adicional de insalubridade 20%?">
+              <YesNo value={form.insalubridade_20} onChange={v => set('insalubridade_20', v)} />
+            </Field>
+            <Field label="Adicional de quebra de caixa 15%?">
+              <YesNo value={form.quebra_caixa_15} onChange={v => set('quebra_caixa_15', v)} />
+            </Field>
+            <Field label="Gorjeta?">
+              <YesNo value={form.gorjeta} onChange={v => set('gorjeta', v)} />
+            </Field>
+          </div>
         </div>
 
         {/* ── Salário Família ─────────────────────────────────────────── */}
