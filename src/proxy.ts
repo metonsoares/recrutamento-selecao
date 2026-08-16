@@ -22,6 +22,7 @@ const PAGE_LABELS: [RegExp, string][] = [
   [/^\/admin\/folha-pagamento\/vale-transporte/, 'Acessou Folha de pagamento: Vale transporte'],
   [/^\/admin\/folha-pagamento\/faltas/, 'Acessou Folha de pagamento: Faltas registradas'],
   [/^\/admin\/folha-pagamento\/mensalidade-sindical/, 'Acessou Folha de pagamento: Mensalidade sindical'],
+  [/^\/admin\/folha-pagamento\/gorjetas/, 'Acessou Folha de pagamento: Gorjetas'],
   [/^\/admin\/folha-pagamento/, 'Acessou Folha de pagamento'],
   [/^\/admin\/documentos-empresa\/folhas-analiticas/, 'Acessou Documentos: Folhas analíticas'],
   [/^\/admin\/documentos-empresa/, 'Acessou Documentos da empresa'],
