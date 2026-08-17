@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Coins, Search, Download, CheckCircle2, AlertCircle, Loader2, Check, Copy,
+  Coins, Search, Download, CheckCircle2, AlertCircle, Loader2, Check,
   ExternalLink, History, ChevronLeft, ChevronRight, ChevronDown, Trash2, Pencil,
   FileSpreadsheet, FileText,
 } from 'lucide-react'
@@ -58,12 +58,16 @@ function brl(n: number): string {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function GorjetasClient({
-  competencia, linhas, empresas, historico, cicloAprovado,
+  competencia, linhas, empresas, historico, pesos, diasTrabalhados, cicloAprovado,
 }: {
   competencia: string
   linhas: LinhaGorjeta[]
   empresas: EmpresaOpcao[]
   historico: PagamentoGorjeta[]
+  /** candidate_id → peso da função no rateio (padrão 1) */
+  pesos: Record<string, number>
+  /** candidate_id → dias trabalhados no mês (vem do Vale transporte) */
+  diasTrabalhados: Record<string, number>
   cicloAprovado: CicloAprovado | null
 }) {
   const router = useRouter()
@@ -71,7 +75,6 @@ export function GorjetasClient({
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   // Sempre em branco: valor preenchido de saída convida a aprovar sem conferir.
   const [valorPadrao, setValorPadrao] = useState('')
-  const [ajustes, setAjustes] = useState<Record<string, string>>({})
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
@@ -81,14 +84,26 @@ export function GorjetasClient({
   const [editando, setEditando] = useState<{ linha: LinhaGorjeta; pagamento: PagamentoGorjeta; valor: string } | null>(null)
   const [removendo, setRemovendo] = useState<{ linha: LinhaGorjeta; pagamento: PagamentoGorjeta } | null>(null)
   const [processando, setProcessando] = useState(false)
+  const [pesoEdit, setPesoEdit] = useState<Record<string, string>>({})
+  const [diasEdit, setDiasEdit] = useState<Record<string, string>>({})
+  const [salvandoPeso, setSalvandoPeso] = useState<string | null>(null)
+  const [retencao, setRetencao] = useState('27')
+  const [descontos, setDescontos] = useState('')
 
   const padraoNum = Number(valorPadrao.replace(/\./g, '').replace(',', '.')) || 0
 
-  /** Valor da pessoa: ajuste individual, senão o valor do mês. */
-  function valorDe(l: LinhaGorjeta): number {
-    const aj = ajustes[l.candidate_id]
-    if (aj !== undefined) return Number(aj.replace(/\./g, '').replace(',', '.')) || 0
-    return padraoNum
+  /** Peso da função no rateio (padrão 1). */
+  function pesoDe(l: LinhaGorjeta): number {
+    const edit = pesoEdit[l.candidate_id]
+    if (edit !== undefined) return Number(edit.replace(',', '.')) || 0
+    return pesos[l.candidate_id] ?? 1
+  }
+
+  /** Dias trabalhados no mês (vêm do Vale transporte, editáveis aqui). */
+  function diasDe(l: LinhaGorjeta): number {
+    const edit = diasEdit[l.candidate_id]
+    if (edit !== undefined) return Math.trunc(Number(edit)) || 0
+    return diasTrabalhados[l.candidate_id] ?? 0
   }
 
   const historicoPorCand = useMemo(() => {
@@ -111,6 +126,28 @@ export function GorjetasClient({
     return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
   })
 
+  // ── Rateio ponderado (mesma conta da planilha de comissões) ─────────────
+  //   líquido = apurado - (apurado x retenção%) - descontos
+  //   fator   = dias trabalhados x peso da função
+  //   valor   = líquido x fator / soma dos fatores
+  // Quem tem mais dias e maior peso puxa a maior fatia; o maior número de
+  // dias equivale a 100% do próprio peso, pois se cancela na proporção.
+  const retencaoPct = Number(retencao.replace(',', '.')) || 0
+  const descontosNum = Number(descontos.replace(/\./g, '').replace(',', '.')) || 0
+  const valorRetido = Math.round(padraoNum * (retencaoPct / 100) * 100) / 100
+  const liquido = Math.max(0, Math.round((padraoNum - valorRetido - descontosNum) * 100) / 100)
+
+  function fatorDe(l: LinhaGorjeta): number {
+    return diasDe(l) * pesoDe(l)
+  }
+  const somaFatores = filtradas.reduce((s, l) => s + fatorDe(l), 0)
+
+  /** Quanto a pessoa recebe do líquido. */
+  function valorDe(l: LinhaGorjeta): number {
+    if (somaFatores <= 0 || liquido <= 0) return 0
+    return Math.round((liquido * fatorDe(l) / somaFatores) * 100) / 100
+  }
+
   const comValor = filtradas.filter(l => valorDe(l) > 0).length
   const totalPagar = filtradas.reduce((s, l) => s + valorDe(l), 0)
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
@@ -120,14 +157,21 @@ export function GorjetasClient({
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
   })
 
-  function aplicarATodos() {
-    const texto = valorPadrao.trim()
-    setAjustes(a => {
-      const novo = { ...a }
-      for (const l of filtradas) novo[l.candidate_id] = texto
-      return novo
-    })
-    setOk(`Valor aplicado a ${filtradas.length} colaborador${filtradas.length !== 1 ? 'es' : ''}${nomeEmpresa ? ` de ${nomeEmpresa}` : ''}.`)
+  /** Salva o peso do colaborador (persiste para os próximos meses). */
+  async function salvarPeso(l: LinhaGorjeta) {
+    const valor = pesoDe(l)
+    setSalvandoPeso(l.candidate_id); setErro('')
+    try {
+      const res = await fetch('/api/admin/folha-pagamento/gorjetas/peso', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_id: l.candidate_id, peso: valor }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Erro ao salvar o peso.')
+      router.refresh()
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally { setSalvandoPeso(null) }
   }
 
   async function aprovar() {
@@ -138,10 +182,14 @@ export function GorjetasClient({
         body: JSON.stringify({
           competencia,
           valor_padrao: padraoNum,
+          retencao_pct: retencaoPct,
+          descontos: descontosNum,
+          liquido,
           escopo_empresa: empresaFiltro || null,
           itens: filtradas.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa, valor: valorDe(l),
+            peso: pesoDe(l), dias: diasDe(l), fator: fatorDe(l),
           })),
         }),
       })
@@ -256,15 +304,11 @@ export function GorjetasClient({
           {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
         <div className="flex gap-2">
-          <div className="relative flex-1">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
-            <input value={valorPadrao} onChange={e => setValorPadrao(e.target.value.replace(/[^\d,.]/g, ''))}
-              placeholder="Valor do mês" inputMode="decimal"
-              className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white" />
-          </div>
-          <Button variant="outline" onClick={aplicarATodos} disabled={padraoNum <= 0 || filtradas.length === 0}
-            className="gap-1.5 shrink-0" title="Aplicar a todos os listados">
-            <Copy className="w-3.5 h-3.5" />Todos
+          <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
+            disabled={comValor === 0}
+            title={comValor === 0 ? 'Informe o valor apurado e os dias trabalhados' : undefined}
+            className="gap-1.5 flex-1">
+            <Check className="w-3.5 h-3.5" />Aprovar
           </Button>
         </div>
         <div className="flex gap-2">
@@ -298,6 +342,44 @@ export function GorjetasClient({
         </div>
       </div>
 
+      {/* Apuração do mês: apurado − retenção − descontos = líquido a ratear */}
+      <div className="rounded-2xl border bg-white shadow-sm p-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Valor apurado no mês</label>
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
+            <input value={valorPadrao} onChange={e => setValorPadrao(e.target.value.replace(/[^\d,.]/g, ''))}
+              placeholder="0,00" inputMode="decimal"
+              className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Retenção</label>
+          <div className="relative">
+            <input value={retencao} onChange={e => setRetencao(e.target.value.replace(/[^\d,.]/g, '').slice(0, 5))}
+              inputMode="decimal" className="h-9 w-full border border-gray-300 rounded-md px-2.5 pr-7 text-sm bg-white" />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground">−{brl(valorRetido)}</p>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Descontos</label>
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
+            <input value={descontos} onChange={e => setDescontos(e.target.value.replace(/[^\d,.]/g, ''))}
+              placeholder="0,00" inputMode="decimal"
+              className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Líquido a ratear</label>
+          <div className="h-9 flex items-center px-3 rounded-md bg-emerald-50 border border-emerald-200">
+            <span className="text-sm font-bold text-emerald-800">{brl(liquido)}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Soma dos fatores: {somaFatores.toFixed(2)}</p>
+        </div>
+      </div>
+
       {/* Resumo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Cartao titulo="Listados" valor={String(filtradas.length)} cor="text-gray-900" />
@@ -316,6 +398,9 @@ export function GorjetasClient({
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-2.5 font-semibold">Colaborador</th>
                 <th className="px-4 py-2.5 font-semibold hidden md:table-cell">Cargo</th>
+                <th className="px-4 py-2.5 font-semibold">Peso</th>
+                <th className="px-4 py-2.5 font-semibold">Dias</th>
+                <th className="px-4 py-2.5 font-semibold hidden lg:table-cell">Fator</th>
                 <th className="px-4 py-2.5 font-semibold hidden sm:table-cell">Empresa</th>
                 <th className="px-4 py-2.5 font-semibold">Valor</th>
                 <th className="px-4 py-2.5" />
@@ -370,18 +455,38 @@ export function GorjetasClient({
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-gray-600 hidden md:table-cell">{l.cargo ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-gray-600 hidden sm:table-cell whitespace-nowrap">{l.empresa ?? '—'}</td>
                     <td className="px-4 py-2.5">
-                      <div className="relative w-28">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400">R$</span>
+                      <div className="flex items-center gap-1">
                         <input
-                          value={ajustes[l.candidate_id] ?? ''}
-                          onChange={e => setAjustes(a => ({ ...a, [l.candidate_id]: e.target.value.replace(/[^\d,.]/g, '') }))}
-                          placeholder={padraoNum ? String(padraoNum).replace('.', ',') : '0,00'}
-                          inputMode="decimal"
-                          className="h-8 w-full border border-gray-300 rounded-md pl-7 pr-2 text-[13px] bg-white"
+                          value={pesoEdit[l.candidate_id] ?? String(pesos[l.candidate_id] ?? 1).replace('.', ',')}
+                          onChange={e => setPesoEdit(pv => ({ ...pv, [l.candidate_id]: e.target.value.replace(/[^\d,.]/g, '').slice(0, 4) }))}
+                          onBlur={() => salvarPeso(l)}
+                          inputMode="decimal" title="Peso da função (ex.: 1 ou 0,7). Salva ao sair do campo."
+                          className="h-8 w-16 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center"
                         />
+                        {salvandoPeso === l.candidate_id && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                       </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <input
+                        value={diasEdit[l.candidate_id] ?? String(diasTrabalhados[l.candidate_id] ?? '')}
+                        onChange={e => setDiasEdit(d => ({ ...d, [l.candidate_id]: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                        placeholder="0" inputMode="numeric"
+                        title="Dias trabalhados no mês (vêm do Vale transporte)"
+                        className="h-8 w-14 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center"
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500 hidden lg:table-cell whitespace-nowrap">
+                      {fatorDe(l).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-600 hidden sm:table-cell whitespace-nowrap">{l.empresa ?? '—'}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <span className="font-semibold text-gray-900">{brl(valorDe(l))}</span>
+                      {somaFatores > 0 && fatorDe(l) > 0 && (
+                        <span className="block text-[10px] text-muted-foreground">
+                          {((fatorDe(l) / somaFatores) * 100).toFixed(1)}% do líquido
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <Link href={`/admin/candidatos/${l.candidate_id}?tab=ficha`}
@@ -393,7 +498,7 @@ export function GorjetasClient({
                 )
               })}
               {filtradas.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                   {linhas.length === 0
                     ? 'Nenhum colaborador está com “Gorjeta: Sim” na ficha do funcionário.'
                     : 'Nenhum colaborador encontrado.'}

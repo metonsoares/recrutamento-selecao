@@ -40,6 +40,22 @@ export default async function GorjetasPage({
     ? await supabase.from('candidates').select('id, full_name, cpf, deleted_at').in('id', candIds)
     : { data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }
 
+  // Peso por colaborador (vem da função, não muda a cada mês) e os DIAS
+  // TRABALHADOS do mês, reaproveitados do registro do Vale transporte para o
+  // dono não precisar digitar a mesma informação duas vezes.
+  const [{ data: pesosData }, { data: cicloVt }] = await Promise.all([
+    supabase.from('gorjeta_pesos').select('candidate_id, peso'),
+    supabase.from('vt_ciclos').select('id').eq('competencia', competencia).maybeSingle(),
+  ])
+  const { data: diasVt } = cicloVt?.id
+    ? await supabase.from('vt_itens').select('candidate_id, dias').eq('ciclo_id', cicloVt.id)
+    : { data: [] as { candidate_id: string; dias: number }[] }
+
+  const pesos: Record<string, number> = {}
+  for (const p of pesosData ?? []) pesos[p.candidate_id as string] = Number(p.peso)
+  const diasTrabalhados: Record<string, number> = {}
+  for (const d of diasVt ?? []) diasTrabalhados[d.candidate_id as string] = Number(d.dias)
+
   // Histórico: consultas simples e cruzamento em memória (embeds !inner do
   // PostgREST já falharam silenciosamente neste projeto).
   const [{ data: todosCiclos }, { data: todosItens }] = await Promise.all([
@@ -95,6 +111,8 @@ export default async function GorjetasPage({
       linhas={linhas}
       empresas={empresasOpcoes}
       historico={historico}
+      pesos={pesos}
+      diasTrabalhados={diasTrabalhados}
       cicloAprovado={ciclo ? {
         total: Number(ciclo.total),
         aprovado_por: (ciclo.aprovado_por as string) ?? null,

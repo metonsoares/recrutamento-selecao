@@ -9,6 +9,9 @@ interface ItemEntrada {
   empresa_id?: string | null
   empresa_nome?: string | null
   valor: number
+  peso?: number
+  dias?: number
+  fator?: number
 }
 
 /** Recalcula o total do ciclo; apaga o ciclo se não sobrar ninguém. */
@@ -57,6 +60,10 @@ export async function POST(req: NextRequest) {
       .upsert({
         competencia,
         valor_padrao: Number.isFinite(valorPadrao) ? valorPadrao : 0,
+        total_apurado: Number.isFinite(valorPadrao) ? valorPadrao : 0,
+        retencao_pct: Number.isFinite(Number(body.retencao_pct)) ? Number(body.retencao_pct) : 27,
+        descontos: Number(body.descontos) || 0,
+        liquido: Number(body.liquido) || 0,
         aprovado_por: user?.email ?? null,
         aprovado_em: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -84,6 +91,9 @@ export async function POST(req: NextRequest) {
         empresa_id: i.empresa_id || null,
         empresa_nome: i.empresa_nome ?? null,
         valor: Math.round((Number(i.valor) || 0) * 100) / 100,
+        peso: Number(i.peso) > 0 ? Number(i.peso) : 1,
+        dias: Math.trunc(Number(i.dias)) || 0,
+        fator: Number(i.fator) || 0,
       }))
 
     if (linhas.length > 0) {
