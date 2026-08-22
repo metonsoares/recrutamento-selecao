@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Bus, Search, CheckCircle2, XCircle, HelpCircle, ExternalLink, Download,
   ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FileText,
-  Check, Copy, Loader2, AlertCircle, History, Pencil, Trash2, CloudDownload,
+  Check, Loader2, AlertCircle, History, Pencil, Trash2, CloudDownload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -65,8 +65,8 @@ export function ValeTransporteClient({
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [situacao, setSituacao] = useState<Filtro>('todos')
   const [menuAberto, setMenuAberto] = useState(false)
-  // Dias sempre em branco ao abrir: preenchido de saída convida a aprovar sem conferir.
-  const [diasPadrao, setDiasPadrao] = useState('')
+  // Dias sempre em branco ao abrir: preenchido de saída convida a aprovar sem
+  // conferir. Quem preenche é o RHiD (ou a digitação linha a linha).
   const [dias, setDias] = useState<Record<string, string>>({})
   const [salvando, setSalvando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
@@ -79,13 +79,9 @@ export function ValeTransporteClient({
   const [buscandoRhid, setBuscandoRhid] = useState(false)
   const [avisoRhid, setAvisoRhid] = useState<string[]>([])
 
-  const padraoNum = Math.trunc(Number(diasPadrao)) || 0
-
-  /** Dias da pessoa no mês: o que foi digitado, senão o padrão do mês. */
+  /** Dias da pessoa no mês: só o que estiver no campo dela. */
   function diasDe(l: LinhaVT): number {
-    const d = dias[l.candidate_id]
-    if (d !== undefined) return Math.trunc(Number(d)) || 0
-    return padraoNum
+    return Math.trunc(Number(dias[l.candidate_id])) || 0
   }
 
   const historicoPorCand = useMemo(() => {
@@ -121,16 +117,6 @@ export function ValeTransporteClient({
   const alternarHistorico = (id: string) => setHistoricoAberto(s => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
   })
-
-  function aplicarATodos() {
-    const texto = diasPadrao.trim()
-    setDias(d => {
-      const novo = { ...d }
-      for (const l of filtradas) novo[l.candidate_id] = texto
-      return novo
-    })
-    setOk(`${padraoNum} dia(s) aplicado(s) a ${filtradas.length} colaborador${filtradas.length !== 1 ? 'es' : ''}.`)
-  }
 
   /**
    * Puxa do RHiD (Control iD) os dias trabalhados dos colaboradores listados.
@@ -188,7 +174,7 @@ export function ValeTransporteClient({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           competencia,
-          dias_padrao: padraoNum,
+          dias_padrao: 0,
           escopo_empresa: empresaFiltro || null,
           itens: filtradas.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
@@ -345,17 +331,10 @@ export function ValeTransporteClient({
           <option value="sem_info">Só sem informação na ficha</option>
         </select>
         <div className="flex gap-2">
-          <input value={diasPadrao} onChange={e => setDiasPadrao(e.target.value.replace(/\D/g, '').slice(0, 2))}
-            placeholder="Dias do mês" inputMode="numeric"
-            className="h-9 flex-1 min-w-0 border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
-          <Button variant="outline" onClick={aplicarATodos} disabled={padraoNum <= 0 || filtradas.length === 0}
-            className="gap-1.5 shrink-0" title="Aplicar a todos os listados">
-            <Copy className="w-3.5 h-3.5" />Todos
-          </Button>
           <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
             disabled={comDias === 0}
             title={comDias === 0 ? 'Preencha os dias de pelo menos um colaborador' : undefined}
-            className="gap-1.5 shrink-0">
+            className="gap-1.5 w-full">
             <Check className="w-3.5 h-3.5" />Aprovar
           </Button>
         </div>
@@ -466,7 +445,7 @@ export function ValeTransporteClient({
                         <input
                           value={dias[l.candidate_id] ?? ''}
                           onChange={e => setDias(d => ({ ...d, [l.candidate_id]: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
-                          placeholder={padraoNum ? String(padraoNum) : '0'}
+                          placeholder="0"
                           inputMode="numeric"
                           className="h-8 w-16 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center"
                         />
