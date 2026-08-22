@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Bus, Search, CheckCircle2, XCircle, HelpCircle, ExternalLink, Download,
   ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FileText,
-  Check, Copy, Loader2, AlertCircle, History, Pencil, Trash2,
+  Check, Copy, Loader2, AlertCircle, History, Pencil, Trash2, CloudDownload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -76,6 +76,8 @@ export function ValeTransporteClient({
   const [editando, setEditando] = useState<{ linha: LinhaVT; registro: RegistroDias; dias: string } | null>(null)
   const [removendo, setRemovendo] = useState<{ linha: LinhaVT; registro: RegistroDias } | null>(null)
   const [processando, setProcessando] = useState(false)
+  const [buscandoRhid, setBuscandoRhid] = useState(false)
+  const [avisoRhid, setAvisoRhid] = useState<string[]>([])
 
   const padraoNum = Math.trunc(Number(diasPadrao)) || 0
 
@@ -128,6 +130,49 @@ export function ValeTransporteClient({
       return novo
     })
     setOk(`${padraoNum} dia(s) aplicado(s) a ${filtradas.length} colaborador${filtradas.length !== 1 ? 'es' : ''}.`)
+  }
+
+  /**
+   * Puxa do RHiD (Control iD) os dias trabalhados dos colaboradores listados.
+   * Só leitura: o período é sempre do 1º ao último dia do mês selecionado, o
+   * mesmo da apuração de ponto. Preenche os campos — quem aprova é você.
+   */
+  async function buscarNoRhid() {
+    setBuscandoRhid(true); setErro(''); setOk(''); setAvisoRhid([])
+    try {
+      const res = await fetch('/api/admin/folha-pagamento/vale-transporte/rhid', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          competencia,
+          colaboradores: filtradas.map(l => ({ candidate_id: l.candidate_id, cpf: l.cpf, nome: l.nome })),
+        }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (Array.isArray(d.nao_encontrados) && d.nao_encontrados.length > 0) {
+          setAvisoRhid(d.nao_encontrados.map((n: string) => `${n} — não existe no RHiD`))
+        }
+        throw new Error(d.error || 'Não foi possível buscar no RHiD.')
+      }
+
+      const vindos = (d.dias ?? {}) as Record<string, number>
+      setDias(atual => {
+        const novo = { ...atual }
+        for (const [id, n] of Object.entries(vindos)) novo[id] = String(n)
+        return novo
+      })
+
+      const pendentes = [
+        ...(d.nao_encontrados ?? []).map((n: string) => `${n} — não encontrado no RHiD (CPF)`),
+        ...(d.sem_cpf ?? []).map((n: string) => `${n} — sem CPF na ficha`),
+      ]
+      setAvisoRhid(pendentes)
+      setOk(`${d.encontrados} colaborador${d.encontrados !== 1 ? 'es' : ''} atualizado${d.encontrados !== 1 ? 's' : ''} `
+        + `com a apuração do RHiD (${d.periodo.ini.slice(6)}/${d.periodo.ini.slice(4, 6)} a `
+        + `${d.periodo.fim.slice(6)}/${d.periodo.fim.slice(4, 6)}). Confira e clique em Aprovar.`)
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally { setBuscandoRhid(false) }
   }
 
   /** Dias já aprovados nesta competência, por colaborador. */
@@ -233,6 +278,17 @@ export function ValeTransporteClient({
           </Link>
         </div>
 
+        {/* Puxa os dias direto da apuração de ponto do RHiD (leitura apenas). */}
+        <Button variant="outline" onClick={buscarNoRhid}
+          disabled={buscandoRhid || filtradas.length === 0}
+          title="Buscar na apuração de ponto do Control iD os dias trabalhados do mês selecionado"
+          className="gap-1.5">
+          {buscandoRhid
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <CloudDownload className="w-3.5 h-3.5" />}
+          {buscandoRhid ? 'Buscando no RHiD…' : 'Buscar dias no RHiD'}
+        </Button>
+
         <div className="relative">
           <Button variant="outline" onClick={() => setMenuAberto(o => !o)}
             disabled={filtradas.length === 0} className="gap-1.5">
@@ -315,6 +371,18 @@ export function ValeTransporteClient({
 
       {erro && <p className="text-[13px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{erro}</p>}
       {ok && <p className="text-[13px] text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{ok}</p>}
+
+      {avisoRhid.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <p className="text-[13px] font-semibold text-amber-900 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" />
+            {avisoRhid.length} colaborador(es) ficaram sem os dias do RHiD — preencha na mão:
+          </p>
+          <ul className="mt-1 ml-5 list-disc text-[12px] text-amber-900 space-y-0.5">
+            {avisoRhid.map(a => <li key={a}>{a}</li>)}
+          </ul>
+        </div>
+      )}
 
       {/* ── Lista ── */}
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
