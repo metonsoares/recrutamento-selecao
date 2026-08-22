@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -23,6 +23,8 @@ export interface LinhaVT {
   vinculo: 'contratado' | 'intermitente'
   /** null = a ficha ainda não informa */
   recebe: boolean | null
+  /** Cargo de confiança: não bate ponto, entra com os dias fixos do mês. */
+  confianca: boolean
   empresa_transporte: string | null
   passagens: string | null
 }
@@ -32,6 +34,16 @@ export interface RegistroDias { candidate_id: string; competencia: string; dias:
 interface CicloAprovado { total_dias: number; aprovado_por: string | null }
 
 type Filtro = 'todos' | 'recebe' | 'nao' | 'sem_info'
+
+interface PendenteRhid { candidate_id: string; nome: string; motivo: 'sem_cpf' | 'nao_encontrado' }
+
+/** Cargo de confiança não bate ponto eletrônico: entra com o mês fechado. */
+const DIAS_CONFIANCA = 25
+
+const MOTIVO_RHID: Record<PendenteRhid['motivo'], string> = {
+  nao_encontrado: 'não encontrado no RHiD (CPF)',
+  sem_cpf: 'sem CPF na ficha',
+}
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -77,7 +89,9 @@ export function ValeTransporteClient({
   const [removendo, setRemovendo] = useState<{ linha: LinhaVT; registro: RegistroDias } | null>(null)
   const [processando, setProcessando] = useState(false)
   const [buscandoRhid, setBuscandoRhid] = useState(false)
-  const [avisoRhid, setAvisoRhid] = useState<string[]>([])
+  const [avisoRhid, setAvisoRhid] = useState<PendenteRhid[]>([])
+  // Quem o RHiD não soube responder: fica zerado e com o campo em amarelo.
+  const [semRhid, setSemRhid] = useState<Set<string>>(new Set())
 
   /** Dias da pessoa no mês: só o que estiver no campo dela. */
   function diasDe(l: LinhaVT): number {
@@ -124,38 +138,70 @@ export function ValeTransporteClient({
    * mesmo da apuração de ponto. Preenche os campos — quem aprova é você.
    */
   async function buscarNoRhid() {
-    setBuscandoRhid(true); setErro(''); setOk(''); setAvisoRhid([])
+    setBuscandoRhid(true); setErro(''); setOk(''); setAvisoRhid([]); setSemRhid(new Set())
     try {
-      const res = await fetch('/api/admin/folha-pagamento/vale-transporte/rhid', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          competencia,
-          colaboradores: filtradas.map(l => ({ candidate_id: l.candidate_id, cpf: l.cpf, nome: l.nome })),
-        }),
-      })
-      const d = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        if (Array.isArray(d.nao_encontrados) && d.nao_encontrados.length > 0) {
-          setAvisoRhid(d.nao_encontrados.map((n: string) => `${n} — não existe no RHiD`))
+      // Cargo de confiança fica fora da consulta: não bate ponto, logo o RHiD
+      // não teria o que responder — entra direto com os dias fixos.
+      const doPonto = filtradas.filter(l => !l.confianca)
+      const deConfianca = filtradas.filter(l => l.confianca)
+
+      let d: { dias?: Record<string, number>; encontrados?: number; periodo?: { ini: string; fim: string } } = {}
+      let pendentes: PendenteRhid[] = []
+
+      if (doPonto.length > 0) {
+        const res = await fetch('/api/admin/folha-pagamento/vale-transporte/rhid', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            competencia,
+            colaboradores: doPonto.map(l => ({ candidate_id: l.candidate_id, cpf: l.cpf, nome: l.nome })),
+          }),
+        })
+        const corpo = await res.json().catch(() => ({}))
+        pendentes = (Array.isArray(corpo.pendentes) ? corpo.pendentes : []) as PendenteRhid[]
+        if (!res.ok) {
+          setAvisoRhid(pendentes)
+          throw new Error(corpo.error || 'Não foi possível buscar no RHiD.')
         }
-        throw new Error(d.error || 'Não foi possível buscar no RHiD.')
+        d = corpo
       }
 
-      const vindos = (d.dias ?? {}) as Record<string, number>
+      const vindos = { ...(d.dias ?? {}) } as Record<string, number>
+      for (const l of deConfianca) vindos[l.candidate_id] = DIAS_CONFIANCA
       setDias(atual => {
         const novo = { ...atual }
         for (const [id, n] of Object.entries(vindos)) novo[id] = String(n)
         return novo
       })
-
-      const pendentes = [
-        ...(d.nao_encontrados ?? []).map((n: string) => `${n} — não encontrado no RHiD (CPF)`),
-        ...(d.sem_cpf ?? []).map((n: string) => `${n} — sem CPF na ficha`),
-      ]
       setAvisoRhid(pendentes)
-      setOk(`${d.encontrados} colaborador${d.encontrados !== 1 ? 'es' : ''} atualizado${d.encontrados !== 1 ? 's' : ''} `
-        + `com a apuração do RHiD (${d.periodo.ini.slice(6)}/${d.periodo.ini.slice(4, 6)} a `
-        + `${d.periodo.fim.slice(6)}/${d.periodo.fim.slice(4, 6)}). Confira e clique em Aprovar.`)
+      setSemRhid(new Set(pendentes.map(p => p.candidate_id)))
+
+      // Grava na hora (inclusive os zeros): o mês fica registrado e volta
+      // pronto quando você navegar de período. Buscar de novo sobrescreve.
+      const gravou = await fetch('/api/admin/folha-pagamento/vale-transporte', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          competencia,
+          dias_padrao: 0,
+          incluir_zerados: true,
+          escopo_empresa: empresaFiltro || null,
+          itens: filtradas.map(l => ({
+            candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
+            empresa_id: l.empresa_id, empresa_nome: l.empresa,
+            dias: vindos[l.candidate_id] ?? 0,
+          })),
+        }),
+      })
+      const g = await gravou.json().catch(() => ({}))
+      if (!gravou.ok) throw new Error(g.error || 'Os dias vieram do RHiD, mas não deu para salvar.')
+
+      const doRhid = d.encontrados ?? 0
+      const periodo = d.periodo
+        ? ` (${d.periodo.ini.slice(6)}/${d.periodo.ini.slice(4, 6)} a ${d.periodo.fim.slice(6)}/${d.periodo.fim.slice(4, 6)})`
+        : ''
+      setOk(`${doRhid} pela apuração do RHiD${periodo}`
+        + (deConfianca.length > 0 ? ` · ${deConfianca.length} de cargo de confiança com ${DIAS_CONFIANCA} dias` : '')
+        + ` — salvo: ${g.total_dias} dia(s) no total.`)
+      router.refresh()
     } catch (e) {
       setErro((e as Error).message)
     } finally { setBuscandoRhid(false) }
@@ -166,6 +212,19 @@ export function ValeTransporteClient({
     () => new Map(historico.filter(h => h.competencia === competencia).map(h => [h.candidate_id, h.dias])),
     [historico, competencia],
   )
+
+  // Ao abrir o mês (ou depois de gravar), os campos mostram o que está salvo —
+  // trocar de período traz de volta os dias daquele período.
+  useEffect(() => {
+    const salvos: Record<string, string> = {}
+    for (const [id, n] of aprovadosNoMes) salvos[id] = String(n)
+    setDias(salvos)
+  }, [aprovadosNoMes])
+
+  // Mês novo, avisos zerados: o destaque amarelo é da última busca no RHiD.
+  useEffect(() => {
+    setSemRhid(new Set()); setAvisoRhid([]); setErro(''); setOk('')
+  }, [competencia])
 
   async function aprovar() {
     setSalvando(true); setErro(''); setOk('')
@@ -357,8 +416,13 @@ export function ValeTransporteClient({
             <AlertCircle className="w-3.5 h-3.5" />
             {avisoRhid.length} colaborador(es) ficaram sem os dias do RHiD — preencha na mão:
           </p>
-          <ul className="mt-1 ml-5 list-disc text-[12px] text-amber-900 space-y-0.5">
-            {avisoRhid.map(a => <li key={a}>{a}</li>)}
+          <p className="text-[12px] text-amber-800 mt-0.5">
+            Ficaram com <strong>0</strong> e o campo destacado em amarelo na lista abaixo.
+          </p>
+          <ul className="mt-1.5 ml-5 list-disc text-[12px] text-amber-900 space-y-0.5">
+            {avisoRhid.map(p => (
+              <li key={p.candidate_id}>{formatName(p.nome)} — {MOTIVO_RHID[p.motivo]}</li>
+            ))}
           </ul>
         </div>
       )}
@@ -387,6 +451,12 @@ export function ValeTransporteClient({
                       {l.vinculo === 'intermitente' && (
                         <span className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-sky-100 text-sky-700 align-middle">
                           Intermitente
+                        </span>
+                      )}
+                      {l.confianca && (
+                        <span title={`Cargo de confiança — não bate ponto, entra com ${DIAS_CONFIANCA} dias`}
+                          className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-violet-100 text-violet-700 align-middle">
+                          Confiança
                         </span>
                       )}
                       {l.cargo && <span className="block text-[11px] text-muted-foreground">{l.cargo}</span>}
@@ -444,10 +514,21 @@ export function ValeTransporteClient({
                       <div className="flex items-center gap-2">
                         <input
                           value={dias[l.candidate_id] ?? ''}
-                          onChange={e => setDias(d => ({ ...d, [l.candidate_id]: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                          onChange={e => {
+                            setDias(d => ({ ...d, [l.candidate_id]: e.target.value.replace(/\D/g, '').slice(0, 2) }))
+                            // Digitou: já não é mais pendência do RHiD.
+                            if (semRhid.has(l.candidate_id)) {
+                              setSemRhid(s => { const n = new Set(s); n.delete(l.candidate_id); return n })
+                            }
+                          }}
                           placeholder="0"
                           inputMode="numeric"
-                          className="h-8 w-16 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center"
+                          title={semRhid.has(l.candidate_id) ? 'Não veio do RHiD — confira e preencha na mão' : undefined}
+                          className={`h-8 w-16 border rounded-md px-2 text-[13px] text-center ${
+                            semRhid.has(l.candidate_id)
+                              ? 'border-amber-300 bg-amber-50 text-amber-900'
+                              : 'border-gray-300 bg-white'
+                          }`}
                         />
                         {jaAprovado != null && (
                           <span className="text-[11px] text-emerald-700 font-medium whitespace-nowrap">

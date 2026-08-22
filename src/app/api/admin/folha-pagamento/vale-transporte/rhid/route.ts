@@ -10,6 +10,9 @@ export const maxDuration = 120
 
 interface Pedido { candidate_id: string; cpf?: string | null; nome?: string | null }
 
+/** Quem o RHiD não soube responder — o app zera e destaca o campo. */
+interface Pendente { candidate_id: string; nome: string; motivo: 'sem_cpf' | 'nao_encontrado' }
+
 /**
  * POST — busca no RHiD (Control iD) os dias trabalhados do mês para os
  * colaboradores enviados. SOMENTE LEITURA: nada é gravado no RHiD.
@@ -33,9 +36,9 @@ export async function POST(req: NextRequest) {
       .map(p => ({ ...p, cpf: cpfNormalizado(p.cpf) }))
       .filter(p => p.candidate_id && p.cpf.length === 11 && Number(p.cpf) > 0)
 
-    const semCpf = pedidos
+    const semCpf: Pendente[] = pedidos
       .filter(p => cpfNormalizado(p.cpf).length !== 11 || Number(cpfNormalizado(p.cpf)) === 0)
-      .map(p => p.nome || p.candidate_id)
+      .map(p => ({ candidate_id: p.candidate_id, nome: p.nome || p.candidate_id, motivo: 'sem_cpf' }))
 
     if (comCpf.length === 0) {
       return NextResponse.json(
@@ -55,14 +58,14 @@ export async function POST(req: NextRequest) {
       .map(p => ({ ...p, rhidId: idPorCpf.get(p.cpf) }))
       .filter(p => p.rhidId != null) as (Pedido & { cpf: string; rhidId: number })[]
 
-    const naoEncontrados = comCpf
+    const naoEncontrados: Pendente[] = comCpf
       .filter(p => !idPorCpf.has(p.cpf))
-      .map(p => p.nome || p.cpf)
+      .map(p => ({ candidate_id: p.candidate_id, nome: p.nome || p.cpf, motivo: 'nao_encontrado' }))
 
     if (casados.length === 0) {
       return NextResponse.json({
         error: 'Nenhum dos colaboradores listados foi encontrado no RHiD pelo CPF.',
-        nao_encontrados: naoEncontrados,
+        pendentes: [...naoEncontrados, ...semCpf],
       }, { status: 404 })
     }
 
@@ -72,14 +75,17 @@ export async function POST(req: NextRequest) {
 
     const dias: Record<string, number> = {}
     for (const p of casados) dias[p.candidate_id] = porId.get(p.rhidId) ?? 0
+    // Quem o RHiD não conhece fica com zero — nunca em branco, para não passar
+    // despercebido na hora de aprovar.
+    const pendentes = [...naoEncontrados, ...semCpf]
+    for (const p of pendentes) dias[p.candidate_id] = 0
 
     return NextResponse.json({
       ok: true,
       periodo: { ini, fim },
       dias,
       encontrados: casados.length,
-      nao_encontrados: naoEncontrados,
-      sem_cpf: semCpf,
+      pendentes,
     })
   } catch (err) {
     if (err instanceof ErroRhid) {

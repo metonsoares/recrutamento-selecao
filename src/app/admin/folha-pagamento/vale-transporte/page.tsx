@@ -74,6 +74,7 @@ export default async function ValeTransportePage({
       const af = a.admission_form as Record<string, unknown> | null
       const empresaId = String(af?.selected_company_id ?? '')
       const bruto = af?.transport_benefit
+      const conf = af?.cargo_confianca
 
       // null/undefined = ninguém respondeu ainda na ficha
       const recebe = bruto === true || bruto === 'true' ? true
@@ -89,6 +90,8 @@ export default async function ValeTransportePage({
         empresa: empresaPorId.get(empresaId) ?? null,
         vinculo: a.status === 'aprovado' ? ('intermitente' as const) : ('contratado' as const),
         recebe,
+        // Cargo de confiança não bate ponto — não adianta procurar no RHiD.
+        confianca: conf === true || conf === 'true',
         empresa_transporte: String(af?.transport_company ?? '').trim() || null,
         passagens: String(af?.transport_count ?? '').trim() || null,
       }

@@ -30,10 +30,10 @@ async function recalcular(
   return { removido: false, total }
 }
 
-/** Dias válidos: inteiro de 1 a 31. */
+/** Dias válidos: inteiro de 0 a 31 (0 é resposta legítima — trabalhou zero dias). */
 function diasValidos(v: unknown): number {
   const n = Math.trunc(Number(v))
-  return Number.isFinite(n) && n > 0 && n <= 31 ? n : 0
+  return Number.isFinite(n) && n >= 0 && n <= 31 ? n : 0
 }
 
 /** POST — aprova (ou reaprova) os dias trabalhados de uma competência. */
@@ -77,9 +77,14 @@ export async function POST(req: NextRequest) {
       await supabase.from('vt_itens').delete().eq('ciclo_id', ciclo.id)
     }
 
+    // Na aprovação manual, quem ficou em branco não vira registro. Já a busca no
+    // RHiD grava todo mundo que consultou — inclusive os zeros — para o mês
+    // voltar igualzinho quando você navegar de período.
+    const incluirZerados = body.incluir_zerados === true
+
     const linhas = itens
       .map(i => ({ ...i, dias: diasValidos(i.dias) }))
-      .filter(i => i.candidate_id && i.dias > 0)
+      .filter(i => i.candidate_id && (incluirZerados || i.dias > 0))
       .map(i => ({
         ciclo_id: ciclo.id as string,
         candidate_id: i.candidate_id,
@@ -116,8 +121,8 @@ export async function PATCH(req: NextRequest) {
     if (!candidateId || !/^\d{4}-\d{2}-01$/.test(competencia)) {
       return NextResponse.json({ error: 'Informe o colaborador e a competência.' }, { status: 400 })
     }
-    if (dias === 0) {
-      return NextResponse.json({ error: 'Informe de 1 a 31 dias.' }, { status: 400 })
+    if (!/^\d{1,2}$/.test(String(body.dias ?? '').trim()) || dias > 31) {
+      return NextResponse.json({ error: 'Informe de 0 a 31 dias.' }, { status: 400 })
     }
 
     const supabase = await createSupabaseServiceClient()
