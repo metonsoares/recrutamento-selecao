@@ -418,6 +418,8 @@ export function ValeTransporteClient({
           </p>
           <p className="text-[12px] text-amber-800 mt-0.5">
             Ficaram com <strong>0</strong> e o campo destacado em amarelo na lista abaixo.
+            Se alguém aqui não bate ponto, marque <strong>&quot;Cargo de confiança?&quot;</strong> como
+            Sim na ficha e busque de novo — aí entra com {DIAS_CONFIANCA} dias.
           </p>
           <ul className="mt-1.5 ml-5 list-disc text-[12px] text-amber-900 space-y-0.5">
             {avisoRhid.map(p => (

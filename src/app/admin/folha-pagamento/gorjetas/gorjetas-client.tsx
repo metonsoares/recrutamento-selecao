@@ -333,12 +333,6 @@ export function GorjetasClient({
               </>
             )}
           </div>
-          <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
-            disabled={comValor === 0}
-            title={comValor === 0 ? 'Preencha o valor de pelo menos um colaborador' : undefined}
-            className="gap-1.5 flex-1">
-            <Check className="w-3.5 h-3.5" />Aprovar
-          </Button>
         </div>
       </div>
 
