@@ -2,6 +2,19 @@ import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/s
 import { notFound } from 'next/navigation'
 import { AutoPrint } from '../print/auto-print'
 import { AdmissionFormData } from '../ficha-admissao/ficha-admissao-form'
+
+/**
+ * Data no padrão brasileiro DD-MM-AAAA.
+ * O valor vem do banco em ISO (2018-08-15) e era impresso cru na ficha.
+ * Feito por string, sem passar por Date, que desloca o dia por causa do fuso.
+ */
+function dataBR(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!m) return iso
+  return `${m[3]}-${m[2]}-${m[1]}`
+}
+
 import { formatName } from '@/lib/helpers'
 
 export const dynamic = 'force-dynamic'
@@ -174,11 +187,11 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
         </div>
         <div className="grid2">
           <div className="field"><label>Nº PIS</label><div className="val filled">{f?.pis || '—'}</div></div>
-          <div className="field"><label>Data de Cadastro do PIS</label><div className="val filled">{f?.pis_date || '—'}</div></div>
+          <div className="field"><label>Data de Cadastro do PIS</label><div className="val filled">{dataBR(f?.pis_date)}</div></div>
         </div>
         <div className="grid2">
           <div className="field"><label>Nº da Identidade (RG)</label><div className="val filled">{f?.identity_number || '—'}</div></div>
-          <div className="field"><label>Data de Emissão (RG)</label><div className="val filled">{f?.identity_date || '—'}</div></div>
+          <div className="field"><label>Data de Emissão (RG)</label><div className="val filled">{dataBR(f?.identity_date)}</div></div>
         </div>
         <div className="grid2">
           <div className="field"><label>Estado Civil</label><div className="val filled">{f?.marital_status || '—'}</div></div>
@@ -200,7 +213,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="field"><label>Salário Base</label><div className="val filled">{f?.salary || '—'}</div></div>
         </div>
         <div className="grid2">
-          <div className="field"><label>Data de Admissão</label><div className="val filled">{f?.admission_date || '—'}</div></div>
+          <div className="field"><label>Data de Admissão</label><div className="val filled">{dataBR(f?.admission_date)}</div></div>
           <div className="field"><label>Contrato de Experiência</label><div className="val filled">{f?.trial_contract || '—'}</div></div>
         </div>
 
