@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 import { decryptToken } from '@/lib/helpers'
+import { requireMasterApi } from '@/lib/auth-guard'
 
 export async function GET() {
   const results: Record<string, unknown> = {}
@@ -30,6 +31,8 @@ export async function GET() {
 
   // 2. Verificar raw do banco + testar descriptografia
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
       .from('ai_settings')

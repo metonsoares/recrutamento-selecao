@@ -126,6 +126,12 @@ export function GorjetasClient({
     return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
   })
 
+  // A busca por nome é SÓ visual. O rateio e o fechamento valem para a empresa
+  // inteira: com a soma dos fatores calculada sobre a busca, digitar um nome
+  // faria aquela pessoa levar 100% do líquido — e aprovar assim apagaria o
+  // resto do mês, porque a rota substitui o escopo inteiro.
+  const noEscopo = linhas.filter(l => !empresaFiltro || l.empresa_id === empresaFiltro)
+
   // ── Rateio ponderado (mesma conta da planilha de comissões) ─────────────
   //   líquido = apurado - (apurado x retenção%) - descontos
   //   fator   = dias trabalhados x peso da função
@@ -140,7 +146,7 @@ export function GorjetasClient({
   function fatorDe(l: LinhaGorjeta): number {
     return diasDe(l) * pesoDe(l)
   }
-  const somaFatores = filtradas.reduce((s, l) => s + fatorDe(l), 0)
+  const somaFatores = noEscopo.reduce((s, l) => s + fatorDe(l), 0)
 
   /** Quanto a pessoa recebe do líquido. */
   function valorDe(l: LinhaGorjeta): number {
@@ -148,8 +154,8 @@ export function GorjetasClient({
     return Math.round((liquido * fatorDe(l) / somaFatores) * 100) / 100
   }
 
-  const comValor = filtradas.filter(l => valorDe(l) > 0).length
-  const totalPagar = filtradas.reduce((s, l) => s + valorDe(l), 0)
+  const comValor = noEscopo.filter(l => valorDe(l) > 0).length
+  const totalPagar = noEscopo.reduce((s, l) => s + valorDe(l), 0)
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   const baseNome = `gorjetas-${competencia.slice(0, 7)}${nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''}`
 
@@ -186,7 +192,7 @@ export function GorjetasClient({
           descontos: descontosNum,
           liquido,
           escopo_empresa: empresaFiltro || null,
-          itens: filtradas.map(l => ({
+          itens: noEscopo.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa, valor: valorDe(l),
             peso: pesoDe(l), dias: diasDe(l), fator: fatorDe(l),

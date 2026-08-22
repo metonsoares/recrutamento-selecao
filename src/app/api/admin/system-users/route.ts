@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { perfilToRole } from '@/lib/permissions'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 /** GET — lista usuários do sistema (criados a partir de colaboradores) */
 export async function GET() {
   try {
+    const denied = await requirePermissionApi('config.usuarios_cadastro')
+    if (denied) return denied
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -31,6 +34,8 @@ export async function GET() {
 /** POST — cria usuário do sistema a partir de um colaborador */
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requirePermissionApi('config.usuarios_cadastro')
+    if (denied) return denied
     const { candidate_id, full_name, email, password, code, empresa, perfil } = await req.json()
     if (!email?.trim()) return NextResponse.json({ error: 'E-mail é obrigatório.' }, { status: 400 })
     if (!code?.trim()) return NextResponse.json({ error: 'Código é obrigatório.' }, { status: 400 })

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { perfilToRole } from '@/lib/permissions'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requirePermissionApi('config.usuarios_cadastro')
+    if (denied) return denied
     const { id } = await params
     const { full_name, email, password, code, empresa, perfil, candidate_id } = await req.json()
     const supabase = await createSupabaseServiceClient()
@@ -31,6 +34,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 /** PATCH — redefine apenas a senha do usuário (não altera metadados). */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requirePermissionApi('config.usuarios_cadastro')
+    if (denied) return denied
     const { id } = await params
     const { password } = await req.json()
     if (!password || String(password).trim().length < 6) {
@@ -48,6 +53,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requirePermissionApi('config.usuarios_cadastro')
+    if (denied) return denied
     const { id } = await params
     const supabase = await createSupabaseServiceClient()
     const { error } = await supabase.auth.admin.deleteUser(id)

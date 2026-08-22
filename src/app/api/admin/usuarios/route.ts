@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requireMasterApi } from '@/lib/auth-guard'
 
 /** GET /api/admin/usuarios — lista todos os usuários */
 export async function GET() {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase.auth.admin.listUsers({ perPage: 200 })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -17,6 +20,8 @@ export async function GET() {
 /** POST /api/admin/usuarios — cria novo usuário */
 export async function POST(req: NextRequest) {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const { name, email, password, role } = await req.json()
     if (!email?.trim() || !password?.trim()) {
       return NextResponse.json({ error: 'E-mail e senha são obrigatórios.' }, { status: 400 })

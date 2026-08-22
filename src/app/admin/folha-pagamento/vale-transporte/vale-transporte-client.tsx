@@ -121,6 +121,11 @@ export function ValeTransporteClient({
     return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
   })
 
+  // A busca por nome é só visual. O fechamento vale para a empresa inteira —
+  // a rota substitui o escopo, então aprovar com um nome digitado no campo de
+  // busca apagaria todos os outros do mês.
+  const noEscopo = linhas.filter(l => !empresaFiltro || l.empresa_id === empresaFiltro)
+
   const recebem = filtradas.filter(l => l.recebe === true).length
   const naoRecebem = filtradas.filter(l => l.recebe === false).length
   const semInfo = filtradas.filter(l => l.recebe === null).length
@@ -142,8 +147,8 @@ export function ValeTransporteClient({
     try {
       // Cargo de confiança fica fora da consulta: não bate ponto, logo o RHiD
       // não teria o que responder — entra direto com os dias fixos.
-      const doPonto = filtradas.filter(l => !l.confianca)
-      const deConfianca = filtradas.filter(l => l.confianca)
+      const doPonto = noEscopo.filter(l => !l.confianca)
+      const deConfianca = noEscopo.filter(l => l.confianca)
 
       let d: { dias?: Record<string, number>; encontrados?: number; periodo?: { ini: string; fim: string } } = {}
       let pendentes: PendenteRhid[] = []
@@ -184,10 +189,10 @@ export function ValeTransporteClient({
           dias_padrao: 0,
           incluir_zerados: true,
           escopo_empresa: empresaFiltro || null,
-          itens: filtradas.map(l => ({
+          itens: noEscopo.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa,
-            dias: vindos[l.candidate_id] ?? 0,
+            dias: vindos[l.candidate_id] ?? diasDe(l),
           })),
         }),
       })
@@ -213,18 +218,23 @@ export function ValeTransporteClient({
     [historico, competencia],
   )
 
-  // Ao abrir o mês (ou depois de gravar), os campos mostram o que está salvo —
-  // trocar de período traz de volta os dias daquele período.
+  // Mês novo: limpa tudo antes de semear (este efeito vem ANTES do de baixo
+  // de propósito — na ordem inversa ele apagaria o que acabou de ser semeado).
   useEffect(() => {
-    const salvos: Record<string, string> = {}
-    for (const [id, n] of aprovadosNoMes) salvos[id] = String(n)
-    setDias(salvos)
-  }, [aprovadosNoMes])
-
-  // Mês novo, avisos zerados: o destaque amarelo é da última busca no RHiD.
-  useEffect(() => {
-    setSemRhid(new Set()); setAvisoRhid([]); setErro(''); setOk('')
+    setDias({}); setSemRhid(new Set()); setAvisoRhid([]); setErro(''); setOk('')
   }, [competencia])
+
+  // Mostra o que já está salvo no mês, MAS sem encostar no que o operador
+  // digitou e ainda não aprovou: qualquer router.refresh() (editar ou remover
+  // um registro do histórico) reexecuta este efeito, e substituir o mapa
+  // inteiro apagaria meia folha de digitação.
+  useEffect(() => {
+    setDias(atual => {
+      const novo = { ...atual }
+      for (const [id, n] of aprovadosNoMes) if (novo[id] === undefined) novo[id] = String(n)
+      return novo
+    })
+  }, [aprovadosNoMes])
 
   async function aprovar() {
     setSalvando(true); setErro(''); setOk('')
@@ -235,7 +245,7 @@ export function ValeTransporteClient({
           competencia,
           dias_padrao: 0,
           escopo_empresa: empresaFiltro || null,
-          itens: filtradas.map(l => ({
+          itens: noEscopo.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa, dias: diasDe(l),
           })),

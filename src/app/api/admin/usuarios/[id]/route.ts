@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requireMasterApi } from '@/lib/auth-guard'
 
 /** PUT /api/admin/usuarios/[id] — atualiza nome, e-mail e/ou senha */
 export async function PUT(
@@ -7,6 +8,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const { id } = await params
     const { name, email, password, role } = await req.json()
 
@@ -33,6 +36,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requireMasterApi()
+    if (denied) return denied
     const { id } = await params
     const supabase = await createSupabaseServiceClient()
     const { error } = await supabase.auth.admin.deleteUser(id)

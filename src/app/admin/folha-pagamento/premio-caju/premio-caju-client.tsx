@@ -210,6 +210,13 @@ export function PremioCajuClient({
   })
 
   const elegiveis = filtradas.filter(l => l.elegivel)
+  // Quem entra no FECHAMENTO é a empresa inteira, não o que a busca deixou na
+  // tela: a rota substitui o escopo, então aprovar com um nome digitado no
+  // campo de busca apagaria todos os outros do mês. (Os cartões e o "aplicar a
+  // todos" seguem a lista visível de propósito.)
+  const elegiveisNoEscopo = linhas.filter(
+    l => l.elegivel && (!empresaFiltro || l.empresa_id === empresaFiltro),
+  )
   const bloqueados = filtradas.length - elegiveis.length
   const totalPagar = elegiveis.reduce((s, l) => s + valorDe(l), 0)
   // Só entram no fechamento quem tem valor > 0 — é isso que habilita o Aprovar
@@ -303,7 +310,7 @@ export function PremioCajuClient({
           competencia,
           valor_padrao: padraoNum,
           escopo_empresa: empresaFiltro || null,
-          itens: elegiveis.map(l => ({
+          itens: elegiveisNoEscopo.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa, valor: valorDe(l),
           })),
