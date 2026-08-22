@@ -1,4 +1,4 @@
-import { requireMaster } from '@/lib/auth-guard'
+import { requireAnyRole } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { SindicalClient, LinhaSindical, EmpresaOpcao } from './sindical-client'
 
@@ -22,7 +22,7 @@ export default async function MensalidadeSindicalPage({
 }: {
   searchParams: Promise<{ competencia?: string }>
 }) {
-  await requireMaster()
+  await requireAnyRole(['master', 'gestor_rh'])
   const sp = await searchParams
 
   const competencia = /^\d{4}-\d{2}-01$/.test(sp.competencia ?? '')

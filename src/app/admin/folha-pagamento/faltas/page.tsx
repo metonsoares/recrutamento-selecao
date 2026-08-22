@@ -1,4 +1,4 @@
-import { requireMaster } from '@/lib/auth-guard'
+import { requireAnyRole } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { FaltasClient, LinhaFalta, EmpresaOpcao } from './faltas-client'
 
@@ -22,7 +22,7 @@ export default async function FaltasPage({
 }: {
   searchParams: Promise<{ competencia?: string }>
 }) {
-  await requireMaster()
+  await requireAnyRole(['master', 'gestor_rh'])
   const sp = await searchParams
 
   const competencia = /^\d{4}-\d{2}-01$/.test(sp.competencia ?? '')

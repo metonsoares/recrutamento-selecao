@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient, createSupabaseServerClient } from '@/lib/supabase-server'
-import { requireMasterApi } from '@/lib/auth-guard'
+import { requireAnyRoleApi } from '@/lib/auth-guard'
 
 interface ItemEntrada {
   candidate_id: string
@@ -39,7 +39,7 @@ function diasValidos(v: unknown): number {
 /** POST — aprova (ou reaprova) os dias trabalhados de uma competência. */
 export async function POST(req: NextRequest) {
   try {
-    const denied = await requireMasterApi()
+    const denied = await requireAnyRoleApi(['master', 'gestor_rh'])
     if (denied) return denied
 
     const body = await req.json().catch(() => ({}))
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 /** PATCH — altera os dias de um colaborador num mês já aprovado. */
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireMasterApi()
+    const denied = await requireAnyRoleApi(['master', 'gestor_rh'])
     if (denied) return denied
 
     const body = await req.json().catch(() => ({}))
@@ -140,7 +140,7 @@ export async function PATCH(req: NextRequest) {
 /** DELETE — remove o registro de dias de um colaborador na competência. */
 export async function DELETE(req: NextRequest) {
   try {
-    const denied = await requireMasterApi()
+    const denied = await requireAnyRoleApi(['master', 'gestor_rh'])
     if (denied) return denied
 
     const body = await req.json().catch(() => ({}))

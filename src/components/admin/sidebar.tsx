@@ -53,6 +53,7 @@ function SidebarContent({
   const canAny = (ps: string[]) => ps.some(p => permSet.has(p))
 
   const isMaster = role === 'master'
+  const isGestorRh = role === 'gestor_rh'
   // Atalhos de permissão
   const showCurriculosGroup = can('candidatos.ver') || can('agenda.ver') ||
     canAny(['curriculos.secoes', 'curriculos.vagas', 'curriculos.teste_cultural'])
@@ -233,8 +234,9 @@ function SidebarContent({
         </div>
         )}
 
-        {/* Folha de pagamento ▾ — exclusivo do Master */}
-        {isMaster && (
+        {/* Folha de pagamento ▾ — Master vê tudo; Gestor RH vê só Vale
+            transporte, Faltas registradas e Mensalidade sindical. */}
+        {(isMaster || isGestorRh) && (
         <div>
           <button onClick={() => setFolhaOpen(o => !o)} className={cn(NAV_BASE, inFolha ? NAV_ACTIVE : NAV_DEFAULT)}>
             <Banknote className="w-[15px] h-[15px] shrink-0 opacity-60" />
@@ -243,9 +245,11 @@ function SidebarContent({
           </button>
           {folhaOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
-              <Link href="/admin/folha-pagamento/premio-caju" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/premio-caju') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                <Gift className="w-3 h-3 shrink-0 opacity-50" />Prêmio Caju
-              </Link>
+              {isMaster && (
+                <Link href="/admin/folha-pagamento/premio-caju" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/premio-caju') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                  <Gift className="w-3 h-3 shrink-0 opacity-50" />Prêmio Caju
+                </Link>
+              )}
               <Link href="/admin/folha-pagamento/vale-transporte" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/vale-transporte') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Bus className="w-3 h-3 shrink-0 opacity-50" />Vale transporte
               </Link>
@@ -255,9 +259,11 @@ function SidebarContent({
               <Link href="/admin/folha-pagamento/mensalidade-sindical" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/mensalidade-sindical') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Landmark className="w-3 h-3 shrink-0 opacity-50" />Mensalidade sindical
               </Link>
-              <Link href="/admin/folha-pagamento/gorjetas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/gorjetas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                <Coins className="w-3 h-3 shrink-0 opacity-50" />Gorjetas
-              </Link>
+              {isMaster && (
+                <Link href="/admin/folha-pagamento/gorjetas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/gorjetas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                  <Coins className="w-3 h-3 shrink-0 opacity-50" />Gorjetas
+                </Link>
+              )}
             </div>
           )}
         </div>
