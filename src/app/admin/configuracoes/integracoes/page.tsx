@@ -2,6 +2,7 @@ import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { Plug } from 'lucide-react'
 import { D4SignCard } from './d4sign-card'
+import { ControlIdCard } from './controlid-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,16 @@ export default async function IntegracoesPage() {
   const d4Status = (d4?.status === 'connected' ? 'connected' : 'disconnected') as 'connected' | 'disconnected'
   const d4Env = (d4?.environment === 'sandbox' ? 'sandbox' : 'producao') as 'producao' | 'sandbox'
   const d4Cofres = ((d4?.meta as { cofres?: number } | null)?.cofres) ?? null
+
+  // Control iD / RHiD
+  const { data: cid } = await supabase
+    .from('integrations')
+    .select('status, connected_at, meta, account_email')
+    .eq('provider', 'controlid')
+    .maybeSingle()
+
+  const cidMeta = (cid?.meta as { domain?: string | null; cliente?: string | null } | null) ?? null
+  const cidStatus = (cid?.status === 'connected' ? 'connected' : 'disconnected') as 'connected' | 'disconnected'
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl space-y-6">
@@ -42,6 +53,14 @@ export default async function IntegracoesPage() {
           initialConnectedAt={(d4?.connected_at as string | null) ?? null}
           initialCofres={d4Cofres}
           initialAccountEmail={(d4?.account_email as string | null) ?? ''}
+        />
+
+        <ControlIdCard
+          initialStatus={cidStatus}
+          initialConnectedAt={(cid?.connected_at as string | null) ?? null}
+          initialEmail={(cid?.account_email as string | null) ?? ''}
+          initialDomain={cidMeta?.domain ?? ''}
+          initialCliente={cidMeta?.cliente ?? null}
         />
       </div>
     </div>
