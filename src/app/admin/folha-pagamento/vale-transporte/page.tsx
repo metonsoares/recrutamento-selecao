@@ -37,6 +37,22 @@ export default async function ValeTransportePage({
     supabase.from('vt_ciclos').select('*').eq('competencia', competencia).maybeSingle(),
   ])
 
+  // Passagens carregadas para ESTE mês de uso (a compra foi feita no mês
+  // anterior; a importação já grava na competência de uso).
+  const { data: passagensData } = await supabase
+    .from('vt_passagens')
+    .select('candidate_id, quantidade, valor')
+    .eq('competencia', competencia)
+
+  const passagens: Record<string, { quantidade: number; valor: number }> = {}
+  for (const p of passagensData ?? []) {
+    if (!p.candidate_id) continue
+    passagens[p.candidate_id as string] = {
+      quantidade: Number(p.quantidade) || 0,
+      valor: Number(p.valor) || 0,
+    }
+  }
+
   const appsList = apps ?? []
   const candIds = appsList.map(a => a.candidate_id as string).filter(Boolean)
 
@@ -110,6 +126,7 @@ export default async function ValeTransportePage({
       linhas={linhas}
       empresas={empresasOpcoes}
       historico={historico}
+      passagens={passagens}
       cicloAprovado={ciclo ? {
         total_dias: Number(ciclo.total_dias),
         aprovado_por: (ciclo.aprovado_por as string) ?? null,

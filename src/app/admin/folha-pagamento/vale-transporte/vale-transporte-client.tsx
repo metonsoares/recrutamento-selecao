@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Bus, Search, CheckCircle2, XCircle, HelpCircle, ExternalLink, Download,
   ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FileText,
-  Check, Loader2, AlertCircle, History, Pencil, Trash2, CloudDownload,
+  Check, Loader2, AlertCircle, History, Pencil, Trash2, CloudDownload, Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -49,12 +49,14 @@ const MOTIVO_RHID: Record<PendenteRhid['motivo'], string> = {
 
 
 export function ValeTransporteClient({
-  competencia, linhas, empresas, historico, cicloAprovado,
+  competencia, linhas, empresas, historico, passagens, cicloAprovado,
 }: {
   competencia: string
   linhas: LinhaVT[]
   empresas: EmpresaOpcao[]
   historico: RegistroDias[]
+  /** candidate_id → passagens carregadas para ESTE mês de uso (recarga feita no mês anterior). */
+  passagens: Record<string, { quantidade: number; valor: number }>
   cicloAprovado: CicloAprovado | null
 }) {
   const router = useRouter()
@@ -77,6 +79,23 @@ export function ValeTransporteClient({
   const [avisoRhid, setAvisoRhid] = useState<PendenteRhid[]>([])
   // Quem o RHiD não soube responder: fica zerado e com o campo em amarelo.
   const [semRhid, setSemRhid] = useState<Set<string>>(new Set())
+  const [importando, setImportando] = useState(false)
+  const [resumoImport, setResumoImport] = useState<string>('')
+
+  /** Passagens carregadas para o mês (0 = nada importado ainda). */
+  function passagensDe(l: LinhaVT): number {
+    return passagens[l.candidate_id]?.quantidade ?? 0
+  }
+
+  /**
+   * Quantas passagens a pessoa deveria consumir no mês: dias trabalhados x
+   * passagens por dia da ficha (ida e volta = 2, quando informado).
+   */
+  function esperadoDe(l: LinhaVT): number {
+    const porDia = Math.trunc(Number(String(l.passagens ?? '').replace(/\D/g, ''))) || 0
+    if (porDia <= 0) return 0
+    return diasDe(l) * porDia
+  }
 
   /** Dias da pessoa no mês: só o que estiver no campo dela. */
   function diasDe(l: LinhaVT): number {
@@ -197,6 +216,46 @@ export function ValeTransporteClient({
     } finally { setBuscandoRhid(false) }
   }
 
+  /**
+   * Importa o CSV da WE Benefícios com as passagens carregadas.
+   * A recarga é feita no mês ANTERIOR ao de uso, então o arquivo da compra de
+   * julho entra na competência de agosto — que é a que está aberta na tela.
+   */
+  async function importarPassagens(arquivo: File) {
+    setImportando(true); setErro(''); setOk(''); setResumoImport('')
+    try {
+      const texto = await arquivo.text()
+      const { lerCsvWe } = await import('@/lib/csv-we')
+      const leitura = lerCsvWe(texto)
+
+      if (!leitura.colunas.cpf) {
+        throw new Error(`Não achei a coluna de CPF no arquivo. Cabeçalho lido: ${leitura.cabecalho.slice(0, 8).join(' · ') || '(vazio)'}`)
+      }
+      if (!leitura.colunas.quantidade) {
+        throw new Error(`Achei o CPF, mas não a coluna de quantidade de passagens. Cabeçalho: ${leitura.cabecalho.join(' · ')}`)
+      }
+      if (leitura.linhas.length === 0) throw new Error('O arquivo não tinha nenhuma linha com CPF.')
+
+      const res = await fetch('/api/admin/folha-pagamento/vale-transporte/passagens', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competencia, linhas: leitura.linhas }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Não foi possível gravar as passagens.')
+
+      setOk(`${d.total_passagens} passagens de ${d.casados} colaborador${d.casados !== 1 ? 'es' : ''} `
+        + `lançadas em ${rotuloMes(competencia)}.`)
+      setResumoImport(
+        `Colunas usadas: CPF = "${leitura.colunas.cpf}", quantidade = "${leitura.colunas.quantidade}"`
+        + (leitura.colunas.valor ? `, valor = "${leitura.colunas.valor}"` : '')
+        + (d.nao_encontrados?.length ? ` · ${d.nao_encontrados.length} CPF(s) do arquivo não estão na nossa base: ${d.nao_encontrados.slice(0, 6).join(', ')}` : ''),
+      )
+      router.refresh()
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally { setImportando(false) }
+  }
+
   /** Dias já aprovados nesta competência, por colaborador. */
   const aprovadosNoMes = useMemo(
     () => new Map(historico.filter(h => h.competencia === competencia).map(h => [h.candidate_id, h.dias])),
@@ -262,13 +321,14 @@ export function ValeTransporteClient({
     } finally { setProcessando(false) }
   }
 
-  const CABECALHO = ['Funcionário', 'Empresa', 'Vínculo', 'Vale transporte', 'Dias trabalhados']
+  const CABECALHO = ['Funcionário', 'Empresa', 'Vínculo', 'Vale transporte', 'Dias trabalhados', 'Passagens carregadas']
   const corpo = () => filtradas.map(l => [
     formatName(l.nome),
     l.empresa ?? '—',
     l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
     l.recebe === true ? 'Sim' : l.recebe === false ? 'Não' : 'Não informado',
     aprovadosNoMes.get(l.candidate_id) ?? diasDe(l) ?? 0,
+    passagensDe(l),
   ])
 
   async function exportarXlsx() {
@@ -328,6 +388,21 @@ export function ValeTransporteClient({
             : <CloudDownload className="w-3.5 h-3.5" />}
           {buscandoRhid ? 'Buscando no RHiD…' : 'Buscar dias no RHiD'}
         </Button>
+
+        {/* A WE Benefícios não tem API pública (login com reCAPTCHA), então a
+            ponte é o CSV do relatório dela. */}
+        <label className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-md border text-[13px] font-medium cursor-pointer whitespace-nowrap ${
+          importando ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-wait' : 'bg-white border-gray-300 hover:bg-gray-50'
+        }`} title="Importar o CSV do relatório da WE Benefícios com as passagens compradas para este mês">
+          {importando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+          {importando ? 'Importando…' : 'Importar passagens (WE)'}
+          <input type="file" accept=".csv,text/csv" className="hidden" disabled={importando}
+            onChange={e => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (f) importarPassagens(f)
+            }} />
+        </label>
 
         <div className="relative">
           <Button variant="outline" onClick={() => setMenuAberto(o => !o)}
@@ -405,6 +480,10 @@ export function ValeTransporteClient({
       {erro && <p className="text-[13px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{erro}</p>}
       {ok && <p className="text-[13px] text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{ok}</p>}
 
+      {resumoImport && (
+        <p className="text-[12px] text-muted-foreground">{resumoImport}</p>
+      )}
+
       {avisoRhid.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p className="text-[13px] font-semibold text-amber-900 flex items-center gap-1.5">
@@ -434,6 +513,7 @@ export function ValeTransporteClient({
                 <th className="px-4 py-2.5 font-semibold">Empresa</th>
                 <th className="px-4 py-2.5 font-semibold">Vale transporte</th>
                 <th className="px-4 py-2.5 font-semibold">Dias trabalhados</th>
+                <th className="px-4 py-2.5 font-semibold whitespace-nowrap">Passagens carregadas</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
@@ -534,6 +614,32 @@ export function ValeTransporteClient({
                         )}
                       </div>
                     </td>
+
+                    {/* Passagens carregadas: recarga feita no mês anterior, para uso NESTE mês. */}
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {(() => {
+                        const carregadas = passagensDe(l)
+                        if (carregadas === 0) {
+                          return <span className="text-[12px] text-gray-400">—</span>
+                        }
+                        const esperado = esperadoDe(l)
+                        const sobra = esperado > 0 ? carregadas - esperado : null
+                        return (
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-semibold text-gray-900">{carregadas}</span>
+                            {sobra !== null && (
+                              <span className={`text-[11px] font-medium ${
+                                sobra > 0 ? 'text-amber-700' : sobra < 0 ? 'text-red-600' : 'text-emerald-700'
+                              }`}
+                                title={`Esperado ${esperado} (${diasDe(l)} dias x ${l.passagens} por dia)`}>
+                                {sobra === 0 ? 'bate certo' : sobra > 0 ? `sobra ${sobra}` : `falta ${-sobra}`}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </td>
+
                     <td className="px-4 py-2.5 text-right">
                       <Link href={`/admin/candidatos/${l.candidate_id}?tab=ficha`}
                         className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline whitespace-nowrap">
