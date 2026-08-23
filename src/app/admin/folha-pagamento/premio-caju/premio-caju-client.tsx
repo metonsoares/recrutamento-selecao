@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
+import { MESES, maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -50,20 +51,8 @@ interface CicloAprovado {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-
 /** "2026-07-01" → "julho de 2026" (sem passar por Date, que desloca fuso). */
-function rotuloCompetencia(c: string): string {
-  const [ano, mes] = c.split('-').map(Number)
-  return `${MESES[mes - 1]} de ${ano}`
-}
 
-function competenciaVizinha(c: string, delta: number): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const d = new Date(ano, mes - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 /** Prazo de pagamento: dia 10 do mês seguinte à competência. */
 function prazoPagamento(c: string): string {
@@ -75,10 +64,6 @@ function prazoPagamento(c: string): string {
 const INPUT = 'h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white'
 
 /** Só a primeira letra em maiúscula ("julho de 2026" → "Julho de 2026"). */
-function maiuscula(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
 /**
  * Saldo no CSV do pedido de premiação: inteiro sem casas ("250"); com
  * centavos usa vírgula ("250,50"), padrão brasileiro do arquivo com ";".
@@ -141,7 +126,7 @@ export function PremioCajuClient({
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Erro ao salvar.')
-      setOk(`Prêmio de ${formatName(editandoPremio.linha.nome)} em ${rotuloCompetencia(editandoPremio.pagamento.competencia)} alterado para ${brl(novo)}.`)
+      setOk(`Prêmio de ${formatName(editandoPremio.linha.nome)} em ${rotuloMes(editandoPremio.pagamento.competencia)} alterado para ${brl(novo)}.`)
       setEditandoPremio(null)
       router.refresh()
     } catch (e) {
@@ -162,7 +147,7 @@ export function PremioCajuClient({
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Erro ao remover.')
-      setOk(`Prêmio de ${formatName(removendo.linha.nome)} removido de ${rotuloCompetencia(removendo.pagamento.competencia)}.`)
+      setOk(`Prêmio de ${formatName(removendo.linha.nome)} removido de ${rotuloMes(removendo.pagamento.competencia)}.`)
       setRemovendo(null)
       router.refresh()
     } catch (e) {
@@ -255,7 +240,7 @@ export function PremioCajuClient({
       : daTela
 
     if (itens.length === 0) {
-      setErro(`Nada para exportar em ${rotuloCompetencia(periodo)}${empresaId ? ' nessa empresa' : ''}.`)
+      setErro(`Nada para exportar em ${rotuloMes(periodo)}${empresaId ? ' nessa empresa' : ''}.`)
       return
     }
 
@@ -277,7 +262,7 @@ export function PremioCajuClient({
       const conteudo = ['CPF;Saldo', ...linhasCsv].join('\r\n') + '\r\n'
       baixarArquivo(new Blob([conteudo], { type: 'text/csv;charset=utf-8' }), `${nomeArquivo}.csv`)
       setOk(
-        `${comCpf.length} lançamentos exportados de ${rotuloCompetencia(periodo)}.` +
+        `${comCpf.length} lançamentos exportados de ${rotuloMes(periodo)}.` +
         (semCpf > 0 ? ` ${semCpf} ficaram de fora por não ter CPF cadastrado.` : ''),
       )
       setMenuExportar(false)
@@ -286,18 +271,18 @@ export function PremioCajuClient({
 
     if (formato === 'xlsx') {
       const corpo = itens.map(i => [formatName(i.nome), i.empresa_nome ?? '—', i.valor])
-      baixarArquivo(gerarXlsx([cabecalho, ...corpo, ['TOTAL', '', total]], 'Prêmio Caju'), `${nomeArquivo}.xlsx`)
+      baixarArquivo(await gerarXlsx([cabecalho, ...corpo, ['TOTAL', '', total]], 'Prêmio Caju'), `${nomeArquivo}.xlsx`)
     } else {
       const corpo = itens.map(i => [formatName(i.nome), i.empresa_nome ?? '—', brl(i.valor)])
       const blob = await gerarPdfTabela({
         titulo: 'Prêmio Caju',
-        subtitulo: `${maiuscula(rotuloCompetencia(periodo))} · ${empresaLabel ?? 'Todas as empresas'} · ${itens.length} colaboradores · Total ${brl(total)} · pagar até ${prazoPagamento(periodo)} · ${situacao}`,
+        subtitulo: `${maiuscula(rotuloMes(periodo))} · ${empresaLabel ?? 'Todas as empresas'} · ${itens.length} colaboradores · Total ${brl(total)} · pagar até ${prazoPagamento(periodo)} · ${situacao}`,
         cabecalho,
         linhas: [...corpo, ['TOTAL', '', brl(total)]],
       })
       baixarArquivo(blob, `${nomeArquivo}.pdf`)
     }
-    setOk(`${itens.length} lançamentos exportados de ${rotuloCompetencia(periodo)}.`)
+    setOk(`${itens.length} lançamentos exportados de ${rotuloMes(periodo)}.`)
     setMenuExportar(false)
   }
 
@@ -337,19 +322,19 @@ export function PremioCajuClient({
         <div className="flex-1 min-w-[220px]">
           <h1 className="text-2xl font-bold leading-tight">Prêmio Caju</h1>
           <p className="text-sm text-muted-foreground">
-            Competência <strong className="text-gray-700">{rotuloCompetencia(competencia)}</strong> · pagar até {prazoPagamento(competencia)}
+            Competência <strong className="text-gray-700">{rotuloMes(competencia)}</strong> · pagar até {prazoPagamento(competencia)}
           </p>
         </div>
         {/* Navegador de mês: o período fica escrito entre as setas. */}
         <div className="inline-flex items-center rounded-lg border bg-white overflow-hidden">
-          <Link href={`?competencia=${competenciaVizinha(competencia, -1)}`} scroll={false}
+          <Link href={`?competencia=${mesVizinho(competencia, -1)}`} scroll={false}
             className="p-2 hover:bg-gray-50" title="Mês anterior">
             <ChevronLeft className="w-4 h-4 text-gray-500" />
           </Link>
           <span className="px-3 text-[13px] font-semibold text-gray-800 border-x whitespace-nowrap">
-            {maiuscula(rotuloCompetencia(competencia))}
+            {maiuscula(rotuloMes(competencia))}
           </span>
-          <Link href={`?competencia=${competenciaVizinha(competencia, 1)}`} scroll={false}
+          <Link href={`?competencia=${mesVizinho(competencia, 1)}`} scroll={false}
             className="p-2 hover:bg-gray-50" title="Mês seguinte">
             <ChevronRight className="w-4 h-4 text-gray-500" />
           </Link>
@@ -368,7 +353,7 @@ export function PremioCajuClient({
 
       {/* ── Regra ── */}
       <div className="rounded-xl border bg-white p-3.5 text-[12.5px] text-gray-600 shadow-sm">
-        Recebem os contratados <strong>já efetivados</strong> e <strong>sem falta injustificada e sem advertência</strong> em {rotuloCompetencia(competencia)}.
+        Recebem os contratados <strong>já efetivados</strong> e <strong>sem falta injustificada e sem advertência</strong> em {rotuloMes(competencia)}.
         Quem ainda estava <strong>em experiência no último dia do mês</strong> não recebe — quem foi efetivado durante o mês recebe.
         Quem está com “Não aplicável” no documento não entra na lista. Afastamento e atestado não tiram o prêmio.
       </div>
@@ -479,7 +464,7 @@ export function PremioCajuClient({
                               {hist.map(h => (
                                 <p key={h.competencia} className="text-[11.5px] text-gray-600 font-normal flex items-center gap-1">
                                   <span>
-                                    {maiuscula(rotuloCompetencia(h.competencia))}
+                                    {maiuscula(rotuloMes(h.competencia))}
                                     {' — '}
                                     <strong className="text-emerald-700">{brl(h.valor)}</strong>
                                   </span>
@@ -563,7 +548,7 @@ export function PremioCajuClient({
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2.5 px-5 py-4 border-b">
               <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center shrink-0"><Check className="w-4 h-4 text-emerald-600" /></div>
-              <h2 className="text-base font-semibold">Aprovar {rotuloCompetencia(competencia)}</h2>
+              <h2 className="text-base font-semibold">Aprovar {rotuloMes(competencia)}</h2>
             </div>
             <div className="px-5 py-4 text-sm text-gray-600 space-y-1.5">
               <p><strong>{comValor}</strong> colaboradores{nomeEmpresa ? ` de ${nomeEmpresa}` : ''} vão receber.</p>
@@ -614,7 +599,7 @@ export function PremioCajuClient({
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-gray-900 truncate">{formatName(editandoPremio.linha.nome)}</h2>
                 <p className="text-[11px] text-muted-foreground">
-                  {maiuscula(rotuloCompetencia(editandoPremio.pagamento.competencia))}
+                  {maiuscula(rotuloMes(editandoPremio.pagamento.competencia))}
                 </p>
               </div>
             </div>
@@ -655,7 +640,7 @@ export function PremioCajuClient({
             </div>
             <div className="px-5 py-4 text-sm text-gray-600">
               Remover o prêmio de <strong>{formatName(removendo.linha.nome)}</strong> referente a{' '}
-              <strong>{rotuloCompetencia(removendo.pagamento.competencia)}</strong> ({brl(removendo.pagamento.valor)})?
+              <strong>{rotuloMes(removendo.pagamento.competencia)}</strong> ({brl(removendo.pagamento.valor)})?
               <span className="block mt-1 text-gray-500">
                 Sai do fechamento do mês e o total é recalculado. Se ninguém mais restar no mês, o fechamento é desfeito.
               </span>
@@ -714,7 +699,7 @@ function ModalExportar({
             <select value={periodo} onChange={e => setPeriodo(e.target.value)} className={INPUT}>
               {periodos.map(p => (
                 <option key={p} value={p}>
-                  {maiuscula(rotuloCompetencia(p))}
+                  {maiuscula(rotuloMes(p))}
                   {competenciasAprovadas.includes(p) ? '' : ' — ainda não aprovado'}
                 </option>
               ))}

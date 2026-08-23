@@ -120,11 +120,9 @@ export async function proxy(req: NextRequest) {
   }
 
   // --- Auditoria (best-effort, nunca bloqueia a resposta) ---
-  try {
-    await logActivity(req, user)
-  } catch {
-    /* nunca bloqueia a resposta */
-  }
+  // Sem `await`: o insert em audit_logs custava um round-trip em TODA
+  // navegação e toda chamada de API do painel (isNavigation inclui o RSC).
+  void logActivity(req, user).catch(() => { /* nunca bloqueia a resposta */ })
 
   return res
 }

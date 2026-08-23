@@ -1,6 +1,6 @@
-import PizZip from 'pizzip'
-
 // Gera um .xlsx real (OOXML) sem dependência extra — o projeto já usa pizzip.
+// O PizZip entra por import() dinâmico: importado no topo, ele ia junto no
+// bundle de 7 rotas (~80 KB) por causa de um botão que raramente é clicado.
 // Usa inlineStr para texto, evitando a tabela de sharedStrings.
 
 type Celula = string | number | null | undefined
@@ -34,7 +34,8 @@ function celulaXml(ref: string, valor: Celula, negrito: boolean): string {
  * Monta a planilha e devolve um Blob pronto para download.
  * A primeira linha é tratada como cabeçalho (negrito).
  */
-export function gerarXlsx(linhas: Celula[][], nomeAba = 'Planilha1'): Blob {
+export async function gerarXlsx(linhas: Celula[][], nomeAba = 'Planilha1'): Promise<Blob> {
+  const { default: PizZip } = await import('pizzip')
   const linhasXml = linhas.map((linha, i) => {
     const celulas = linha
       .map((valor, j) => celulaXml(`${coluna(j)}${i + 1}`, valor, i === 0))

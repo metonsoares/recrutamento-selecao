@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
+import { MESES, maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -31,25 +32,9 @@ interface CicloAprovado { total: number; aprovado_por: string | null }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-
 const INPUT = 'h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white'
 
-function rotuloMes(c: string): string {
-  const [ano, mes] = c.split('-').map(Number)
-  return `${MESES[mes - 1]} de ${ano}`
-}
 
-function maiuscula(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function mesVizinho(c: string, delta: number): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const d = new Date(ano, mes - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -234,12 +219,12 @@ export function GorjetasClient({
       .filter(i => i.valor > 0)
   }
 
-  function exportarXlsx() {
+  async function exportarXlsx() {
     setMenuExportar(false)
     const itens = itensExport()
     const total = itens.reduce((s, i) => s + i.valor, 0)
     baixarArquivo(
-      gerarXlsx([CABECALHO, ...itens.map(i => [formatName(i.nome), i.empresa ?? '—', i.valor]), ['TOTAL', '', total]], 'Gorjetas'),
+      await gerarXlsx([CABECALHO, ...itens.map(i => [formatName(i.nome), i.empresa ?? '—', i.valor]), ['TOTAL', '', total]], 'Gorjetas'),
       `${baseNome}.xlsx`,
     )
   }

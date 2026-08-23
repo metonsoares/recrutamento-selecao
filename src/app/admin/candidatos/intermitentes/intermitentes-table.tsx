@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Search, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { formatName } from '@/lib/helpers'
+import { FotoColaborador } from '@/components/admin/foto-colaborador'
 
 interface Row {
   id: string
@@ -60,14 +61,7 @@ export function IntermitentesTable({ rows, companyOptions }: Props) {
                 onClick={() => router.push(`/admin/candidatos/${c.id}`)}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    {c.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.photoUrl} alt={c.full_name} className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                        <span className="text-sm font-bold text-emerald-700">{c.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
-                      </div>
-                    )}
+                    <FotoColaborador url={c.photoUrl} nome={c.full_name} corFallback="bg-emerald-100" corTexto="text-emerald-700" />
                     <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{formatName(c.full_name)}</p>
                   </div>
                 </td>

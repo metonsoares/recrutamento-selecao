@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, X } from 'lucide-react'
 import { formatDate, formatName } from '@/lib/helpers'
+import { FotoColaborador } from '@/components/admin/foto-colaborador'
 
 interface FreelancerRow {
   id: string
@@ -87,20 +88,8 @@ export function FreelancersTable({ rows }: Props) {
               {/* Nome + foto */}
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  {c.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={c.photoUrl}
-                      alt={c.full_name}
-                      className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold text-sky-700">
-                        {c.full_name?.charAt(0)?.toUpperCase() || '?'}
-                      </span>
-                    </div>
-                  )}
+                  <FotoColaborador url={c.photoUrl} nome={c.full_name}
+                    corFallback="bg-sky-100" corTexto="text-sky-700" />
                   <div className="min-w-0">
                     <p className="font-medium text-gray-900 truncate group-hover:text-sky-700 transition-colors">
                       {formatName(c.full_name)}

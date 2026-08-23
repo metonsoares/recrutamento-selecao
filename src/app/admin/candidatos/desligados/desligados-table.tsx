@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { formatDate, formatName } from '@/lib/helpers'
+import { FotoColaborador } from '@/components/admin/foto-colaborador'
 
 interface Row {
   id: string
@@ -78,14 +79,7 @@ export function DesligadosTable({ rows, companyOptions }: Props) {
                 onClick={() => router.push(`/admin/candidatos/${c.id}`)}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    {c.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.photoUrl} alt={c.full_name} className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-                        <span className="text-sm font-bold text-rose-700">{c.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
-                      </div>
-                    )}
+                    <FotoColaborador url={c.photoUrl} nome={c.full_name} corFallback="bg-rose-100" corTexto="text-rose-700" />
                     <p className="font-medium text-gray-900 group-hover:text-rose-700 transition-colors">{formatName(c.full_name)}</p>
                   </div>
                 </td>

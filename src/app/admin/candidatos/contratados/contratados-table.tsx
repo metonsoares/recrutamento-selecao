@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
+import { FotoColaborador } from '@/components/admin/foto-colaborador'
 
 interface ContratadoRow {
   id: string
@@ -50,7 +51,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
   }, [rows, search, companyFilter])
 
   /** Exporta exatamente o que está na tela (busca + filtro de empresa). */
-  function exportarXlsx() {
+  async function exportarXlsx() {
     const cabecalho = ['Nome', 'Empresa', 'Cargo', 'Telefone', 'E-mail', 'Cidade', 'Pendências']
     const corpo = filtered.map(r => [
       formatName(r.full_name),
@@ -62,7 +63,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
       r.pendencia === 'pendente' ? 'Pendente' : 'OK',
     ])
     const sufixo = companyFilter === 'all' ? '' : '-' + companyFilter.replace(/[^\w]+/g, '-')
-    baixarArquivo(gerarXlsx([cabecalho, ...corpo], 'Contratados'), `contratados${sufixo}.xlsx`)
+    baixarArquivo(await gerarXlsx([cabecalho, ...corpo], 'Contratados'), `contratados${sufixo}.xlsx`)
   }
 
   return (
@@ -133,15 +134,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
                 {/* Nome + foto */}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    {c.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.photoUrl} alt={c.full_name}
-                        className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                        <span className="text-sm font-bold text-emerald-700">{c.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
-                      </div>
-                    )}
+                    <FotoColaborador url={c.photoUrl} nome={c.full_name} corFallback="bg-emerald-100" corTexto="text-emerald-700" />
                     <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{formatName(c.full_name)}</p>
                   </div>
                 </td>

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
+import { MESES, maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
 
 export interface LinhaVT {
   candidate_id: string
@@ -45,23 +46,7 @@ const MOTIVO_RHID: Record<PendenteRhid['motivo'], string> = {
   sem_cpf: 'sem CPF na ficha',
 }
 
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
-function rotuloMes(c: string): string {
-  const [ano, mes] = c.split('-').map(Number)
-  return `${MESES[mes - 1]} de ${ano}`
-}
-
-function maiuscula(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function mesVizinho(c: string, delta: number): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const d = new Date(ano, mes - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 export function ValeTransporteClient({
   competencia, linhas, empresas, historico, cicloAprovado,
@@ -286,9 +271,9 @@ export function ValeTransporteClient({
     aprovadosNoMes.get(l.candidate_id) ?? diasDe(l) ?? 0,
   ])
 
-  function exportarXlsx() {
+  async function exportarXlsx() {
     setMenuAberto(false)
-    baixarArquivo(gerarXlsx([CABECALHO, ...corpo()], 'Vale transporte'), `${baseNome}.xlsx`)
+    baixarArquivo(await gerarXlsx([CABECALHO, ...corpo()], 'Vale transporte'), `${baseNome}.xlsx`)
   }
 
   async function exportarPdf() {

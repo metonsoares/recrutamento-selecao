@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
+import { MESES, mesVizinho, rotuloMes } from '@/lib/competencia'
 
 export interface LinhaSindical {
   candidate_id: string
@@ -28,20 +29,7 @@ export interface EmpresaOpcao { id: string; nome: string }
 /** Padrão: só quem paga, conforme a ficha. */
 type Situacao = 'paga' | 'nao_paga' | 'sem_info' | 'todos'
 
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
-function rotuloMes(c: string): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const nome = MESES[mes - 1] ?? ''
-  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${ano}`
-}
-
-function mesVizinho(c: string, delta: number): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const d = new Date(ano, mes - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 export function SindicalClient({
   competencia, linhas, empresas,
@@ -79,9 +67,9 @@ export function SindicalClient({
     l.paga === true ? 'Paga' : l.paga === false ? 'Não paga' : 'Não informado',
   ])
 
-  function exportarXlsx() {
+  async function exportarXlsx() {
     setMenuExportar(false)
-    baixarArquivo(gerarXlsx([CABECALHO, ...corpo()], 'Mensalidade sindical'), `${baseNome}.xlsx`)
+    baixarArquivo(await gerarXlsx([CABECALHO, ...corpo()], 'Mensalidade sindical'), `${baseNome}.xlsx`)
   }
 
   async function exportarPdf() {

@@ -6,6 +6,7 @@ import {
   AlertCircle, CheckCircle2, ExternalLink, Building2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MESES, rotuloMesLongo } from '@/lib/competencia'
 
 export interface FolhaAnalitica {
   id: string
@@ -16,9 +17,6 @@ export interface FolhaAnalitica {
   created_at: string
 }
 
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-
 /** "2026-07-01" → "07/2026" */
 function periodoCurto(c: string): string {
   const [ano, mes] = c.split('-')
@@ -26,11 +24,6 @@ function periodoCurto(c: string): string {
 }
 
 /** "2026-07-01" → "Julho de 2026" */
-function periodoLongo(c: string): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const nome = MESES[mes - 1] ?? ''
-  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${ano}`
-}
 
 const INPUT = 'h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white'
 
@@ -52,7 +45,7 @@ export function FolhasAnaliticasManager({
     if (empresaFiltro && f.empresa !== empresaFiltro) return false
     const termo = busca.trim().toLowerCase()
     if (!termo) return true
-    return `${f.empresa} ${f.file_name} ${periodoCurto(f.competencia)} ${periodoLongo(f.competencia)}`
+    return `${f.empresa} ${f.file_name} ${periodoCurto(f.competencia)} ${rotuloMesLongo(f.competencia)}`
       .toLowerCase().includes(termo)
   })
 
@@ -131,7 +124,7 @@ export function FolhasAnaliticasManager({
                 <tr key={f.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     <span className="font-semibold text-gray-900">{periodoCurto(f.competencia)}</span>
-                    <span className="block text-[11px] text-muted-foreground">{periodoLongo(f.competencia)}</span>
+                    <span className="block text-[11px] text-muted-foreground">{rotuloMesLongo(f.competencia)}</span>
                   </td>
                   <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">

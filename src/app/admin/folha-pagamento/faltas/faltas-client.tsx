@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
+import { MESES, mesVizinho, rotuloMes } from '@/lib/competencia'
 
 export interface LinhaFalta {
   candidate_id: string
@@ -30,20 +31,7 @@ export interface EmpresaOpcao { id: string; nome: string }
 /** Padrão: só quem teve falta no mês. */
 type Situacao = 'com_falta' | 'sem_falta' | 'todos'
 
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
-function rotuloMes(c: string): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const nome = MESES[mes - 1] ?? ''
-  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${ano}`
-}
-
-function mesVizinho(c: string, delta: number): string {
-  const [ano, mes] = c.split('-').map(Number)
-  const d = new Date(ano, mes - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 function dataCurta(iso: string): string {
   const [, m, d] = iso.split('-')
@@ -89,9 +77,9 @@ export function FaltasClient({
     l.dias, l.registros, l.datas.map(dataCurta).join(', '),
   ])
 
-  function exportarXlsx() {
+  async function exportarXlsx() {
     setMenuExportar(false)
-    baixarArquivo(gerarXlsx([CABECALHO, ...corpo()], 'Faltas'), `${baseNome}.xlsx`)
+    baixarArquivo(await gerarXlsx([CABECALHO, ...corpo()], 'Faltas'), `${baseNome}.xlsx`)
   }
 
   async function exportarPdf() {

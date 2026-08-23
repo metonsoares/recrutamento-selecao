@@ -169,14 +169,14 @@ export function RelatoriosRh({
       ? Number(a.nascimento!.split('-')[2]) - Number(b.nascimento!.split('-')[2])
       : a.dias - b.dias))
 
-  function exportar() {
+  async function exportar() {
     if (aba === 'salarios') {
       const linhas = salarios.map(c => [
         formatName(c.nome), c.empresa ?? '—', c.cargo ?? '—', tempoDeCasa(c.admissao),
         paraNumero(c.salario), ehPorHora(c.salario) ? 'Por hora' : 'Mensal',
       ])
       baixarArquivo(
-        gerarXlsx([
+        await gerarXlsx([
           ['Nome', 'Empresa', 'Cargo', 'Tempo de casa', 'Salário', 'Tipo'],
           ...linhas,
           ['TOTAL MENSAL', '', '', '', folhaTotal, ''],
@@ -189,7 +189,7 @@ export function RelatoriosRh({
         formatarData(c.inicio), formatarData(c.fim), c.restantes, c.contrato_experiencia ?? '',
       ])
       baixarArquivo(
-        gerarXlsx([['Nome', 'Empresa', 'Cargo', 'Início', 'Término', 'Dias restantes', 'Contrato'], ...linhas], 'Experiência'),
+        await gerarXlsx([['Nome', 'Empresa', 'Cargo', 'Início', 'Término', 'Dias restantes', 'Contrato'], ...linhas], 'Experiência'),
         `relatorio-experiencia${sufixo}.xlsx`,
       )
     } else {
@@ -197,7 +197,7 @@ export function RelatoriosRh({
         formatName(c.nome), c.empresa ?? '—', formatarData(c.nascimento as string), c.dias,
       ])
       baixarArquivo(
-        gerarXlsx([['Nome', 'Empresa', 'Aniversário', 'Dias para o aniversário'], ...linhas], 'Aniversariantes'),
+        await gerarXlsx([['Nome', 'Empresa', 'Aniversário', 'Dias para o aniversário'], ...linhas], 'Aniversariantes'),
         `relatorio-aniversariantes${sufixo}.xlsx`,
       )
     }
