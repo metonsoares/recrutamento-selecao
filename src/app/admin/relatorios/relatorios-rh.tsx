@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Wallet, FileClock, Cake, Search, Download } from 'lucide-react'
+import { Wallet, FileClock, Cake, Search, Download, Palmtree } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
@@ -23,7 +23,15 @@ export interface ColaboradorRelatorio {
 
 export interface EmpresaOpcao { id: string; nome: string }
 
-type Aba = 'salarios' | 'experiencia' | 'aniversarios'
+/** Uma linha de `vacations`: férias já gozadas ou agendadas. */
+export interface FeriasRegistro {
+  candidate_id: string
+  inicio: string   // yyyy-mm-dd
+  fim: string      // yyyy-mm-dd
+  tipo: 'historico' | 'solicitacao'
+}
+
+type Aba = 'salarios' | 'experiencia' | 'aniversarios' | 'ferias'
 
 // ─── Helpers de data e valor ──────────────────────────────────────────────────
 
@@ -111,18 +119,134 @@ function diasExperiencia(contrato: string | null): number {
   return (contrato?.match(/\d+/g) ?? []).reduce((s, n) => s + Number(n), 0)
 }
 
+
+// ─── Férias ───────────────────────────────────────────────────────────────────
+// Cada 12 meses de casa fecham um PERÍODO AQUISITIVO; a partir daí a empresa
+// tem mais 12 meses (período concessivo) para conceder as férias. A CLT exige
+// avisar o colaborador com pelo menos 30 dias de antecedência, então o prazo
+// real para AGENDAR é o fim do concessivo menos 30 dias — passou disso, vencidas.
+
+/** Aviso prévio mínimo de férias (CLT art. 135). */
+const DIAS_ANTECEDENCIA = 30
+
+export type StatusFerias = 'agendada' | 'agendar' | 'aguardando' | 'vencida' | 'sem_admissao'
+
+interface SituacaoFerias {
+  status: StatusFerias
+  /** Coluna "Quanto tempo para tirar férias". */
+  prazo: string
+  /** Para ordenar: quanto menor, mais urgente. */
+  ordem: number
+}
+
+/** Meses inteiros entre duas datas puras. */
+function mesesEntre(deIso: string, ate: Date): number {
+  const de = paraData(deIso)
+  let m = (ate.getFullYear() - de.getFullYear()) * 12 + (ate.getMonth() - de.getMonth())
+  if (ate.getDate() < de.getDate()) m--
+  return m
+}
+
+/** Data pura somando N anos (mantém dia e mês). */
+function somarAnos(iso: string, anos: number): string {
+  const [a, m, d] = iso.split('-').map(Number)
+  return `${a + anos}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+function emMeses(dias: number): string {
+  if (dias <= 31) return `${dias} dia${dias !== 1 ? 's' : ''}`
+  const meses = Math.floor(dias / 30)
+  return `${meses} ${meses !== 1 ? 'meses' : 'mês'}`
+}
+
+/**
+ * Em que situação de férias o colaborador está.
+ * `registros` são as férias DELE, já filtradas.
+ */
+function situacaoFerias(admissao: string | null, registros: FeriasRegistro[]): SituacaoFerias {
+  if (!admissao || !/^\d{4}-\d{2}-\d{2}$/.test(admissao)) {
+    return { status: 'sem_admissao', prazo: 'sem data de admissão na ficha', ordem: 9e9 }
+  }
+  const hj = hoje()
+
+  // Já tem férias marcadas para frente? É o que o RH quer ver primeiro.
+  const agendada = registros
+    .filter(f => f.tipo === 'solicitacao' && paraData(f.inicio) >= hj)
+    .sort((a, b) => a.inicio.localeCompare(b.inicio))[0]
+  if (agendada) {
+    const dias = diasEntre(hj, paraData(agendada.inicio))
+    return {
+      status: 'agendada',
+      prazo: `sai em ${formatarData(agendada.inicio)} · ${emMeses(dias)}`,
+      ordem: 100000 + dias,
+    }
+  }
+
+  // Cada férias conta para o período aquisitivo em que ela COMEÇA.
+  const cobertos = new Set(
+    registros
+      .map(f => Math.floor(mesesEntre(admissao, paraData(f.inicio)) / 12))
+      .filter(n => n >= 1),
+  )
+  const ciclosCompletos = Math.floor(mesesEntre(admissao, hj) / 12)
+
+  // Primeiro período aquisitivo fechado que ainda não teve férias.
+  let pendente = 0
+  for (let n = 1; n <= ciclosCompletos; n++) {
+    if (!cobertos.has(n)) { pendente = n; break }
+  }
+
+  if (pendente === 0) {
+    // Nada em aberto: mostra quando abre o próximo direito.
+    const abre = somarAnos(admissao, ciclosCompletos + 1)
+    const dias = diasEntre(hj, paraData(abre))
+    return {
+      status: 'aguardando',
+      prazo: `só a partir de ${formatarData(abre)} · faltam ${emMeses(dias)}`,
+      ordem: 200000 + dias,
+    }
+  }
+
+  const fimConcessivo = somarAnos(admissao, pendente + 1)
+  const limiteAgendar = somarDias(fimConcessivo, -DIAS_ANTECEDENCIA)
+  const dias = diasEntre(hj, paraData(limiteAgendar))
+
+  if (dias < 0) {
+    return {
+      status: 'vencida',
+      prazo: `prazo venceu em ${formatarData(limiteAgendar)} · há ${emMeses(-dias)}`,
+      ordem: dias,
+    }
+  }
+  return {
+    status: 'agendar',
+    prazo: `agendar até ${formatarData(limiteAgendar)} · ${emMeses(dias)}`,
+    ordem: dias,
+  }
+}
+
+const ROTULO_FERIAS: Record<StatusFerias, { texto: string; classe: string }> = {
+  vencida:      { texto: 'Vencidas',            classe: 'bg-red-100 text-red-700 border-red-200' },
+  agendar:      { texto: 'Precisa agendar',     classe: 'bg-amber-100 text-amber-800 border-amber-200' },
+  agendada:     { texto: 'Agendada',            classe: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  aguardando:   { texto: 'Ainda não pode',      classe: 'bg-gray-100 text-gray-600 border-gray-200' },
+  sem_admissao: { texto: 'Sem admissão',        classe: 'bg-gray-100 text-gray-500 border-gray-200' },
+}
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function RelatoriosRh({
-  colaboradores, empresas,
+  colaboradores, empresas, ferias,
 }: {
   colaboradores: ColaboradorRelatorio[]
   empresas: EmpresaOpcao[]
+  ferias: FeriasRegistro[]
 }) {
   const [aba, setAba] = useState<Aba>('salarios')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [busca, setBusca] = useState('')
   const [somenteMes, setSomenteMes] = useState(true)
+  const [statusFerias, setStatusFerias] = useState<StatusFerias | ''>('')
 
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   const sufixo = nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''
@@ -169,7 +293,37 @@ export function RelatoriosRh({
       ? Number(a.nascimento!.split('-')[2]) - Number(b.nascimento!.split('-')[2])
       : a.dias - b.dias))
 
+  // ── Férias ──
+  const feriasPorCand = new Map<string, FeriasRegistro[]>()
+  for (const f of ferias) {
+    const arr = feriasPorCand.get(f.candidate_id) ?? []
+    arr.push(f)
+    feriasPorCand.set(f.candidate_id, arr)
+  }
+
+  const feriasLinhas = base
+    .map(c => ({ ...c, situacao: situacaoFerias(c.admissao, feriasPorCand.get(c.candidate_id) ?? []) }))
+    .filter(c => (statusFerias ? c.situacao.status === statusFerias : true))
+    // Mais urgente primeiro: vencidas (ordem negativa), depois o prazo mais curto.
+    .sort((a, b) => a.situacao.ordem - b.situacao.ordem)
+
+  const contagemFerias = base.reduce((acc, c) => {
+    const st = situacaoFerias(c.admissao, feriasPorCand.get(c.candidate_id) ?? []).status
+    acc[st] = (acc[st] ?? 0) + 1
+    return acc
+  }, {} as Record<StatusFerias, number>)
+
   async function exportar() {
+    if (aba === 'ferias') {
+      const linhas = feriasLinhas.map(c => [
+        formatName(c.nome), c.empresa ?? '—', c.cargo ?? '—',
+        c.situacao.prazo, ROTULO_FERIAS[c.situacao.status].texto,
+      ])
+      return baixarArquivo(
+        await gerarXlsx([['Nome', 'Empresa', 'Cargo', 'Quanto tempo para tirar férias', 'Status'], ...linhas], 'Férias'),
+        `ferias${sufixo}.xlsx`,
+      )
+    }
     if (aba === 'salarios') {
       const linhas = salarios.map(c => [
         formatName(c.nome), c.empresa ?? '—', c.cargo ?? '—', tempoDeCasa(c.admissao),
@@ -207,6 +361,7 @@ export function RelatoriosRh({
     { id: 'salarios', label: 'Salários', icone: Wallet, qtd: salarios.length },
     { id: 'experiencia', label: 'Contratos de experiência', icone: FileClock, qtd: experiencia.length },
     { id: 'aniversarios', label: 'Aniversariantes', icone: Cake, qtd: aniversariantes.length },
+    { id: 'ferias', label: 'Férias', icone: Palmtree, qtd: feriasLinhas.length },
   ]
 
   return (
@@ -239,6 +394,17 @@ export function RelatoriosRh({
           <option value="">Todas as empresas</option>
           {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
+        {aba === 'ferias' && (
+          <select value={statusFerias} onChange={e => setStatusFerias(e.target.value as StatusFerias | '')}
+            className="h-9 border border-gray-300 rounded-md px-2.5 text-sm bg-white min-w-[170px]">
+            <option value="">Todas as situações</option>
+            <option value="vencida">Vencidas ({contagemFerias.vencida ?? 0})</option>
+            <option value="agendar">Precisa agendar ({contagemFerias.agendar ?? 0})</option>
+            <option value="agendada">Agendadas ({contagemFerias.agendada ?? 0})</option>
+            <option value="aguardando">Ainda não pode ({contagemFerias.aguardando ?? 0})</option>
+            <option value="sem_admissao">Sem admissão ({contagemFerias.sem_admissao ?? 0})</option>
+          </select>
+        )}
         {aba === 'aniversarios' && (
           <button onClick={() => setSomenteMes(s => !s)}
             className={`h-9 px-3 rounded-md text-[12.5px] font-semibold border transition-colors ${
@@ -325,6 +491,17 @@ export function RelatoriosRh({
           </table>
         )}
 
+        {aba === 'ferias' && (
+          <select value={statusFerias} onChange={e => setStatusFerias(e.target.value as StatusFerias | '')}
+            className="h-9 border border-gray-300 rounded-md px-2.5 text-sm bg-white min-w-[170px]">
+            <option value="">Todas as situações</option>
+            <option value="vencida">Vencidas ({contagemFerias.vencida ?? 0})</option>
+            <option value="agendar">Precisa agendar ({contagemFerias.agendar ?? 0})</option>
+            <option value="agendada">Agendadas ({contagemFerias.agendada ?? 0})</option>
+            <option value="aguardando">Ainda não pode ({contagemFerias.aguardando ?? 0})</option>
+            <option value="sem_admissao">Sem admissão ({contagemFerias.sem_admissao ?? 0})</option>
+          </select>
+        )}
         {aba === 'aniversarios' && (
           <table className="w-full text-sm">
             <Cabecalho colunas={['Nome', 'Empresa', 'Aniversário', 'Faltam']} />
@@ -355,6 +532,37 @@ export function RelatoriosRh({
               ))}
               {aniversariantes.length === 0 && (
                 <Vazio colunas={4} texto={somenteMes ? 'Nenhum aniversariante neste mês.' : 'Sem datas de nascimento.'} />
+              )}
+            </tbody>
+          </table>
+        )}
+
+        {aba === 'ferias' && (
+          <table className="w-full text-sm">
+            <Cabecalho colunas={['Nome', 'Empresa', 'Quanto tempo para tirar férias', 'Status']} />
+            <tbody className="divide-y">
+              {feriasLinhas.map(c => {
+                const r = ROTULO_FERIAS[c.situacao.status]
+                return (
+                  <tr key={c.candidate_id}
+                    className={`hover:bg-gray-50 ${c.situacao.status === 'vencida' ? 'bg-red-50/60' : ''}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">
+                      {formatName(c.nome)}
+                      {c.vinculo === 'intermitente' && <Selo texto="Intermitente" />}
+                      <span className="block text-[11px] text-muted-foreground">{c.cargo ?? '—'}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{c.empresa ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-600">{c.situacao.prazo}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <span className={`inline-flex items-center text-[11px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 border ${r.classe}`}>
+                        {r.texto}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+              {feriasLinhas.length === 0 && (
+                <Vazio colunas={4} texto="Nenhum colaborador nesta situação." />
               )}
             </tbody>
           </table>

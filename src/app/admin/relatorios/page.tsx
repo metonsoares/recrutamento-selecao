@@ -3,7 +3,7 @@ import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/s
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao } from './relatorios-rh'
+import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao, FeriasRegistro } from './relatorios-rh'
 
 /** Respostas do formulário são gravadas como JSON.stringify(valor). */
 function parseTexto(v: string | null): string | null {
@@ -118,6 +118,24 @@ export default async function RelatoriosPage() {
 
   colaboradores.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
+  // Férias já gozadas ('historico') e agendadas ('solicitacao') dos ativos.
+  // Consulta simples + cruzamento em memória: embeds !inner do PostgREST já
+  // falharam silenciosamente neste projeto.
+  const idsColab = colaboradores.map(c => c.candidate_id)
+  const { data: feriasData } = idsColab.length
+    ? await service.from('vacations')
+        .select('candidate_id, start_date, end_date, kind')
+        .in('candidate_id', idsColab)
+        .order('start_date')
+    : { data: [] as { candidate_id: string; start_date: string; end_date: string; kind: string }[] }
+
+  const ferias: FeriasRegistro[] = (feriasData ?? []).map(f => ({
+    candidate_id: f.candidate_id as string,
+    inicio: f.start_date as string,
+    fim: f.end_date as string,
+    tipo: (f.kind as string) === 'solicitacao' ? 'solicitacao' : 'historico',
+  }))
+
   const empresasOpcoes: EmpresaOpcao[] = Array.from(
     new Map(colaboradores.filter(c => c.empresa_id).map(c => [c.empresa_id as string, c.empresa ?? '—'])).entries(),
   ).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
@@ -135,7 +153,7 @@ export default async function RelatoriosPage() {
       </div>
 
       {/* Relatórios de RH */}
-      <RelatoriosRh colaboradores={colaboradores} empresas={empresasOpcoes} />
+      <RelatoriosRh colaboradores={colaboradores} empresas={empresasOpcoes} ferias={ferias} />
 
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card><CardContent className="p-4 text-center">
