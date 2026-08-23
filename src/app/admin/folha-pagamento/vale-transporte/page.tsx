@@ -27,14 +27,13 @@ export default async function ValeTransportePage({
 
   const supabase = await createSupabaseServiceClient()
 
-  const [{ data: apps }, { data: empresas }, { data: ciclo }] = await Promise.all([
+  const [{ data: apps }, { data: empresas }] = await Promise.all([
     supabase
       .from('applications')
       .select('candidate_id, admission_form, status')
       .in('status', ['contratado', 'em_contrato', 'aprovado'])
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social'),
-    supabase.from('vt_ciclos').select('*').eq('competencia', competencia).maybeSingle(),
   ])
 
   // Passagens carregadas para ESTE mês de uso (a compra foi feita no mês
@@ -128,10 +127,6 @@ export default async function ValeTransportePage({
       empresas={empresasOpcoes}
       historico={historico}
       passagens={passagens}
-      cicloAprovado={ciclo ? {
-        total_dias: Number(ciclo.total_dias),
-        aprovado_por: (ciclo.aprovado_por as string) ?? null,
-      } : null}
     />
   )
 }

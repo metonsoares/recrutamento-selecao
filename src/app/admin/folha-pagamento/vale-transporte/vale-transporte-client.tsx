@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Bus, Search, CheckCircle2, XCircle, HelpCircle, ExternalLink, Download,
   ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FileText,
-  Check, Loader2, AlertCircle, History, Pencil, Trash2, CloudDownload, Upload,
+  Check, Loader2, AlertCircle, History, Pencil, Trash2, CloudDownload, Upload, Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
@@ -32,7 +32,6 @@ export interface LinhaVT {
 
 export interface EmpresaOpcao { id: string; nome: string }
 export interface RegistroDias { candidate_id: string; competencia: string; dias: number }
-interface CicloAprovado { total_dias: number; aprovado_por: string | null }
 
 type Filtro = 'todos' | 'recebe' | 'nao' | 'sem_info'
 
@@ -49,7 +48,7 @@ const MOTIVO_RHID: Record<PendenteRhid['motivo'], string> = {
 
 
 export function ValeTransporteClient({
-  competencia, linhas, empresas, historico, passagens, cicloAprovado,
+  competencia, linhas, empresas, historico, passagens,
 }: {
   competencia: string
   linhas: LinhaVT[]
@@ -63,7 +62,6 @@ export function ValeTransporteClient({
    * operadora vende por unidade.
    */
   passagens: Record<string, { dias: number; quantidade: number; valor: number }>
-  cicloAprovado: CicloAprovado | null
 }) {
   const router = useRouter()
   const [busca, setBusca] = useState('')
@@ -90,6 +88,7 @@ export function ValeTransporteClient({
   const [painelWe, setPainelWe] = useState(false)
   const [atalhoWe, setAtalhoWe] = useState('')
   const [gerandoAtalho, setGerandoAtalho] = useState(false)
+  const [dicaAtalho, setDicaAtalho] = useState(false)
 
   /** O que a WE carregou para o mês (dias, unidades e valor). */
   function carregadoDe(l: LinhaVT) {
@@ -403,7 +402,7 @@ export function ValeTransporteClient({
           {buscandoRhid
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <CloudDownload className="w-3.5 h-3.5" />}
-          {buscandoRhid ? 'Buscando no RHiD…' : 'Buscar dias no RHiD'}
+          {buscandoRhid ? 'Atualizando…' : 'Atualizar RHID'}
         </Button>
 
         <Button variant="outline" onClick={() => { setPainelWe(true); if (!atalhoWe) gerarAtalho() }}
@@ -436,16 +435,6 @@ export function ValeTransporteClient({
           )}
         </div>
       </div>
-
-      {cicloAprovado && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2 flex-wrap">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <p className="text-[13px] text-emerald-900 flex-1">
-            Mês <strong>registrado</strong> — {cicloAprovado.total_dias} dia(s)
-            {cicloAprovado.aprovado_por ? ` por ${cicloAprovado.aprovado_por}` : ''}. Reaprovar substitui o registro.
-          </p>
-        </div>
-      )}
 
       {/* ── Filtros ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -515,14 +504,30 @@ export function ValeTransporteClient({
                 </p>
               ) : atalhoWe ? (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-                  <a href={atalhoWe} onClick={e => e.preventDefault()}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-[13px] font-semibold cursor-grab active:cursor-grabbing">
-                    <Bus className="w-3.5 h-3.5" />Puxar passagens WE → BDT
-                  </a>
-                  <p className="text-[11.5px] text-muted-foreground">
-                    Arraste o botão (não clique aqui — ele só funciona na aba da WE).
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                    <a href={atalhoWe}
+                      onClick={e => { e.preventDefault(); setDicaAtalho(true) }}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-[13px] font-semibold cursor-grab active:cursor-grabbing">
+                      <Bus className="w-3.5 h-3.5" />Puxar passagens WE → BDT
+                    </a>
+                    <Button variant="outline" size="sm" className="gap-1.5"
+                      onClick={() => { navigator.clipboard?.writeText(atalhoWe); setDicaAtalho(true) }}>
+                      <Copy className="w-3.5 h-3.5" />Copiar o código
+                    </Button>
+                  </div>
+                  {dicaAtalho && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-900 space-y-1">
+                      <p><strong>Clicar aqui não puxa nada</strong> — o atalho só funciona rodando na aba da WE.</p>
+                      <p>Dois caminhos:</p>
+                      <ul className="list-disc ml-4 space-y-0.5">
+                        <li><strong>Arraste</strong> o botão verde para a barra de favoritos; ou</li>
+                        <li>use <strong>Copiar o código</strong>, clique com o botão direito na barra de
+                          favoritos → <em>Adicionar página</em>, dê o nome que quiser e cole no campo URL.</li>
+                      </ul>
+                      <p>Depois abra a WE, entre, e clique no favorito.</p>
+                    </div>
+                  )}
                 </>
               ) : null}
             </div>
@@ -600,12 +605,12 @@ export function ValeTransporteClient({
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-2.5 font-semibold">Colaborador</th>
-                <th className="px-4 py-2.5 font-semibold">Empresa</th>
-                <th className="px-4 py-2.5 font-semibold">Vale transporte</th>
-                <th className="px-4 py-2.5 font-semibold">Dias trabalhados</th>
-                <th className="px-4 py-2.5 font-semibold whitespace-nowrap">Carregado na WE</th>
-                <th className="px-4 py-2.5" />
+                <th className="px-3 py-2 font-semibold">Colaborador</th>
+                <th className="px-3 py-2 font-semibold">Empresa</th>
+                <th className="px-3 py-2 font-semibold">Vale transporte</th>
+                <th className="px-3 py-2 font-semibold">Dias trabalhados</th>
+                <th className="px-3 py-2 font-semibold whitespace-nowrap">Carregado na WE</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -614,7 +619,7 @@ export function ValeTransporteClient({
                 const jaAprovado = aprovadosNoMes.get(l.candidate_id)
                 return (
                   <tr key={l.candidate_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2.5 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <span className="font-medium text-gray-900">{formatName(l.nome)}</span>
                       {l.vinculo === 'intermitente' && (
                         <span className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-sky-100 text-sky-700 align-middle">
@@ -636,7 +641,7 @@ export function ValeTransporteClient({
                               ? <ChevronDown className="w-3 h-3" />
                               : <ChevronRight className="w-3 h-3" />}
                             <History className="w-3 h-3" />
-                            {hist.length} mês(es) registrado(s)
+                            {hist.length} {hist.length === 1 ? 'mês' : 'meses'}
                           </button>
                           {historicoAberto.has(l.candidate_id) && (
                             <div className="mt-1 ml-4 pl-2.5 border-l-2 border-emerald-200 space-y-0.5">
@@ -661,8 +666,8 @@ export function ValeTransporteClient({
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{l.empresa ?? '—'}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{l.empresa ?? '—'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {l.recebe === true ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-blue-100 text-blue-700">
                           <CheckCircle2 className="w-3 h-3" />Recebe
@@ -678,7 +683,7 @@ export function ValeTransporteClient({
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <input
                           value={dias[l.candidate_id] ?? ''}
@@ -698,16 +703,17 @@ export function ValeTransporteClient({
                               : 'border-gray-300 bg-white'
                           }`}
                         />
-                        {jaAprovado != null && (
-                          <span className="text-[11px] text-emerald-700 font-medium whitespace-nowrap">
-                            {jaAprovado} registrado{jaAprovado !== 1 ? 's' : ''}
+                        {jaAprovado != null && jaAprovado > 0 && (
+                          <span title={`${jaAprovado} dia(s) já registrados neste mês`}
+                            className="text-[11px] font-semibold text-emerald-700 whitespace-nowrap">
+                            ✓ {jaAprovado}
                           </span>
                         )}
                       </div>
                     </td>
 
                     {/* Carregado na WE: recarga feita no mês anterior, para uso NESTE mês. */}
-                    <td className="px-4 py-2.5 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {(() => {
                         const c = carregadoDe(l)
                         if (c.dias === 0 && c.quantidade === 0) {
@@ -716,22 +722,23 @@ export function ValeTransporteClient({
                         const trabalhados = diasDe(l)
                         const dif = trabalhados > 0 ? c.dias - trabalhados : null
                         return (
-                          <div>
-                            <div className="flex items-baseline gap-2">
-                              <span className="font-semibold text-gray-900">
-                                {c.quantidade > 0 ? `${c.quantidade} passagens` : `${c.dias} dias`}
-                              </span>
-                              {dif !== null && (
-                                <span className={`text-[11px] font-medium ${
-                                  dif > 0 ? 'text-amber-700' : dif < 0 ? 'text-red-600' : 'text-emerald-700'
-                                }`} title={`Carregado ${c.dias} dias · trabalhou ${trabalhados} dias`}>
-                                  {dif === 0 ? 'bate certo' : dif > 0 ? `sobra ${dif}` : `falta ${-dif}`}
-                                </span>
-                              )}
-                            </div>
+                          <div className="flex items-baseline gap-1.5"
+                            title={`Carregado ${c.dias} dias · trabalhou ${trabalhados} dias`}>
+                            <span className="font-semibold text-gray-900">
+                              {c.quantidade > 0 ? c.quantidade : c.dias}
+                            </span>
                             {c.valor > 0 && (
-                              <span className="block text-[11px] text-muted-foreground">
+                              <span className="text-[11px] text-muted-foreground">
                                 {c.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            )}
+                            {dif !== null && (
+                              <span className={`text-[10px] font-bold rounded px-1 py-0.5 ${
+                                dif > 0 ? 'bg-amber-100 text-amber-800'
+                                : dif < 0 ? 'bg-red-100 text-red-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                              }`}>
+                                {dif === 0 ? 'ok' : dif > 0 ? `+${dif}` : dif}
                               </span>
                             )}
                           </div>
@@ -739,7 +746,7 @@ export function ValeTransporteClient({
                       })()}
                     </td>
 
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-3 py-2 text-right">
                       <Link href={`/admin/candidatos/${l.candidate_id}?tab=ficha`}
                         className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline whitespace-nowrap">
                         Ficha<ExternalLink className="w-3 h-3" />
