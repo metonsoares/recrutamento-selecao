@@ -87,6 +87,9 @@ export function ValeTransporteClient({
   const [semRhid, setSemRhid] = useState<Set<string>>(new Set())
   const [importando, setImportando] = useState(false)
   const [resumoImport, setResumoImport] = useState<string>('')
+  const [painelWe, setPainelWe] = useState(false)
+  const [atalhoWe, setAtalhoWe] = useState('')
+  const [gerandoAtalho, setGerandoAtalho] = useState(false)
 
   /** O que a WE carregou para o mês (dias, unidades e valor). */
   function carregadoDe(l: LinhaVT) {
@@ -252,6 +255,23 @@ export function ValeTransporteClient({
     } finally { setImportando(false) }
   }
 
+  /**
+   * Gera o atalho que puxa da WE. O login da WE é protegido por reCAPTCHA e
+   * não há API pública: o único jeito de usar a SUA sessão é rodar o código no
+   * seu navegador, na aba da WE, onde o cookie (HttpOnly) acompanha sozinho.
+   */
+  async function gerarAtalho() {
+    setGerandoAtalho(true); setErro('')
+    try {
+      const res = await fetch('/api/admin/folha-pagamento/vale-transporte/we-atalho', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Não foi possível gerar o atalho.')
+      setAtalhoWe(d.atalho)
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally { setGerandoAtalho(false) }
+  }
+
   /** Dias já aprovados nesta competência, por colaborador. */
   const aprovadosNoMes = useMemo(
     () => new Map(historico.filter(h => h.competencia === competencia).map(h => [h.candidate_id, h.dias])),
@@ -386,20 +406,10 @@ export function ValeTransporteClient({
           {buscandoRhid ? 'Buscando no RHiD…' : 'Buscar dias no RHiD'}
         </Button>
 
-        {/* A WE Benefícios não tem API pública (login com reCAPTCHA), então a
-            ponte é o CSV do relatório dela. */}
-        <label className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-md border text-[13px] font-medium cursor-pointer whitespace-nowrap ${
-          importando ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-wait' : 'bg-white border-gray-300 hover:bg-gray-50'
-        }`} title="Importar o CSV do relatório da WE Benefícios com as passagens compradas para este mês">
-          {importando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-          {importando ? 'Importando…' : 'Importar passagens (WE)'}
-          <input type="file" accept=".csv,text/csv" className="hidden" disabled={importando}
-            onChange={e => {
-              const f = e.target.files?.[0]
-              e.target.value = ''
-              if (f) importarPassagens(f)
-            }} />
-        </label>
+        <Button variant="outline" onClick={() => { setPainelWe(true); if (!atalhoWe) gerarAtalho() }}
+          className="gap-1.5" title="Puxar da WE Benefícios as passagens carregadas">
+          <Upload className="w-3.5 h-3.5" />Importar passagens (WE)
+        </Button>
 
         <div className="relative">
           <Button variant="outline" onClick={() => setMenuAberto(o => !o)}
@@ -476,6 +486,90 @@ export function ValeTransporteClient({
 
       {erro && <p className="text-[13px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{erro}</p>}
       {ok && <p className="text-[13px] text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{ok}</p>}
+
+
+      {/* ── Painel: puxar da WE ── */}
+      {painelWe && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setPainelWe(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Importar passagens da WE Benefícios</h2>
+              <p className="text-[13px] text-muted-foreground mt-1">
+                A WE não tem API e o login dela é protegido por reCAPTCHA, então o portal
+                não consegue entrar sozinho na conta. O atalho abaixo roda no <strong>seu
+                navegador</strong>, usando a sessão que você já tem aberta na WE.
+              </p>
+            </div>
+
+            <div className="rounded-xl border bg-gray-50 p-4 space-y-3">
+              <p className="text-[13px] font-semibold text-gray-900">Uma vez só: guarde o atalho</p>
+              <ol className="text-[12.5px] text-gray-700 space-y-1 list-decimal ml-4">
+                <li>Deixe a barra de favoritos do Chrome visível (Ctrl+Shift+B).</li>
+                <li>Arraste o botão verde abaixo para a barra de favoritos.</li>
+              </ol>
+              {gerandoAtalho ? (
+                <p className="text-[13px] text-muted-foreground flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />Gerando…
+                </p>
+              ) : atalhoWe ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                  <a href={atalhoWe} onClick={e => e.preventDefault()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-[13px] font-semibold cursor-grab active:cursor-grabbing">
+                    <Bus className="w-3.5 h-3.5" />Puxar passagens WE → BDT
+                  </a>
+                  <p className="text-[11.5px] text-muted-foreground">
+                    Arraste o botão (não clique aqui — ele só funciona na aba da WE).
+                  </p>
+                </>
+              ) : null}
+            </div>
+
+            <div className="rounded-xl border p-4 space-y-1">
+              <p className="text-[13px] font-semibold text-gray-900">Todo mês: um clique</p>
+              <ol className="text-[12.5px] text-gray-700 space-y-1 list-decimal ml-4">
+                <li>Abra <strong>app.webeneficios.com</strong> e entre normalmente.</li>
+                <li>Clique no atalho na barra de favoritos.</li>
+              </ol>
+              <p className="text-[12px] text-muted-foreground pt-1">
+                Ele lê os últimos pedidos, usa a competência que o próprio recibo da WE
+                informa (a compra de julho é o mês de agosto) e grava aqui. Clicar de novo
+                <strong> sobrescreve</strong> os meses que vierem no arquivo.
+              </p>
+            </div>
+
+            <div className="rounded-xl border p-4 space-y-2">
+              <p className="text-[13px] font-semibold text-gray-900">Alternativa: arquivo CSV</p>
+              <p className="text-[12.5px] text-gray-700">
+                Se preferir, baixe o CSV na WE (Relatórios → Relatório de Compras Unificado)
+                e suba aqui. Grava na competência aberta na tela: {rotuloMes(competencia)}.
+              </p>
+              <label className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-md border text-[13px] font-medium cursor-pointer ${
+                importando ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-wait' : 'bg-white border-gray-300 hover:bg-gray-50'
+              }`}>
+                {importando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                {importando ? 'Importando…' : 'Escolher CSV'}
+                <input type="file" accept=".csv,text/csv" className="hidden" disabled={importando}
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    e.target.value = ''
+                    if (f) { setPainelWe(false); importarPassagens(f) }
+                  }} />
+              </label>
+            </div>
+
+            <div className="flex justify-between items-center pt-1">
+              <button onClick={gerarAtalho} disabled={gerandoAtalho}
+                className="text-[12px] text-muted-foreground hover:underline">
+                Gerar um atalho novo (invalida o anterior)
+              </button>
+              <Button variant="outline" onClick={() => setPainelWe(false)}>Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {resumoImport && (
         <p className="text-[12px] text-muted-foreground">{resumoImport}</p>
