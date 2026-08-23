@@ -301,13 +301,17 @@ export function RelatoriosRh({
     feriasPorCand.set(f.candidate_id, arr)
   }
 
-  const feriasLinhas = base
+  // Intermitente não entra: sem jornada contínua, não há período aquisitivo
+  // correndo, então cobrar prazo de férias dele seria alarme falso.
+  const baseFerias = base.filter(c => c.vinculo !== 'intermitente')
+
+  const feriasLinhas = baseFerias
     .map(c => ({ ...c, situacao: situacaoFerias(c.admissao, feriasPorCand.get(c.candidate_id) ?? []) }))
     .filter(c => (statusFerias ? c.situacao.status === statusFerias : true))
     // Mais urgente primeiro: vencidas (ordem negativa), depois o prazo mais curto.
     .sort((a, b) => a.situacao.ordem - b.situacao.ordem)
 
-  const contagemFerias = base.reduce((acc, c) => {
+  const contagemFerias = baseFerias.reduce((acc, c) => {
     const st = situacaoFerias(c.admissao, feriasPorCand.get(c.candidate_id) ?? []).status
     acc[st] = (acc[st] ?? 0) + 1
     return acc
@@ -548,7 +552,6 @@ export function RelatoriosRh({
                     className={`hover:bg-gray-50 ${c.situacao.status === 'vencida' ? 'bg-red-50/60' : ''}`}>
                     <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">
                       {formatName(c.nome)}
-                      {c.vinculo === 'intermitente' && <Selo texto="Intermitente" />}
                       <span className="block text-[11px] text-muted-foreground">{c.cargo ?? '—'}</span>
                     </td>
                     <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{c.empresa ?? '—'}</td>
