@@ -25,3 +25,9 @@ create index if not exists vt_passagens_candidate
 
 alter table public.vt_passagens enable row level security;
 -- Sem policy: só o service role, atrás dos guards das rotas.
+
+-- A WE não vende "unidades de passagem" para o cartão Riocard (Semove): ela
+-- carrega VALOR por DIA. O recibo por funcionário traz "Dias" e "Vlr Total",
+-- e é contra os dias que a comparação com os dias trabalhados faz sentido.
+alter table public.vt_passagens
+  add column if not exists dias integer not null default 0 check (dias >= 0 and dias <= 31);

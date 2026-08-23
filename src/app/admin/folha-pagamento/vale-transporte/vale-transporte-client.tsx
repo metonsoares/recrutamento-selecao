@@ -55,8 +55,14 @@ export function ValeTransporteClient({
   linhas: LinhaVT[]
   empresas: EmpresaOpcao[]
   historico: RegistroDias[]
-  /** candidate_id → passagens carregadas para ESTE mês de uso (recarga feita no mês anterior). */
-  passagens: Record<string, { quantidade: number; valor: number }>
+  /**
+   * candidate_id → o que a WE carregou no cartão para ESTE mês de uso (a
+   * recarga é feita no mês anterior). O cartão Riocard/Semove é carregado por
+   * VALOR POR DIA, não por unidade de passagem: por isso `dias` é o número que
+   * se compara com os dias trabalhados. `quantidade` só vem preenchida quando a
+   * operadora vende por unidade.
+   */
+  passagens: Record<string, { dias: number; quantidade: number; valor: number }>
   cicloAprovado: CicloAprovado | null
 }) {
   const router = useRouter()
@@ -82,19 +88,9 @@ export function ValeTransporteClient({
   const [importando, setImportando] = useState(false)
   const [resumoImport, setResumoImport] = useState<string>('')
 
-  /** Passagens carregadas para o mês (0 = nada importado ainda). */
-  function passagensDe(l: LinhaVT): number {
-    return passagens[l.candidate_id]?.quantidade ?? 0
-  }
-
-  /**
-   * Quantas passagens a pessoa deveria consumir no mês: dias trabalhados x
-   * passagens por dia da ficha (ida e volta = 2, quando informado).
-   */
-  function esperadoDe(l: LinhaVT): number {
-    const porDia = Math.trunc(Number(String(l.passagens ?? '').replace(/\D/g, ''))) || 0
-    if (porDia <= 0) return 0
-    return diasDe(l) * porDia
+  /** O que a WE carregou para o mês (dias, unidades e valor). */
+  function carregadoDe(l: LinhaVT) {
+    return passagens[l.candidate_id] ?? { dias: 0, quantidade: 0, valor: 0 }
   }
 
   /** Dias da pessoa no mês: só o que estiver no campo dela. */
@@ -321,14 +317,15 @@ export function ValeTransporteClient({
     } finally { setProcessando(false) }
   }
 
-  const CABECALHO = ['Funcionário', 'Empresa', 'Vínculo', 'Vale transporte', 'Dias trabalhados', 'Passagens carregadas']
+  const CABECALHO = ['Funcionário', 'Empresa', 'Vínculo', 'Vale transporte', 'Dias trabalhados', 'Dias carregados (WE)', 'Valor carregado']
   const corpo = () => filtradas.map(l => [
     formatName(l.nome),
     l.empresa ?? '—',
     l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
     l.recebe === true ? 'Sim' : l.recebe === false ? 'Não' : 'Não informado',
     aprovadosNoMes.get(l.candidate_id) ?? diasDe(l) ?? 0,
-    passagensDe(l),
+    carregadoDe(l).dias,
+    carregadoDe(l).valor,
   ])
 
   async function exportarXlsx() {
@@ -513,7 +510,7 @@ export function ValeTransporteClient({
                 <th className="px-4 py-2.5 font-semibold">Empresa</th>
                 <th className="px-4 py-2.5 font-semibold">Vale transporte</th>
                 <th className="px-4 py-2.5 font-semibold">Dias trabalhados</th>
-                <th className="px-4 py-2.5 font-semibold whitespace-nowrap">Passagens carregadas</th>
+                <th className="px-4 py-2.5 font-semibold whitespace-nowrap">Carregado na WE</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
@@ -615,24 +612,32 @@ export function ValeTransporteClient({
                       </div>
                     </td>
 
-                    {/* Passagens carregadas: recarga feita no mês anterior, para uso NESTE mês. */}
+                    {/* Carregado na WE: recarga feita no mês anterior, para uso NESTE mês. */}
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       {(() => {
-                        const carregadas = passagensDe(l)
-                        if (carregadas === 0) {
+                        const c = carregadoDe(l)
+                        if (c.dias === 0 && c.quantidade === 0) {
                           return <span className="text-[12px] text-gray-400">—</span>
                         }
-                        const esperado = esperadoDe(l)
-                        const sobra = esperado > 0 ? carregadas - esperado : null
+                        const trabalhados = diasDe(l)
+                        const dif = trabalhados > 0 ? c.dias - trabalhados : null
                         return (
-                          <div className="flex items-baseline gap-2">
-                            <span className="font-semibold text-gray-900">{carregadas}</span>
-                            {sobra !== null && (
-                              <span className={`text-[11px] font-medium ${
-                                sobra > 0 ? 'text-amber-700' : sobra < 0 ? 'text-red-600' : 'text-emerald-700'
-                              }`}
-                                title={`Esperado ${esperado} (${diasDe(l)} dias x ${l.passagens} por dia)`}>
-                                {sobra === 0 ? 'bate certo' : sobra > 0 ? `sobra ${sobra}` : `falta ${-sobra}`}
+                          <div>
+                            <div className="flex items-baseline gap-2">
+                              <span className="font-semibold text-gray-900">
+                                {c.quantidade > 0 ? `${c.quantidade} passagens` : `${c.dias} dias`}
+                              </span>
+                              {dif !== null && (
+                                <span className={`text-[11px] font-medium ${
+                                  dif > 0 ? 'text-amber-700' : dif < 0 ? 'text-red-600' : 'text-emerald-700'
+                                }`} title={`Carregado ${c.dias} dias · trabalhou ${trabalhados} dias`}>
+                                  {dif === 0 ? 'bate certo' : dif > 0 ? `sobra ${dif}` : `falta ${-dif}`}
+                                </span>
+                              )}
+                            </div>
+                            {c.valor > 0 && (
+                              <span className="block text-[11px] text-muted-foreground">
+                                {c.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </span>
                             )}
                           </div>
