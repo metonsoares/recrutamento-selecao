@@ -5,6 +5,9 @@ export const config = {
   matcher: ['/admin/:path*', '/api/admin/:path*'],
 }
 
+/** Papéis que a pré-visualização do Portal aceita. */
+const PERFIS_PREVIEW = ['gestor', 'gestor_rh', 'operador', 'visualizador']
+
 const PAGE_LABELS: [RegExp, string][] = [
   [/^\/admin\/?$/, 'Acessou o Dashboard'],
   [/^\/admin\/candidatos\/agenda/, 'Acessou Agenda de entrevistas'],
@@ -117,6 +120,23 @@ export async function proxy(req: NextRequest) {
   )
   if (isAdminApi && !isInternal && !user) {
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  }
+
+  // --- Pré-visualização de perfil (só troca a TELA, nunca o acesso) ---
+  // O Portal abre o app com ?perfil=<papel>&preview=1. Layouts do App Router
+  // não recebem searchParams, então o parâmetro vira um cookie que o layout lê.
+  // Quem decide se o preview vale é o layout, e SÓ para master/admin: aqui é
+  // apenas transporte. Nenhum guard de página ou de API usa este cookie.
+  if (pathname.startsWith('/admin')) {
+    const preview = req.nextUrl.searchParams.get('preview')
+    const perfil = req.nextUrl.searchParams.get('perfil')
+    if (preview === '1' && perfil && PERFIS_PREVIEW.includes(perfil)) {
+      res.cookies.set('bdt_preview_perfil', perfil, {
+        httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60,
+      })
+    } else if (preview === '0') {
+      res.cookies.delete('bdt_preview_perfil')
+    }
   }
 
   // --- Auditoria (best-effort, nunca bloqueia a resposta) ---
