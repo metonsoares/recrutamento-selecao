@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Exporta para o Portal BDT quem está disponível para trabalhar em evento:
 //   • status 'freelancer'
 //   • status 'aprovado'  ← é o que a UI do Recrutamento chama de INTERMITENTES
+//   • status 'contratado' ← funcionário CLT, que também é escalado em evento
 //   • status 'intermitente' (ainda não existe no banco; aceito para o dia em
 //     que a chave for renomeada, sem precisar de redeploy)
 //
@@ -39,13 +40,26 @@ const EXPECTED_TOKEN = Deno.env.get("IMPORT_TOKEN");
 const DUMMY = "00000000-0000-0000-0000-000000000000";
 
 /** Status que valem como "pode ser escalado em evento". */
-const STATUS = ["freelancer", "aprovado", "intermitente"];
+const STATUS = ["freelancer", "aprovado", "intermitente", "contratado"];
 
 /** Rótulo que o Recrutamento mostra na tela, para o Portal exibir igual. */
 function vinculo(status: string): string {
   if (status === "freelancer") return "Freelancer";
+  if (status === "contratado") return "Contratado";
   return "Intermitente";
 }
+
+/**
+ * Quando a mesma pessoa tem mais de uma candidatura, vale o vínculo mais
+ * forte. Sem isso ela aparecia repetida na lista do Portal — foi o caso do
+ * Anderson, com duas candidaturas em 'aprovado'.
+ */
+const FORCA: Record<string, number> = {
+  contratado: 3,
+  aprovado: 2,
+  intermitente: 2,
+  freelancer: 1,
+};
 
 /** Comparação de token em tempo constante: não vaza o prefixo certo. */
 function tokenConfere(a: string, b: string): boolean {
@@ -89,7 +103,15 @@ Deno.serve(async (req) => {
 
   const porId = new Map((cands ?? []).map((c) => [c.id, c]));
 
-  const pessoas = (apps ?? [])
+  const porCandidato = new Map<string, (typeof apps)[number]>();
+  for (const a of apps ?? []) {
+    const atual = porCandidato.get(a.candidate_id);
+    if (!atual || (FORCA[a.status] ?? 0) > (FORCA[atual.status] ?? 0)) {
+      porCandidato.set(a.candidate_id, a);
+    }
+  }
+
+  const pessoas = [...porCandidato.values()]
     .map((a) => {
       const c = porId.get(a.candidate_id);
       // Candidato apagado (LGPD) não volta: o registro só existe para histórico.
