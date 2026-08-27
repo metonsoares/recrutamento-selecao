@@ -24,11 +24,16 @@ interface CustomDoc {
 
 // ─── Lista de documentos da empresa ──────────────────────────────────────────
 
-const COMPANY_DOCS: { key: string; label: string; multiple: boolean; na: boolean; max?: number }[] = [
+// `soIntermitente` limita o documento a quem é intermitente (status `aprovado`):
+// o contrato de trabalho intermitente não existe para o contratado comum.
+const COMPANY_DOCS: {
+  key: string; label: string; multiple: boolean; na: boolean; max?: number; soIntermitente?: boolean
+}[] = [
   { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: true,  na: false, max: 2 },
   { key: 'contrato_tempo_determinado', label: 'Contrato de prestação de serviço',        multiple: true,  na: true  },
   { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: false },
   { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false },
+  { key: 'contrato_intermitente', label: 'Contrato de trabalho intermitente',             multiple: true,  na: false, max: 4, soIntermitente: true },
   { key: 'regulamento_interno', label: 'Regulamento interno',                            multiple: false, na: false },
   { key: 'banco_horas',         label: 'Acordo individual de banco de horas',            multiple: true,  na: true  },
   { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: true,  na: false },
@@ -373,6 +378,8 @@ interface Props {
   initialDocs: Record<string, unknown> | null
   showDesligamento?: boolean
   terminationLetter?: UploadedFile | null
+  /** Intermitente (status `aprovado`) — libera os documentos exclusivos dele. */
+  intermitente?: boolean
 }
 
 function initCustom(saved: Record<string, unknown> | null, key: string): CustomDoc[] {
@@ -383,7 +390,7 @@ function initCustom(saved: Record<string, unknown> | null, key: string): CustomD
   return []
 }
 
-export function DocumentosTab({ candidateId, initialDocs, showDesligamento = false, terminationLetter = null }: Props) {
+export function DocumentosTab({ candidateId, initialDocs, showDesligamento = false, terminationLetter = null, intermitente = false }: Props) {
   const [docs, setDocs] = useState<Record<string, DocState>>(() => initDocs(initialDocs))
   const [treinamentos, setTreinamentos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__treinamentos'))
   const [circulares, setCirculares] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__circulares'))
@@ -442,11 +449,15 @@ export function DocumentosTab({ candidateId, initialDocs, showDesligamento = fal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs, treinamentos, circulares, recibos, desligamentoDocs])
 
-  const done = COMPANY_DOCS.filter(d => {
+  // O estado guarda todos os documentos; a tela mostra só os que valem para
+  // este vínculo — assim nada se perde se o colaborador mudar de status.
+  const docsVisiveis = COMPANY_DOCS.filter(d => !d.soIntermitente || intermitente)
+
+  const done = docsVisiveis.filter(d => {
     const s = docs[d.key]
     return s?.not_applicable || (s?.files?.length ?? 0) > 0
   }).length
-  const total = COMPANY_DOCS.length
+  const total = docsVisiveis.length
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -479,7 +490,7 @@ export function DocumentosTab({ candidateId, initialDocs, showDesligamento = fal
         </div>
 
         <div className="space-y-2">
-          {COMPANY_DOCS.map(doc => (
+          {docsVisiveis.map(doc => (
             <DocRow
               key={doc.key}
               doc={doc}

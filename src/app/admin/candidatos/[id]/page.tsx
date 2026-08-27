@@ -599,6 +599,7 @@ export default async function CandidatePage({
           candidateId={id}
           initialDocs={companyDocs}
           showDesligamento={isDesligado}
+          intermitente={currentStatus === 'aprovado'}
           terminationLetter={(latestApp?.termination_data as { letter?: { url: string; name: string; path: string } } | null)?.letter ?? null}
         />
       )}
