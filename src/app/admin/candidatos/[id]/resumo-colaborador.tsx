@@ -273,6 +273,7 @@ const TIMELINE_STYLE: Record<string, { icon: React.ElementType; bg: string; fg: 
   atestado:     { icon: Stethoscope,   bg: 'bg-blue-100',    fg: 'text-blue-700' },
   desligamento: { icon: UserMinus,     bg: 'bg-rose-100',    fg: 'text-rose-700' },
   aumento:      { icon: TrendingUp,    bg: 'bg-teal-100',    fg: 'text-teal-700' },
+  funcao:       { icon: Briefcase,     bg: 'bg-indigo-100',  fg: 'text-indigo-700' },
 }
 
 function RichTimeline({ events }: { events: { date: string; label: string; type: string }[] }) {

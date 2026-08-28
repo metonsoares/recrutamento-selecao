@@ -35,6 +35,7 @@ import { StatusSelect } from './status-select'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
 import { ContratosTab, ContractItem } from './contratos-tab'
 import { SalaryRaisesPanel, SalaryRaise } from './salary-raises-panel'
+import { RoleChangesPanel, RoleChange } from './role-changes-panel'
 import { TransferCompanySection, ArchivedFicha } from './ficha-transfer'
 import { FileDown, Globe, AlertTriangle, RefreshCw, Clock } from 'lucide-react'
 
@@ -201,6 +202,7 @@ export default async function CandidatePage({
     { data: contractsData },
     { data: docReqRows },
     { data: salaryRaisesData },
+    { data: roleChangesData },
   ] = await Promise.all([
     service.from('ai_settings').select('company_name').limit(1).single(),
     service.from('companies').select('id, apelido, razao_social, cnpj').order('created_at', { ascending: false }),
@@ -216,11 +218,13 @@ export default async function CandidatePage({
     service.from('freelancer_contracts').select('*').eq('candidate_id', id).order('contract_date', { ascending: false }),
     service.from('doc_requests').select('doc_key, last_requested_at').eq('candidate_id', id),
     service.from('salary_raises').select('*').eq('candidate_id', id).order('raise_date', { ascending: false }).order('created_at', { ascending: false }),
+    service.from('role_changes').select('*').eq('candidate_id', id).order('change_date', { ascending: false }).order('created_at', { ascending: false }),
   ])
 
   const fichaCompanies = (companiesData || []) as CompanyOption[]
   const admissionForm = (latestApp?.admission_form as AdmissionFormData | null) ?? null
   const salaryRaises = (salaryRaisesData || []) as SalaryRaise[]
+  const roleChanges = (roleChangesData || []) as RoleChange[]
   // Fichas arquivadas por "Transferir de empresa" (mais antiga primeiro no array)
   const admissionFormHistory = (Array.isArray(latestApp?.admission_form_history)
     ? latestApp!.admission_form_history
@@ -277,6 +281,15 @@ export default async function CandidatePage({
   for (const w of warningsData || []) timeline.push({ date: w.occurred_at, label: `Advertência${w.reason ? ': ' + String(w.reason).slice(0, 50) : ''}`, type: 'advertencia' })
   for (const c of certificatesData || []) timeline.push({ date: c.certificate_date, label: `Atestado${c.comment ? ': ' + String(c.comment).slice(0, 50) : ''}`, type: 'atestado' })
   for (const r of salaryRaises) timeline.push({ date: r.raise_date, label: `Aumento de salário: ${fmtBRL(Number(r.new_value))}`, type: 'aumento' })
+  for (const c of roleChanges) {
+    timeline.push({
+      date: c.change_date,
+      label: c.previous_title
+        ? `Mudança de função: ${c.previous_title} → ${c.new_title}`
+        : `Mudança de função: ${c.new_title}`,
+      type: 'funcao',
+    })
+  }
   if (latestApp?.terminated_at) {
     const td = latestApp.termination_data as { requester?: string } | null
     const who = td?.requester === 'funcionario' ? ' (a pedido do funcionário)' : td?.requester === 'empresa' ? ' (pela empresa)' : ''
@@ -531,6 +544,13 @@ export default async function CandidatePage({
         <>
           {/* Aumentos de salário — botão + popup + histórico */}
           <SalaryRaisesPanel candidateId={id} initialRaises={salaryRaises} />
+
+          {/* Mudança de função — troca a função da ficha guardando a linha do tempo */}
+          <RoleChangesPanel
+            candidateId={id}
+            initialChanges={roleChanges}
+            funcaoAtual={admissionForm?.function_title ?? null}
+          />
 
           {/* Transferir de empresa — arquiva a ficha atual e mantém a ativa editável */}
           <TransferCompanySection candidateId={id} hasFicha={!!admissionForm} />
