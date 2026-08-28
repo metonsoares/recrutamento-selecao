@@ -33,7 +33,7 @@ const COMPANY_DOCS: {
   { key: 'contrato_tempo_determinado', label: 'Contrato de prestação de serviço',        multiple: true,  na: true  },
   { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: false },
   { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false },
-  { key: 'contrato_intermitente', label: 'Contrato de trabalho intermitente',             multiple: true,  na: false, max: 4, soIntermitente: true },
+  { key: 'contrato_intermitente', label: 'Contrato de trabalho intermitente',             multiple: false, na: false, soIntermitente: true },
   { key: 'regulamento_interno', label: 'Regulamento interno',                            multiple: false, na: false },
   { key: 'banco_horas',         label: 'Acordo individual de banco de horas',            multiple: true,  na: true  },
   { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: true,  na: false },
