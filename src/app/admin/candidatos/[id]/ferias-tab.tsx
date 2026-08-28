@@ -68,7 +68,36 @@ const TABELA_DESCONTO = [
 const TOTAL_DIAS_PERIODO = 30
 
 function parse(d: string): Date { return new Date(d + 'T00:00:00') }
-function todayISO(): string { return new Date().toISOString().slice(0, 10) }
+/**
+ * Hoje em São Paulo. `toISOString()` devolve a data em UTC: depois das 21h em
+ * Brasília isso vira o dia SEGUINTE, e o campo de data abria já no amanhã.
+ */
+function todayISO(): string {
+  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Situação real das férias. `kind` diz só COMO o registro entrou (solicitação
+ * ou histórico lançado a mão) e nunca muda depois — por isso uma solicitação
+ * continuava marcada como "Solicitação" mesmo com a pessoa já em férias.
+ * A situação vem das DATAS, comparadas como string pura (yyyy-mm-dd), que é
+ * comparável na ordem certa e não sofre deslocamento de fuso.
+ */
+type SituacaoFerias = 'em_ferias' | 'agendada' | 'concluida' | 'historico'
+
+function situacaoDeFerias(v: { start_date: string; end_date: string; kind: string }, hoje: string): SituacaoFerias {
+  if (v.start_date <= hoje && hoje <= v.end_date) return 'em_ferias'
+  if (hoje < v.start_date) return 'agendada'
+  return v.kind === 'historico' ? 'historico' : 'concluida'
+}
+
+const SELO_FERIAS: Record<SituacaoFerias, { texto: string; classe: string }> = {
+  em_ferias:  { texto: 'Em férias',  classe: 'bg-blue-100 text-blue-800 border border-blue-300 font-semibold' },
+  agendada:   { texto: 'Agendada',   classe: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  concluida:  { texto: 'Concluída',  classe: 'bg-gray-100 text-gray-600' },
+  historico:  { texto: 'Histórico',  classe: 'bg-gray-100 text-gray-600' },
+}
 
 function diffDaysInclusive(start: string, end: string): number {
   if (!start || !end) return 0
@@ -610,9 +639,14 @@ function VacationRow({ v, candidateId, deleting, onEdit, onDelete, onSaveFile }:
       <td className="px-4 py-3 text-center font-semibold">{v.days}</td>
       <td className="px-4 py-3 text-center">{v.abono ? `${v.abono_days} dias` : '—'}</td>
       <td className="px-4 py-3">
-        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${v.kind === 'historico' ? 'bg-gray-100 text-gray-600' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-          {v.kind === 'historico' ? 'Histórico' : 'Solicitação'}
-        </span>
+        {(() => {
+          const selo = SELO_FERIAS[situacaoDeFerias(v, todayISO())]
+          return (
+            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${selo.classe}`}>
+              {selo.texto}
+            </span>
+          )
+        })()}
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col gap-1">
