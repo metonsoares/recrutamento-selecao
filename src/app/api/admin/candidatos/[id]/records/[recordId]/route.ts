@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string; recordId: string }> }) {
   try {
+    const denied = await requirePermissionApi('ficha.registros')
+    if (denied) return denied
     const { recordId } = await params
     const supabase = await createSupabaseServiceClient()
     const { data: r } = await supabase.from('records').select('file_path').eq('id', recordId).maybeSingle()

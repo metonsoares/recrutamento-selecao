@@ -32,13 +32,19 @@ interface Props {
   companyOptions: string[]
 }
 
+// O `value` precisa ser um Role de src/lib/permissions.ts. Era 'administrador',
+// que NÃO está em ALL_ROLES: o usuário criado assim caía no fallback do
+// normalizeRole e virava Master sem ninguém pedir.
 const PERFIS = [
-  { value: 'administrador', label: 'Administrador' },
+  { value: 'admin', label: 'Administrador' },
   { value: 'gestor', label: 'Gestor' },
+  { value: 'gestor_rh', label: 'Gestor RH' },
   { value: 'operador', label: 'Operador' },
 ]
 const PERFIL_LABEL: Record<string, string> = {
-  administrador: 'Administrador', gestor: 'Gestor', operador: 'Operador',
+  admin: 'Administrador', gestor: 'Gestor', gestor_rh: 'Gestor RH', operador: 'Operador',
+  // valor legado, para uma conta antiga não aparecer sem rótulo na lista
+  administrador: 'Administrador',
 }
 
 // Gera código: iniciais do 1º e último nome + 4 primeiros dígitos do CPF
@@ -206,7 +212,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
                 <td className="px-4 py-3 text-gray-700">{u.empresa || '—'}</td>
                 <td className="px-4 py-3">
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                    u.perfil === 'administrador' ? 'bg-amber-100 text-amber-700' :
+                    (u.perfil === 'admin' || u.perfil === 'administrador') ? 'bg-amber-100 text-amber-700' :
                     u.perfil === 'gestor' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
                   }`}>{PERFIL_LABEL[u.perfil] || u.perfil}</span>
                 </td>

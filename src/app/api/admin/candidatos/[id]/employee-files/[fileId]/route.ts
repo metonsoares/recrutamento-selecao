@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 /** PUT — atualiza competência e/ou arquivo do registro */
 export async function PUT(
@@ -7,6 +8,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; fileId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.documentos')
+    if (denied) return denied
     const { id, fileId } = await params
     const { reference, file_url, file_name, file_path, comprovante_file } = await req.json()
     const supabase = await createSupabaseServiceClient()
@@ -53,6 +56,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; fileId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.documentos')
+    if (denied) return denied
     const { fileId } = await params
     const supabase = await createSupabaseServiceClient()
     const { data: f } = await supabase.from('employee_files').select('file_path').eq('id', fileId).maybeSingle()

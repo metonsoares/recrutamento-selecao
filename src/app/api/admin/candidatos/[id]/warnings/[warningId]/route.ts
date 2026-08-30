@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 /** PUT — atualiza advertência */
 export async function PUT(
@@ -7,6 +8,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; warningId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.advertencias')
+    if (denied) return denied
     const { warningId } = await params
     const { occurred_at, reason, file_url, file_name, file_path } = await req.json()
     const supabase = await createSupabaseServiceClient()
@@ -37,6 +40,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; warningId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.advertencias')
+    if (denied) return denied
     const { warningId } = await params
     const supabase = await createSupabaseServiceClient()
 

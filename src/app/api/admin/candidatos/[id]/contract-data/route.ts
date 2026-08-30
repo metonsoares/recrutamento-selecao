@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 interface ReceiptFile { url?: string; name?: string; path?: string }
 interface Adjustment { type?: string; description?: string; receipt?: ReceiptFile | null }
@@ -63,6 +64,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.contrato')
+    if (denied) return denied
     const { id: candidateId } = await params
     const { data: contractData, status } = await req.json()
 

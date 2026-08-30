@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 /** PUT — atualiza data, observação e/ou arquivo do atestado */
 export async function PUT(
@@ -7,6 +8,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; certificateId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.atestados')
+    if (denied) return denied
     const { id, certificateId } = await params
     const { certificate_date, comment, file_url, file_name, file_path } = await req.json()
     const supabase = await createSupabaseServiceClient()
@@ -53,6 +56,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; certificateId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.atestados')
+    if (denied) return denied
     const { certificateId } = await params
     const supabase = await createSupabaseServiceClient()
 

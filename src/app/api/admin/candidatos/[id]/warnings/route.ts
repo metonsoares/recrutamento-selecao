@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 /** GET — lista advertências do candidato */
 export async function GET(
@@ -7,6 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.advertencias')
+    if (denied) return denied
     const { id } = await params
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
@@ -28,6 +31,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.advertencias')
+    if (denied) return denied
     const { id } = await params
     const { occurred_at, reason, file_url, file_name, file_path } = await req.json()
     if (!occurred_at || !reason?.trim()) {

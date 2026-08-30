@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; vacationId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.ferias')
+    if (denied) return denied
     const { vacationId } = await params
     const supabase = await createSupabaseServiceClient()
     const { error } = await supabase.from('vacations').delete().eq('id', vacationId)
@@ -29,6 +32,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; vacationId: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.ferias')
+    if (denied) return denied
     const { id, vacationId } = await params
     const b = await req.json()
     const update: Record<string, unknown> = {}

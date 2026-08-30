@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.atestados')
+    if (denied) return denied
     const { id } = await params
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
@@ -26,6 +29,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.atestados')
+    if (denied) return denied
     const { id } = await params
     const { certificate_date, file_url, file_name, file_path, comment } = await req.json()
     if (!certificate_date) {

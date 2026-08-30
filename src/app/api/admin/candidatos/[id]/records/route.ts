@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requirePermissionApi('ficha.registros')
+    if (denied) return denied
     const { id } = await params
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
@@ -17,6 +20,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const denied = await requirePermissionApi('ficha.registros')
+    if (denied) return denied
     const { id } = await params
     const { record_date, comment, file_url, file_name, file_path } = await req.json()
     if (!record_date) return NextResponse.json({ error: 'Data é obrigatória.' }, { status: 400 })

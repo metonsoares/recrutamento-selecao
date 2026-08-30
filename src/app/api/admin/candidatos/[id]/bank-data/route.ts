@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const denied = await requirePermissionApi('ficha.bancarios')
+    if (denied) return denied
     const { id: candidateId } = await params
     const body = await req.json()
 

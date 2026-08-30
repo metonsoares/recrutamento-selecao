@@ -74,8 +74,11 @@ const ROLE_PERMISSIONS: Record<Exclude<Role, 'master' | 'admin'>, Set<Permission
 /** Normaliza o valor de role vindo do user_metadata. */
 export function normalizeRole(raw: string | null | undefined): Role {
   if (raw && (ALL_ROLES as string[]).includes(raw)) return raw as Role
-  // Usuários antigos sem role definido são considerados Master.
-  return 'master'
+  // Perfil ausente ou desconhecido cai no MENOR privilégio, nunca no maior.
+  // Antes caía em 'master': bastava um valor fora da lista (a tela de cadastro
+  // grava "administrador", que não é um Role) ou o Portal não responder para a
+  // conta virar Master sozinha. Fallback de autorização é sempre para baixo.
+  return 'externo'
 }
 
 /**
