@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -706,7 +707,7 @@ function VacFileSlot({ label, candidateId, value, onSaved }: {
       {value?.url ? (
         <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 max-w-[160px]">
           <FileText className="w-3 h-3 text-red-500 shrink-0" />
-          <a href={value.url} target="_blank" rel="noreferrer" className="text-[10px] text-emerald-700 hover:underline truncate">{value.name}</a>
+          <a href={value.url} onClick={e => abrirArquivoAssinado(e, value)} target="_blank" rel="noreferrer" className="text-[10px] text-emerald-700 hover:underline truncate">{value.name}</a>
           <button onClick={remove} disabled={busy} className="text-gray-400 hover:text-red-500 shrink-0">
             {busy ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <X className="w-2.5 h-2.5" />}
           </button>

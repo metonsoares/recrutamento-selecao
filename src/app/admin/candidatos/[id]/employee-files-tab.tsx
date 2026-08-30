@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 interface FileRef { url: string; name: string; path: string }
 
@@ -231,7 +232,7 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
                 {file ? (
                   <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                     <FileText className="w-4 h-4 text-red-500 shrink-0" />
-                    <a href={file.url} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{file.name}</a>
+                    <a href={file.url} onClick={e => abrirArquivoAssinado(e, file)} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{file.name}</a>
                     <button onClick={() => setFile(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
@@ -288,7 +289,7 @@ function ComprovanteSlot({ candidateId, value, onSaved }: {
       {value?.url ? (
         <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded px-2 py-1 max-w-[180px]">
           <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
-          <a href={value.url} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate">{value.name}</a>
+          <a href={value.url} onClick={e => abrirArquivoAssinado(e, value)} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate">{value.name}</a>
           <button onClick={remove} disabled={busy} className="text-gray-400 hover:text-red-500 shrink-0">
             {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
           </button>

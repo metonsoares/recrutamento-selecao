@@ -18,21 +18,17 @@ export default async function FolhasAnaliticasPage() {
 
   const lista = folhas ?? []
 
-  // Bucket é privado: o link de abertura é assinado e vale 1 hora.
-  const assinadas = await Promise.all(
-    lista.map(async f => {
-      const { data } = await supabase.storage
-        .from(BUCKET).createSignedUrl(f.file_path as string, 3600)
-      return {
-        id: f.id as string,
-        empresa: f.empresa as string,
-        competencia: f.competencia as string,
-        file_name: f.file_name as string,
-        url: data?.signedUrl ?? null,
-        created_at: f.created_at as string,
-      } as FolhaAnalitica
-    }),
-  )
+  // O bucket é privado. A URL assinada é criada NO CLIQUE, não aqui: assinada
+  // no render, ela vira um cronômetro contra o usuário (aba aberta um tempo, o
+  // prazo vence e o link morre) e custa um round-trip ao Storage por linha.
+  const assinadas = lista.map(f => ({
+    id: f.id as string,
+    empresa: f.empresa as string,
+    competencia: f.competencia as string,
+    file_name: f.file_name as string,
+    path: f.file_path as string,
+    created_at: f.created_at as string,
+  })) as FolhaAnalitica[]
 
   const companyOptions = Array.from(new Set(
     (companiesData ?? [])

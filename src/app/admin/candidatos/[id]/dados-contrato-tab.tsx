@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ function AdjustmentRow({ candidateId, item, onChange, onRemove, onSave }: {
           {item.receipt ? (
             <div className="inline-flex items-center gap-1.5 bg-white border border-emerald-300 rounded-lg px-2 py-0.5">
               <FileText className="w-3.5 h-3.5 text-red-500" />
-              <a href={item.receipt.url} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate max-w-[160px]">{item.receipt.name}</a>
+              <a href={item.receipt.url} onClick={e => abrirArquivoAssinado(e, item.receipt)} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate max-w-[160px]">{item.receipt.name}</a>
               <button onClick={() => onChange({ ...item, receipt: null })} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
             </div>
           ) : (
@@ -186,7 +187,7 @@ function DocUploadField({ candidateId, docKey, label, value, onChange }: {
       {value ? (
         <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-md px-2.5 py-1.5">
           <FileText className="w-4 h-4 text-red-500 shrink-0" />
-          <a href={value.url} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{value.name}</a>
+          <a href={value.url} onClick={e => abrirArquivoAssinado(e, value)} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{value.name}</a>
           <button onClick={() => onChange(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
         </div>
       ) : (
@@ -452,7 +453,7 @@ export function DadosContratoTab({ candidateId, fullName, cpf, address, jobTitle
           {form.quitacao_file ? (
             <div className="inline-flex items-center gap-2 bg-white border border-emerald-300 rounded-lg px-3 py-1.5 max-w-full">
               <FileText className="w-4 h-4 text-red-500 shrink-0" />
-              <a href={form.quitacao_file.url} target="_blank" rel="noreferrer" className="text-[12px] font-medium text-emerald-700 hover:underline truncate">
+              <a href={form.quitacao_file.url} onClick={e => abrirArquivoAssinado(e, form.quitacao_file)} target="_blank" rel="noreferrer" className="text-[12px] font-medium text-emerald-700 hover:underline truncate">
                 Recibo de quitação — {form.quitacao_file.name}
               </a>
               <button disabled={saving} onClick={async () => { set('quitacao_file', null); await save(undefined, { quitacao_file: null }) }}

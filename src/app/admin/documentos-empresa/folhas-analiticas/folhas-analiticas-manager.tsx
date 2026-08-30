@@ -7,13 +7,14 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MESES, rotuloMesLongo } from '@/lib/competencia'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 export interface FolhaAnalitica {
   id: string
   empresa: string
   competencia: string   // yyyy-mm-01
   file_name: string
-  url: string | null    // link assinado (bucket privado)
+  path: string    // link assinado (bucket privado)
   created_at: string
 }
 
@@ -133,8 +134,8 @@ export function FolhasAnaliticasManager({
                   </td>
                   <td className="px-4 py-2.5 text-gray-500 hidden sm:table-cell truncate max-w-[240px]">{f.file_name}</td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                    {f.url && (
-                      <a href={f.url} target="_blank" rel="noreferrer"
+                    {f.path && (
+                      <a href="#" onClick={e => abrirArquivoAssinado(e, { path: f.path }, 'folhas-analiticas')}
                         className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline mr-2">
                         Abrir PDF<ExternalLink className="w-3 h-3" />
                       </a>

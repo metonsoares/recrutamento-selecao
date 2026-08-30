@@ -5,6 +5,7 @@ import { UserMinus, Loader2, X, Upload, FileText, AlertCircle } from 'lucide-rea
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 interface Props { candidateId: string; applicationId?: string }
 
@@ -105,7 +106,7 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
                   {letter ? (
                     <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                       <FileText className="w-4 h-4 text-red-500 shrink-0" />
-                      <a href={letter.url} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{letter.name}</a>
+                      <a href={letter.url} onClick={e => abrirArquivoAssinado(e, letter)} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{letter.name}</a>
                       <button onClick={() => setLetter(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   ) : (
