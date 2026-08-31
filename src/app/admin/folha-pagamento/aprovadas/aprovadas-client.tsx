@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  CheckCheck, Download, ChevronDown, ChevronRight, ExternalLink, MessageSquare,
-  FileSpreadsheet, FileText, CalendarCheck, Search, Building2, Loader2, Check,
+  CheckCheck, Download, ChevronDown, ChevronRight, ChevronLeft, ExternalLink,
+  MessageSquare, FileSpreadsheet, FileText, Search, Building2, Loader2, Check,
   AlertCircle, CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
-import { maiuscula, rotuloMes } from '@/lib/competencia'
+import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
 
 export interface ItemAprovado {
   candidate_id: string
@@ -49,13 +49,6 @@ export interface EmpresaAprovada {
   linhas: ItemAprovado[]
 }
 
-export interface PeriodoAprovado {
-  competencia: string
-  empresas: EmpresaAprovada[]
-  /** Outros fechamentos do mesmo mês (gorjetas, vale transporte, lançamentos). */
-  outras: string[]
-}
-
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -85,11 +78,18 @@ const CABECALHO = [
   'Gorjeta', 'Cargo de confiança', 'Insalubridade 20%', 'Quebra de caixa 15%', 'Salário', 'Comentário',
 ]
 
-export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
+export function AprovadasClient({
+  competencia, empresas, outras,
+}: {
+  competencia: string
+  empresas: EmpresaAprovada[]
+  /** Outros fechamentos do mesmo mês (gorjetas, vale transporte, lançamentos). */
+  outras: string[]
+}) {
   const router = useRouter()
-  // O mês mais recente já abre: é o que se consulta na maior parte das vezes.
+  // Poucas empresas por mês: todas já abertas evita um clique por cartão.
   const [abertos, setAbertos] = useState<Set<string>>(
-    () => new Set(periodos.slice(0, 1).flatMap(p => p.empresas.map(e => e.ciclo_id))),
+    () => new Set(empresas.map(e => e.ciclo_id)),
   )
   const [menu, setMenu] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
@@ -100,14 +100,10 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
   // Marcação e comentário por ciclo: o que está marcado é o que continua na
   // folha quando se reaprova.
   const [marcados, setMarcados] = useState<Record<string, Set<string>>>(
-    () => Object.fromEntries(
-      periodos.flatMap(p => p.empresas).map(e => [e.ciclo_id, new Set(e.linhas.map(l => l.candidate_id))]),
-    ),
+    () => Object.fromEntries(empresas.map(e => [e.ciclo_id, new Set(e.linhas.map(l => l.candidate_id))])),
   )
   const [comentarios, setComentarios] = useState<Record<string, string>>(
-    () => Object.fromEntries(
-      periodos.flatMap(p => p.empresas).flatMap(e => e.linhas.map(l => [l.candidate_id, l.comentario])),
-    ),
+    () => Object.fromEntries(empresas.flatMap(e => e.linhas.map(l => [l.candidate_id, l.comentario]))),
   )
   const [salvando, setSalvando] = useState<string | null>(null)
   const [reaprovando, setReaprovando] = useState<string | null>(null)
@@ -127,7 +123,7 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
     return e.linhas.filter(l => contemBusca(`${l.nome} ${l.cargo ?? ''}`, termo))
   }
 
-  async function salvarComentario(competencia: string, l: ItemAprovado) {
+  async function salvarComentario(l: ItemAprovado) {
     const texto = comentarios[l.candidate_id] ?? ''
     if (texto === l.comentario) return          // nada mudou
     setSalvando(l.candidate_id); setErro(''); setOk('')
@@ -150,7 +146,7 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
    * no servidor a partir dos lançamentos de hoje — reaprovar é justamente
    * dizer "vale o de agora".
    */
-  async function reaprovar(competencia: string, e: EmpresaAprovada) {
+  async function reaprovar(e: EmpresaAprovada) {
     const ids = Array.from(marcados[e.ciclo_id] ?? [])
     setReaprovando(e.ciclo_id); setErro(''); setOk('')
     try {
@@ -171,7 +167,7 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
     } finally { setReaprovando(null) }
   }
 
-  async function exportarXlsx(competencia: string, e: EmpresaAprovada) {
+  async function exportarXlsx(e: EmpresaAprovada) {
     setMenu(null)
     const corpo = filtrar(e).map(l => [
       formatName(l.nome), l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
@@ -186,7 +182,7 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
     )
   }
 
-  async function exportarPdf(competencia: string, e: EmpresaAprovada) {
+  async function exportarPdf(e: EmpresaAprovada) {
     setMenu(null)
     const [mes, ano] = maiuscula(rotuloMes(competencia)).split(' de ')
     const linhas = filtrar(e)
@@ -207,9 +203,9 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
     baixarArquivo(blob, `folha-aprovada-${competencia.slice(0, 7)}-${e.empresa_nome.replace(/[^\w]+/g, '-')}.pdf`)
   }
 
-  const todasEmpresas = Array.from(
-    new Set(periodos.flatMap(p => p.empresas.map(e => e.empresa_nome))),
-  ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const todasEmpresas = Array.from(new Set(empresas.map(e => e.empresa_nome)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const visiveis = empresas.filter(e => !empresaFiltro || e.empresa_nome === empresaFiltro)
 
   return (
     <div className="p-4 sm:p-6 max-w-[1400px] mx-auto space-y-5">
@@ -220,14 +216,28 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
         <div className="flex-1 min-w-[220px]">
           <h1 className="text-2xl font-bold leading-tight">Folhas aprovadas</h1>
           <p className="text-sm text-muted-foreground">
-            Por período, só as empresas que já tiveram a folha aprovada — com o retrato
-            de cada colaborador na hora da aprovação. Dá para editar o comentário,
-            desmarcar quem saiu e reaprovar.
+            No mês escolhido, só as empresas que já tiveram a folha aprovada — com o
+            retrato de cada colaborador na hora da aprovação. Dá para editar o
+            comentário, desmarcar quem saiu e reaprovar.
           </p>
+        </div>
+
+        <div className="inline-flex items-center rounded-lg border bg-white overflow-hidden">
+          <Link href={`?competencia=${mesVizinho(competencia, -1)}`} scroll={false}
+            className="p-2 hover:bg-gray-50" title="Mês anterior">
+            <ChevronLeft className="w-4 h-4 text-gray-500" />
+          </Link>
+          <span className="px-3 text-[13px] font-semibold text-gray-800 border-x whitespace-nowrap">
+            {maiuscula(rotuloMes(competencia))}
+          </span>
+          <Link href={`?competencia=${mesVizinho(competencia, 1)}`} scroll={false}
+            className="p-2 hover:bg-gray-50" title="Mês seguinte">
+            <ChevronRight className="w-4 h-4 text-gray-500" />
+          </Link>
         </div>
       </div>
 
-      {periodos.length > 0 && (
+      {empresas.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -246,33 +256,26 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
       {erro && <p className="text-[13px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{erro}</p>}
       {ok && <p className="text-[13px] text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{ok}</p>}
 
-      {periodos.length === 0 && (
+      {visiveis.length === 0 && (
         <div className="rounded-2xl border bg-white shadow-sm p-10 text-center">
           <p className="text-sm text-muted-foreground">
-            Nenhuma folha aprovada ainda. Aprove um mês em{' '}
-            <Link href="/admin/folha-pagamento/fechamento" className="text-primary underline">
-              Fechamento de folha
-            </Link>{' '}
+            Nenhuma folha aprovada em {maiuscula(rotuloMes(competencia))}. Aprove o mês em{' '}
+            <Link href={`/admin/folha-pagamento/fechamento?competencia=${competencia}`}
+              className="text-primary underline">Fechamento de folha</Link>{' '}
             que ele aparece aqui.
           </p>
         </div>
       )}
 
-      {periodos.map(p => {
-        const empresasDoMes = p.empresas.filter(e => !empresaFiltro || e.empresa_nome === empresaFiltro)
-        if (empresasDoMes.length === 0) return null
-        return (
-          <div key={p.competencia} className="space-y-2">
-            <div className="flex items-baseline gap-2 flex-wrap pt-2">
-              <CalendarCheck className="w-4 h-4 text-primary shrink-0 self-center" />
-              <h2 className="text-lg font-bold text-gray-900">{maiuscula(rotuloMes(p.competencia))}</h2>
-              <span className="text-[12px] text-muted-foreground">
-                {empresasDoMes.length === 1 ? '1 empresa aprovada' : `${empresasDoMes.length} empresas aprovadas`}
-                {p.outras.length > 0 && <> · também aprovado no mês: {p.outras.join(', ')}</>}
-              </span>
-            </div>
+      {visiveis.length > 0 && (
+        <p className="text-[12.5px] text-muted-foreground">
+          {visiveis.length === 1 ? '1 empresa aprovada' : `${visiveis.length} empresas aprovadas`}
+          {outras.length > 0 && <> · também aprovado no mês: {outras.join(', ')}</>}
+        </p>
+      )}
 
-            {empresasDoMes.map(e => {
+      <div className="space-y-3">
+        {visiveis.map(e => {
               const aberto = abertos.has(e.ciclo_id)
               const linhas = filtrar(e)
               const marcadosDoCiclo = marcados[e.ciclo_id] ?? new Set<string>()
@@ -302,11 +305,11 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
                           <div className="absolute right-0 mt-1 z-20 w-48 rounded-xl border bg-white shadow-lg overflow-hidden">
-                            <button onClick={() => exportarXlsx(p.competencia, e)}
+                            <button onClick={() => exportarXlsx(e)}
                               className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50">
                               <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />Excel
                             </button>
-                            <button onClick={() => exportarPdf(p.competencia, e)}
+                            <button onClick={() => exportarPdf(e)}
                               className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50 border-t">
                               <FileText className="w-4 h-4 text-red-600 shrink-0" />PDF
                             </button>
@@ -314,7 +317,7 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
                         </>
                       )}
                     </div>
-                    <Button size="sm" onClick={() => reaprovar(p.competencia, e)}
+                    <Button size="sm" onClick={() => reaprovar(e)}
                       disabled={reaprovando === e.ciclo_id} className="gap-1.5">
                       {reaprovando === e.ciclo_id
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -323,16 +326,7 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
                     </Button>
                   </div>
 
-                  {e.linhas.length === 0 && (
-                    <p className="px-4 pb-4 -mt-1 text-[12.5px] text-amber-800">
-                      Esta aprovação é anterior ao detalhe por colaborador. Reaprove em{' '}
-                      <Link href={`/admin/folha-pagamento/fechamento?competencia=${p.competencia}`}
-                        className="underline font-semibold">Fechamento de folha</Link>{' '}
-                      para gravar a lista.
-                    </p>
-                  )}
-
-                  {aberto && e.linhas.length > 0 && (
+                  {aberto && (
                     <div className="border-t overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b">
@@ -404,7 +398,7 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
                                   <input
                                     value={comentarios[l.candidate_id] ?? ''}
                                     onChange={ev => setComentarios(c => ({ ...c, [l.candidate_id]: ev.target.value }))}
-                                    onBlur={() => salvarComentario(p.competencia, l)}
+                                    onBlur={() => salvarComentario(l)}
                                     placeholder="Anotação do mês…"
                                     className="h-8 w-full min-w-[150px] border border-gray-300 rounded-md px-2 text-[13px] bg-white"
                                   />
@@ -430,12 +424,10 @@ export function AprovadasClient({ periodos }: { periodos: PeriodoAprovado[] }) {
                       </table>
                     </div>
                   )}
-                </div>
-              )
-            })}
-          </div>
-        )
-      })}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

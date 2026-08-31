@@ -1,25 +1,32 @@
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { AprovadasClient, PeriodoAprovado, EmpresaAprovada, ItemAprovado } from './aprovadas-client'
+import { mesCorrente, competenciaValida } from '@/lib/competencia'
+import { AprovadasClient, EmpresaAprovada, ItemAprovado } from './aprovadas-client'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Folhas aprovadas — o que já foi fechado, período a período, listando SÓ as
- * empresas que tiveram folha aprovada naquele mês.
+ * Folhas aprovadas — o mês escolhido na navegação, listando SÓ as empresas que
+ * tiveram folha aprovada nele.
  *
  * O que aparece aqui é o retrato guardado na aprovação (fechamento_itens), não
  * a consolidação de agora: a folha aprovada tem que continuar mostrando os
  * números que foram aprovados, mesmo que um lançamento mude depois.
  */
-export default async function FolhasAprovadasPage() {
+export default async function FolhasAprovadasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ competencia?: string }>
+}) {
   await requireMaster()
+  const sp = await searchParams
+  const competencia = competenciaValida(sp.competencia) ? sp.competencia : mesCorrente()
   const supabase = await createSupabaseServiceClient()
 
   const { data: ciclos } = await supabase
     .from('fechamento_ciclos')
     .select('id, competencia, empresa_id, empresa_nome, colaboradores, total_dias, total_faltas, total_gorjeta, total_salario, aprovado_por, aprovado_em')
-    .order('competencia', { ascending: false })
+    .eq('competencia', competencia)
 
   const lista = ciclos ?? []
   const cicloIds = lista.map(c => c.id as string)
@@ -55,30 +62,29 @@ export default async function FolhasAprovadasPage() {
   }
   for (const arr of itensPorCiclo.values()) arr.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
-  // Outras aprovações do mesmo mês, para o cabeçalho dizer o que mais fechou.
+  // O que mais fechou no mesmo mês, para o cabeçalho dar o contexto.
   const [{ data: lancamentos }, { data: vt }, { data: gorjetas }, { data: premio }] = await Promise.all([
-    supabase.from('folha_ciclos').select('tipo, competencia'),
-    supabase.from('vt_ciclos').select('competencia'),
-    supabase.from('gorjeta_ciclos').select('competencia'),
-    supabase.from('premio_caju_ciclos').select('competencia'),
+    supabase.from('folha_ciclos').select('tipo').eq('competencia', competencia),
+    supabase.from('vt_ciclos').select('id').eq('competencia', competencia),
+    supabase.from('gorjeta_ciclos').select('id').eq('competencia', competencia),
+    supabase.from('premio_caju_ciclos').select('id').eq('competencia', competencia),
   ])
 
-  const outrasPorComp = new Map<string, string[]>()
-  const juntar = (comp: string, nome: string) => {
-    const arr = outrasPorComp.get(comp) ?? []
-    if (!arr.includes(nome)) arr.push(nome)
-    outrasPorComp.set(comp, arr)
-  }
-  for (const l of lancamentos ?? []) juntar(l.competencia as string, String(l.tipo).replace(/-/g, ' '))
-  for (const v of vt ?? []) juntar(v.competencia as string, 'vale transporte')
-  for (const g of gorjetas ?? []) juntar(g.competencia as string, 'gorjetas')
-  for (const p of premio ?? []) juntar(p.competencia as string, 'prêmio caju')
+  const outras: string[] = []
+  for (const l of lancamentos ?? []) outras.push(String(l.tipo).replace(/-/g, ' '))
+  if ((vt ?? []).length) outras.push('vale transporte')
+  if ((gorjetas ?? []).length) outras.push('gorjetas')
+  if ((premio ?? []).length) outras.push('prêmio caju')
+  outras.sort()
 
-  const porCompetencia = new Map<string, EmpresaAprovada[]>()
+  const empresas: EmpresaAprovada[] = []
   for (const c of lista) {
-    const comp = c.competencia as string
-    const arr = porCompetencia.get(comp) ?? []
-    arr.push({
+    // Folha sem colaborador nenhum não é folha. Por construção não existe (o
+    // POST apaga o ciclo quando ninguém fica marcado); isto só evita mostrar
+    // um cartão vazio se sobrar algum registro antigo.
+    const linhas = itensPorCiclo.get(c.id as string) ?? []
+    if (linhas.length === 0) continue
+    empresas.push({
       ciclo_id: c.id as string,
       empresa_id: (c.empresa_id as string) ?? null,
       empresa_nome: (c.empresa_nome as string) ?? 'Sem empresa',
@@ -91,18 +97,10 @@ export default async function FolhasAprovadasPage() {
         total_gorjeta: Number(c.total_gorjeta) || 0,
         total_salario: Number(c.total_salario) || 0,
       },
-      linhas: itensPorCiclo.get(c.id as string) ?? [],
+      linhas,
     })
-    porCompetencia.set(comp, arr)
   }
+  empresas.sort((a, b) => a.empresa_nome.localeCompare(b.empresa_nome, 'pt-BR'))
 
-  const periodos: PeriodoAprovado[] = Array.from(porCompetencia.entries())
-    .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([competencia, empresas]) => ({
-      competencia,
-      empresas: empresas.sort((a, b) => a.empresa_nome.localeCompare(b.empresa_nome, 'pt-BR')),
-      outras: (outrasPorComp.get(competencia) ?? []).sort(),
-    }))
-
-  return <AprovadasClient periodos={periodos} />
+  return <AprovadasClient competencia={competencia} empresas={empresas} outras={outras} />
 }
