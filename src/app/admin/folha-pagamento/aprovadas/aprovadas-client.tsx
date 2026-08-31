@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   CheckCheck, Download, ChevronDown, ChevronRight, ChevronLeft, ExternalLink,
-  MessageSquare, FileSpreadsheet, FileText, Search, Building2, Loader2, Check,
+  MessageSquare, FileSpreadsheet, FileText, Search, Building2, Loader2, Trash2,
   AlertCircle, CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -97,24 +97,15 @@ export function AprovadasClient({
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
 
-  // Marcação e comentário por ciclo: o que está marcado é o que continua na
-  // folha quando se reaprova.
-  const [marcados, setMarcados] = useState<Record<string, Set<string>>>(
-    () => Object.fromEntries(empresas.map(e => [e.ciclo_id, new Set(e.linhas.map(l => l.candidate_id))])),
-  )
   const [comentarios, setComentarios] = useState<Record<string, string>>(
     () => Object.fromEntries(empresas.flatMap(e => e.linhas.map(l => [l.candidate_id, l.comentario]))),
   )
   const [salvando, setSalvando] = useState<string | null>(null)
-  const [reaprovando, setReaprovando] = useState<string | null>(null)
+  const [excluindo, setExcluindo] = useState<string | null>(null)
+  const [confirmando, setConfirmando] = useState<EmpresaAprovada | null>(null)
 
   const alternarCard = (id: string) => setAbertos(s => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
-  })
-  const alternarMarcado = (cicloId: string, candidateId: string) => setMarcados(m => {
-    const atual = new Set(m[cicloId] ?? [])
-    atual.has(candidateId) ? atual.delete(candidateId) : atual.add(candidateId)
-    return { ...m, [cicloId]: atual }
   })
 
   function filtrar(e: EmpresaAprovada): ItemAprovado[] {
@@ -142,29 +133,28 @@ export function AprovadasClient({
   }
 
   /**
-   * Reaprova a empresa com quem continua marcado. Os números são recalculados
-   * no servidor a partir dos lançamentos de hoje — reaprovar é justamente
-   * dizer "vale o de agora".
+   * Exclui a folha aprovada da empresa. Não existe "reaprovar por cima": o
+   * mesmo colaborador não pode constar duas vezes na folha do mês, então
+   * refazer é excluir aqui e aprovar de novo no Fechamento.
    */
-  async function reaprovar(e: EmpresaAprovada) {
-    const ids = Array.from(marcados[e.ciclo_id] ?? [])
-    setReaprovando(e.ciclo_id); setErro(''); setOk('')
+  async function excluir(e: EmpresaAprovada) {
+    setExcluindo(e.ciclo_id); setErro(''); setOk('')
     try {
       const res = await fetch('/api/admin/folha-pagamento/fechamento', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ competencia, escopo_empresa: e.empresa_id, candidate_ids: ids }),
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competencia, empresa_id: e.empresa_id }),
       })
       const d = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(d.error || 'Erro ao reaprovar a folha.')
+      if (!res.ok) throw new Error(d.error || 'Erro ao excluir a folha.')
       setOk(
-        d.removidas
-          ? `${e.empresa_nome} saiu da folha de ${rotuloMes(competencia)}.`
-          : `${e.empresa_nome} reaprovada em ${rotuloMes(competencia)} com ${ids.length} colaboradores.`,
+        `Folha de ${e.empresa_nome} em ${rotuloMes(competencia)} excluída. `
+        + 'Para tê-la de volta, aprove de novo no Fechamento de folha.',
       )
+      setConfirmando(null)
       router.refresh()
     } catch (err) {
       setErro((err as Error).message)
-    } finally { setReaprovando(null) }
+    } finally { setExcluindo(null) }
   }
 
   async function exportarXlsx(e: EmpresaAprovada) {
@@ -217,8 +207,8 @@ export function AprovadasClient({
           <h1 className="text-2xl font-bold leading-tight">Folhas aprovadas</h1>
           <p className="text-sm text-muted-foreground">
             No mês escolhido, só as empresas que já tiveram a folha aprovada — com o
-            retrato de cada colaborador na hora da aprovação. Dá para editar o
-            comentário, desmarcar quem saiu e reaprovar.
+            retrato de cada colaborador na hora da aprovação. O comentário continua
+            editável; para refazer uma folha, exclua e aprove de novo no Fechamento.
           </p>
         </div>
 
@@ -274,11 +264,42 @@ export function AprovadasClient({
         </p>
       )}
 
+      {confirmando && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setConfirmando(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-3"
+            onClick={ev => ev.stopPropagation()}>
+            <h2 className="text-base font-semibold">Excluir a folha aprovada</h2>
+            <p className="text-[13px] text-gray-700">
+              A folha de <strong>{confirmando.empresa_nome}</strong> em{' '}
+              <strong>{maiuscula(rotuloMes(competencia))}</strong> sai da lista, com os{' '}
+              {confirmando.totais.colaboradores} colaboradores dela.
+            </p>
+            <p className="text-[12.5px] text-muted-foreground">
+              Para tê-la de volta é preciso aprovar o mês outra vez no Fechamento de
+              folha — não dá para aprovar por cima, porque o mesmo colaborador não pode
+              constar duas vezes na folha do mês.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmando(null)}
+                disabled={excluindo === confirmando.ciclo_id}>Cancelar</Button>
+              <Button onClick={() => excluir(confirmando)}
+                disabled={excluindo === confirmando.ciclo_id}
+                className="gap-1.5 bg-red-600 hover:bg-red-700">
+                {excluindo === confirmando.ciclo_id
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Trash2 className="w-3.5 h-3.5" />}
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {visiveis.map(e => {
               const aberto = abertos.has(e.ciclo_id)
               const linhas = filtrar(e)
-              const marcadosDoCiclo = marcados[e.ciclo_id] ?? new Set<string>()
               return (
                 <div key={e.ciclo_id} className="rounded-2xl border bg-white shadow-sm overflow-hidden">
                   <div className="flex items-center gap-2 p-4 flex-wrap">
@@ -317,12 +338,14 @@ export function AprovadasClient({
                         </>
                       )}
                     </div>
-                    <Button size="sm" onClick={() => reaprovar(e)}
-                      disabled={reaprovando === e.ciclo_id} className="gap-1.5">
-                      {reaprovando === e.ciclo_id
+                    <Button size="sm" variant="outline"
+                      onClick={() => { setErro(''); setOk(''); setConfirmando(e) }}
+                      disabled={excluindo === e.ciclo_id}
+                      className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
+                      {excluindo === e.ciclo_id
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <Check className="w-3.5 h-3.5" />}
-                      Reaprovar
+                        : <Trash2 className="w-3.5 h-3.5" />}
+                      Excluir
                     </Button>
                   </div>
 
@@ -331,7 +354,6 @@ export function AprovadasClient({
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b">
                           <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                            <th className="pl-3 pr-1 py-2 w-px" />
                             <th className="px-3 py-2 font-semibold">Colaborador</th>
                             <th className="px-3 py-2 font-semibold text-center">Dias</th>
                             <th className="px-3 py-2 font-semibold text-center">Faltas</th>
@@ -348,16 +370,7 @@ export function AprovadasClient({
                         </thead>
                         <tbody className="divide-y">
                           {linhas.map(l => (
-                            <tr key={l.candidate_id}
-                              className={cn('hover:bg-gray-50 align-top', !marcadosDoCiclo.has(l.candidate_id) && 'opacity-45')}>
-                              <td className="pl-3 pr-1 py-2">
-                                {/* Desmarcar e reaprovar é como se tira alguém
-                                    de uma folha já aprovada. */}
-                                <input type="checkbox" checked={marcadosDoCiclo.has(l.candidate_id)}
-                                  onChange={() => alternarMarcado(e.ciclo_id, l.candidate_id)}
-                                  title={marcadosDoCiclo.has(l.candidate_id) ? 'Tirar na próxima aprovação' : 'Manter na próxima aprovação'}
-                                  className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer" />
-                              </td>
+                            <tr key={l.candidate_id} className="hover:bg-gray-50 align-top">
                               <td className="px-3 py-2 whitespace-nowrap">
                                 <span className="font-medium text-gray-900">{formatName(l.nome)}</span>
                                 {l.vinculo === 'intermitente' && (
@@ -415,7 +428,7 @@ export function AprovadasClient({
                           ))}
                           {linhas.length === 0 && (
                             <tr>
-                              <td colSpan={13} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                              <td colSpan={12} className="px-4 py-8 text-center text-sm text-muted-foreground">
                                 Nenhum colaborador nesta busca.
                               </td>
                             </tr>

@@ -62,19 +62,14 @@ export function FechamentoClient({
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
 
-  // Empresa ainda não aprovada entra com todo mundo marcado; empresa já
-  // aprovada volta exatamente com quem foi aprovado — desmarcar e aprovar de
-  // novo é o jeito de tirar alguém da folha.
-  const [marcados, setMarcados] = useState<Set<string>>(() => {
-    const aprovados = new Set(jaAprovados)
-    const empresasAprovadas = new Set(aprovacoes.map(a => a.empresa_id))
-    return new Set(
-      linhas
-        .filter(l => (empresasAprovadas.has(l.empresa_id ?? null) ? aprovados.has(l.candidate_id) : true))
-        .map(l => l.candidate_id),
-    )
-  })
+  // Quem já está numa folha aprovada do mês não pode entrar em outra: fica
+  // travado até a folha dele ser excluída em Folhas aprovadas.
+  const travados = new Set(jaAprovados)
+  const [marcados, setMarcados] = useState<Set<string>>(
+    () => new Set(linhas.filter(l => !travados.has(l.candidate_id)).map(l => l.candidate_id)),
+  )
   const alternarMarcado = (id: string) => setMarcados(s => {
+    if (travados.has(id)) return s
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
   })
   const [comentarios, setComentarios] = useState<Record<string, string>>(
@@ -99,7 +94,8 @@ export function FechamentoClient({
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   // Só o que está marcado conta: é o que vai ser aprovado e exportado.
   const selecionadas = filtradas.filter(l => marcados.has(l.candidate_id))
-  const todasMarcadas = filtradas.length > 0 && selecionadas.length === filtradas.length
+  const marcaveis = filtradas.filter(l => !travados.has(l.candidate_id))
+  const todasMarcadas = marcaveis.length > 0 && selecionadas.length === marcaveis.length
   const totalDias = selecionadas.reduce((s, l) => s + l.dias_trabalhados, 0)
   const totalFaltas = selecionadas.reduce((s, l) => s + l.faltas, 0)
   const totalSalario = selecionadas
@@ -114,7 +110,7 @@ export function FechamentoClient({
     setMarcados(s => {
       const n = new Set(s)
       if (todasMarcadas) filtradas.forEach(l => n.delete(l.candidate_id))
-      else filtradas.forEach(l => n.add(l.candidate_id))
+      else filtradas.filter(l => !travados.has(l.candidate_id)).forEach(l => n.add(l.candidate_id))
       return n
     })
   }
@@ -165,10 +161,16 @@ export function FechamentoClient({
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Erro ao aprovar o fechamento.')
       const quantas = (d.aprovadas ?? []).length
+      const ignoradas: string[] = d.ignoradas ?? []
       setOk(
         `Fechamento de ${rotuloMes(competencia)} aprovado para ${quantas} `
         + `${quantas === 1 ? 'empresa' : 'empresas'}.`
-        + (d.removidas ? ` ${d.removidas} sem ninguém marcado ${d.removidas === 1 ? 'saiu' : 'saíram'} da folha.` : ''),
+        // Empresa já aprovada não é reaprovada por cima: quem quiser refazer
+        // exclui a folha antes.
+        + (ignoradas.length
+          ? ` ${ignoradas.join(', ')} já ${ignoradas.length === 1 ? 'tinha' : 'tinham'} folha aprovada`
+            + ' e ficou de fora — exclua em Folhas aprovadas para refazer.'
+          : ''),
       )
       setConfirmando(false)
       router.refresh()
@@ -283,7 +285,11 @@ export function FechamentoClient({
             <p>
               Já <strong>aprovado</strong> neste mês
               {' '}({aprovacoes.length === 1 ? '1 empresa' : `${aprovacoes.length} empresas`}).
-              Aprovar de novo atualiza o registro com os números de agora.
+              Não dá para aprovar por cima — o mesmo colaborador não pode constar
+              duas vezes na folha do mês. Para refazer, exclua a folha em{' '}
+              <Link href="/admin/folha-pagamento/aprovadas" className="underline font-semibold">
+                Folhas aprovadas
+              </Link>{' '}e aprove de novo.
             </p>
             {aprovacoes.map(a => (
               <p key={a.empresa_id ?? 'sem-empresa'} className="text-[12px]">
@@ -380,7 +386,7 @@ export function FechamentoClient({
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                 <th className="pl-3 pr-1 py-2 w-px">
                   <input type="checkbox" checked={todasMarcadas} onChange={alternarTodas}
-                    disabled={filtradas.length === 0}
+                    disabled={marcaveis.length === 0}
                     title={todasMarcadas ? 'Desmarcar todos' : 'Marcar todos'}
                     className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer" />
                 </th>
@@ -407,11 +413,20 @@ export function FechamentoClient({
                     {/* Desmarcado não entra na folha aprovada. */}
                     <input type="checkbox" checked={marcados.has(l.candidate_id)}
                       onChange={() => alternarMarcado(l.candidate_id)}
-                      title={marcados.has(l.candidate_id) ? 'Tirar da folha' : 'Incluir na folha'}
-                      className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer" />
+                      disabled={travados.has(l.candidate_id)}
+                      title={travados.has(l.candidate_id)
+                        ? 'Já está numa folha aprovada deste mês — exclua a folha para aprovar de novo'
+                        : marcados.has(l.candidate_id) ? 'Tirar da folha' : 'Incluir na folha'}
+                      className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer disabled:cursor-not-allowed" />
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span className="font-medium text-gray-900">{formatName(l.nome)}</span>
+                    {travados.has(l.candidate_id) && (
+                      <span className="ml-1.5 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 bg-emerald-100 text-emerald-700 align-middle"
+                        title="Já consta na folha aprovada deste mês">
+                        Aprovado
+                      </span>
+                    )}
                     {l.vinculo === 'intermitente' && (
                       <span className="ml-1.5 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 bg-sky-100 text-sky-700 align-middle">
                         Interm.
