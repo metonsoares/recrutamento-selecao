@@ -298,11 +298,9 @@ export function FechamentoClient({
       </div>
 
       {/* ── Resumo ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Cartao titulo="Colaboradores" valor={String(filtradas.length)} cor="text-gray-900" />
-        <Cartao titulo="Dias trabalhados" valor={String(totalDias)} cor="text-blue-700" />
         <Cartao titulo="Faltas" valor={String(totalFaltas)} cor={totalFaltas > 0 ? 'text-red-600' : 'text-gray-900'} />
-        <Cartao titulo="Gorjetas" valor={brl(totalGorjeta)} cor="text-amber-700" />
         <Cartao titulo="Salários (mensais)" valor={brl(totalSalario)} cor="text-emerald-700" />
       </div>
 
