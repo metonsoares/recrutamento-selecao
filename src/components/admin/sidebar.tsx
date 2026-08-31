@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark, Coins, Wallet } from 'lucide-react'
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark, Coins, Wallet, CheckCheck } from 'lucide-react'
 
 import { useState } from 'react'
 import Image from 'next/image'
@@ -274,6 +274,11 @@ function SidebarContent({
               {isMaster && (
                 <Link href="/admin/folha-pagamento/fechamento" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/fechamento') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                   <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Fechamento de folha
+                </Link>
+              )}
+              {isMaster && (
+                <Link href="/admin/folha-pagamento/aprovadas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/aprovadas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                  <CheckCheck className="w-3 h-3 shrink-0 opacity-50" />Folhas aprovadas
                 </Link>
               )}
             </div>

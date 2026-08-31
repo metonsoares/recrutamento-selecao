@@ -50,10 +50,17 @@ interface CicloAprovado {
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
-/** "1.234,56" → 1234.56 */
+/**
+ * "R$ 1.892,34" → 1892.34
+ *
+ * O salário vem da ficha COM o prefixo "R$ " — sem tirar tudo que não é
+ * dígito, vírgula ou ponto, o Number() dava NaN e o valor virava zero, o que
+ * fazia todo mundo cair na regra de "salário por hora".
+ */
 function paraNumero(v: string | null | undefined): number {
   if (!v) return 0
-  return Number(String(v).replace(/\./g, '').replace(',', '.')) || 0
+  const limpo = String(v).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')
+  return Number(limpo) || 0
 }
 /** 1234.56 → "1234,56" (o campo aceita vírgula) */
 function paraCampo(n: number): string {
