@@ -264,6 +264,11 @@ function SidebarContent({
                   <Coins className="w-3 h-3 shrink-0 opacity-50" />Gorjetas
                 </Link>
               )}
+              {isMaster && (
+                <Link href="/admin/folha-pagamento/fechamento" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/fechamento') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                  <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Fechamento de folha
+                </Link>
+              )}
             </div>
           )}
         </div>
