@@ -246,6 +246,11 @@ function SidebarContent({
           {folhaOpen && (
             <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
               {isMaster && (
+                <Link href="/admin/folha-pagamento/gorjetas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/gorjetas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                  <Coins className="w-3 h-3 shrink-0 opacity-50" />Gorjetas
+                </Link>
+              )}
+              {isMaster && (
                 <Link href="/admin/folha-pagamento/premio-caju" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/premio-caju') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                   <Gift className="w-3 h-3 shrink-0 opacity-50" />Prêmio Caju
                 </Link>
@@ -259,11 +264,6 @@ function SidebarContent({
               <Link href="/admin/folha-pagamento/mensalidade-sindical" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/mensalidade-sindical') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Landmark className="w-3 h-3 shrink-0 opacity-50" />Mensalidade sindical
               </Link>
-              {isMaster && (
-                <Link href="/admin/folha-pagamento/gorjetas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/gorjetas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                  <Coins className="w-3 h-3 shrink-0 opacity-50" />Gorjetas
-                </Link>
-              )}
               {/* Lançamentos do mês: sete telas do mesmo molde, uma rota só. */}
               {isMaster && ORDEM_LANCAMENTOS.map(slug => (
                 <Link key={slug} href={`/admin/folha-pagamento/lancamentos/${slug}`} onClick={go}
