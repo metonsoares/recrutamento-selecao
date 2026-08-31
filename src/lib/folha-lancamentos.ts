@@ -83,7 +83,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'domingos-feriados': {
     slug: 'domingos-feriados',
-    perfis: ['master'],
+    perfis: ['master', 'gestor_rh'],
     titulo: 'Domingos e feriados',
     descricao: 'Quantos domingos e quantos feriados o colaborador trabalhou no mês.',
     colunas: [
@@ -94,7 +94,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'horas-extras': {
     slug: 'horas-extras',
-    perfis: ['master'],
+    perfis: ['master', 'gestor_rh'],
     titulo: 'Horas extras',
     descricao: 'Horas do mês por tipo de adicional.',
     colunas: [
