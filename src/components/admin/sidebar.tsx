@@ -7,12 +7,12 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, LogOut, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark, Coins,
-} from 'lucide-react'
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark, Coins, Wallet } from 'lucide-react'
 
 import { useState } from 'react'
 import Image from 'next/image'
 import { type Role } from '@/lib/permissions'
+import { LANCAMENTOS, ORDEM_LANCAMENTOS } from '@/lib/folha-lancamentos'
 
 type UserRole = Role
 
@@ -264,6 +264,13 @@ function SidebarContent({
                   <Coins className="w-3 h-3 shrink-0 opacity-50" />Gorjetas
                 </Link>
               )}
+              {/* Lançamentos do mês: sete telas do mesmo molde, uma rota só. */}
+              {isMaster && ORDEM_LANCAMENTOS.map(slug => (
+                <Link key={slug} href={`/admin/folha-pagamento/lancamentos/${slug}`} onClick={go}
+                  className={cn(DEEP_BASE, pathname.startsWith(`/admin/folha-pagamento/lancamentos/${slug}`) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                  <Wallet className="w-3 h-3 shrink-0 opacity-50" />{LANCAMENTOS[slug].titulo}
+                </Link>
+              ))}
               {isMaster && (
                 <Link href="/admin/folha-pagamento/fechamento" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/fechamento') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                   <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Fechamento de folha
