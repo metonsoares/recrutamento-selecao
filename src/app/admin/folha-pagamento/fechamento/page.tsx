@@ -52,6 +52,10 @@ export default async function FechamentoPage({
       .select('candidate_id, comentario').eq('competencia', competencia),
   ])
 
+  const { data: aprovacao } = await supabase
+    .from('fechamento_ciclos')
+    .select('aprovado_por, aprovado_em').eq('competencia', competencia).maybeSingle()
+
   const [{ data: vtItens }, { data: gorjetaItens }] = await Promise.all([
     vtCiclo?.id
       ? supabase.from('vt_itens').select('candidate_id, dias').eq('ciclo_id', vtCiclo.id)
@@ -131,6 +135,10 @@ export default async function FechamentoPage({
       empresas={empresasOpcoes}
       temFechamentoVt={!!vtCiclo?.id}
       temFechamentoGorjeta={!!gorjetaCiclo?.id}
+      aprovacao={aprovacao ? {
+        aprovado_por: (aprovacao.aprovado_por as string) ?? null,
+        aprovado_em: aprovacao.aprovado_em as string,
+      } : null}
     />
   )
 }

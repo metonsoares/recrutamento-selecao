@@ -16,6 +16,8 @@ interface ItemEntrada {
   empresa_id?: string | null
   empresa_nome?: string | null
   quantidade?: unknown
+  quantidade2?: unknown
+  quantidade3?: unknown
   valor?: unknown
   observacao?: string | null
 }
@@ -31,18 +33,23 @@ async function recalcular(
   cicloId: string,
 ) {
   const { data: restantes } = await supabase
-    .from('folha_itens').select('quantidade, valor').eq('ciclo_id', cicloId)
+    .from('folha_itens').select('quantidade, quantidade2, quantidade3, valor').eq('ciclo_id', cicloId)
 
   if (!restantes || restantes.length === 0) {
     await supabase.from('folha_ciclos').delete().eq('id', cicloId)
-    return { removido: true, totalValor: 0, totalQtd: 0 }
+    return { removido: true, totalValor: 0, totalQtd: 0, totalQtd2: 0, totalQtd3: 0 }
   }
   const totalValor = Math.round(restantes.reduce((s, i) => s + Number(i.valor), 0) * 100) / 100
   const totalQtd = Math.round(restantes.reduce((s, i) => s + Number(i.quantidade), 0) * 100) / 100
+  const totalQtd2 = Math.round(restantes.reduce((s, i) => s + Number(i.quantidade2 ?? 0), 0) * 100) / 100
+  const totalQtd3 = Math.round(restantes.reduce((s, i) => s + Number(i.quantidade3 ?? 0), 0) * 100) / 100
   await supabase.from('folha_ciclos')
-    .update({ total_valor: totalValor, total_qtd: totalQtd, updated_at: new Date().toISOString() })
+    .update({
+      total_valor: totalValor, total_qtd: totalQtd, total_qtd2: totalQtd2, total_qtd3: totalQtd3,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', cicloId)
-  return { removido: false, totalValor, totalQtd }
+  return { removido: false, totalValor, totalQtd, totalQtd2, totalQtd3 }
 }
 
 /** POST — aprova (ou reaprova) a competência. */
@@ -97,10 +104,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tip
         empresa_id: i.empresa_id || null,
         empresa_nome: i.empresa_nome ?? null,
         quantidade: num(i.quantidade),
+        quantidade2: num(i.quantidade2),
+        quantidade3: num(i.quantidade3),
         valor: num(i.valor),
         observacao: String(i.observacao ?? '').trim() || null,
       }))
-      .filter(l => l.candidate_id && (l.valor > 0 || l.quantidade > 0))
+      .filter(l => l.candidate_id && (l.valor > 0 || l.quantidade > 0 || l.quantidade2 > 0 || l.quantidade3 > 0))
 
     if (linhas.length > 0) {
       const { error } = await supabase.from('folha_itens').insert(linhas)
@@ -133,7 +142,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ti
 
     const valor = num(body.valor)
     const quantidade = num(body.quantidade)
-    if (valor <= 0 && quantidade <= 0) {
+    const quantidade2 = num(body.quantidade2)
+    const quantidade3 = num(body.quantidade3)
+    if (valor <= 0 && quantidade <= 0 && quantidade2 <= 0 && quantidade3 <= 0) {
       return NextResponse.json({ error: 'Informe um valor ou uma quantidade.' }, { status: 400 })
     }
 
@@ -143,7 +154,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ti
     if (!ciclo) return NextResponse.json({ error: 'Fechamento não encontrado.' }, { status: 404 })
 
     const { error } = await supabase.from('folha_itens')
-      .update({ valor, quantidade })
+      .update({ valor, quantidade, quantidade2, quantidade3 })
       .eq('ciclo_id', ciclo.id).eq('candidate_id', candidateId)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 

@@ -36,14 +36,14 @@ export default async function LancamentosPage({
       .in('status', ['contratado', 'em_contrato', 'aprovado'])
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social'),
-    supabase.from('folha_ciclos').select('id, competencia, aprovado_por, total_valor, total_qtd').eq('tipo', tipo),
+    supabase.from('folha_ciclos').select('id, competencia, aprovado_por, total_valor, total_qtd, total_qtd2, total_qtd3').eq('tipo', tipo),
   ])
 
   const cicloIds = (ciclos ?? []).map(c => c.id as string)
   const { data: itens } = cicloIds.length
     ? await supabase.from('folha_itens')
-        .select('ciclo_id, candidate_id, quantidade, valor').in('ciclo_id', cicloIds)
-    : { data: [] as { ciclo_id: string; candidate_id: string; quantidade: number; valor: number }[] }
+        .select('ciclo_id, candidate_id, quantidade, quantidade2, quantidade3, valor, observacao').in('ciclo_id', cicloIds)
+    : { data: [] as { ciclo_id: string; candidate_id: string; quantidade: number; quantidade2: number; quantidade3: number; valor: number; observacao: string | null }[] }
 
   const competenciaPorCiclo = new Map((ciclos ?? []).map(c => [c.id as string, c.competencia as string]))
   const historico: RegistroLancamento[] = (itens ?? [])
@@ -54,7 +54,10 @@ export default async function LancamentosPage({
         candidate_id: i.candidate_id as string,
         competencia: comp,
         quantidade: Number(i.quantidade) || 0,
+        quantidade2: Number(i.quantidade2) || 0,
+        quantidade3: Number(i.quantidade3) || 0,
         valor: Number(i.valor) || 0,
+        observacao: (i.observacao as string | null) ?? null,
       }
     })
     .filter(Boolean) as RegistroLancamento[]
@@ -99,6 +102,8 @@ export default async function LancamentosPage({
         empresa_id: empresaId || null,
         empresa: empresaPorId.get(empresaId) ?? null,
         vinculo: a.status === 'aprovado' ? ('intermitente' as const) : ('contratado' as const),
+        // Como veio da ficha ("1.892,34"): serve para calcular percentuais.
+        salario: String(af?.salary ?? '').trim() || null,
       }
     })
     .filter(Boolean) as LinhaLancamento[]
@@ -119,6 +124,8 @@ export default async function LancamentosPage({
       cicloAprovado={cicloDoMes ? {
         total_valor: Number(cicloDoMes.total_valor),
         total_qtd: Number(cicloDoMes.total_qtd),
+        total_qtd2: Number(cicloDoMes.total_qtd2),
+        total_qtd3: Number(cicloDoMes.total_qtd3),
         aprovado_por: (cicloDoMes.aprovado_por as string) ?? null,
       } : null}
     />

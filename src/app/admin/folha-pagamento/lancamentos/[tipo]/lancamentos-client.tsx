@@ -4,13 +4,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown, Download, ExternalLink,
-  Check, Loader2, AlertCircle, CheckCircle2, History, Pencil, Trash2, Copy, Wallet,
+  Check, Loader2, AlertCircle, CheckCircle2, History, Trash2, Copy, Wallet, Plus, Calculator,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
-import type { ConfigLancamento } from '@/lib/folha-lancamentos'
+import type { ConfigLancamento, CampoContagem } from '@/lib/folha-lancamentos'
 
 export interface LinhaLancamento {
   candidate_id: string
@@ -20,24 +20,44 @@ export interface LinhaLancamento {
   empresa_id: string | null
   empresa: string | null
   vinculo: 'contratado' | 'intermitente'
+  /** como veio da ficha ("1.892,34") — base dos percentuais */
+  salario: string | null
 }
 
 export interface EmpresaOpcao { id: string; nome: string }
+
 export interface RegistroLancamento {
   candidate_id: string
   competencia: string
   quantidade: number
+  quantidade2: number
+  quantidade3: number
   valor: number
+  observacao: string | null
 }
-interface CicloAprovado { total_valor: number; total_qtd: number; aprovado_por: string | null }
+
+/** Um item avulso (avarias): valor + o que foi avariado. */
+interface ItemAvulso { valor: string; descricao: string }
+
+interface CicloAprovado {
+  total_valor: number
+  total_qtd: number
+  total_qtd2: number
+  total_qtd3: number
+  aprovado_por: string | null
+}
 
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
-/** "1.234,56" digitado → 1234.56 */
-function paraNumero(v: string): number {
+/** "1.234,56" → 1234.56 */
+function paraNumero(v: string | null | undefined): number {
   if (!v) return 0
-  return Number(v.replace(/\./g, '').replace(',', '.')) || 0
+  return Number(String(v).replace(/\./g, '').replace(',', '.')) || 0
+}
+/** 1234.56 → "1234,56" (o campo aceita vírgula) */
+function paraCampo(n: number): string {
+  return n > 0 ? n.toFixed(2).replace('.', ',') : ''
 }
 
 export function LancamentosClient({
@@ -53,66 +73,164 @@ export function LancamentosClient({
   const router = useRouter()
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
-  // Sempre em branco ao abrir: preenchido de saída convida a aprovar sem conferir.
   const [padrao, setPadrao] = useState('')
   const [valores, setValores] = useState<Record<string, string>>({})
-  const [quantidades, setQuantidades] = useState<Record<string, string>>({})
+  /** candidate_id → { quantidade, quantidade2, quantidade3 } digitados */
+  const [contagens, setContagens] = useState<Record<string, Partial<Record<CampoContagem, string>>>>({})
+  /** candidate_id → lista de itens (avarias) */
+  const [itensPorCand, setItensPorCand] = useState<Record<string, ItemAvulso[]>>({})
   const [salvando, setSalvando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [processando, setProcessando] = useState(false)
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
   const [historicoAberto, setHistoricoAberto] = useState<Set<string>>(new Set())
-  const [editando, setEditando] = useState<{ linha: LinhaLancamento; registro: RegistroLancamento; valor: string; quantidade: string } | null>(null)
   const [removendo, setRemovendo] = useState<{ linha: LinhaLancamento; registro: RegistroLancamento } | null>(null)
 
-  const mostraValor = config.unidade === 'valor' || config.unidade === 'ambos'
-  const mostraQtd = config.unidade === 'quantidade' || config.unidade === 'ambos'
+  const multiplos = !!config.itensMultiplos
+  const temContagens = config.colunas.length > 0
 
-  const valorDe = (l: LinhaLancamento) => paraNumero(valores[l.candidate_id] ?? '')
-  const qtdDe = (l: LinhaLancamento) => paraNumero(quantidades[l.candidate_id] ?? '')
-  const temLancamento = (l: LinhaLancamento) => valorDe(l) > 0 || qtdDe(l) > 0
+  /** Valor sugerido pelo percentual do salário (0 quando não se aplica). */
+  function sugestaoDe(l: LinhaLancamento): number {
+    if (!config.percentualSalario) return 0
+    const salario = paraNumero(l.salario)
+    // Salário abaixo de R$ 100 na ficha é valor/HORA (padrão dos
+    // intermitentes): calcular percentual sobre isso daria um adicional
+    // irrisório e enganoso, então melhor não sugerir nada.
+    if (salario < 100) return 0
+    return Math.round(salario * config.percentualSalario * 100) / 100
+  }
 
+  const itensDe = (l: LinhaLancamento): ItemAvulso[] =>
+    itensPorCand[l.candidate_id] ?? [{ valor: '', descricao: '' }]
+
+  function mudarItem(id: string, i: number, campo: keyof ItemAvulso, v: string) {
+    setItensPorCand(prev => {
+      const lista = [...(prev[id] ?? [{ valor: '', descricao: '' }])]
+      lista[i] = { ...lista[i], [campo]: v }
+      return { ...prev, [id]: lista }
+    })
+  }
+  function adicionarItem(id: string) {
+    setItensPorCand(prev => ({
+      ...prev,
+      [id]: [...(prev[id] ?? [{ valor: '', descricao: '' }]), { valor: '', descricao: '' }],
+    }))
+  }
+  function removerItem(id: string, i: number) {
+    setItensPorCand(prev => {
+      const lista = (prev[id] ?? []).filter((_, k) => k !== i)
+      return { ...prev, [id]: lista.length ? lista : [{ valor: '', descricao: '' }] }
+    })
+  }
+
+  const totalItensDe = (l: LinhaLancamento) =>
+    itensDe(l).reduce((s, it) => s + paraNumero(it.valor), 0)
+
+  const valorDe = (l: LinhaLancamento) =>
+    multiplos ? totalItensDe(l) : paraNumero(valores[l.candidate_id])
+
+  const contagemDe = (l: LinhaLancamento, campo: CampoContagem) =>
+    paraNumero(contagens[l.candidate_id]?.[campo])
+
+  const temLancamento = (l: LinhaLancamento) =>
+    valorDe(l) > 0 || config.colunas.some(c => contagemDe(l, c.campo) > 0)
+
+  function mudarContagem(id: string, campo: CampoContagem, v: string) {
+    setContagens(prev => ({ ...prev, [id]: { ...(prev[id] ?? {}), [campo]: v } }))
+  }
+
+  // Com vários lançamentos por mês (avarias), o histórico soma por competência
+  // — senão o mesmo mês apareceria repetido, uma vez por item.
   const historicoPorCand = useMemo(() => {
     const m = new Map<string, RegistroLancamento[]>()
     for (const h of historico) {
       const arr = m.get(h.candidate_id) ?? []
-      arr.push(h)
+      const mesmoMes = arr.find(x => x.competencia === h.competencia)
+      if (mesmoMes) {
+        mesmoMes.valor = Math.round((mesmoMes.valor + h.valor) * 100) / 100
+        mesmoMes.quantidade += h.quantidade
+        mesmoMes.quantidade2 += h.quantidade2
+        mesmoMes.quantidade3 += h.quantidade3
+      } else {
+        arr.push({ ...h })
+      }
       m.set(h.candidate_id, arr)
     }
     for (const arr of m.values()) arr.sort((a, b) => b.competencia.localeCompare(a.competencia))
     return m
   }, [historico])
 
-  const aprovadosNoMes = useMemo(
-    () => new Map(historico.filter(h => h.competencia === competencia).map(h => [h.candidate_id, h])),
-    [historico, competencia],
-  )
+  const aprovadosNoMes = useMemo(() => {
+    const m = new Map<string, RegistroLancamento>()
+    for (const h of historico.filter(x => x.competencia === competencia)) {
+      const atual = m.get(h.candidate_id)
+      if (atual) {
+        atual.valor = Math.round((atual.valor + h.valor) * 100) / 100
+        atual.quantidade += h.quantidade
+        atual.quantidade2 += h.quantidade2
+        atual.quantidade3 += h.quantidade3
+      } else {
+        m.set(h.candidate_id, { ...h })
+      }
+    }
+    return m
+  }, [historico, competencia])
+
+  /** Itens do mês já aprovados, para semear a lista das avarias. */
+  const itensAprovadosNoMes = useMemo(() => {
+    const m = new Map<string, ItemAvulso[]>()
+    for (const h of historico.filter(x => x.competencia === competencia && x.valor > 0)) {
+      const arr = m.get(h.candidate_id) ?? []
+      arr.push({ valor: paraCampo(h.valor), descricao: h.observacao ?? '' })
+      m.set(h.candidate_id, arr)
+    }
+    return m
+  }, [historico, competencia])
 
   // Mês novo: limpa antes de semear (este efeito vem ANTES do de baixo de
   // propósito — na ordem inversa apagaria o que acabou de ser semeado).
   useEffect(() => {
-    setValores({}); setQuantidades({}); setErro(''); setOk('')
+    setValores({}); setContagens({}); setItensPorCand({}); setErro(''); setOk('')
   }, [competencia])
 
-  // Mostra o que já está aprovado, sem encostar no que foi digitado e ainda
-  // não aprovado: router.refresh() reexecuta este efeito.
+  // Semeia o que já está aprovado e, quando o tipo é percentual do salário, a
+  // sugestão calculada — sem encostar no que foi digitado e ainda não
+  // aprovado, porque router.refresh() reexecuta este efeito.
   useEffect(() => {
     setValores(atual => {
       const novo = { ...atual }
-      for (const [id, r] of aprovadosNoMes) {
-        if (novo[id] === undefined && r.valor > 0) novo[id] = String(r.valor).replace('.', ',')
+      for (const l of linhas) {
+        if (novo[l.candidate_id] !== undefined) continue
+        const aprovado = aprovadosNoMes.get(l.candidate_id)
+        if (aprovado && aprovado.valor > 0) { novo[l.candidate_id] = paraCampo(aprovado.valor); continue }
+        const sugerido = sugestaoDe(l)
+        if (sugerido > 0) novo[l.candidate_id] = paraCampo(sugerido)
       }
       return novo
     })
-    setQuantidades(atual => {
+    setContagens(atual => {
       const novo = { ...atual }
       for (const [id, r] of aprovadosNoMes) {
-        if (novo[id] === undefined && r.quantidade > 0) novo[id] = String(r.quantidade).replace('.', ',')
+        if (novo[id] !== undefined) continue
+        const c: Partial<Record<CampoContagem, string>> = {}
+        if (r.quantidade > 0) c.quantidade = paraCampo(r.quantidade)
+        if (r.quantidade2 > 0) c.quantidade2 = paraCampo(r.quantidade2)
+        if (r.quantidade3 > 0) c.quantidade3 = paraCampo(r.quantidade3)
+        if (Object.keys(c).length) novo[id] = c
       }
       return novo
     })
-  }, [aprovadosNoMes])
+    setItensPorCand(atual => {
+      const novo = { ...atual }
+      for (const [id, lista] of itensAprovadosNoMes) {
+        if (novo[id] === undefined) novo[id] = lista
+      }
+      return novo
+    })
+    // `linhas` é estável dentro do mesmo render do servidor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aprovadosNoMes, itensAprovadosNoMes])
 
   const filtradas = linhas.filter(l => {
     if (empresaFiltro && l.empresa_id !== empresaFiltro) return false
@@ -129,7 +247,10 @@ export function LancamentosClient({
 
   const comLancamento = noEscopo.filter(temLancamento).length
   const totalValor = noEscopo.reduce((s, l) => s + valorDe(l), 0)
-  const totalQtd = noEscopo.reduce((s, l) => s + qtdDe(l), 0)
+  const totaisContagem = config.colunas.map(c => ({
+    rotulo: c.rotulo,
+    total: noEscopo.reduce((s, l) => s + contagemDe(l, c.campo), 0),
+  }))
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   const baseNome = `${config.slug}-${competencia.slice(0, 7)}${nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''}`
 
@@ -140,29 +261,48 @@ export function LancamentosClient({
   function aplicarATodos() {
     const texto = padrao.trim()
     if (!texto) return
-    const alvo = mostraValor ? setValores : setQuantidades
-    alvo(v => {
-      const novo = { ...v }
-      for (const l of filtradas) novo[l.candidate_id] = texto
-      return novo
-    })
+    if (config.temValor && !multiplos) {
+      setValores(v => {
+        const novo = { ...v }
+        for (const l of filtradas) novo[l.candidate_id] = texto
+        return novo
+      })
+    } else if (temContagens) {
+      const campo = config.colunas[0].campo
+      setContagens(prev => {
+        const novo = { ...prev }
+        for (const l of filtradas) novo[l.candidate_id] = { ...(novo[l.candidate_id] ?? {}), [campo]: texto }
+        return novo
+      })
+    }
     setOk(`Aplicado a ${filtradas.length} colaborador${filtradas.length !== 1 ? 'es' : ''}.`)
   }
 
   async function aprovar() {
     setSalvando(true); setErro(''); setOk('')
     try {
-      const res = await fetch(`/api/admin/folha-pagamento/lancamentos/${config.slug}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          competencia,
-          escopo_empresa: empresaFiltro || null,
-          itens: noEscopo.map(l => ({
+      // Com vários itens por pessoa, cada avaria vira uma LINHA própria: é
+      // isso que preserva a descrição de cada uma no fechamento.
+      const itens = multiplos
+        ? noEscopo.flatMap(l => itensDe(l)
+            .filter(it => paraNumero(it.valor) > 0)
+            .map(it => ({
+              candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
+              empresa_id: l.empresa_id, empresa_nome: l.empresa,
+              valor: paraNumero(it.valor), observacao: it.descricao,
+            })))
+        : noEscopo.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa,
-            valor: valorDe(l), quantidade: qtdDe(l),
-          })),
-        }),
+            valor: config.temValor ? valorDe(l) : 0,
+            quantidade: contagemDe(l, 'quantidade'),
+            quantidade2: contagemDe(l, 'quantidade2'),
+            quantidade3: contagemDe(l, 'quantidade3'),
+          }))
+
+      const res = await fetch(`/api/admin/folha-pagamento/lancamentos/${config.slug}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competencia, escopo_empresa: empresaFiltro || null, itens }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Erro ao aprovar.')
@@ -174,33 +314,48 @@ export function LancamentosClient({
     } finally { setSalvando(false) }
   }
 
-  async function chamar(metodo: 'PATCH' | 'DELETE', corpo: Record<string, unknown>, msg: string) {
+  async function remover() {
+    if (!removendo) return
     setProcessando(true); setErro('')
     try {
       const res = await fetch(`/api/admin/folha-pagamento/lancamentos/${config.slug}`, {
-        method: metodo, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(corpo),
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          competencia: removendo.registro.competencia,
+          candidate_id: removendo.linha.candidate_id,
+        }),
       })
       const d = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(d.error || 'Erro na operação.')
-      setOk(msg); setEditando(null); setRemovendo(null)
+      if (!res.ok) throw new Error(d.error || 'Erro ao remover.')
+      setOk('Lançamento removido.'); setRemovendo(null)
       router.refresh()
     } catch (e) {
       setErro((e as Error).message)
     } finally { setProcessando(false) }
   }
 
+  /** Resumo de um mês no histórico: contagens e/ou valor. */
+  function resumoRegistro(h: RegistroLancamento): string {
+    const partes: string[] = []
+    for (const c of config.colunas) {
+      const v = c.campo === 'quantidade' ? h.quantidade : c.campo === 'quantidade2' ? h.quantidade2 : h.quantidade3
+      if (v > 0) partes.push(`${v} ${c.rotulo.toLowerCase()}`)
+    }
+    if (config.temValor && h.valor > 0) partes.push(brl(h.valor))
+    return partes.join(' · ') || '—'
+  }
+
   const CABECALHO = [
     'Colaborador', 'Empresa', 'Cargo',
-    ...(mostraQtd ? [config.rotuloQtd ?? 'Quantidade'] : []),
-    ...(mostraValor ? ['Valor'] : []),
+    ...config.colunas.map(c => c.rotulo),
+    ...(config.temValor ? ['Valor'] : []),
   ]
 
   async function exportar() {
     const corpo = filtradas.map(l => [
       formatName(l.nome), l.empresa ?? '—', l.cargo ?? '—',
-      ...(mostraQtd ? [qtdDe(l)] : []),
-      ...(mostraValor ? [valorDe(l)] : []),
+      ...config.colunas.map(c => contagemDe(l, c.campo)),
+      ...(config.temValor ? [valorDe(l)] : []),
     ])
     baixarArquivo(await gerarXlsx([CABECALHO, ...corpo], config.titulo), `${baseNome}.xlsx`)
   }
@@ -236,13 +391,24 @@ export function LancamentosClient({
         </Button>
       </div>
 
+      {config.percentualSalario && (
+        <p className="text-[12.5px] text-muted-foreground flex items-center gap-1.5">
+          <Calculator className="w-3.5 h-3.5 shrink-0" />
+          O valor vem calculado como {Math.round(config.percentualSalario * 100)}% do salário da ficha —
+          confira e ajuste onde precisar antes de aprovar.
+        </p>
+      )}
+
       {cicloAprovado && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2 flex-wrap">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <p className="text-[13px] text-emerald-900 flex-1">
             Mês <strong>registrado</strong>
-            {mostraValor && <> — {brl(cicloAprovado.total_valor)}</>}
-            {mostraQtd && <> · {cicloAprovado.total_qtd} {(config.rotuloQtd ?? '').toLowerCase()}</>}
+            {config.temValor && <> — {brl(cicloAprovado.total_valor)}</>}
+            {config.colunas.map((c, i) => {
+              const t = i === 0 ? cicloAprovado.total_qtd : i === 1 ? cicloAprovado.total_qtd2 : cicloAprovado.total_qtd3
+              return t > 0 ? <span key={c.campo}> · {t} {c.rotulo.toLowerCase()}</span> : null
+            })}
             {cicloAprovado.aprovado_por ? ` por ${cicloAprovado.aprovado_por}` : ''}. Reaprovar substitui o registro.
           </p>
         </div>
@@ -261,31 +427,34 @@ export function LancamentosClient({
           <option value="">Todas as empresas</option>
           {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
-        <div className="flex gap-2">
-          <input value={padrao} onChange={e => setPadrao(e.target.value.replace(/[^\d,]/g, ''))}
-            placeholder={mostraValor ? 'Valor p/ todos' : `${config.rotuloQtd ?? 'Qtd'} p/ todos`}
-            inputMode="decimal"
-            className="h-9 flex-1 min-w-0 border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
-          <Button variant="outline" onClick={aplicarATodos} disabled={!padrao.trim() || filtradas.length === 0}
-            className="gap-1.5 shrink-0" title="Aplicar aos listados">
-            <Copy className="w-3.5 h-3.5" />Todos
-          </Button>
-        </div>
+        {!multiplos && (
+          <div className="flex gap-2">
+            <input value={padrao} onChange={e => setPadrao(e.target.value.replace(/[^\d,]/g, ''))}
+              placeholder={config.temValor ? 'Valor p/ todos' : `${config.colunas[0]?.rotulo ?? 'Qtd'} p/ todos`}
+              inputMode="decimal"
+              className="h-9 flex-1 min-w-0 border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
+            <Button variant="outline" onClick={aplicarATodos} disabled={!padrao.trim() || filtradas.length === 0}
+              className="gap-1.5 shrink-0" title="Aplicar aos listados">
+              <Copy className="w-3.5 h-3.5" />Todos
+            </Button>
+          </div>
+        )}
         <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
           disabled={comLancamento === 0}
           title={comLancamento === 0 ? 'Preencha pelo menos um colaborador' : undefined}
-          className="gap-1.5 w-full">
+          className={`gap-1.5 w-full ${multiplos ? 'sm:col-start-2 lg:col-start-4' : ''}`}>
           <Check className="w-3.5 h-3.5" />Aprovar
         </Button>
       </div>
 
       {/* ── Resumo ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Cartao titulo="Listados" valor={String(filtradas.length)} cor="text-gray-900" />
         <Cartao titulo="Com lançamento" valor={String(comLancamento)} cor="text-emerald-700" />
-        {mostraValor
-          ? <Cartao titulo="Total" valor={brl(totalValor)} cor="text-primary" />
-          : <Cartao titulo={`Total de ${(config.rotuloQtd ?? 'itens').toLowerCase()}`} valor={String(totalQtd)} cor="text-primary" />}
+        {config.temValor && <Cartao titulo="Total" valor={brl(totalValor)} cor="text-primary" />}
+        {totaisContagem.map(t => (
+          <Cartao key={t.rotulo} titulo={t.rotulo} valor={String(t.total)} cor="text-primary" />
+        ))}
       </div>
 
       {erro && <p className="text-[13px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{erro}</p>}
@@ -299,8 +468,14 @@ export function LancamentosClient({
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 font-semibold">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
-                {mostraQtd && <th className="px-3 py-2 font-semibold whitespace-nowrap">{config.rotuloQtd ?? 'Quantidade'}</th>}
-                {mostraValor && <th className="px-3 py-2 font-semibold">Valor</th>}
+                {config.colunas.map(c => (
+                  <th key={c.campo} className="px-3 py-2 font-semibold text-center whitespace-nowrap">{c.rotulo}</th>
+                ))}
+                {config.temValor && (
+                  <th className="px-3 py-2 font-semibold">
+                    {multiplos ? `Valor e ${(config.rotuloDescricao ?? 'descrição').toLowerCase()}` : 'Valor'}
+                  </th>
+                )}
                 <th className="px-3 py-2 w-px" />
               </tr>
             </thead>
@@ -308,8 +483,9 @@ export function LancamentosClient({
               {filtradas.map(l => {
                 const hist = historicoPorCand.get(l.candidate_id) ?? []
                 const jaAprovado = aprovadosNoMes.get(l.candidate_id)
+                const sugerido = sugestaoDe(l)
                 return (
-                  <tr key={l.candidate_id} className="hover:bg-gray-50">
+                  <tr key={l.candidate_id} className="hover:bg-gray-50 align-top">
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className="font-medium text-gray-900">{formatName(l.nome)}</span>
                       {l.vinculo === 'intermitente' && (
@@ -333,17 +509,11 @@ export function LancamentosClient({
                                 <p key={h.competencia} className="text-[11.5px] text-gray-600 flex items-center gap-1">
                                   <span>
                                     {maiuscula(rotuloMes(h.competencia))}{' — '}
-                                    <strong className="text-emerald-700">
-                                      {mostraValor ? brl(h.valor) : `${h.quantidade} ${(config.rotuloQtd ?? '').toLowerCase()}`}
-                                    </strong>
+                                    <strong className="text-emerald-700">{resumoRegistro(h)}</strong>
                                   </span>
-                                  <button
-                                    onClick={() => setEditando({ linha: l, registro: h, valor: String(h.valor).replace('.', ','), quantidade: String(h.quantidade).replace('.', ',') })}
-                                    title="Editar" className="p-1 text-gray-400 hover:text-primary hover:bg-gray-100 rounded">
-                                    <Pencil className="w-3 h-3" />
-                                  </button>
                                   <button onClick={() => setRemovendo({ linha: l, registro: h })}
-                                    title="Remover" className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                    title="Remover o lançamento deste mês"
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
                                     <Trash2 className="w-3 h-3" />
                                   </button>
                                 </p>
@@ -354,15 +524,17 @@ export function LancamentosClient({
                       )}
                     </td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{l.empresa ?? '—'}</td>
-                    {mostraQtd && (
-                      <td className="px-3 py-2">
-                        <input value={quantidades[l.candidate_id] ?? ''}
-                          onChange={e => setQuantidades(q => ({ ...q, [l.candidate_id]: e.target.value.replace(/[^\d,]/g, '') }))}
+
+                    {config.colunas.map(c => (
+                      <td key={c.campo} className="px-3 py-2 text-center">
+                        <input value={contagens[l.candidate_id]?.[c.campo] ?? ''}
+                          onChange={e => mudarContagem(l.candidate_id, c.campo, e.target.value.replace(/[^\d,]/g, ''))}
                           placeholder="0" inputMode="decimal"
                           className="h-8 w-20 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center" />
                       </td>
-                    )}
-                    {mostraValor && (
+                    ))}
+
+                    {config.temValor && !multiplos && (
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <span className="text-[12px] text-gray-400">R$</span>
@@ -370,12 +542,61 @@ export function LancamentosClient({
                             onChange={e => setValores(v => ({ ...v, [l.candidate_id]: e.target.value.replace(/[^\d,]/g, '') }))}
                             placeholder="0,00" inputMode="decimal"
                             className="h-8 w-24 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-right" />
-                          {jaAprovado && (
-                            <span className="text-[11px] font-semibold text-emerald-700 whitespace-nowrap">✓</span>
+                          {jaAprovado && <span className="text-[11px] font-semibold text-emerald-700">✓</span>}
+                        </div>
+                        {sugerido > 0 && (
+                          <span className="block text-[10.5px] text-muted-foreground mt-0.5">
+                            {Math.round((config.percentualSalario ?? 0) * 100)}% de {brl(paraNumero(l.salario))}
+                          </span>
+                        )}
+                        {config.percentualSalario && sugerido === 0 && (
+                          <span className="block text-[10.5px] text-amber-700 mt-0.5">
+                            {l.salario ? 'salário por hora — informe o valor' : 'sem salário na ficha'}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Vários itens por pessoa: valor + descrição, um por linha,
+                        com o total do mês no rodapé da célula. */}
+                    {config.temValor && multiplos && (
+                      <td className="px-3 py-2">
+                        <div className="space-y-1.5">
+                          {itensDe(l).map((it, i) => (
+                            <div key={i} className="flex items-center gap-1.5">
+                              <span className="text-[12px] text-gray-400">R$</span>
+                              <input value={it.valor}
+                                onChange={e => mudarItem(l.candidate_id, i, 'valor', e.target.value.replace(/[^\d,]/g, ''))}
+                                placeholder="0,00" inputMode="decimal"
+                                className="h-8 w-24 shrink-0 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-right" />
+                              <input value={it.descricao}
+                                onChange={e => mudarItem(l.candidate_id, i, 'descricao', e.target.value)}
+                                placeholder={config.rotuloDescricao ?? 'Descrição'}
+                                className="h-8 flex-1 min-w-[160px] border border-gray-300 rounded-md px-2 text-[13px] bg-white" />
+                              {itensDe(l).length > 1 && (
+                                <button onClick={() => removerItem(l.candidate_id, i)} title="Remover este item"
+                                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded shrink-0">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {i === itensDe(l).length - 1 && (
+                                <button onClick={() => adicionarItem(l.candidate_id)} title="Adicionar outro item"
+                                  className="p-1 text-primary hover:bg-primary/10 rounded shrink-0">
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {totalItensDe(l) > 0 && (
+                            <p className="text-[11.5px] text-gray-600 pl-6">
+                              Total do mês: <strong className="text-gray-900">{brl(totalItensDe(l))}</strong>
+                              {jaAprovado && <span className="text-emerald-700 font-semibold"> ✓</span>}
+                            </p>
                           )}
                         </div>
                       </td>
                     )}
+
                     <td className="px-3 py-2 text-right">
                       <Link href={`/admin/candidatos/${l.candidate_id}?tab=ficha`}
                         className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline whitespace-nowrap">
@@ -387,7 +608,7 @@ export function LancamentosClient({
               })}
               {filtradas.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={4 + config.colunas.length} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Nenhum colaborador nesta lista.
                   </td>
                 </tr>
@@ -404,7 +625,7 @@ export function LancamentosClient({
             Registrar <strong>{comLancamento}</strong> lançamento(s) em{' '}
             <strong>{maiuscula(rotuloMes(competencia))}</strong>
             {nomeEmpresa ? <> para <strong>{nomeEmpresa}</strong></> : ' para todas as empresas'}
-            {mostraValor && <> — total de <strong>{brl(totalValor)}</strong></>}.
+            {config.temValor && <> — total de <strong>{brl(totalValor)}</strong></>}.
           </p>
           <p className="text-[12px] text-muted-foreground">
             Reaprovar substitui o que já estava registrado {nomeEmpresa ? 'nesta empresa' : 'no mês'}.
@@ -413,41 +634,6 @@ export function LancamentosClient({
             <Button variant="outline" onClick={() => setConfirmando(false)} disabled={salvando}>Cancelar</Button>
             <Button onClick={aprovar} disabled={salvando} className="gap-1.5">
               {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Aprovar
-            </Button>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── Editar lançamento do histórico ── */}
-      {editando && (
-        <Modal titulo={`Editar ${maiuscula(rotuloMes(editando.registro.competencia))}`} onFechar={() => setEditando(null)}>
-          <p className="text-[13px] text-gray-700">{formatName(editando.linha.nome)}</p>
-          {mostraQtd && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">{config.rotuloQtd ?? 'Quantidade'}</label>
-              <input value={editando.quantidade}
-                onChange={e => setEditando(v => v && ({ ...v, quantidade: e.target.value.replace(/[^\d,]/g, '') }))}
-                inputMode="decimal" className="h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
-            </div>
-          )}
-          {mostraValor && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Valor (R$)</label>
-              <input value={editando.valor}
-                onChange={e => setEditando(v => v && ({ ...v, valor: e.target.value.replace(/[^\d,]/g, '') }))}
-                inputMode="decimal" className="h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
-            </div>
-          )}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setEditando(null)} disabled={processando}>Cancelar</Button>
-            <Button disabled={processando} className="gap-1.5"
-              onClick={() => chamar('PATCH', {
-                competencia: editando.registro.competencia,
-                candidate_id: editando.linha.candidate_id,
-                valor: paraNumero(editando.valor),
-                quantidade: paraNumero(editando.quantidade),
-              }, 'Lançamento atualizado.')}>
-              {processando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Salvar
             </Button>
           </div>
         </Modal>
@@ -462,11 +648,7 @@ export function LancamentosClient({
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setRemovendo(null)} disabled={processando}>Cancelar</Button>
-            <Button disabled={processando} className="gap-1.5 bg-red-600 hover:bg-red-700"
-              onClick={() => chamar('DELETE', {
-                competencia: removendo.registro.competencia,
-                candidate_id: removendo.linha.candidate_id,
-              }, 'Lançamento removido.')}>
+            <Button onClick={remover} disabled={processando} className="gap-1.5 bg-red-600 hover:bg-red-700">
               {processando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}Remover
             </Button>
           </div>

@@ -1,13 +1,16 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ClipboardList, Search, ChevronLeft, ChevronRight, Download, ExternalLink,
-  AlertCircle, CheckCircle2, Loader2, MessageSquare,
+  AlertCircle, CheckCircle2, Loader2, MessageSquare, Check, ChevronDown,
+  FileSpreadsheet, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
+import { gerarPdfTabela } from '@/lib/pdf'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
 
 export interface LinhaFechamento {
@@ -56,14 +59,16 @@ function Selo({ v, tom = 'neutro' }: { v: boolean | null; tom?: 'neutro' | 'aler
 }
 
 export function FechamentoClient({
-  competencia, linhas, empresas, temFechamentoVt, temFechamentoGorjeta,
+  competencia, linhas, empresas, temFechamentoVt, temFechamentoGorjeta, aprovacao,
 }: {
   competencia: string
   linhas: LinhaFechamento[]
   empresas: EmpresaOpcao[]
   temFechamentoVt: boolean
   temFechamentoGorjeta: boolean
+  aprovacao: { aprovado_por: string | null; aprovado_em: string } | null
 }) {
+  const router = useRouter()
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [comentarios, setComentarios] = useState<Record<string, string>>(
@@ -72,6 +77,9 @@ export function FechamentoClient({
   const [salvando, setSalvando] = useState<string | null>(null)
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
+  const [menuExportar, setMenuExportar] = useState(false)
+  const [confirmando, setConfirmando] = useState(false)
+  const [aprovando, setAprovando] = useState(false)
 
   const filtradas = linhas.filter(l => {
     if (empresaFiltro && l.empresa_id !== empresaFiltro) return false
@@ -118,7 +126,54 @@ export function FechamentoClient({
   ]
   const simNaoTexto = (v: boolean | null) => (v === null ? '' : v ? 'Sim' : 'Não')
 
+  /** Aprova o mês, guardando um retrato dos totais. */
+  async function aprovarFechamento() {
+    setAprovando(true); setErro(''); setOk('')
+    try {
+      const res = await fetch('/api/admin/folha-pagamento/fechamento', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          competencia,
+          colaboradores: filtradas.length,
+          total_dias: totalDias,
+          total_faltas: totalFaltas,
+          total_gorjeta: totalGorjeta,
+          total_salario: totalSalario,
+        }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d.error || 'Erro ao aprovar o fechamento.')
+      setOk(`Fechamento de ${rotuloMes(competencia)} aprovado.`)
+      setConfirmando(false)
+      router.refresh()
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally { setAprovando(false) }
+  }
+
+  /** No PDF a empresa sobe para o título e não se repete em toda linha. */
+  async function exportarPdf() {
+    setMenuExportar(false)
+    const [mes, ano] = maiuscula(rotuloMes(competencia)).split(' de ')
+    const blob = await gerarPdfTabela({
+      titulo: `Fechamento de folha — ${nomeEmpresa ?? 'Todas as empresas'}`,
+      subtitulo: `${mes} / ${ano} · ${filtradas.length} colaboradores · ${totalDias} dias · ${brl(totalSalario)} em salários`,
+      cabecalho: ['Colaborador', 'Dias', 'Faltas', 'VT', 'Sindical', 'Gorjeta', 'Confiança', 'Insal.', 'Quebra', 'Salário'],
+      linhas: filtradas.map(l => [
+        formatName(l.nome), l.dias_trabalhados, l.faltas,
+        simNaoTexto(l.vale_transporte), simNaoTexto(l.mensalidade_sindical),
+        l.gorjeta > 0 ? brl(l.gorjeta) : '—',
+        simNaoTexto(l.cargo_confianca), simNaoTexto(l.insalubridade_20), simNaoTexto(l.quebra_caixa_15),
+        l.salario ? brl(paraNumero(l.salario)) : '—',
+      ]),
+      paisagem: true,
+    })
+    const sufixo = nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''
+    baixarArquivo(blob, `fechamento-folha-${competencia.slice(0, 7)}${sufixo}.pdf`)
+  }
+
   async function exportar() {
+    setMenuExportar(false)
     const corpo = filtradas.map(l => [
       formatName(l.nome), l.empresa ?? '—',
       l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
@@ -164,10 +219,48 @@ export function FechamentoClient({
           </Link>
         </div>
 
-        <Button variant="outline" onClick={exportar} disabled={filtradas.length === 0} className="gap-1.5">
-          <Download className="w-3.5 h-3.5" />Exportar
+        <div className="relative">
+          <Button variant="outline" onClick={() => setMenuExportar(o => !o)}
+            disabled={filtradas.length === 0} className="gap-1.5">
+            <Download className="w-3.5 h-3.5" />Exportar
+            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+          </Button>
+          {menuExportar && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuExportar(false)} />
+              <div className="absolute right-0 mt-1 z-20 w-52 rounded-xl border bg-white shadow-lg overflow-hidden">
+                <button onClick={exportar}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Excel <span className="text-muted-foreground">(.xlsx)</span></span>
+                </button>
+                <button onClick={exportarPdf}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-left hover:bg-gray-50 border-t">
+                  <FileText className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>PDF <span className="text-muted-foreground">(.pdf)</span></span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
+          disabled={filtradas.length === 0} className="gap-1.5">
+          <Check className="w-3.5 h-3.5" />Aprovar
         </Button>
       </div>
+
+      {aprovacao && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2 flex-wrap">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <p className="text-[13px] text-emerald-900 flex-1">
+            Fechamento <strong>aprovado</strong>
+            {aprovacao.aprovado_por ? ` por ${aprovacao.aprovado_por}` : ''} em{' '}
+            {new Date(aprovacao.aprovado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.
+            Aprovar de novo atualiza o registro com os números de agora.
+          </p>
+        </div>
+      )}
 
       {/* Sem os fechamentos de origem, colunas inteiras vêm zeradas — melhor
           dizer isso do que deixar o Master concluir que ninguém trabalhou. */}
@@ -215,6 +308,37 @@ export function FechamentoClient({
 
       {erro && <p className="text-[13px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{erro}</p>}
       {ok && <p className="text-[13px] text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{ok}</p>}
+
+      {confirmando && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setConfirmando(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-3"
+            onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-semibold">Aprovar o fechamento</h2>
+            <p className="text-[13px] text-gray-700">
+              Registrar o fechamento de <strong>{maiuscula(rotuloMes(competencia))}</strong>
+              {nomeEmpresa ? <> para <strong>{nomeEmpresa}</strong></> : ' para todas as empresas'} —{' '}
+              {filtradas.length} colaboradores, {totalDias} dias, {brl(totalSalario)} em salários.
+            </p>
+            {(!temFechamentoVt || !temFechamentoGorjeta) && (
+              <p className="text-[12.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                Atenção: {!temFechamentoVt && 'os dias trabalhados'}
+                {!temFechamentoVt && !temFechamentoGorjeta && ' e '}
+                {!temFechamentoGorjeta && 'as gorjetas'} ainda não foram aprovados neste mês.
+              </p>
+            )}
+            <p className="text-[12px] text-muted-foreground">
+              Fica guardado quem aprovou e um retrato dos totais deste momento.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmando(false)} disabled={aprovando}>Cancelar</Button>
+              <Button onClick={aprovarFechamento} disabled={aprovando} className="gap-1.5">
+                {aprovando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Aprovar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Lista ── */}
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
