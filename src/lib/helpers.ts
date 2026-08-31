@@ -109,3 +109,17 @@ export function formatName(raw: string | null | undefined): string {
     return w.replace(/(^|[-'])([a-zà-ÿ])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase())
   }).join(' ')
 }
+
+/**
+ * Texto pronto para comparar em busca: sem acento, minúsculo e sem espaço nas
+ * pontas. "Vitória" e "Vitoria" viram a mesma coisa.
+ */
+export function semAcento(s: string | null | undefined): string {
+  return String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+}
+
+/** O texto contém o termo buscado, ignorando acento e caixa. Termo vazio passa. */
+export function contemBusca(texto: string | null | undefined, termo: string | null | undefined): boolean {
+  const t = semAcento(termo)
+  return t === '' || semAcento(texto).includes(t)
+}

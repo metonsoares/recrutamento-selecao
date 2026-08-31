@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { ShieldCheck, Users, Activity, CalendarDays, Search, Clock, Globe } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { OnlineUsersPanel, useOnlineUsers } from './online-users-panel'
+import { contemBusca } from '@/lib/helpers'
 
 export interface AuditLog {
   id: string
@@ -121,8 +122,10 @@ export function AuditoriaManager({ logs, names = {} }: Props) {
   const filtered = useMemo(() => logs.filter(l => {
     if (userFilter !== 'all' && (l.user_email || 'desconhecido') !== userFilter) return false
     if (search.trim()) {
-      const q = search.toLowerCase()
-      return [describeAction(l, names), l.user_email, l.ip, l.path].filter(Boolean).join(' ').toLowerCase().includes(q)
+      return contemBusca(
+        [describeAction(l, names), l.user_email, l.ip, l.path].filter(Boolean).join(' '),
+        search,
+      )
     }
     return true
   }).slice(0, 500), [logs, userFilter, search, names])

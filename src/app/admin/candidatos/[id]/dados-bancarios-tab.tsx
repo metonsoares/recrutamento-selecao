@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Loader2, Save, CheckCircle2, AlertCircle, Landmark, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { contemBusca } from '@/lib/helpers'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -72,9 +73,9 @@ export function DadosBancariosTab({ candidateId, initialData }: Props) {
 
   const filteredBanks = useMemo(() => {
     if (!bankSearch.trim()) return banks.slice(0, 60)
-    const q = bankSearch.toLowerCase()
+    const q = bankSearch.trim()
     return banks.filter(b =>
-      b.name.toLowerCase().includes(q) || String(b.code).includes(q)
+      contemBusca(b.name, q) || String(b.code).includes(q.replace(/\D/g, ''))
     ).slice(0, 60)
   }, [banks, bankSearch])
 

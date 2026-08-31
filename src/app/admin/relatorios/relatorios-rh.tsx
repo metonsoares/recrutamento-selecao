@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Wallet, FileClock, Cake, Search, Download, Palmtree } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatName } from '@/lib/helpers'
+import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ export function RelatoriosRh({
   const base = colaboradores.filter(c => {
     if (empresaFiltro && c.empresa_id !== empresaFiltro) return false
     if (!busca.trim()) return true
-    return `${c.nome} ${c.cargo ?? ''}`.toLowerCase().includes(busca.trim().toLowerCase())
+    return contemBusca(`${c.nome} ${c.cargo ?? ''}`, busca)
   })
 
   // ── Salários ──

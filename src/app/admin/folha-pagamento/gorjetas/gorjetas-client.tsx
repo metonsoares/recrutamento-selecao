@@ -8,7 +8,7 @@ import {
   FileSpreadsheet, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatName } from '@/lib/helpers'
+import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { MESES, maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
@@ -108,7 +108,7 @@ export function GorjetasClient({
     if (!termo) return true
     const digitos = termo.replace(/\D/g, '')
     if (digitos.length >= 3 && (l.cpf ?? '').includes(digitos)) return true
-    return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
+    return contemBusca(`${l.nome} ${l.cargo ?? ''}`, termo)
   })
 
   // A busca por nome é SÓ visual. O rateio e o fechamento valem para a empresa

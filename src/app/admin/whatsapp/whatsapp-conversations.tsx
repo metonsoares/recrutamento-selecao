@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { formatDateTime } from '@/lib/helpers'
+import { formatDateTime, contemBusca } from '@/lib/helpers'
 import { MessageSquare, Search, ExternalLink, ArrowLeft, RefreshCw, Trash2, ChevronRight } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -74,8 +74,10 @@ export function WhatsappConversations({ conversations }: { conversations: Conv[]
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const filtered = conversations.filter(c =>
-    [c.phone, (c.candidates as { full_name?: string } | null)?.full_name || '']
-      .join(' ').toLowerCase().includes(search.toLowerCase())
+    contemBusca(
+      [c.phone, (c.candidates as { full_name?: string } | null)?.full_name || ''].join(' '),
+      search,
+    ),
   )
 
   async function loadMessages(conv: Conv) {

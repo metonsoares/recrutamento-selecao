@@ -8,7 +8,7 @@ import {
   FileSpreadsheet, FileText, FileCode, Trash2, Pencil, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatName } from '@/lib/helpers'
+import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { MESES, maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
@@ -191,7 +191,7 @@ export function PremioCajuClient({
     // Busca por CPF: compara só os dígitos, então funciona com ou sem máscara.
     const digitos = termo.replace(/\D/g, '')
     if (digitos.length >= 3 && (cpfs[l.candidate_id] ?? '').includes(digitos)) return true
-    return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
+    return contemBusca(`${l.nome} ${l.cargo ?? ''}`, termo)
   })
 
   const elegiveis = filtradas.filter(l => l.elegivel)

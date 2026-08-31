@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { formatDate, formatName } from '@/lib/helpers'
+import { formatDate, formatName, contemBusca } from '@/lib/helpers'
 import { FotoColaborador } from '@/components/admin/foto-colaborador'
 
 interface Row {
@@ -25,7 +25,7 @@ export function DesligadosTable({ rows, companyOptions }: Props) {
 
   const filtered = useMemo(() => {
     return rows
-      .filter(r => !search.trim() || r.full_name.toLowerCase().includes(search.toLowerCase()))
+      .filter(r => !search.trim() || contemBusca(r.full_name, search))
       .filter(r => empresa === 'all' || r.empresa === empresa)
       .filter(r => {
         if (!from && !to) return true

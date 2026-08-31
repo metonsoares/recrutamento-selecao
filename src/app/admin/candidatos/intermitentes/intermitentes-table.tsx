@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { formatName } from '@/lib/helpers'
+import { formatName, contemBusca } from '@/lib/helpers'
 import { FotoColaborador } from '@/components/admin/foto-colaborador'
 
 interface Row {
@@ -25,7 +25,7 @@ export function IntermitentesTable({ rows, companyOptions }: Props) {
   const [empresa, setEmpresa] = useState('all')
 
   const filtered = useMemo(() => rows
-    .filter(r => !search.trim() || r.full_name.toLowerCase().includes(search.toLowerCase()))
+    .filter(r => !search.trim() || contemBusca(r.full_name, search))
     .filter(r => empresa === 'all' || r.empresa === empresa)
     .sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR')),
     [rows, search, empresa])

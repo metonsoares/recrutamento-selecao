@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, contemBusca } from '@/lib/helpers'
 
 interface CompanyFile {
   id: string
@@ -122,9 +122,9 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
     .filter(f => tipoFilter === 'all' || f.category === tipoFilter)
     .filter(f =>
       !search.trim() ||
-      f.name.toLowerCase().includes(search.toLowerCase()) ||
-      (f.category || '').toLowerCase().includes(search.toLowerCase()) ||
-      (f.empresa || '').toLowerCase().includes(search.toLowerCase())
+      contemBusca(f.name, search) ||
+      contemBusca(f.category || '', search) ||
+      contemBusca(f.empresa || '', search)
     ), [files, empresaFilter, tipoFilter, search])
 
   // Agrupa por empresa → por tipo

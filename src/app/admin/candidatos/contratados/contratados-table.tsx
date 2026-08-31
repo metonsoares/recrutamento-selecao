@@ -5,7 +5,7 @@ import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle, Download } fr
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import { formatName } from '@/lib/helpers'
+import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { FotoColaborador } from '@/components/admin/foto-colaborador'
 
@@ -41,7 +41,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
     return rows
       .filter(r => {
         if (!search.trim()) return true
-        return r.full_name.toLowerCase().includes(search.toLowerCase())
+        return contemBusca(r.full_name, search)
       })
       .filter(r => {
         if (companyFilter === 'all') return true

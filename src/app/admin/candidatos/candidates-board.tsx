@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { CandidateStatus } from '@/types'
-import { formatDate, formatName } from '@/lib/helpers'
+import { formatDate, formatName, contemBusca } from '@/lib/helpers'
 import { inferSex } from '@/lib/infer-sex'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Search, SortAsc, GripVertical, BrainCircuit, Loader2, AlertCircle, Sparkles, X } from 'lucide-react'
@@ -358,8 +358,7 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
       .filter(c => !aiMatches || aiMatches.has(c.id))
       .filter(c => {
         if (!search.trim()) return true
-        const q = search.toLowerCase()
-        return [c.full_name, c.phone, c.email, c.city].join(' ').toLowerCase().includes(q)
+        return contemBusca([c.full_name, c.phone, c.email, c.city].join(' '), search)
       })
       .filter(c => {
         if (filterJob === 'all') return true

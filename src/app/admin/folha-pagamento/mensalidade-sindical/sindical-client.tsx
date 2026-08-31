@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, FileSpreadsheet, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatName } from '@/lib/helpers'
+import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { MESES, mesVizinho, rotuloMes } from '@/lib/competencia'
@@ -52,7 +52,7 @@ export function SindicalClient({
     if (!termo) return true
     const digitos = termo.replace(/\D/g, '')
     if (digitos.length >= 3 && (l.cpf ?? '').includes(digitos)) return true
-    return `${l.nome} ${l.cargo ?? ''}`.toLowerCase().includes(termo.toLowerCase())
+    return contemBusca(`${l.nome} ${l.cargo ?? ''}`, termo)
   })
 
   const pagam = linhas.filter(l => l.paga === true).length

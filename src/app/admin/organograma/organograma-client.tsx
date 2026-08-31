@@ -8,7 +8,7 @@ import {
   GripVertical, Crown, Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatName } from '@/lib/helpers'
+import { formatName, contemBusca } from '@/lib/helpers'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -411,8 +411,7 @@ function PainelColaboradores({
     const alocado = noPorCandidato.has(c.candidate_id)
     if (somenteSem && alocado) return false
     if (!busca.trim()) return true
-    const t = `${c.nome} ${c.cargo ?? ''}`.toLowerCase()
-    return t.includes(busca.trim().toLowerCase())
+    return contemBusca(`${c.nome} ${c.cargo ?? ''}`, busca)
   })
 
   const semAlocacao = colaboradores.filter(c => !noPorCandidato.has(c.candidate_id)).length

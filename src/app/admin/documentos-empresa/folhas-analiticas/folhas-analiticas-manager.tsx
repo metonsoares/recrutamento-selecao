@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { MESES, rotuloMesLongo } from '@/lib/competencia'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { contemBusca } from '@/lib/helpers'
 
 export interface FolhaAnalitica {
   id: string
@@ -44,10 +45,12 @@ export function FolhasAnaliticasManager({
 
   const filtradas = folhas.filter(f => {
     if (empresaFiltro && f.empresa !== empresaFiltro) return false
-    const termo = busca.trim().toLowerCase()
+    const termo = busca.trim()
     if (!termo) return true
-    return `${f.empresa} ${f.file_name} ${periodoCurto(f.competencia)} ${rotuloMesLongo(f.competencia)}`
-      .toLowerCase().includes(termo)
+    return contemBusca(
+      `${f.empresa} ${f.file_name} ${periodoCurto(f.competencia)} ${rotuloMesLongo(f.competencia)}`,
+      termo,
+    )
   })
 
   async function remover() {
