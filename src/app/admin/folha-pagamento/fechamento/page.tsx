@@ -26,10 +26,25 @@ export default async function FechamentoPage({
   // mostra exatamente a mesma tabela — duplicar faria as duas divergirem.
   const { linhas, empresas, temFechamentoVt, temFechamentoGorjeta } = await montarFechamento(competencia)
 
+  // A aprovação é por empresa: o mês pode ter algumas fechadas e outras não.
   const supabase = await createSupabaseServiceClient()
-  const { data: aprovacao } = await supabase
+  const { data: ciclos } = await supabase
     .from('fechamento_ciclos')
-    .select('aprovado_por, aprovado_em').eq('competencia', competencia).maybeSingle()
+    .select('id, empresa_id, empresa_nome, colaboradores, aprovado_por, aprovado_em')
+    .eq('competencia', competencia)
+
+  const cicloIds = (ciclos ?? []).map(c => c.id as string)
+  const { data: itens } = cicloIds.length
+    ? await supabase.from('fechamento_itens').select('candidate_id').in('ciclo_id', cicloIds)
+    : { data: [] as { candidate_id: string }[] }
+
+  const aprovacoes = (ciclos ?? []).map(c => ({
+    empresa_id: (c.empresa_id as string) ?? null,
+    empresa_nome: (c.empresa_nome as string) ?? null,
+    colaboradores: Number(c.colaboradores) || 0,
+    aprovado_por: (c.aprovado_por as string) ?? null,
+    aprovado_em: c.aprovado_em as string,
+  }))
 
   return (
     <FechamentoClient
@@ -38,10 +53,8 @@ export default async function FechamentoPage({
       empresas={empresas}
       temFechamentoVt={temFechamentoVt}
       temFechamentoGorjeta={temFechamentoGorjeta}
-      aprovacao={aprovacao ? {
-        aprovado_por: (aprovacao.aprovado_por as string) ?? null,
-        aprovado_em: aprovacao.aprovado_em as string,
-      } : null}
+      aprovacoes={aprovacoes}
+      jaAprovados={(itens ?? []).map(i => i.candidate_id as string)}
     />
   )
 }

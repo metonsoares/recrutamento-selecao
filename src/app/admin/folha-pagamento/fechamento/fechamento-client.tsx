@@ -8,6 +8,7 @@ import {
   FileSpreadsheet, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
@@ -37,19 +38,45 @@ function Selo({ v, tom = 'neutro' }: { v: boolean | null; tom?: 'neutro' | 'aler
   )
 }
 
+export interface AprovacaoEmpresa {
+  empresa_id: string | null
+  empresa_nome: string | null
+  colaboradores: number
+  aprovado_por: string | null
+  aprovado_em: string
+}
+
 export function FechamentoClient({
-  competencia, linhas, empresas, temFechamentoVt, temFechamentoGorjeta, aprovacao,
+  competencia, linhas, empresas, temFechamentoVt, temFechamentoGorjeta, aprovacoes, jaAprovados,
 }: {
   competencia: string
   linhas: LinhaFechamento[]
   empresas: EmpresaOpcao[]
   temFechamentoVt: boolean
   temFechamentoGorjeta: boolean
-  aprovacao: { aprovado_por: string | null; aprovado_em: string } | null
+  aprovacoes: AprovacaoEmpresa[]
+  /** quem já entrou na folha aprovada deste mês */
+  jaAprovados: string[]
 }) {
   const router = useRouter()
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
+
+  // Empresa ainda não aprovada entra com todo mundo marcado; empresa já
+  // aprovada volta exatamente com quem foi aprovado — desmarcar e aprovar de
+  // novo é o jeito de tirar alguém da folha.
+  const [marcados, setMarcados] = useState<Set<string>>(() => {
+    const aprovados = new Set(jaAprovados)
+    const empresasAprovadas = new Set(aprovacoes.map(a => a.empresa_id))
+    return new Set(
+      linhas
+        .filter(l => (empresasAprovadas.has(l.empresa_id ?? null) ? aprovados.has(l.candidate_id) : true))
+        .map(l => l.candidate_id),
+    )
+  })
+  const alternarMarcado = (id: string) => setMarcados(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
   const [comentarios, setComentarios] = useState<Record<string, string>>(
     () => Object.fromEntries(linhas.map(l => [l.candidate_id, l.comentario])),
   )
@@ -70,15 +97,27 @@ export function FechamentoClient({
   })
 
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
-  const totalDias = filtradas.reduce((s, l) => s + l.dias_trabalhados, 0)
-  const totalFaltas = filtradas.reduce((s, l) => s + l.faltas, 0)
-  const totalGorjeta = filtradas.reduce((s, l) => s + l.gorjeta, 0)
-  // Intermitente costuma ter valor/HORA na ficha; somar com mensal daria total
-  // falso, então a folha só soma o que é claramente salário mensal.
-  const totalSalario = filtradas
+  // Só o que está marcado conta: é o que vai ser aprovado e exportado.
+  const selecionadas = filtradas.filter(l => marcados.has(l.candidate_id))
+  const todasMarcadas = filtradas.length > 0 && selecionadas.length === filtradas.length
+  const totalDias = selecionadas.reduce((s, l) => s + l.dias_trabalhados, 0)
+  const totalFaltas = selecionadas.reduce((s, l) => s + l.faltas, 0)
+  const totalSalario = selecionadas
     .map(l => paraNumero(l.salario))
+    // Intermitente costuma ter valor/HORA na ficha; somar com mensal daria
+    // total falso, então a folha só soma o que é claramente salário mensal.
     .filter(v => v >= 100)
     .reduce((s, v) => s + v, 0)
+
+  /** Marca ou desmarca de uma vez o que está na tela agora. */
+  function alternarTodas() {
+    setMarcados(s => {
+      const n = new Set(s)
+      if (todasMarcadas) filtradas.forEach(l => n.delete(l.candidate_id))
+      else filtradas.forEach(l => n.add(l.candidate_id))
+      return n
+    })
+  }
 
   async function salvarComentario(l: LinhaFechamento) {
     const texto = comentarios[l.candidate_id] ?? ''
@@ -105,7 +144,13 @@ export function FechamentoClient({
   ]
   const simNaoTexto = (v: boolean | null) => (v === null ? '' : v ? 'Sim' : 'Não')
 
-  /** Aprova o mês, guardando um retrato dos totais. */
+  /**
+   * Aprova o fechamento das empresas em escopo. Vai só a lista de marcados —
+   * os números o servidor recalcula da mesma montagem que desenha a tela.
+   *
+   * Manda TODOS os marcados, não só os visíveis: quem a busca escondeu
+   * continua marcado e não pode sumir da folha por causa de um filtro.
+   */
   async function aprovarFechamento() {
     setAprovando(true); setErro(''); setOk('')
     try {
@@ -113,16 +158,18 @@ export function FechamentoClient({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           competencia,
-          colaboradores: filtradas.length,
-          total_dias: totalDias,
-          total_faltas: totalFaltas,
-          total_gorjeta: totalGorjeta,
-          total_salario: totalSalario,
+          escopo_empresa: empresaFiltro || null,
+          candidate_ids: Array.from(marcados),
         }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Erro ao aprovar o fechamento.')
-      setOk(`Fechamento de ${rotuloMes(competencia)} aprovado.`)
+      const quantas = (d.aprovadas ?? []).length
+      setOk(
+        `Fechamento de ${rotuloMes(competencia)} aprovado para ${quantas} `
+        + `${quantas === 1 ? 'empresa' : 'empresas'}.`
+        + (d.removidas ? ` ${d.removidas} sem ninguém marcado ${d.removidas === 1 ? 'saiu' : 'saíram'} da folha.` : ''),
+      )
       setConfirmando(false)
       router.refresh()
     } catch (e) {
@@ -136,9 +183,9 @@ export function FechamentoClient({
     const [mes, ano] = maiuscula(rotuloMes(competencia)).split(' de ')
     const blob = await gerarPdfTabela({
       titulo: `Fechamento de folha — ${nomeEmpresa ?? 'Todas as empresas'}`,
-      subtitulo: `${mes} / ${ano} · ${filtradas.length} colaboradores · ${totalDias} dias · ${brl(totalSalario)} em salários`,
+      subtitulo: `${mes} / ${ano} · ${selecionadas.length} colaboradores · ${totalDias} dias · ${brl(totalSalario)} em salários`,
       cabecalho: ['Colaborador', 'Dias', 'Faltas', 'VT', 'Sindical', 'Gorjeta', 'Confiança', 'Insal.', 'Quebra', 'Salário'],
-      linhas: filtradas.map(l => [
+      linhas: selecionadas.map(l => [
         formatName(l.nome), l.dias_trabalhados, l.faltas,
         simNaoTexto(l.vale_transporte), simNaoTexto(l.mensalidade_sindical),
         l.gorjeta > 0 ? brl(l.gorjeta) : '—',
@@ -153,7 +200,7 @@ export function FechamentoClient({
 
   async function exportar() {
     setMenuExportar(false)
-    const corpo = filtradas.map(l => [
+    const corpo = selecionadas.map(l => [
       formatName(l.nome), l.empresa ?? '—',
       l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
       l.dias_trabalhados, l.faltas,
@@ -200,7 +247,7 @@ export function FechamentoClient({
 
         <div className="relative">
           <Button variant="outline" onClick={() => setMenuExportar(o => !o)}
-            disabled={filtradas.length === 0} className="gap-1.5">
+            disabled={selecionadas.length === 0} className="gap-1.5">
             <Download className="w-3.5 h-3.5" />Exportar
             <ChevronDown className="w-3.5 h-3.5 opacity-60" />
           </Button>
@@ -224,20 +271,28 @@ export function FechamentoClient({
         </div>
 
         <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
-          disabled={filtradas.length === 0} className="gap-1.5">
+          disabled={selecionadas.length === 0} className="gap-1.5">
           <Check className="w-3.5 h-3.5" />Aprovar
         </Button>
       </div>
 
-      {aprovacao && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2 flex-wrap">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <p className="text-[13px] text-emerald-900 flex-1">
-            Fechamento <strong>aprovado</strong>
-            {aprovacao.aprovado_por ? ` por ${aprovacao.aprovado_por}` : ''} em{' '}
-            {new Date(aprovacao.aprovado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.
-            Aprovar de novo atualiza o registro com os números de agora.
-          </p>
+      {aprovacoes.length > 0 && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="text-[13px] text-emerald-900 flex-1 space-y-0.5">
+            <p>
+              Já <strong>aprovado</strong> neste mês
+              {' '}({aprovacoes.length === 1 ? '1 empresa' : `${aprovacoes.length} empresas`}).
+              Aprovar de novo atualiza o registro com os números de agora.
+            </p>
+            {aprovacoes.map(a => (
+              <p key={a.empresa_id ?? 'sem-empresa'} className="text-[12px]">
+                <strong>{a.empresa_nome ?? 'Sem empresa'}</strong> — {a.colaboradores} colaboradores
+                {a.aprovado_por ? `, por ${a.aprovado_por}` : ''} em{' '}
+                {new Date(a.aprovado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+              </p>
+            ))}
+          </div>
         </div>
       )}
 
@@ -278,7 +333,7 @@ export function FechamentoClient({
 
       {/* ── Resumo ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Cartao titulo="Colaboradores" valor={String(filtradas.length)} cor="text-gray-900" />
+        <Cartao titulo="Colaboradores marcados" valor={`${selecionadas.length} de ${filtradas.length}`} cor="text-gray-900" />
         <Cartao titulo="Faltas" valor={String(totalFaltas)} cor={totalFaltas > 0 ? 'text-red-600' : 'text-gray-900'} />
         <Cartao titulo="Salários (mensais)" valor={brl(totalSalario)} cor="text-emerald-700" />
       </div>
@@ -295,7 +350,7 @@ export function FechamentoClient({
             <p className="text-[13px] text-gray-700">
               Registrar o fechamento de <strong>{maiuscula(rotuloMes(competencia))}</strong>
               {nomeEmpresa ? <> para <strong>{nomeEmpresa}</strong></> : ' para todas as empresas'} —{' '}
-              {filtradas.length} colaboradores, {totalDias} dias, {brl(totalSalario)} em salários.
+              {selecionadas.length} colaboradores marcados, {totalDias} dias, {brl(totalSalario)} em salários.
             </p>
             {(!temFechamentoVt || !temFechamentoGorjeta) && (
               <p className="text-[12.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
@@ -323,6 +378,12 @@ export function FechamentoClient({
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="pl-3 pr-1 py-2 w-px">
+                  <input type="checkbox" checked={todasMarcadas} onChange={alternarTodas}
+                    disabled={filtradas.length === 0}
+                    title={todasMarcadas ? 'Desmarcar todos' : 'Marcar todos'}
+                    className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer" />
+                </th>
                 <th className="px-3 py-2 font-semibold">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
                 <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">Dias</th>
@@ -340,7 +401,15 @@ export function FechamentoClient({
             </thead>
             <tbody className="divide-y">
               {filtradas.map(l => (
-                <tr key={l.candidate_id} className="hover:bg-gray-50 align-top">
+                <tr key={l.candidate_id}
+                  className={cn('hover:bg-gray-50 align-top', !marcados.has(l.candidate_id) && 'opacity-45')}>
+                  <td className="pl-3 pr-1 py-2">
+                    {/* Desmarcado não entra na folha aprovada. */}
+                    <input type="checkbox" checked={marcados.has(l.candidate_id)}
+                      onChange={() => alternarMarcado(l.candidate_id)}
+                      title={marcados.has(l.candidate_id) ? 'Tirar da folha' : 'Incluir na folha'}
+                      className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer" />
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span className="font-medium text-gray-900">{formatName(l.nome)}</span>
                     {l.vinculo === 'intermitente' && (
@@ -397,7 +466,7 @@ export function FechamentoClient({
               ))}
               {filtradas.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Nenhum colaborador neste filtro.
                   </td>
                 </tr>
