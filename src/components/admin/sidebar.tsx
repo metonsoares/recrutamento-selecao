@@ -264,8 +264,12 @@ function SidebarContent({
               <Link href="/admin/folha-pagamento/mensalidade-sindical" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/mensalidade-sindical') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                 <Landmark className="w-3 h-3 shrink-0 opacity-50" />Mensalidade sindical
               </Link>
-              {/* Lançamentos do mês: sete telas do mesmo molde, uma rota só. */}
-              {isMaster && ORDEM_LANCAMENTOS.map(slug => (
+              {/* Lançamentos do mês: sete telas do mesmo molde, uma rota só.
+                  Quem vê cada um sai da MESMA configuração que guarda a página
+                  e a rota — não há como o menu divergir do acesso real. */}
+              {ORDEM_LANCAMENTOS.filter(slug =>
+                (LANCAMENTOS[slug].perfis as readonly string[]).includes(role),
+              ).map(slug => (
                 <Link key={slug} href={`/admin/folha-pagamento/lancamentos/${slug}`} onClick={go}
                   className={cn(DEEP_BASE, pathname.startsWith(`/admin/folha-pagamento/lancamentos/${slug}`) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                   <Wallet className="w-3 h-3 shrink-0 opacity-50" />{LANCAMENTOS[slug].titulo}

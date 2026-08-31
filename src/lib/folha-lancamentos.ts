@@ -25,6 +25,9 @@ export interface ColunaContagem {
   rotulo: string
 }
 
+/** Perfis que alcançam o lançamento. Master está sempre incluído. */
+export type PerfilLancamento = 'master' | 'gestor_rh'
+
 export interface ConfigLancamento {
   slug: TipoLancamento
   titulo: string
@@ -54,11 +57,23 @@ export interface ConfigLancamento {
    * são casos em que o RH precisa corrigir.
    */
   percentualSalario?: number
+  /**
+   * A base calculada é FIXA (não editável) e o que se digita é um desconto.
+   * O valor do mês é `base - desconto`. Sem isto, o campo de valor é livre.
+   */
+  valorFixo?: boolean
+  /**
+   * Quem enxerga e opera. Vale para o MENU, a PÁGINA e a ROTA ao mesmo tempo —
+   * liberar só o menu deixaria o item visível redirecionando, que é pior do
+   * que não mostrar.
+   */
+  perfis: PerfilLancamento[]
 }
 
 export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   'avarias': {
     slug: 'avarias',
+    perfis: ['master', 'gestor_rh'],
     titulo: 'Avarias',
     descricao: 'Itens avariados no período, um a um. O desconto do mês é a soma deles.',
     colunas: [],
@@ -68,6 +83,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'domingos-feriados': {
     slug: 'domingos-feriados',
+    perfis: ['master'],
     titulo: 'Domingos e feriados',
     descricao: 'Quantos domingos e quantos feriados o colaborador trabalhou no mês.',
     colunas: [
@@ -78,6 +94,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'horas-extras': {
     slug: 'horas-extras',
+    perfis: ['master'],
     titulo: 'Horas extras',
     descricao: 'Horas do mês por tipo de adicional.',
     colunas: [
@@ -89,6 +106,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'gratificacao': {
     slug: 'gratificacao',
+    perfis: ['master'],
     titulo: 'Gratificação',
     descricao: 'Gratificações do período. Aprovar registra o mês.',
     colunas: [],
@@ -96,6 +114,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'cargo-confianca': {
     slug: 'cargo-confianca',
+    perfis: ['master'],
     titulo: 'Cargo de confiança',
     descricao: 'Adicional de 40% sobre o salário. Lista só quem tem "Sim" na ficha.',
     colunas: [],
@@ -105,6 +124,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'insalubridade': {
     slug: 'insalubridade',
+    perfis: ['master'],
     titulo: 'Insalubridade',
     descricao: 'Adicional de 20% sobre o salário. Lista só quem tem "Sim" na ficha.',
     colunas: [],
@@ -114,12 +134,14 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
   },
   'quebra-caixa': {
     slug: 'quebra-caixa',
+    perfis: ['master'],
     titulo: 'Quebra de caixa',
-    descricao: 'Adicional de 15% sobre o salário. Lista só quem tem "Sim" na ficha.',
+    descricao: 'Base de 15% do salário, menos o desconto do mês. Lista só quem tem "Sim" na ficha.',
     colunas: [],
     temValor: true,
     campoFicha: 'quebra_caixa_15',
     percentualSalario: 0.15,
+    valorFixo: true,
   },
 }
 

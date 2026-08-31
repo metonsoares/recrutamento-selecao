@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient, createSupabaseServerClient } from '@/lib/supabase-server'
-import { requireMasterApi } from '@/lib/auth-guard'
-import { tipoValido } from '@/lib/folha-lancamentos'
+import { requireAnyRoleApi } from '@/lib/auth-guard'
+import { LANCAMENTOS, tipoValido } from '@/lib/folha-lancamentos'
 
 /**
  * Fechamento mensal dos lançamentos de folha (avarias, domingos e feriados,
@@ -19,6 +19,7 @@ interface ItemEntrada {
   quantidade2?: unknown
   quantidade3?: unknown
   valor?: unknown
+  desconto?: unknown
   observacao?: string | null
 }
 
@@ -33,33 +34,34 @@ async function recalcular(
   cicloId: string,
 ) {
   const { data: restantes } = await supabase
-    .from('folha_itens').select('quantidade, quantidade2, quantidade3, valor').eq('ciclo_id', cicloId)
+    .from('folha_itens').select('quantidade, quantidade2, quantidade3, valor, desconto').eq('ciclo_id', cicloId)
 
   if (!restantes || restantes.length === 0) {
     await supabase.from('folha_ciclos').delete().eq('id', cicloId)
-    return { removido: true, totalValor: 0, totalQtd: 0, totalQtd2: 0, totalQtd3: 0 }
+    return { removido: true, totalValor: 0, totalQtd: 0, totalQtd2: 0, totalQtd3: 0, totalDesconto: 0 }
   }
   const totalValor = Math.round(restantes.reduce((s, i) => s + Number(i.valor), 0) * 100) / 100
   const totalQtd = Math.round(restantes.reduce((s, i) => s + Number(i.quantidade), 0) * 100) / 100
   const totalQtd2 = Math.round(restantes.reduce((s, i) => s + Number(i.quantidade2 ?? 0), 0) * 100) / 100
   const totalQtd3 = Math.round(restantes.reduce((s, i) => s + Number(i.quantidade3 ?? 0), 0) * 100) / 100
+  const totalDesconto = Math.round(restantes.reduce((s, i) => s + Number(i.desconto ?? 0), 0) * 100) / 100
   await supabase.from('folha_ciclos')
     .update({
-      total_valor: totalValor, total_qtd: totalQtd, total_qtd2: totalQtd2, total_qtd3: totalQtd3,
+      total_valor: totalValor, total_qtd: totalQtd, total_qtd2: totalQtd2, total_qtd3: totalQtd3, total_desconto: totalDesconto,
       updated_at: new Date().toISOString(),
     })
     .eq('id', cicloId)
-  return { removido: false, totalValor, totalQtd, totalQtd2, totalQtd3 }
+  return { removido: false, totalValor, totalQtd, totalQtd2, totalQtd3, totalDesconto }
 }
 
 /** POST — aprova (ou reaprova) a competência. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tipo: string }> }) {
   try {
-    const denied = await requireMasterApi()
-    if (denied) return denied
-
     const { tipo } = await params
     if (!tipoValido(tipo)) return NextResponse.json({ error: 'Tipo inválido.' }, { status: 400 })
+
+    const denied = await requireAnyRoleApi(LANCAMENTOS[tipo].perfis)
+    if (denied) return denied
 
     const body = await req.json().catch(() => ({}))
     const competencia = String(body.competencia ?? '')
@@ -107,6 +109,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tip
         quantidade2: num(i.quantidade2),
         quantidade3: num(i.quantidade3),
         valor: num(i.valor),
+        desconto: num(i.desconto),
         observacao: String(i.observacao ?? '').trim() || null,
       }))
       .filter(l => l.candidate_id && (l.valor > 0 || l.quantidade > 0 || l.quantidade2 > 0 || l.quantidade3 > 0))
@@ -127,11 +130,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tip
 /** PATCH — altera um lançamento de um mês já aprovado. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tipo: string }> }) {
   try {
-    const denied = await requireMasterApi()
-    if (denied) return denied
-
     const { tipo } = await params
     if (!tipoValido(tipo)) return NextResponse.json({ error: 'Tipo inválido.' }, { status: 400 })
+
+    const denied = await requireAnyRoleApi(LANCAMENTOS[tipo].perfis)
+    if (denied) return denied
 
     const body = await req.json().catch(() => ({}))
     const competencia = String(body.competencia ?? '')
@@ -169,11 +172,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ti
 /** DELETE — remove o lançamento de um colaborador na competência. */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ tipo: string }> }) {
   try {
-    const denied = await requireMasterApi()
-    if (denied) return denied
-
     const { tipo } = await params
     if (!tipoValido(tipo)) return NextResponse.json({ error: 'Tipo inválido.' }, { status: 400 })
+
+    const denied = await requireAnyRoleApi(LANCAMENTOS[tipo].perfis)
+    if (denied) return denied
 
     const body = await req.json().catch(() => ({}))
     const competencia = String(body.competencia ?? '')

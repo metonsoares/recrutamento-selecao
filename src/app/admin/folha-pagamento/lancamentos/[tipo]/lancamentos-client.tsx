@@ -33,6 +33,7 @@ export interface RegistroLancamento {
   quantidade2: number
   quantidade3: number
   valor: number
+  desconto: number
   observacao: string | null
 }
 
@@ -44,6 +45,7 @@ interface CicloAprovado {
   total_qtd: number
   total_qtd2: number
   total_qtd3: number
+  total_desconto: number
   aprovado_por: string | null
 }
 
@@ -84,6 +86,8 @@ export function LancamentosClient({
   const [valores, setValores] = useState<Record<string, string>>({})
   /** candidate_id → { quantidade, quantidade2, quantidade3 } digitados */
   const [contagens, setContagens] = useState<Record<string, Partial<Record<CampoContagem, string>>>>({})
+  /** candidate_id → desconto digitado (tipos de valor fixo) */
+  const [descontos, setDescontos] = useState<Record<string, string>>({})
   /** candidate_id → lista de itens (avarias) */
   const [itensPorCand, setItensPorCand] = useState<Record<string, ItemAvulso[]>>({})
   const [salvando, setSalvando] = useState(false)
@@ -134,8 +138,18 @@ export function LancamentosClient({
   const totalItensDe = (l: LinhaLancamento) =>
     itensDe(l).reduce((s, it) => s + paraNumero(it.valor), 0)
 
-  const valorDe = (l: LinhaLancamento) =>
-    multiplos ? totalItensDe(l) : paraNumero(valores[l.candidate_id])
+  const valorFixo = !!config.valorFixo
+  const descontoDe = (l: LinhaLancamento) => paraNumero(descontos[l.candidate_id])
+
+  /**
+   * Valor do mês. Em tipo de base fixa (quebra de caixa) é o cálculo menos o
+   * desconto, nunca negativo — desconto maior que a base zera, não vira dívida.
+   */
+  const valorDe = (l: LinhaLancamento) => {
+    if (multiplos) return totalItensDe(l)
+    if (valorFixo) return Math.max(0, Math.round((sugestaoDe(l) - descontoDe(l)) * 100) / 100)
+    return paraNumero(valores[l.candidate_id])
+  }
 
   const contagemDe = (l: LinhaLancamento, campo: CampoContagem) =>
     paraNumero(contagens[l.candidate_id]?.[campo])
@@ -159,6 +173,7 @@ export function LancamentosClient({
         mesmoMes.quantidade += h.quantidade
         mesmoMes.quantidade2 += h.quantidade2
         mesmoMes.quantidade3 += h.quantidade3
+        mesmoMes.desconto = Math.round((mesmoMes.desconto + h.desconto) * 100) / 100
       } else {
         arr.push({ ...h })
       }
@@ -177,6 +192,7 @@ export function LancamentosClient({
         atual.quantidade += h.quantidade
         atual.quantidade2 += h.quantidade2
         atual.quantidade3 += h.quantidade3
+        atual.desconto = Math.round((atual.desconto + h.desconto) * 100) / 100
       } else {
         m.set(h.candidate_id, { ...h })
       }
@@ -198,7 +214,7 @@ export function LancamentosClient({
   // Mês novo: limpa antes de semear (este efeito vem ANTES do de baixo de
   // propósito — na ordem inversa apagaria o que acabou de ser semeado).
   useEffect(() => {
-    setValores({}); setContagens({}); setItensPorCand({}); setErro(''); setOk('')
+    setValores({}); setContagens({}); setItensPorCand({}); setDescontos({}); setErro(''); setOk('')
   }, [competencia])
 
   // Semeia o que já está aprovado e, quando o tipo é percentual do salário, a
@@ -213,6 +229,13 @@ export function LancamentosClient({
         if (aprovado && aprovado.valor > 0) { novo[l.candidate_id] = paraCampo(aprovado.valor); continue }
         const sugerido = sugestaoDe(l)
         if (sugerido > 0) novo[l.candidate_id] = paraCampo(sugerido)
+      }
+      return novo
+    })
+    setDescontos(atual => {
+      const novo = { ...atual }
+      for (const [id, r] of aprovadosNoMes) {
+        if (novo[id] === undefined && r.desconto > 0) novo[id] = paraCampo(r.desconto)
       }
       return novo
     })
@@ -268,7 +291,13 @@ export function LancamentosClient({
   function aplicarATodos() {
     const texto = padrao.trim()
     if (!texto) return
-    if (config.temValor && !multiplos) {
+    if (valorFixo) {
+      setDescontos(v => {
+        const novo = { ...v }
+        for (const l of filtradas) novo[l.candidate_id] = texto
+        return novo
+      })
+    } else if (config.temValor && !multiplos) {
       setValores(v => {
         const novo = { ...v }
         for (const l of filtradas) novo[l.candidate_id] = texto
@@ -302,6 +331,7 @@ export function LancamentosClient({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
             empresa_id: l.empresa_id, empresa_nome: l.empresa,
             valor: config.temValor ? valorDe(l) : 0,
+            desconto: valorFixo ? descontoDe(l) : 0,
             quantidade: contagemDe(l, 'quantidade'),
             quantidade2: contagemDe(l, 'quantidade2'),
             quantidade3: contagemDe(l, 'quantidade3'),
@@ -349,20 +379,23 @@ export function LancamentosClient({
       if (v > 0) partes.push(`${v} ${c.rotulo.toLowerCase()}`)
     }
     if (config.temValor && h.valor > 0) partes.push(brl(h.valor))
+    if (h.desconto > 0) partes.push(`desconto ${brl(h.desconto)}`)
     return partes.join(' · ') || '—'
   }
 
   const CABECALHO = [
     'Colaborador', 'Empresa', 'Cargo',
     ...config.colunas.map(c => c.rotulo),
-    ...(config.temValor ? ['Valor'] : []),
+    ...(config.temValor && valorFixo ? ['Base', 'Desconto', 'Valor do mês'] : []),
+    ...(config.temValor && !valorFixo ? ['Valor'] : []),
   ]
 
   async function exportar() {
     const corpo = filtradas.map(l => [
       formatName(l.nome), l.empresa ?? '—', l.cargo ?? '—',
       ...config.colunas.map(c => contagemDe(l, c.campo)),
-      ...(config.temValor ? [valorDe(l)] : []),
+      ...(config.temValor && valorFixo ? [sugestaoDe(l), descontoDe(l), valorDe(l)] : []),
+      ...(config.temValor && !valorFixo ? [valorDe(l)] : []),
     ])
     baixarArquivo(await gerarXlsx([CABECALHO, ...corpo], config.titulo), `${baseNome}.xlsx`)
   }
@@ -437,7 +470,7 @@ export function LancamentosClient({
         {!multiplos && (
           <div className="flex gap-2">
             <input value={padrao} onChange={e => setPadrao(e.target.value.replace(/[^\d,]/g, ''))}
-              placeholder={config.temValor ? 'Valor p/ todos' : `${config.colunas[0]?.rotulo ?? 'Qtd'} p/ todos`}
+              placeholder={valorFixo ? 'Desconto p/ todos' : config.temValor ? 'Valor p/ todos' : `${config.colunas[0]?.rotulo ?? 'Qtd'} p/ todos`}
               inputMode="decimal"
               className="h-9 flex-1 min-w-0 border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
             <Button variant="outline" onClick={aplicarATodos} disabled={!padrao.trim() || filtradas.length === 0}
@@ -459,6 +492,9 @@ export function LancamentosClient({
         <Cartao titulo="Listados" valor={String(filtradas.length)} cor="text-gray-900" />
         <Cartao titulo="Com lançamento" valor={String(comLancamento)} cor="text-emerald-700" />
         {config.temValor && <Cartao titulo="Total" valor={brl(totalValor)} cor="text-primary" />}
+        {valorFixo && (
+          <Cartao titulo="Descontos" valor={brl(noEscopo.reduce((s, l) => s + descontoDe(l), 0))} cor="text-amber-700" />
+        )}
         {totaisContagem.map(t => (
           <Cartao key={t.rotulo} titulo={t.rotulo} valor={String(t.total)} cor="text-primary" />
         ))}
@@ -478,7 +514,16 @@ export function LancamentosClient({
                 {config.colunas.map(c => (
                   <th key={c.campo} className="px-3 py-2 font-semibold text-center whitespace-nowrap">{c.rotulo}</th>
                 ))}
-                {config.temValor && (
+                {config.temValor && valorFixo && (
+                  <>
+                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">
+                      Base ({Math.round((config.percentualSalario ?? 0) * 100)}%)
+                    </th>
+                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Desconto</th>
+                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Valor do mês</th>
+                  </>
+                )}
+                {config.temValor && !valorFixo && (
                   <th className="px-3 py-2 font-semibold">
                     {multiplos ? `Valor e ${(config.rotuloDescricao ?? 'descrição').toLowerCase()}` : 'Valor'}
                   </th>
@@ -541,7 +586,7 @@ export function LancamentosClient({
                       </td>
                     ))}
 
-                    {config.temValor && !multiplos && (
+                    {config.temValor && !multiplos && !valorFixo && (
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <span className="text-[12px] text-gray-400">R$</span>
@@ -562,6 +607,41 @@ export function LancamentosClient({
                           </span>
                         )}
                       </td>
+                    )}
+
+                    {config.temValor && valorFixo && (
+                      <>
+                        {/* Base calculada: não editável de propósito — é regra,
+                            não digitação. O que varia no mês é o desconto. */}
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                          {sugestaoDe(l) > 0 ? (
+                            <span className="text-gray-700">{brl(sugestaoDe(l))}</span>
+                          ) : (
+                            <span className="text-[11px] text-amber-700">
+                              {l.salario ? 'salário por hora' : 'sem salário na ficha'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <span className="text-[12px] text-gray-400">R$</span>
+                            <input value={descontos[l.candidate_id] ?? ''}
+                              onChange={e => setDescontos(v => ({ ...v, [l.candidate_id]: e.target.value.replace(/[^\d,]/g, '') }))}
+                              placeholder="0,00" inputMode="decimal"
+                              disabled={sugestaoDe(l) <= 0}
+                              className="h-8 w-24 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-right disabled:bg-gray-50 disabled:text-gray-400" />
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                          <span className="font-semibold text-gray-900">{brl(valorDe(l))}</span>
+                          {jaAprovado && <span className="text-[11px] font-semibold text-emerald-700"> ✓</span>}
+                          {descontoDe(l) > sugestaoDe(l) && sugestaoDe(l) > 0 && (
+                            <span className="block text-[10.5px] text-amber-700">
+                              desconto maior que a base — zerado
+                            </span>
+                          )}
+                        </td>
+                      </>
                     )}
 
                     {/* Vários itens por pessoa: valor + descrição, um por linha,
@@ -615,7 +695,7 @@ export function LancamentosClient({
               })}
               {filtradas.length === 0 && (
                 <tr>
-                  <td colSpan={4 + config.colunas.length} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={4 + config.colunas.length + (valorFixo ? 2 : 0)} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Nenhum colaborador nesta lista.
                   </td>
                 </tr>
