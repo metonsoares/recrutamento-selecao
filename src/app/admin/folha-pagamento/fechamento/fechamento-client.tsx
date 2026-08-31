@@ -12,30 +12,9 @@ import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
+import type { LinhaFechamento, EmpresaOpcao } from '@/lib/fechamento-folha'
 
-export interface LinhaFechamento {
-  candidate_id: string
-  nome: string
-  cpf: string | null
-  cargo: string | null
-  empresa_id: string | null
-  empresa: string | null
-  vinculo: 'contratado' | 'intermitente'
-  dias_trabalhados: number
-  faltas: number
-  /** null = a ficha ainda não respondeu */
-  vale_transporte: boolean | null
-  mensalidade_sindical: boolean | null
-  gorjeta: number
-  cargo_confianca: boolean | null
-  insalubridade_20: boolean | null
-  quebra_caixa_15: boolean | null
-  /** como veio da ficha: "1.892,34" */
-  salario: string | null
-  comentario: string
-}
-
-export interface EmpresaOpcao { id: string; nome: string }
+export type { LinhaFechamento, EmpresaOpcao } from '@/lib/fechamento-folha'
 
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
