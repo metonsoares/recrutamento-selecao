@@ -93,6 +93,12 @@ function SidebarContent({
   const [pesquisasOpen, setPesquisasOpen] = useState(inPesquisas)
   const [treinamentosOpen, setTreinamentosOpen] = useState(inTreinamentos)
   const [folhaOpen, setFolhaOpen] = useState(inFolha)
+  // Folhas aprovadas moram dentro do Fechamento: já abre quando se está
+  // em qualquer uma das duas telas.
+  const noFechamento = pathname.startsWith('/admin/folha-pagamento/fechamento')
+  const [fechamentoOpen, setFechamentoOpen] = useState(
+    noFechamento || pathname.startsWith('/admin/folha-pagamento/aprovadas'),
+  )
   const [documentosOpen, setDocumentosOpen] = useState(inDocumentos)
   const [plataformaOpen, setPlataformaOpen] = useState(inPlataforma)
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
@@ -275,15 +281,33 @@ function SidebarContent({
                   <Wallet className="w-3 h-3 shrink-0 opacity-50" />{LANCAMENTOS[slug].titulo}
                 </Link>
               ))}
+              {/* Fechamento é tela e grupo ao mesmo tempo: o texto abre o
+                  fechamento do mês, a seta abre as Folhas aprovadas — que são
+                  o histórico desse mesmo fechamento, não um assunto novo. */}
               {isMaster && (
-                <Link href="/admin/folha-pagamento/fechamento" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/fechamento') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                  <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Fechamento de folha
-                </Link>
-              )}
-              {isMaster && (
-                <Link href="/admin/folha-pagamento/aprovadas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/aprovadas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                  <CheckCheck className="w-3 h-3 shrink-0 opacity-50" />Folhas aprovadas
-                </Link>
+                <div>
+                  <div className={cn(
+                    'flex items-center rounded-[6px] transition-colors',
+                    noFechamento ? DEEP_ACTIVE : 'hover:bg-[#f0f0f0]',
+                  )}>
+                    <Link href="/admin/folha-pagamento/fechamento" onClick={go}
+                      className={cn(DEEP_BASE, 'flex-1 min-w-0', noFechamento ? 'text-[#1a1a1a]' : 'text-[#555555]')}>
+                      <ClipboardList className="w-3 h-3 shrink-0 opacity-50" />Fechamento de folha
+                    </Link>
+                    <button type="button" onClick={() => setFechamentoOpen(o => !o)}
+                      aria-label={fechamentoOpen ? 'Ocultar folhas aprovadas' : 'Mostrar folhas aprovadas'}
+                      className="h-8 px-2 shrink-0 rounded-[6px]">
+                      <ChevronDown className={cn('w-3 h-3 opacity-40 transition-transform duration-200', fechamentoOpen && 'rotate-180')} />
+                    </button>
+                  </div>
+                  {fechamentoOpen && (
+                    <div className="ml-4 mt-0.5 space-y-0.5 pl-2.5 border-l border-[#e8e8e8]">
+                      <Link href="/admin/folha-pagamento/aprovadas" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/folha-pagamento/aprovadas') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                        <CheckCheck className="w-3 h-3 shrink-0 opacity-50" />Folhas aprovadas
+                      </Link>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
