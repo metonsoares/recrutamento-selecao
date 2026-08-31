@@ -354,11 +354,26 @@ export function ValeTransporteClient({
 
   async function exportarPdf() {
     setMenuAberto(false)
+    // No PDF, Empresa e Vínculo saem das COLUNAS e sobem para o cabeçalho: com
+    // o filtro de empresa aplicado, repetir o mesmo nome em toda linha só rouba
+    // largura de página. O período vai por extenso, no formato "Agosto / 2026".
+    const [mes, ano] = maiuscula(rotuloMes(competencia)).split(' de ')
+    const periodo = `${mes} / ${ano}`
+    const empresaTitulo = nomeEmpresa ?? 'Todas as empresas'
+
+    const semEmpresaNemVinculo = (l: LinhaVT) => [
+      formatName(l.nome),
+      l.recebe === true ? 'Sim' : l.recebe === false ? 'Não' : 'Não informado',
+      aprovadosNoMes.get(l.candidate_id) ?? diasDe(l) ?? 0,
+      carregadoDe(l).dias,
+      carregadoDe(l).valor,
+    ]
+
     const blob = await gerarPdfTabela({
-      titulo: 'Vale transporte',
-      subtitulo: `${maiuscula(rotuloMes(competencia))} · ${nomeEmpresa ?? 'Todas as empresas'} · ${filtradas.length} colaboradores · ${recebem} recebem`,
-      cabecalho: CABECALHO,
-      linhas: corpo(),
+      titulo: `Vale transporte — ${empresaTitulo}`,
+      subtitulo: `${periodo} · ${filtradas.length} colaboradores · ${recebem} recebem`,
+      cabecalho: ['Funcionário', 'Vale transporte', 'Dias trabalhados', 'Dias carregados (WE)', 'Valor carregado'],
+      linhas: filtradas.map(semEmpresaNemVinculo),
       paisagem: true,
     })
     baixarArquivo(blob, `${baseNome}.pdf`)
