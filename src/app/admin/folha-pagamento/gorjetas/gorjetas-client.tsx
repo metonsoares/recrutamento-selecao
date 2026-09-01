@@ -253,7 +253,7 @@ export function GorjetasClient({
         <div className="flex-1 min-w-[220px]">
           <h1 className="text-2xl font-bold leading-tight">Gorjetas</h1>
           <p className="text-sm text-muted-foreground">
-            {linhas.length} colaborador{linhas.length !== 1 ? 'es' : ''} com gorjeta marcada na ficha
+            {linhas.length} contratado{linhas.length !== 1 ? 's' : ''} com gorjeta marcada na ficha
           </p>
         </div>
 

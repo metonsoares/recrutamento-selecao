@@ -25,9 +25,12 @@ export default async function GorjetasPage({
   const supabase = await createSupabaseServiceClient()
 
   const [{ data: apps }, { data: empresas }, { data: ciclo }] = await Promise.all([
+    // Só CONTRATADO recebe gorjeta: quem está "em contrato" (experiência) e o
+    // intermitente ficam de fora — regra do dono, e é o que a prática já diz
+    // (nenhum lançamento de gorjeta existente é de outro vínculo).
     supabase.from('applications')
       .select('candidate_id, admission_form, status')
-      .in('status', ['contratado', 'em_contrato', 'aprovado'])
+      .eq('status', 'contratado')
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social').order('apelido'),
     supabase.from('gorjeta_ciclos').select('*').eq('competencia', competencia).maybeSingle(),
