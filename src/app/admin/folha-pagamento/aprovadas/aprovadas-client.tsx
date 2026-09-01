@@ -31,6 +31,19 @@ export interface ItemAprovado {
   /** como veio da ficha: "R$ 1.892,34" */
   salario: string | null
   comentario: string
+
+  // Lançamentos do mês, como estavam na aprovação (0 = não houve).
+  domingos: number
+  feriados: number
+  avarias: number
+  adiantamento: number
+  horas_normais: number
+  horas_50: number
+  horas_100: number
+  adicional_noturno: number
+  gratificacao: number
+  confianca_valor: number
+  quebra_valor: number
 }
 
 export interface EmpresaAprovada {
@@ -62,14 +75,23 @@ function dataHora(iso: string): string {
 }
 const simNaoTexto = (v: boolean | null) => (v === null ? '' : v ? 'Sim' : 'Não')
 
-/** Sim/Não/— num selo compacto, igual ao Fechamento de folha. */
-function Selo({ v, tom = 'neutro' }: { v: boolean | null; tom?: 'neutro' | 'alerta' }) {
-  if (v === null) return <span className="text-[11px] text-gray-400" title="A ficha não respondeu">—</span>
-  if (!v) return <span className="text-[11px] text-gray-400">Não</span>
+/** Horas do mês numa célula de PDF. */
+function resumoHoras(l: ItemAprovado): string {
+  return [
+    l.horas_normais > 0 ? `${l.horas_normais}n` : '',
+    l.horas_50 > 0 ? `${l.horas_50} a 50%` : '',
+    l.horas_100 > 0 ? `${l.horas_100} a 100%` : '',
+    l.adicional_noturno > 0 ? `${l.adicional_noturno} not.` : '',
+  ].filter(Boolean).join(' · ')
+}
+
+/** Sim em verde, Não em vermelho — igual ao Fechamento de folha. */
+function SimNao({ v }: { v: boolean | null }) {
+  if (v === null) return null
   return (
     <span className={`text-[10px] font-bold uppercase rounded px-1.5 py-0.5 ${
-      tom === 'alerta' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'
-    }`}>Sim</span>
+      v ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+    }`}>{v ? 'Sim' : 'Não'}</span>
   )
 }
 
@@ -88,8 +110,10 @@ function nomeArquivo(competencia: string, empresa: string): string {
 }
 
 const CABECALHO = [
-  'Colaborador', 'Vínculo', 'Dias', 'Faltas', 'Vale transporte', 'Mensalidade sindical',
-  'Gorjeta', 'Cargo de confiança', 'Insalubridade 20%', 'Quebra de caixa 15%', 'Salário', 'Comentário',
+  'Colaborador', 'Vínculo', 'Dias trabalhados', 'Vale transporte', 'Faltas', 'Domingos',
+  'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial', 'Horas normais',
+  'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Gratificação', 'Insalubridade 20%',
+  'Cargo de confiança', 'Quebra de caixa', 'Gorjeta', 'Salário', 'Comentário',
 ]
 
 export function AprovadasClient({
@@ -175,10 +199,11 @@ export function AprovadasClient({
     setMenu(null)
     const corpo = filtrar(e).map(l => [
       formatName(l.nome), l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
-      l.dias_trabalhados, l.faltas,
-      simNaoTexto(l.vale_transporte), simNaoTexto(l.mensalidade_sindical), l.gorjeta,
-      simNaoTexto(l.cargo_confianca), simNaoTexto(l.insalubridade_20), simNaoTexto(l.quebra_caixa_15),
-      paraNumero(l.salario), comentarios[l.candidate_id] ?? '',
+      l.dias_trabalhados, simNaoTexto(l.vale_transporte), l.faltas, l.domingos, l.feriados,
+      simNaoTexto(l.mensalidade_sindical), l.avarias, l.adiantamento,
+      l.horas_normais, l.horas_50, l.horas_100, l.adicional_noturno,
+      l.gratificacao, simNaoTexto(l.insalubridade_20), l.confianca_valor, l.quebra_valor,
+      l.gorjeta, paraNumero(l.salario), comentarios[l.candidate_id] ?? '',
     ])
     baixarArquivo(
       await gerarXlsx([CABECALHO, ...corpo], 'Folha aprovada'),
@@ -194,13 +219,21 @@ export function AprovadasClient({
       // A empresa sobe para o título e não se repete em toda linha.
       titulo: `Folha aprovada — ${e.empresa_nome}`,
       subtitulo: `${mes} / ${ano} · ${linhas.length} colaboradores · aprovada${e.aprovado_por ? ` por ${e.aprovado_por}` : ''} em ${dataHora(e.aprovado_em)}`,
-      cabecalho: ['Colaborador', 'Dias', 'Faltas', 'VT', 'Sindical', 'Gorjeta', 'Confiança', 'Insal.', 'Quebra', 'Salário'],
+      cabecalho: [
+        'Colaborador', 'Dias', 'VT', 'Faltas', 'Dom/Fer', 'Sindical', 'Avarias', 'Adiant.',
+        'H. extras', 'Gratif.', 'Insal.', 'Confiança', 'Quebra', 'Gorjeta', 'Salário',
+      ],
       linhas: linhas.map(l => [
-        formatName(l.nome), l.dias_trabalhados, l.faltas,
-        simNaoTexto(l.vale_transporte), simNaoTexto(l.mensalidade_sindical),
-        l.gorjeta > 0 ? brl(l.gorjeta) : '—',
-        simNaoTexto(l.cargo_confianca), simNaoTexto(l.insalubridade_20), simNaoTexto(l.quebra_caixa_15),
-        l.salario ? brl(paraNumero(l.salario)) : '—',
+        formatName(l.nome), l.dias_trabalhados || '', simNaoTexto(l.vale_transporte),
+        l.faltas || '', l.domingos + l.feriados || '', simNaoTexto(l.mensalidade_sindical),
+        l.avarias > 0 ? brl(l.avarias) : '',
+        l.adiantamento > 0 ? brl(l.adiantamento) : '',
+        resumoHoras(l), l.gratificacao > 0 ? brl(l.gratificacao) : '',
+        simNaoTexto(l.insalubridade_20),
+        l.confianca_valor > 0 ? brl(l.confianca_valor) : '',
+        l.quebra_valor > 0 ? brl(l.quebra_valor) : '',
+        l.gorjeta > 0 ? brl(l.gorjeta) : '',
+        l.salario ? brl(paraNumero(l.salario)) : '',
       ]),
       paisagem: true,
     })
@@ -369,14 +402,19 @@ export function AprovadasClient({
                         <thead className="bg-gray-50 border-b">
                           <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground align-bottom">
                             <th className="px-3 py-2 font-semibold">Colaborador</th>
-                            <th className="px-3 py-2 font-semibold text-center max-w-[70px]">Dias trabalhados</th>
-                            <th className="px-3 py-2 font-semibold text-center">Faltas</th>
-                            <th className="px-3 py-2 font-semibold text-center max-w-[80px]">Vale transporte</th>
-                            <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Mensalidade sindical</th>
-                            <th className="px-3 py-2 font-semibold text-right">Gorjeta</th>
-                            <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Cargo de confiança</th>
-                            <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Insalubridade 20%</th>
-                            <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Quebra de caixa 15%</th>
+                            <th className="px-2 py-2 font-semibold text-center max-w-[70px]">Dias trabalhados</th>
+                            <th className="px-2 py-2 font-semibold text-center max-w-[80px]">Vale transporte</th>
+                            <th className="px-2 py-2 font-semibold text-center max-w-[60px]">Faltas</th>
+                            <th className="px-2 py-2 font-semibold text-center max-w-[90px]">Domingos e feriados</th>
+                            <th className="px-2 py-2 font-semibold text-center max-w-[90px]">Mensalidade sindical</th>
+                            <th className="px-2 py-2 font-semibold text-right max-w-[80px]">Avarias</th>
+                            <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Adiantamento salarial</th>
+                            <th className="px-2 py-2 font-semibold text-center max-w-[110px]">Horas extras</th>
+                            <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Gratificação</th>
+                            <th className="px-2 py-2 font-semibold text-center max-w-[90px]">Insalubridade 20%</th>
+                            <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Cargo de confiança</th>
+                            <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Quebra de caixa</th>
+                            <th className="px-2 py-2 font-semibold text-right max-w-[80px]">Gorjeta</th>
                             <th className="px-3 py-2 font-semibold text-right">Salário</th>
                             <th className="px-3 py-2 font-semibold min-w-[180px]">Comentário</th>
                             <th className="px-3 py-2 w-px" />
@@ -394,22 +432,49 @@ export function AprovadasClient({
                                 )}
                                 {l.cargo && <span className="block text-[11px] text-muted-foreground">{l.cargo}</span>}
                               </td>
-                              <td className="px-3 py-2 text-center font-semibold text-gray-900">{l.dias_trabalhados || '—'}</td>
-                              <td className="px-3 py-2 text-center">
-                                {l.faltas > 0
-                                  ? <span className="font-semibold text-red-600">{l.faltas}</span>
-                                  : <span className="text-gray-400">—</span>}
+                              <td className="px-2 py-2 text-center font-semibold text-gray-900">{l.dias_trabalhados || ''}</td>
+                              <td className="px-2 py-2 text-center"><SimNao v={l.vale_transporte} /></td>
+                              <td className="px-2 py-2 text-center">
+                                {l.faltas > 0 && <span className="font-semibold text-red-600">{l.faltas}</span>}
                               </td>
-                              <td className="px-3 py-2 text-center"><Selo v={l.vale_transporte} /></td>
-                              <td className="px-3 py-2 text-center"><Selo v={l.mensalidade_sindical} /></td>
-                              <td className="px-3 py-2 text-right whitespace-nowrap">
-                                {l.gorjeta > 0
-                                  ? <span className="font-medium text-amber-700">{brl(l.gorjeta)}</span>
-                                  : <span className="text-gray-400">—</span>}
+                              <td className="px-2 py-2 text-center whitespace-nowrap">
+                                {l.domingos + l.feriados > 0 && (
+                                  <span className="font-medium text-gray-800"
+                                    title={`${l.domingos} domingo(s) · ${l.feriados} feriado(s)`}>
+                                    {l.domingos + l.feriados}
+                                  </span>
+                                )}
                               </td>
-                              <td className="px-3 py-2 text-center"><Selo v={l.cargo_confianca} tom="alerta" /></td>
-                              <td className="px-3 py-2 text-center"><Selo v={l.insalubridade_20} tom="alerta" /></td>
-                              <td className="px-3 py-2 text-center"><Selo v={l.quebra_caixa_15} tom="alerta" /></td>
+                              <td className="px-2 py-2 text-center">
+                                {l.mensalidade_sindical === true && <SimNao v={true} />}
+                              </td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                {l.avarias > 0 && <span className="font-medium text-red-700">{brl(l.avarias)}</span>}
+                              </td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                {l.adiantamento > 0 && <span className="font-medium text-red-700">{brl(l.adiantamento)}</span>}
+                              </td>
+                              <td className="px-2 py-2 text-[11.5px] text-gray-700 whitespace-nowrap">
+                                {l.horas_normais > 0 && <span className="block">{l.horas_normais} normais</span>}
+                                {l.horas_50 > 0 && <span className="block">{l.horas_50} a 50%</span>}
+                                {l.horas_100 > 0 && <span className="block">{l.horas_100} a 100%</span>}
+                                {l.adicional_noturno > 0 && <span className="block">{l.adicional_noturno} not. 20%</span>}
+                              </td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                {l.gratificacao > 0 && <span className="font-medium text-emerald-700">{brl(l.gratificacao)}</span>}
+                              </td>
+                              <td className="px-2 py-2 text-center">
+                                {l.insalubridade_20 === true && <SimNao v={true} />}
+                              </td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                {l.confianca_valor > 0 && <span className="font-medium text-gray-900">{brl(l.confianca_valor)}</span>}
+                              </td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                {l.quebra_valor > 0 && <span className="font-medium text-gray-900">{brl(l.quebra_valor)}</span>}
+                              </td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                {l.gorjeta > 0 && <span className="font-medium text-amber-700">{brl(l.gorjeta)}</span>}
+                              </td>
                               <td className="px-3 py-2 text-right whitespace-nowrap font-semibold text-gray-900">
                                 {l.salario
                                   ? <>{brl(paraNumero(l.salario))}
@@ -442,7 +507,7 @@ export function AprovadasClient({
                           ))}
                           {linhas.length === 0 && (
                             <tr>
-                              <td colSpan={12} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                              <td colSpan={17} className="px-4 py-8 text-center text-sm text-muted-foreground">
                                 Nenhum colaborador nesta busca.
                               </td>
                             </tr>

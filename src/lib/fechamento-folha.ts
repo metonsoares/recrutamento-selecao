@@ -30,9 +30,37 @@ export interface LinhaFechamento {
   /** como veio da ficha: "R$ 1.892,34" */
   salario: string | null
   comentario: string
+
+  // ── Lançamentos aprovados do mês (0 = não houve) ──
+  domingos: number
+  feriados: number
+  avarias: number
+  adiantamento: number
+  horas_normais: number
+  horas_50: number
+  horas_100: number
+  adicional_noturno: number
+  gratificacao: number
+  /** valor do adicional de cargo de confiança lançado no mês */
+  confianca_valor: number
+  /** valor da quebra de caixa lançada no mês (já com o desconto) */
+  quebra_valor: number
 }
 
 export interface EmpresaOpcao { id: string; nome: string }
+
+/** Só os lançamentos, para somar por colaborador sem repetir onze zeros. */
+type Lancamentos = Pick<LinhaFechamento,
+  'domingos' | 'feriados' | 'avarias' | 'adiantamento' | 'horas_normais' | 'horas_50'
+  | 'horas_100' | 'adicional_noturno' | 'gratificacao' | 'confianca_valor' | 'quebra_valor'>
+
+function lancamentosZerados(): Lancamentos {
+  return {
+    domingos: 0, feriados: 0, avarias: 0, adiantamento: 0, horas_normais: 0,
+    horas_50: 0, horas_100: 0, adicional_noturno: 0, gratificacao: 0,
+    confianca_valor: 0, quebra_valor: 0,
+  }
+}
 
 /** Sim/Não da ficha: null quando ninguém respondeu ainda. */
 function simNao(v: unknown): boolean | null {
@@ -69,6 +97,46 @@ export async function montarFechamento(competencia: string): Promise<{
     supabase.from('fechamento_comentarios')
       .select('candidate_id, comentario').eq('competencia', competencia),
   ])
+
+  // Lançamentos do mês (avarias, horas extras, gratificação…): o fechamento
+  // consolida o que já foi aprovado em cada tela, não pede para digitar de novo.
+  const { data: ciclosLanc } = await supabase
+    .from('folha_ciclos').select('id, tipo').eq('competencia', competencia)
+  const idsLanc = (ciclosLanc ?? []).map(c => c.id as string)
+  const tipoPorCiclo = new Map((ciclosLanc ?? []).map(c => [c.id as string, c.tipo as string]))
+
+  const { data: itensLanc } = idsLanc.length
+    ? await supabase.from('folha_itens')
+        .select('ciclo_id, candidate_id, quantidade, quantidade2, quantidade3, quantidade4, valor')
+        .in('ciclo_id', idsLanc)
+    : { data: [] as Record<string, unknown>[] }
+
+  const lancPorCand = new Map<string, Lancamentos>()
+  for (const i of itensLanc ?? []) {
+    const tipo = tipoPorCiclo.get(i.ciclo_id as string)
+    if (!tipo) continue
+    const id = i.candidate_id as string
+    const atual = lancPorCand.get(id) ?? lancamentosZerados()
+    const n = (v: unknown) => Number(v) || 0
+    switch (tipo) {
+      case 'avarias': atual.avarias += n(i.valor); break
+      case 'adiantamento-salarial': atual.adiantamento += n(i.valor); break
+      case 'gratificacao': atual.gratificacao += n(i.valor); break
+      case 'cargo-confianca': atual.confianca_valor += n(i.valor); break
+      case 'quebra-caixa': atual.quebra_valor += n(i.valor); break
+      case 'domingos-feriados':
+        atual.domingos += n(i.quantidade)
+        atual.feriados += n(i.quantidade2)
+        break
+      case 'horas-extras':
+        atual.adicional_noturno += n(i.quantidade)
+        atual.horas_50 += n(i.quantidade2)
+        atual.horas_100 += n(i.quantidade3)
+        atual.horas_normais += n(i.quantidade4)
+        break
+    }
+    lancPorCand.set(id, atual)
+  }
 
   const [{ data: vtItens }, { data: gorjetaItens }] = await Promise.all([
     vtCiclo?.id
@@ -131,6 +199,7 @@ export async function montarFechamento(competencia: string): Promise<{
         quebra_caixa_15: simNao(af?.quebra_caixa_15),
         salario: String(af?.salary ?? '').trim() || null,
         comentario: comentarioPorCand.get(id) ?? '',
+        ...(lancPorCand.get(id) ?? lancamentosZerados()),
       }
     })
     .filter(Boolean) as LinhaFechamento[]

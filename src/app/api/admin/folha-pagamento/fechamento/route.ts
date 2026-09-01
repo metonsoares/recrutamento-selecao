@@ -145,6 +145,19 @@ export async function POST(req: NextRequest) {
           quebra_caixa_15: l.quebra_caixa_15,
           salario: l.salario,
           comentario: l.comentario || null,
+          // Lançamentos do mês: o retrato precisa guardá-los, senão a folha
+          // aprovada mostraria menos do que a tela onde ela foi aprovada.
+          domingos: l.domingos,
+          feriados: l.feriados,
+          avarias: l.avarias,
+          adiantamento: l.adiantamento,
+          horas_normais: l.horas_normais,
+          horas_50: l.horas_50,
+          horas_100: l.horas_100,
+          adicional_noturno: l.adicional_noturno,
+          gratificacao: l.gratificacao,
+          confianca_valor: l.confianca_valor,
+          quebra_valor: l.quebra_valor,
         })),
       )
       if (erroItens) return NextResponse.json({ error: erroItens.message }, { status: 400 })
