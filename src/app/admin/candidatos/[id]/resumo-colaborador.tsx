@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, dataPura } from '@/lib/helpers'
 import {
   CalendarClock, User, Plane, AlertTriangle, Briefcase,
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
@@ -78,7 +78,7 @@ export function ResumoColaborador({
       vacationStatus = {
         tone: 'ok',
         title: 'Ainda não adquiriu direito',
-        detail: `Completará o 1º período aquisitivo em ${formatDate(acquireDate.toISOString())} (${12 - monthsWorked} ${12 - monthsWorked !== 1 ? 'meses' : 'mês'} restantes).`,
+        detail: `Completará o 1º período aquisitivo em ${formatDate(dataPura(acquireDate))} (${12 - monthsWorked} ${12 - monthsWorked !== 1 ? 'meses' : 'mês'} restantes).`,
       }
     } else {
       // Já adquiriu ao menos um período. Limite para gozo = 24 meses após admissão (por período).
@@ -89,19 +89,19 @@ export function ResumoColaborador({
         vacationStatus = {
           tone: 'danger',
           title: '⚠️ Férias vencidas!',
-          detail: `O prazo para concessão expirou em ${formatDate(limitDate.toISOString())}. Risco de pagamento em dobro. Agende as férias com urgência.`,
+          detail: `O prazo para concessão expirou em ${formatDate(dataPura(limitDate))}. Risco de pagamento em dobro. Agende as férias com urgência.`,
         }
       } else if (monthsUntilLimit <= 3) {
         vacationStatus = {
           tone: 'warn',
           title: 'Férias a vencer em breve',
-          detail: `Conceder até ${formatDate(limitDate.toISOString())} (${monthsUntilLimit} ${monthsUntilLimit !== 1 ? 'meses' : 'mês'}). Programe o período de gozo.`,
+          detail: `Conceder até ${formatDate(dataPura(limitDate))} (${monthsUntilLimit} ${monthsUntilLimit !== 1 ? 'meses' : 'mês'}). Programe o período de gozo.`,
         }
       } else {
         vacationStatus = {
           tone: 'ok',
           title: 'Direito a férias adquirido',
-          detail: `${periodsAcquired} período${periodsAcquired !== 1 ? 's' : ''} adquirido${periodsAcquired !== 1 ? 's' : ''}. Conceder até ${formatDate(limitDate.toISOString())}.`,
+          detail: `${periodsAcquired} período${periodsAcquired !== 1 ? 's' : ''} adquirido${periodsAcquired !== 1 ? 's' : ''}. Conceder até ${formatDate(dataPura(limitDate))}.`,
         }
       }
     }
@@ -136,7 +136,7 @@ export function ResumoColaborador({
         {!minimal && <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
           <div className="bg-white/10 rounded-xl px-3 py-2.5 backdrop-blur">
             <p className="text-[10px] uppercase tracking-wide text-emerald-100/70">Admissão</p>
-            <p className="text-sm font-bold mt-0.5">{admission ? formatDate(admission.toISOString()) : '—'}</p>
+            <p className="text-sm font-bold mt-0.5">{formatDate(admissionDate)}</p>
           </div>
           <div className="bg-white/10 rounded-xl px-3 py-2.5 backdrop-blur">
             <p className="text-[10px] uppercase tracking-wide text-emerald-100/70">Tempo de casa</p>

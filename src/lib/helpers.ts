@@ -90,6 +90,17 @@ export function formatDate(date: string | null): string {
   return new Date(date).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
 
+/**
+ * Date -> 'AAAA-MM-DD' pelos componentes da própria data.
+ *
+ * Existe para não usar toISOString() em data de calendário: no servidor da
+ * Vercel (UTC) o ISO de uma data criada às 00:00 volta um dia antes quando
+ * formatada em São Paulo — foi assim que uma admissão de 01/09 virou 31/08.
+ */
+export function dataPura(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function formatDateTime(date: string | null): string {
   if (!date) return '-'
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })

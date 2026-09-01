@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatDate } from '@/lib/helpers'
+import { formatDate, dataPura } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -350,13 +350,13 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
     if (periodos >= 1) {
       const aqStart = addMonths(adm, (periodos - 1) * 12)
       const aqEnd = addDays(addMonths(adm, periodos * 12), -1)
-      aquisitivo = `${formatDate(aqStart.toISOString())} - ${formatDate(aqEnd.toISOString())}`
+      aquisitivo = `${formatDate(dataPura(aqStart))} - ${formatDate(dataPura(aqEnd))}`
       // Concessivo termina 12 meses após fim do aquisitivo; limite p/ início = fim - 30 dias
       const concessivoEnd = addDays(addMonths(adm, (periodos + 1) * 12), -1)
-      limite = formatDate(addDays(concessivoEnd, -TOTAL_DIAS_PERIODO).toISOString())
+      limite = formatDate(dataPura(addDays(concessivoEnd, -TOTAL_DIAS_PERIODO)))
     } else {
       // ainda no 1º período aquisitivo
-      limite = formatDate(addDays(addMonths(adm, 24), -TOTAL_DIAS_PERIODO).toISOString())
+      limite = formatDate(dataPura(addDays(addMonths(adm, 24), -TOTAL_DIAS_PERIODO)))
     }
 
     return { periodos, totalDireito, usados, disponivel, limite, aquisitivo }
