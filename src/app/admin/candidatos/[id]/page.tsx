@@ -26,6 +26,7 @@ import { DadosContratoTab, ContractData } from './dados-contrato-tab'
 import { EmployeeFilesTab, EmployeeFile } from './employee-files-tab'
 import { BackButton } from './back-button'
 import { EditContact } from './edit-contact'
+import { EditBirthDate } from './edit-birthdate'
 import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
@@ -164,6 +165,7 @@ export default async function CandidatePage({
   // grava o perfil geral 'operador' mesmo para quem é Master/super_admin).
   const { role: realRole } = await getEffectiveRole()
   const isMaster = realRole === 'master'
+  const podeEditarNascimento = realRole === 'master' || realRole === 'gestor_rh'
 
   // Queries que dependem só do id — em paralelo (evita waterfall de round-trips)
   const [granted, { data: candidate }, { data: applications }, { data: notes }, { data: allJobs }] = await Promise.all([
@@ -755,7 +757,10 @@ export default async function CandidatePage({
               </CardHeader>
               <CardContent className="space-y-2">
                 <ChangedRow label="Nome" value={formatName(candidate.full_name)} changes={changes} />
-                {birthDate && (
+                {/* Master e Gestor RH corrigem a data; os demais só leem. */}
+                {podeEditarNascimento ? (
+                  <EditBirthDate candidateId={id} initialDate={birthDate} />
+                ) : birthDate && (
                   <Row
                     label="Nascimento"
                     value={`${formatDate(birthDate)}${age != null ? ` (${age} anos)` : ''}`}
