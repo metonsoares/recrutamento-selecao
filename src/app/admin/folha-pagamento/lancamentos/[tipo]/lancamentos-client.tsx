@@ -197,6 +197,19 @@ export function LancamentosClient({
     return m
   }, [historico])
 
+  // Os itens de cada mês, preservados: o histórico soma por competência, mas
+  // "R$ 12,90" sem dizer do que se trata não serve para conferir nada.
+  const itensDoMes = useMemo(() => {
+    const m = new Map<string, { descricao: string | null; valor: number }[]>()
+    for (const h of historico) {
+      const chave = `${h.candidate_id}|${h.competencia}`
+      const arr = m.get(chave) ?? []
+      arr.push({ descricao: h.observacao, valor: h.valor })
+      m.set(chave, arr)
+    }
+    return m
+  }, [historico])
+
   const aprovadosNoMes = useMemo(() => {
     const m = new Map<string, RegistroLancamento>()
     for (const h of historico.filter(x => x.competencia === competencia)) {
@@ -585,17 +598,25 @@ export function LancamentosClient({
                           {historicoAberto.has(l.candidate_id) && (
                             <div className="mt-1 ml-4 pl-2.5 border-l-2 border-emerald-200 space-y-0.5">
                               {hist.map(h => (
-                                <p key={h.competencia} className="text-[11.5px] text-gray-600 flex items-center gap-1">
-                                  <span>
-                                    {maiuscula(rotuloMes(h.competencia))}{' — '}
-                                    <strong className="text-emerald-700">{resumoRegistro(h)}</strong>
-                                  </span>
-                                  <button onClick={() => setRemovendo({ linha: l, registro: h })}
-                                    title="Remover o lançamento deste mês"
-                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </p>
+                                <div key={h.competencia}>
+                                  <p className="text-[11.5px] text-gray-600 flex items-center gap-1">
+                                    <span>
+                                      {maiuscula(rotuloMes(h.competencia))}{' — '}
+                                      <strong className="text-emerald-700">{resumoRegistro(h)}</strong>
+                                    </span>
+                                    <button onClick={() => setRemovendo({ linha: l, registro: h })}
+                                      title="Remover o lançamento deste mês"
+                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </p>
+                                  {/* Item a item, descrição primeiro. */}
+                                  {multiplos && (itensDoMes.get(`${l.candidate_id}|${h.competencia}`) ?? []).map((it, i) => (
+                                    <p key={i} className="text-[11px] text-muted-foreground ml-2">
+                                      {it.descricao || 'sem descrição'} — {brl(it.valor)}
+                                    </p>
+                                  ))}
+                                </div>
                               ))}
                             </div>
                           )}
@@ -704,15 +725,17 @@ export function LancamentosClient({
                         <div className="space-y-1.5">
                           {itensDe(l).map((it, i) => (
                             <div key={i} className="flex items-center gap-1.5">
+                              {/* Descrição antes do valor: primeiro se diz o
+                                  que é, depois quanto custa. */}
+                              <input value={it.descricao}
+                                onChange={e => mudarItem(l.candidate_id, i, 'descricao', e.target.value)}
+                                placeholder={config.rotuloDescricao ?? 'Descrição'}
+                                className="h-8 flex-1 min-w-[160px] border border-gray-300 rounded-md px-2 text-[13px] bg-white" />
                               <span className="text-[12px] text-gray-400">R$</span>
                               <input value={it.valor}
                                 onChange={e => mudarItem(l.candidate_id, i, 'valor', e.target.value.replace(/[^\d,]/g, ''))}
                                 placeholder="0,00" inputMode="decimal"
                                 className="h-8 w-24 shrink-0 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-right" />
-                              <input value={it.descricao}
-                                onChange={e => mudarItem(l.candidate_id, i, 'descricao', e.target.value)}
-                                placeholder={config.rotuloDescricao ?? 'Descrição'}
-                                className="h-8 flex-1 min-w-[160px] border border-gray-300 rounded-md px-2 text-[13px] bg-white" />
                               {itensDe(l).length > 1 && (
                                 <button onClick={() => removerItem(l.candidate_id, i)} title="Remover este item"
                                   className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded shrink-0">
