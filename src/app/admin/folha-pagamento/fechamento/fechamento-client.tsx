@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -80,6 +80,29 @@ export function FechamentoClient({
   const [ok, setOk] = useState('')
   const [menuExportar, setMenuExportar] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+
+  // Rolagem horizontal espelhada: a tabela é larga e, sem uma barra em cima,
+  // só dá para rolar chegando ao fim da lista. As duas barras andam juntas.
+  const barraTopo = useRef<HTMLDivElement>(null)
+  const areaTabela = useRef<HTMLDivElement>(null)
+  const [larguraTabela, setLarguraTabela] = useState(0)
+
+  useEffect(() => {
+    const area = areaTabela.current
+    if (!area) return
+    const medir = () => setLarguraTabela(area.scrollWidth)
+    medir()
+    const obs = new ResizeObserver(medir)
+    obs.observe(area)
+    if (area.firstElementChild) obs.observe(area.firstElementChild)
+    return () => obs.disconnect()
+  }, [linhas.length])
+
+  /** Espelha a rolagem sem laço: só escreve se o valor for outro. */
+  function espelhar(de: HTMLDivElement | null, para: HTMLDivElement | null) {
+    if (!de || !para || para.scrollLeft === de.scrollLeft) return
+    para.scrollLeft = de.scrollLeft
+  }
   const [aprovando, setAprovando] = useState(false)
 
   const filtradas = linhas.filter(l => {
@@ -380,17 +403,31 @@ export function FechamentoClient({
 
       {/* ── Lista ── */}
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="pl-3 pr-1 py-2 w-px">
+        {/* Só aparece quando há o que rolar — barra sozinha numa tabela que
+            cabe na tela seria enfeite confuso. */}
+        {larguraTabela > 0 && (
+          <div ref={barraTopo} onScroll={() => espelhar(barraTopo.current, areaTabela.current)}
+            className="overflow-x-auto overflow-y-hidden border-b">
+            <div style={{ width: larguraTabela, height: 1 }} />
+          </div>
+        )}
+        <div ref={areaTabela} onScroll={() => espelhar(areaTabela.current, barraTopo.current)}
+          className="overflow-x-auto">
+          {/* border-separate porque a coluna congelada precisa pintar o
+              próprio fundo e a própria borda: com bordas colapsadas a linha
+              some justamente na célula que fica parada. */}
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead className="bg-gray-50">
+              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground [&>th]:border-b [&>th]:border-gray-200">
+                {/* Marcação e nome ficam parados: rolando para a direita, o
+                    número perde o dono se o nome sair da tela. */}
+                <th className="pl-3 pr-1 py-2 w-px sticky left-0 z-20 bg-gray-50">
                   <input type="checkbox" checked={todasMarcadas} onChange={alternarTodas}
                     disabled={marcaveis.length === 0}
                     title={todasMarcadas ? 'Desmarcar todos' : 'Marcar todos'}
                     className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer" />
                 </th>
-                <th className="px-3 py-2 font-semibold">Colaborador</th>
+                <th className="px-3 py-2 font-semibold sticky left-8 z-20 bg-gray-50">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
                 <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">Dias</th>
                 <th className="px-3 py-2 font-semibold text-center">Faltas</th>
@@ -405,11 +442,11 @@ export function FechamentoClient({
                 <th className="px-3 py-2 w-px" />
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="[&>tr>td]:border-t [&>tr>td]:border-gray-200">
               {filtradas.map(l => (
                 <tr key={l.candidate_id}
-                  className={cn('hover:bg-gray-50 align-top', !marcados.has(l.candidate_id) && 'opacity-45')}>
-                  <td className="pl-3 pr-1 py-2">
+                  className={cn('group hover:bg-gray-50 align-top', !marcados.has(l.candidate_id) && 'opacity-45')}>
+                  <td className="pl-3 pr-1 py-2 sticky left-0 z-10 bg-white group-hover:bg-gray-50">
                     {/* Desmarcado não entra na folha aprovada. */}
                     <input type="checkbox" checked={marcados.has(l.candidate_id)}
                       onChange={() => alternarMarcado(l.candidate_id)}
@@ -419,7 +456,7 @@ export function FechamentoClient({
                         : marcados.has(l.candidate_id) ? 'Tirar da folha' : 'Incluir na folha'}
                       className="w-4 h-4 accent-emerald-600 align-middle cursor-pointer disabled:cursor-not-allowed" />
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap sticky left-8 z-10 bg-white group-hover:bg-gray-50">
                     <span className="font-medium text-gray-900">{formatName(l.nome)}</span>
                     {travados.has(l.candidate_id) && (
                       <span className="ml-1.5 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 bg-emerald-100 text-emerald-700 align-middle"
@@ -434,7 +471,7 @@ export function FechamentoClient({
                     )}
                     {l.cargo && <span className="block text-[11px] text-muted-foreground">{l.cargo}</span>}
                   </td>
-                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{l.empresa ?? '—'}</td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap group-hover:bg-gray-50">{l.empresa ?? '—'}</td>
                   <td className="px-3 py-2 text-center font-semibold text-gray-900">{l.dias_trabalhados || '—'}</td>
                   <td className="px-3 py-2 text-center">
                     {l.faltas > 0
