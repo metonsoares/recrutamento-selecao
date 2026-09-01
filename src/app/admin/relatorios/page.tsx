@@ -2,7 +2,6 @@ import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao, FeriasRegistro, AdvertenciaRegistro } from './relatorios-rh'
 
 /** Respostas do formulário são gravadas como JSON.stringify(valor). */
@@ -28,7 +27,7 @@ export default async function RelatoriosPage() {
   const { data: applications } = activeIds.length
     ? await supabase
         .from('applications')
-        .select('status, final_score, culture_score, experience_score, created_at, job_id, jobs(title), candidate_id')
+        .select('status, candidate_id')
         .eq('is_latest', true)
         .in('candidate_id', activeIds)
     : { data: [] }
@@ -38,16 +37,6 @@ export default async function RelatoriosPage() {
 
   const byStatus: Record<string, number> = {}
   apps.forEach(a => { byStatus[a.status] = (byStatus[a.status] || 0) + 1 })
-
-  const byJob: Record<string, number> = {}
-  apps.forEach(a => {
-    const title = (a.jobs as { title?: string } | null)?.title || 'Sem vaga'
-    byJob[title] = (byJob[title] || 0) + 1
-  })
-
-  const scored = apps.filter(a => a.final_score != null)
-  const avgFinal = scored.length ? scored.reduce((sum, a) => sum + (a.final_score || 0), 0) / scored.length : 0
-  const avgCulture = scored.length ? scored.reduce((sum, a) => sum + (a.culture_score || 0), 0) / scored.length : 0
 
   // ── Relatórios de RH (salários, experiência, aniversariantes) ──────────────
   // Consultas simples e cruzamento em memória — embeds !inner do PostgREST já
@@ -158,11 +147,6 @@ export default async function RelatoriosPage() {
     new Map(colaboradores.filter(c => c.empresa_id).map(c => [c.empresa_id as string, c.empresa ?? '—'])).entries(),
   ).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
-  const approved = byStatus['aprovado'] || 0
-  const reprovado = byStatus['reprovado'] || 0
-  const total = approved + reprovado
-  const taxaAprovacao = total > 0 ? Math.round((approved / total) * 100) : 0
-
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
       <div>
@@ -172,63 +156,6 @@ export default async function RelatoriosPage() {
 
       {/* Relatórios de RH */}
       <RelatoriosRh colaboradores={colaboradores} empresas={empresasOpcoes} ferias={ferias} advertencias={advertencias} />
-
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <Card><CardContent className="p-4 text-center">
-          <p className="text-2xl sm:text-3xl font-bold">{totalCandidates}</p>
-          <p className="text-xs sm:text-sm text-muted-foreground">Total de Candidatos</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 text-center">
-          <p className="text-2xl sm:text-3xl font-bold">{avgFinal.toFixed(1)}</p>
-          <p className="text-xs sm:text-sm text-muted-foreground">Média Nota Final</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 text-center">
-          <p className="text-2xl sm:text-3xl font-bold">{avgCulture.toFixed(1)}</p>
-          <p className="text-xs sm:text-sm text-muted-foreground">Média Nota Cultural</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 text-center">
-          <p className="text-2xl sm:text-3xl font-bold">{taxaAprovacao}%</p>
-          <p className="text-xs sm:text-sm text-muted-foreground">Taxa de Aprovação</p>
-        </CardContent></Card>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Candidatos por Status</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {Object.entries(byStatus).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
-              <div key={status} className="flex items-center justify-between gap-2">
-                <Badge variant="outline" className="text-xs shrink-0">{STATUS_LABELS[status as CandidateStatus] || status}</Badge>
-                <div className="flex items-center gap-2">
-                  <div className="w-20 sm:w-32 h-2 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${(count / totalCandidates) * 100}%` }} />
-                  </div>
-                  <span className="text-sm font-medium w-6 text-right">{count}</span>
-                </div>
-              </div>
-            ))}
-            {!Object.keys(byStatus).length && <p className="text-muted-foreground text-sm">Sem dados</p>}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Candidatos por Vaga</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {Object.entries(byJob).sort((a, b) => b[1] - a[1]).map(([job, count]) => (
-              <div key={job} className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground truncate flex-1">{job}</span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="w-20 sm:w-32 h-2 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full" style={{ width: `${(count / apps.length) * 100}%` }} />
-                  </div>
-                  <span className="text-sm font-medium w-6 text-right">{count}</span>
-                </div>
-              </div>
-            ))}
-            {!Object.keys(byJob).length && <p className="text-muted-foreground text-sm">Sem dados</p>}
-          </CardContent>
-        </Card>
-      </div>
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Resumo por Status</CardTitle></CardHeader>
