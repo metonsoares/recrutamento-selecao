@@ -10,6 +10,7 @@
 
 export type TipoLancamento =
   | 'avarias'
+  | 'adiantamento-salarial'
   | 'domingos-feriados'
   | 'horas-extras'
   | 'gratificacao'
@@ -87,6 +88,16 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
     itensMultiplos: true,
     rotuloDescricao: 'Descrição do item',
   },
+  'adiantamento-salarial': {
+    slug: 'adiantamento-salarial',
+    perfis: ['master', 'gestor_rh'],
+    titulo: 'Adiantamento salarial',
+    descricao: 'Adiantamentos do período, um a um. O do mês é a soma deles.',
+    colunas: [],
+    temValor: true,
+    itensMultiplos: true,
+    rotuloDescricao: 'Descrição do adiantamento',
+  },
   'domingos-feriados': {
     slug: 'domingos-feriados',
     perfis: ['master', 'gestor_rh'],
@@ -157,7 +168,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
 
 /** Ordem em que aparecem no menu. */
 export const ORDEM_LANCAMENTOS: TipoLancamento[] = [
-  'avarias', 'domingos-feriados', 'horas-extras', 'gratificacao',
+  'avarias', 'adiantamento-salarial', 'domingos-feriados', 'horas-extras', 'gratificacao',
   'cargo-confianca', 'insalubridade', 'quebra-caixa',
 ]
 
