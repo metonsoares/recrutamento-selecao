@@ -37,10 +37,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Caminho inválido.' }, { status: 400 })
     }
 
+    // `download` faz o Storage devolver Content-Disposition: attachment — é o
+    // que transforma o clique em DOWNLOAD em vez de abrir o PDF numa aba. O
+    // nome do arquivo vem de quem chama; sanitizado para não virar cabeçalho
+    // de outra coisa.
+    const nome = typeof body.download === 'string'
+      ? body.download.replace(/[^\w .()\-À-ɏ]/g, '_').slice(0, 120).trim()
+      : ''
+    const download = body.download === undefined ? undefined : (nome || true)
+
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase.storage
       .from(bucket)
-      .createSignedUrl(path, VALIDADE_SEGUNDOS)
+      .createSignedUrl(path, VALIDADE_SEGUNDOS, download === undefined ? undefined : { download })
 
     if (error || !data?.signedUrl) {
       return NextResponse.json(

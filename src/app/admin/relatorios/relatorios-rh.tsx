@@ -1,9 +1,13 @@
 'use client'
-import { useState } from 'react'
-import { Wallet, FileClock, Cake, Search, Download, Palmtree } from 'lucide-react'
+import { Fragment, useState } from 'react'
+import {
+  Wallet, FileClock, Cake, Search, Download, Palmtree, ShieldAlert,
+  ChevronDown, ChevronRight, FileText, FileDown,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -31,7 +35,18 @@ export interface FeriasRegistro {
   tipo: 'historico' | 'solicitacao'
 }
 
-type Aba = 'salarios' | 'experiencia' | 'aniversarios' | 'ferias'
+/** Uma linha de `warnings`: a advertência e o documento dela. */
+export interface AdvertenciaRegistro {
+  id: string
+  candidate_id: string
+  data: string | null   // yyyy-mm-dd
+  motivo: string
+  file_url: string | null
+  file_path: string | null
+  file_name: string | null
+}
+
+type Aba = 'salarios' | 'experiencia' | 'aniversarios' | 'ferias' | 'advertencias'
 
 // ─── Helpers de data e valor ──────────────────────────────────────────────────
 
@@ -236,17 +251,20 @@ const ROTULO_FERIAS: Record<StatusFerias, { texto: string; classe: string }> = {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function RelatoriosRh({
-  colaboradores, empresas, ferias,
+  colaboradores, empresas, ferias, advertencias,
 }: {
   colaboradores: ColaboradorRelatorio[]
   empresas: EmpresaOpcao[]
   ferias: FeriasRegistro[]
+  advertencias: AdvertenciaRegistro[]
 }) {
   const [aba, setAba] = useState<Aba>('salarios')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [busca, setBusca] = useState('')
   const [somenteMes, setSomenteMes] = useState(true)
   const [statusFerias, setStatusFerias] = useState<StatusFerias | ''>('')
+  const [abertos, setAbertos] = useState<Set<string>>(new Set())
+  const [erroArquivo, setErroArquivo] = useState('')
 
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   const sufixo = nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''
@@ -311,6 +329,32 @@ export function RelatoriosRh({
     // Mais urgente primeiro: vencidas (ordem negativa), depois o prazo mais curto.
     .sort((a, b) => a.situacao.ordem - b.situacao.ordem)
 
+  // ── Advertências ──
+  // Só quem tem alguma: a lista responde "quem levou e quantas", não serve de
+  // segunda lista de colaboradores.
+  const advPorCand = new Map<string, AdvertenciaRegistro[]>()
+  for (const a of advertencias) {
+    const arr = advPorCand.get(a.candidate_id) ?? []
+    arr.push(a)
+    advPorCand.set(a.candidate_id, arr)
+  }
+
+  const advLinhas = base
+    .map(c => ({ ...c, itens: advPorCand.get(c.candidate_id) ?? [] }))
+    .filter(c => c.itens.length > 0)
+    .sort((a, b) => b.itens.length - a.itens.length || a.nome.localeCompare(b.nome, 'pt-BR'))
+
+  const totalAdvertencias = advLinhas.reduce((s, c) => s + c.itens.length, 0)
+
+  const alternarLinha = (id: string) => setAbertos(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
+
+  async function abrirDocumento(e: React.MouseEvent, a: AdvertenciaRegistro) {
+    const erro = await abrirArquivoAssinado(e, { url: a.file_url, path: a.file_path, name: a.file_name })
+    setErroArquivo(erro ?? '')
+  }
+
   const contagemFerias = baseFerias.reduce((acc, c) => {
     const st = situacaoFerias(c.admissao, feriasPorCand.get(c.candidate_id) ?? []).status
     acc[st] = (acc[st] ?? 0) + 1
@@ -318,6 +362,21 @@ export function RelatoriosRh({
   }, {} as Record<StatusFerias, number>)
 
   async function exportar() {
+    if (aba === 'advertencias') {
+      // Uma linha por advertência: no Excel o que se filtra é a ocorrência,
+      // não a pessoa.
+      const linhas = advLinhas.flatMap(c => c.itens.map(a => [
+        formatName(c.nome), c.empresa ?? '—', c.cargo ?? '—', c.itens.length,
+        a.data ? formatarData(a.data) : '—', a.motivo, a.file_name ?? '',
+      ]))
+      return baixarArquivo(
+        await gerarXlsx([
+          ['Nome', 'Empresa', 'Cargo', 'Total de advertências', 'Data', 'Motivo', 'Documento'],
+          ...linhas,
+        ], 'Advertências'),
+        `relatorio-advertencias${sufixo}.xlsx`,
+      )
+    }
     if (aba === 'ferias') {
       const linhas = feriasLinhas.map(c => [
         formatName(c.nome), c.empresa ?? '—', c.cargo ?? '—',
@@ -366,6 +425,7 @@ export function RelatoriosRh({
     { id: 'experiencia', label: 'Contratos de experiência', icone: FileClock, qtd: experiencia.length },
     { id: 'aniversarios', label: 'Aniversariantes', icone: Cake, qtd: aniversariantes.length },
     { id: 'ferias', label: 'Férias', icone: Palmtree, qtd: feriasLinhas.length },
+    { id: 'advertencias', label: 'Advertências', icone: ShieldAlert, qtd: advLinhas.length },
   ]
 
   return (
@@ -422,8 +482,95 @@ export function RelatoriosRh({
         </Button>
       </div>
 
+      {erroArquivo && (
+        <p className="px-3 py-2 text-[12.5px] text-red-600 border-b bg-red-50">{erroArquivo}</p>
+      )}
+
       {/* Conteúdo */}
       <div className="overflow-x-auto">
+        {aba === 'advertencias' && (
+          <table className="w-full text-sm">
+            <Cabecalho colunas={['Colaborador', 'Empresa', 'Cargo', 'Desde a admissão', 'Advertências']} />
+            <tbody className="divide-y">
+              {advLinhas.map(c => {
+                const aberto = abertos.has(c.candidate_id)
+                return (
+                  <Fragment key={c.candidate_id}>
+                    <tr className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => alternarLinha(c.candidate_id)}>
+                      <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          {aberto
+                            ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                            : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                          {formatName(c.nome)}
+                        </span>
+                        {c.vinculo === 'intermitente' && <Selo texto="Intermitente" />}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{c.empresa ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-gray-600">{c.cargo ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{tempoDeCasa(c.admissao)}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                          c.itens.length >= 3
+                            ? 'bg-red-100 text-red-700 border-red-200'
+                            : c.itens.length === 2
+                              ? 'bg-amber-100 text-amber-800 border-amber-200'
+                              : 'bg-gray-100 text-gray-700 border-gray-200'
+                        }`}>
+                          <ShieldAlert className="w-3 h-3" />
+                          {c.itens.length}
+                        </span>
+                      </td>
+                    </tr>
+                    {aberto && (
+                      <tr className="bg-gray-50/70">
+                        <td colSpan={5} className="px-4 py-3">
+                          <ul className="space-y-2">
+                            {c.itens.map(a => (
+                              <li key={a.id} className="flex flex-wrap items-start gap-2 text-[13px]">
+                                <span className="font-semibold text-gray-900 whitespace-nowrap w-[92px] shrink-0">
+                                  {a.data ? formatarData(a.data) : 'sem data'}
+                                </span>
+                                <span className="flex-1 min-w-[200px] text-gray-700 whitespace-pre-wrap">
+                                  {a.motivo || <span className="text-gray-400">sem motivo registrado</span>}
+                                </span>
+                                {a.file_url ? (
+                                  <a href={a.file_url} onClick={e => abrirDocumento(e, a)}
+                                    target="_blank" rel="noreferrer" download
+                                    className="inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-700 hover:underline whitespace-nowrap">
+                                    {a.file_name?.endsWith('.pdf')
+                                      ? <FileText className="w-3.5 h-3.5 text-red-500" />
+                                      : <FileDown className="w-3.5 h-3.5 text-blue-500" />}
+                                    Baixar advertência
+                                  </a>
+                                ) : (
+                                  <span className="text-[12px] text-gray-400 whitespace-nowrap">sem documento</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+              {advLinhas.length === 0 && <Vazio colunas={5} />}
+            </tbody>
+            {advLinhas.length > 0 && (
+              <tfoot className="bg-gray-50 border-t">
+                <tr>
+                  <td colSpan={4} className="px-4 py-2.5 text-[12px] font-semibold text-gray-600">
+                    {advLinhas.length} colaborador{advLinhas.length !== 1 ? 'es' : ''} com advertência
+                  </td>
+                  <td className="px-4 py-2.5 font-bold text-gray-900 whitespace-nowrap">{totalAdvertencias}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        )}
+
         {aba === 'salarios' && (
           <table className="w-full text-sm">
             <Cabecalho colunas={['Nome', 'Empresa', 'Cargo', 'Tempo de casa', 'Salário']} />

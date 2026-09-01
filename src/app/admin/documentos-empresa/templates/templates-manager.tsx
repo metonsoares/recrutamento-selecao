@@ -206,7 +206,7 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
               </div>
               {t.file_url && (
                 <a href={t.file_url ?? undefined}
-                  onClick={e => abrirArquivoAssinado(e, { url: t.file_url, path: t.file_path, name: t.file_name }, 'admission-docs', u => paraVisualizacao(t, u))}
+                  onClick={e => abrirArquivoAssinado(e, { url: t.file_url, path: t.file_path, name: t.file_name }, 'admission-docs', { envolverUrl: u => paraVisualizacao(t, u) })}
                   target="_blank" rel="noreferrer"
                   className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Visualizar (formatação original)"><Eye className="w-4 h-4" /></a>
               )}

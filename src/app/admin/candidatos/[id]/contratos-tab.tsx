@@ -357,7 +357,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     <div className="ml-auto flex items-center gap-1 shrink-0">
                       {c.file_url && (
                         <a href={c.file_url ?? undefined}
-                          onClick={e => abrirArquivoAssinado(e, { url: c.file_url, path: c.file_path, name: c.file_name }, 'admission-docs', u => paraVisualizacao(c, u))}
+                          onClick={e => abrirArquivoAssinado(e, { url: c.file_url, path: c.file_path, name: c.file_name }, 'admission-docs', { envolverUrl: u => paraVisualizacao(c, u) })}
                           target="_blank" rel="noreferrer" className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Visualizar"><Eye className="w-5 h-5" /></a>
                       )}
                       <button onClick={() => openEdit(c)} className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Editar"><Pencil className="w-5 h-5" /></button>

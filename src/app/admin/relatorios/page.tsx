@@ -3,7 +3,7 @@ import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/s
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao, FeriasRegistro } from './relatorios-rh'
+import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao, FeriasRegistro, AdvertenciaRegistro } from './relatorios-rh'
 
 /** Respostas do formulário são gravadas como JSON.stringify(valor). */
 function parseTexto(v: string | null): string | null {
@@ -136,6 +136,24 @@ export default async function RelatoriosPage() {
     tipo: (f.kind as string) === 'solicitacao' ? 'solicitacao' : 'historico',
   }))
 
+  // Advertências dos ativos, da mais recente para a mais antiga.
+  const { data: advData } = idsColab.length
+    ? await service.from('warnings')
+        .select('id, candidate_id, occurred_at, reason, file_url, file_path, file_name')
+        .in('candidate_id', idsColab)
+        .order('occurred_at', { ascending: false })
+    : { data: [] as Record<string, unknown>[] }
+
+  const advertencias: AdvertenciaRegistro[] = (advData ?? []).map(a => ({
+    id: a.id as string,
+    candidate_id: a.candidate_id as string,
+    data: (a.occurred_at as string) ?? null,
+    motivo: (a.reason as string) ?? '',
+    file_url: (a.file_url as string) ?? null,
+    file_path: (a.file_path as string) ?? null,
+    file_name: (a.file_name as string) ?? null,
+  }))
+
   const empresasOpcoes: EmpresaOpcao[] = Array.from(
     new Map(colaboradores.filter(c => c.empresa_id).map(c => [c.empresa_id as string, c.empresa ?? '—'])).entries(),
   ).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
@@ -153,7 +171,7 @@ export default async function RelatoriosPage() {
       </div>
 
       {/* Relatórios de RH */}
-      <RelatoriosRh colaboradores={colaboradores} empresas={empresasOpcoes} ferias={ferias} />
+      <RelatoriosRh colaboradores={colaboradores} empresas={empresasOpcoes} ferias={ferias} advertencias={advertencias} />
 
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card><CardContent className="p-4 text-center">

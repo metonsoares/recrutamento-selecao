@@ -31,41 +31,67 @@ export async function abrirArquivoAssinado(
   file: ArquivoRef | null | undefined,
   bucket: BucketArquivo = 'admission-docs',
   /**
-   * Transforma a URL assinada na URL que será aberta. Existe para o
-   * visualizador do Office (.docx), que precisa receber o arquivo por
-   * parâmetro — sem isso, ou o .docx baixa em vez de abrir, ou o visualizador
-   * recebe uma URL pública que não existe mais.
+   * `envolverUrl` transforma a URL assinada na URL a abrir — existe para o
+   * visualizador do Office (.docx), que recebe o arquivo por parâmetro. Passar
+   * `envolverUrl` significa VISUALIZAR; sem ele, o arquivo é BAIXADO, que é o
+   * que se espera de um anexo.
    */
-  envolverUrl?: (assinada: string) => string,
+  opcoes: { envolverUrl?: (assinada: string) => string } = {},
 ): Promise<string | null> {
   e.preventDefault()
   e.stopPropagation()
 
   if (!file) return 'Arquivo não encontrado.'
 
+  const visualizar = !!opcoes.envolverUrl
+
   if (!file.path) {
     if (file.url) { window.open(file.url, '_blank', 'noopener'); return null }
     return 'Arquivo sem caminho salvo.'
   }
 
-  // Abre a aba agora, com o gesto ainda "quente".
-  const aba = window.open('', '_blank')
+  // Só a visualização precisa de aba, e ela abre AGORA, com o gesto ainda
+  // "quente" — abrir depois do await seria bloqueado como popup. O download
+  // não abre aba nenhuma: o Storage devolve o arquivo como anexo e o
+  // navegador baixa sem tirar o usuário da tela.
+  const aba = visualizar ? window.open('', '_blank') : null
   if (aba) aba.opener = null
 
   try {
     const res = await fetch('/api/admin/arquivos/assinar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bucket, path: file.path }),
+      body: JSON.stringify({ bucket, path: file.path, download: visualizar ? undefined : (file.name ?? true) }),
     })
     const d = await res.json().catch(() => ({}))
     if (!res.ok || !d.url) throw new Error(d.error || 'Não foi possível abrir o arquivo.')
-    const destino = envolverUrl ? envolverUrl(d.url as string) : (d.url as string)
-    if (aba) aba.location.replace(destino)
-    else window.open(destino, '_blank', 'noopener')
+
+    if (visualizar) {
+      const destino = opcoes.envolverUrl!(d.url as string)
+      if (aba) aba.location.replace(destino)
+      else window.open(destino, '_blank', 'noopener')
+      return null
+    }
+
+    baixar(d.url as string, file.name ?? undefined)
     return null
   } catch (err) {
     aba?.close()
     return (err as Error).message
   }
+}
+
+/**
+ * Dispara o download. O nome vem do atributo `download` quando a origem é a
+ * mesma, e do Content-Disposition que o Storage devolve quando não é — por
+ * isso a URL assinada já pede `download` na API.
+ */
+function baixar(url: string, nome?: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.rel = 'noopener'
+  if (nome) a.download = nome
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 }
