@@ -530,13 +530,16 @@ export function LancamentosClient({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
-              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground align-bottom">
                 <th className="pl-5 pr-3 py-2 font-semibold">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
                 {/* Quatro contagens cabem porque a coluna é estreita: o
                     conteúdo é sempre um número de 1 a 3 dígitos. */}
+                {/* O rótulo quebra em duas linhas em vez de esticar a coluna:
+                    "Adicional noturno 20%" numa linha só empurrava a tabela
+                    para fora do quadro. */}
                 {config.colunas.map(c => (
-                  <th key={c.campo} className="px-2 py-2 font-semibold text-center whitespace-nowrap">{c.rotulo}</th>
+                  <th key={c.campo} className="px-2 py-2 font-semibold text-center max-w-[86px]">{c.rotulo}</th>
                 ))}
                 {config.temValor && valorFixo && (
                   <>
@@ -599,7 +602,13 @@ export function LancamentosClient({
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{l.empresa ?? '—'}</td>
+                    {/* Nome de empresa longo é cortado com reticências: ele
+                        não pode decidir a largura da tabela. */}
+                    <td className="px-3 py-2 text-gray-600">
+                      <span className="block max-w-[190px] truncate" title={l.empresa ?? undefined}>
+                        {l.empresa ?? '—'}
+                      </span>
+                    </td>
 
                     {config.colunas.map(c => (
                       <td key={c.campo} className="px-2 py-2 text-center">
