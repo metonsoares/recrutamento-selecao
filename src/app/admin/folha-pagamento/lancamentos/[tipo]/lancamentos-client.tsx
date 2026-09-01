@@ -533,8 +533,10 @@ export function LancamentosClient({
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 font-semibold">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
+                {/* Quatro contagens cabem porque a coluna é estreita: o
+                    conteúdo é sempre um número de 1 a 3 dígitos. */}
                 {config.colunas.map(c => (
-                  <th key={c.campo} className="px-3 py-2 font-semibold text-center whitespace-nowrap">{c.rotulo}</th>
+                  <th key={c.campo} className="px-2 py-2 font-semibold text-center whitespace-nowrap">{c.rotulo}</th>
                 ))}
                 {config.temValor && valorFixo && (
                   <>
@@ -550,7 +552,7 @@ export function LancamentosClient({
                     {multiplos ? `Valor e ${(config.rotuloDescricao ?? 'descrição').toLowerCase()}` : 'Valor'}
                   </th>
                 )}
-                <th className="px-3 py-2 w-px" />
+                <th className="pl-3 pr-4 py-2 w-px" />
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -600,11 +602,11 @@ export function LancamentosClient({
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{l.empresa ?? '—'}</td>
 
                     {config.colunas.map(c => (
-                      <td key={c.campo} className="px-3 py-2 text-center">
+                      <td key={c.campo} className="px-2 py-2 text-center">
                         <input value={contagens[l.candidate_id]?.[c.campo] ?? ''}
                           onChange={e => mudarContagem(l.candidate_id, c.campo, e.target.value.replace(/[^\d,]/g, ''))}
                           placeholder="0" inputMode="decimal"
-                          className="h-8 w-20 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center" />
+                          className="h-8 w-16 mx-auto block border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center" />
                       </td>
                     ))}
 
@@ -726,7 +728,7 @@ export function LancamentosClient({
                       </td>
                     )}
 
-                    <td className="px-3 py-2 text-right">
+                    <td className="pl-3 pr-4 py-2 text-right">
                       <Link href={`/admin/candidatos/${l.candidate_id}?tab=ficha`}
                         className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline whitespace-nowrap">
                         Ficha<ExternalLink className="w-3 h-3" />
