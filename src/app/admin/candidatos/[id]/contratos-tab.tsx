@@ -38,10 +38,10 @@ function brl(v: number | null) {
   if (v == null) return null
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
-function viewUrl(c: ContractItem) {
-  const url = c.file_url || ''
-  if (c.file_type === 'pdf' || c.file_name?.toLowerCase().endsWith('.pdf')) return url
-  return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
+/** PDF abre direto; .docx precisa do visualizador do Office para manter a formatação. */
+function paraVisualizacao(c: ContractItem, assinada: string): string {
+  if (c.file_type === 'pdf' || c.file_name?.toLowerCase().endsWith('.pdf')) return assinada
+  return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(assinada)}`
 }
 
 export function ContratosTab({ candidateId, initialContracts }: Props) {
@@ -356,11 +356,14 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     {c.value != null && <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">{brl(c.value)}</span>}
                     <div className="ml-auto flex items-center gap-1 shrink-0">
                       {c.file_url && (
-                        <a href={viewUrl(c)} target="_blank" rel="noreferrer" className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Visualizar"><Eye className="w-5 h-5" /></a>
+                        <a href={c.file_url ?? undefined}
+                          onClick={e => abrirArquivoAssinado(e, { url: c.file_url, path: c.file_path, name: c.file_name }, 'admission-docs', u => paraVisualizacao(c, u))}
+                          target="_blank" rel="noreferrer" className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Visualizar"><Eye className="w-5 h-5" /></a>
                       )}
                       <button onClick={() => openEdit(c)} className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Editar"><Pencil className="w-5 h-5" /></button>
                       {c.file_url && (
-                        <a href={c.file_url} target="_blank" rel="noreferrer" download className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Download"><Download className="w-5 h-5" /></a>
+                        <a href={c.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: c.file_url, path: c.file_path, name: c.file_name })}
+                          target="_blank" rel="noreferrer" download className="p-2 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10" title="Download"><Download className="w-5 h-5" /></a>
                       )}
                       <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id} className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50" title="Remover">
                         {deletingId === c.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}

@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate, contemBusca } from '@/lib/helpers'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 interface CompanyFile {
   id: string
@@ -245,7 +246,8 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
                             <div key={f.id} className="flex items-center gap-3 px-5 py-2.5 pl-11 hover:bg-gray-50 transition-colors">
                               <div className="flex-1 min-w-0">
                                 {f.file_url ? (
-                                  <a href={f.file_url} target="_blank" rel="noreferrer" download
+                                  <a href={f.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: f.file_url, path: f.file_path, name: f.file_name })}
+                                    target="_blank" rel="noreferrer" download
                                     className="inline-flex items-center gap-1.5 text-emerald-700 hover:underline font-medium text-sm">
                                     {f.file_name?.endsWith('.pdf') ? <FileText className="w-4 h-4 text-red-500 shrink-0" /> : <FileDown className="w-4 h-4 text-blue-500 shrink-0" />}
                                     {f.name}

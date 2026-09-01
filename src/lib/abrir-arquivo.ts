@@ -30,6 +30,13 @@ export async function abrirArquivoAssinado(
   e: { preventDefault: () => void; stopPropagation: () => void },
   file: ArquivoRef | null | undefined,
   bucket: BucketArquivo = 'admission-docs',
+  /**
+   * Transforma a URL assinada na URL que será aberta. Existe para o
+   * visualizador do Office (.docx), que precisa receber o arquivo por
+   * parâmetro — sem isso, ou o .docx baixa em vez de abrir, ou o visualizador
+   * recebe uma URL pública que não existe mais.
+   */
+  envolverUrl?: (assinada: string) => string,
 ): Promise<string | null> {
   e.preventDefault()
   e.stopPropagation()
@@ -53,8 +60,9 @@ export async function abrirArquivoAssinado(
     })
     const d = await res.json().catch(() => ({}))
     if (!res.ok || !d.url) throw new Error(d.error || 'Não foi possível abrir o arquivo.')
-    if (aba) aba.location.replace(d.url)
-    else window.open(d.url, '_blank', 'noopener')
+    const destino = envolverUrl ? envolverUrl(d.url as string) : (d.url as string)
+    if (aba) aba.location.replace(destino)
+    else window.open(destino, '_blank', 'noopener')
     return null
   } catch (err) {
     aba?.close()

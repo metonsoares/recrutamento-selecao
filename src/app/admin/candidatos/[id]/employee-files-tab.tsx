@@ -181,7 +181,8 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
                   <td className="px-4 py-3 text-gray-700">{f.reference || '—'}</td>
                   <td className="px-4 py-3">
                     {f.file_url ? (
-                      <a href={f.file_url} target="_blank" rel="noreferrer" download
+                      <a href={f.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: f.file_url, path: f.file_path, name: f.file_name })}
+                        target="_blank" rel="noreferrer" download
                         className="inline-flex items-center gap-1.5 text-emerald-700 hover:underline font-medium">
                         {f.file_name?.endsWith('.pdf') ? <FileText className="w-4 h-4 text-red-500 shrink-0" /> : <FileDown className="w-4 h-4 text-blue-500 shrink-0" />}
                         <span className="truncate max-w-[200px]">{f.file_name || 'Arquivo'}</span>

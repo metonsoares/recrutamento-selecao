@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
 import { guessSource } from '@/lib/template-vars'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 export interface ContractTemplate {
   id: string
@@ -121,11 +122,10 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
     setName(t.name); setEmpresa(t.empresa || ''); setFile(null); setError(''); setModalOpen(true)
   }
 
-  /** URL de visualização mantendo a formatação original (.docx via visualizador do Office). */
-  function viewUrl(t: ContractTemplate): string {
-    const url = t.file_url || ''
-    if (t.file_type === 'pdf') return url
-    return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
+  /** Visualização mantendo a formatação original (.docx via visualizador do Office). */
+  function paraVisualizacao(t: ContractTemplate, assinada: string): string {
+    if (t.file_type === 'pdf') return assinada
+    return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(assinada)}`
   }
 
   async function handleSave() {
@@ -205,7 +205,9 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
                 </p>
               </div>
               {t.file_url && (
-                <a href={viewUrl(t)} target="_blank" rel="noreferrer"
+                <a href={t.file_url ?? undefined}
+                  onClick={e => abrirArquivoAssinado(e, { url: t.file_url, path: t.file_path, name: t.file_name }, 'admission-docs', u => paraVisualizacao(t, u))}
+                  target="_blank" rel="noreferrer"
                   className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Visualizar (formatação original)"><Eye className="w-4 h-4" /></a>
               )}
               {t.file_type !== 'pdf' && (
@@ -215,7 +217,8 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
               <button onClick={() => openEdit(t)}
                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Editar"><Pencil className="w-4 h-4" /></button>
               {t.file_url && (
-                <a href={t.file_url} target="_blank" rel="noreferrer" download
+                <a href={t.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: t.file_url, path: t.file_path, name: t.file_name })}
+                  target="_blank" rel="noreferrer" download
                   className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5" title="Baixar"><Download className="w-4 h-4" /></a>
               )}
               <button onClick={() => handleDelete(t.id)} disabled={deletingId === t.id}

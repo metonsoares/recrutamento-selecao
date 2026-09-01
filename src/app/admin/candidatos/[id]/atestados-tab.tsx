@@ -190,7 +190,8 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
                   <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(c.certificate_date)}</td>
                   <td className="px-4 py-3">
                     {c.file_url ? (
-                      <a href={c.file_url} target="_blank" rel="noreferrer" download
+                      <a href={c.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: c.file_url, path: c.file_path, name: c.file_name })}
+                        target="_blank" rel="noreferrer" download
                         className="inline-flex items-center gap-1.5 text-sm text-emerald-700 hover:underline font-medium">
                         {c.file_name?.endsWith('.pdf')
                           ? <FileText className="w-4 h-4 text-red-500 shrink-0" />

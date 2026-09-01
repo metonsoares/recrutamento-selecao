@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -128,7 +129,8 @@ function WarningForm({
           {data.file_url ? (
             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
               <FileText className="w-4 h-4 text-red-500 shrink-0" />
-              <a href={data.file_url} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">
+              <a href={data.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: data.file_url, path: data.file_path, name: data.file_name })}
+                target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">
                 {data.file_name}
               </a>
               <button onClick={() => setData(p => ({ ...p, file_url: null, file_name: null, file_path: null }))}
@@ -264,7 +266,8 @@ export function AdvertenciasTab({ candidateId, initialWarnings }: Props) {
                   <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(w.occurred_at)}</td>
                   <td className="px-4 py-3 text-gray-700">
                     {w.file_url ? (
-                      <a href={w.file_url} target="_blank" rel="noreferrer"
+                      <a href={w.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: w.file_url, path: w.file_path, name: w.file_name })}
+                        target="_blank" rel="noreferrer"
                         className="line-clamp-2 text-emerald-700 hover:underline cursor-pointer font-medium"
                         title="Abrir arquivo da advertência">
                         {w.reason}
@@ -275,7 +278,8 @@ export function AdvertenciasTab({ candidateId, initialWarnings }: Props) {
                   </td>
                   <td className="px-4 py-3 text-center">
                     {w.file_url ? (
-                      <a href={w.file_url} target="_blank" rel="noreferrer"
+                      <a href={w.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: w.file_url, path: w.file_path, name: w.file_name })}
+                        target="_blank" rel="noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors">
                         <FileDown className="w-3.5 h-3.5" />
                         Exportar PDF

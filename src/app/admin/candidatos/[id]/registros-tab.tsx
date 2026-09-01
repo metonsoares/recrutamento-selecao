@@ -122,7 +122,8 @@ export function RegistrosTab({ candidateId, initialRecords }: Props) {
                   </div>
                   {r.comment && <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{r.comment}</p>}
                   {r.file_url && (
-                    <a href={r.file_url} target="_blank" rel="noreferrer" download
+                    <a href={r.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: r.file_url, path: r.file_path, name: r.file_name })}
+                      target="_blank" rel="noreferrer" download
                       className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] text-emerald-700 hover:underline font-medium">
                       {r.file_name?.endsWith('.pdf') ? <FileText className="w-3.5 h-3.5 text-red-500" /> : <FileDown className="w-3.5 h-3.5 text-blue-500" />}
                       {r.file_name || 'Anexo'}<Download className="w-3 h-3 opacity-60" />
