@@ -73,6 +73,20 @@ function Selo({ v, tom = 'neutro' }: { v: boolean | null; tom?: 'neutro' | 'aler
   )
 }
 
+/**
+ * Nome do arquivo exportado: "202608 - Folha - M3-Cafeteria-Cristal".
+ * Começar pela competência AAAAMM faz a pasta se ordenar por mês sozinha.
+ */
+function nomeArquivo(competencia: string, empresa: string): string {
+  const comp = competencia.slice(0, 7).replace('-', '')
+  const nome = empresa
+    // Mantém acento e número; o resto (espaço, hífen solto, ponto) vira um
+    // hífen só — nome de arquivo com "/" ou ":" o sistema recusa.
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+  return `${comp} - Folha - ${nome}`
+}
+
 const CABECALHO = [
   'Colaborador', 'Vínculo', 'Dias', 'Faltas', 'Vale transporte', 'Mensalidade sindical',
   'Gorjeta', 'Cargo de confiança', 'Insalubridade 20%', 'Quebra de caixa 15%', 'Salário', 'Comentário',
@@ -168,7 +182,7 @@ export function AprovadasClient({
     ])
     baixarArquivo(
       await gerarXlsx([CABECALHO, ...corpo], 'Folha aprovada'),
-      `folha-aprovada-${competencia.slice(0, 7)}-${e.empresa_nome.replace(/[^\w]+/g, '-')}.xlsx`,
+      `${nomeArquivo(competencia, e.empresa_nome)}.xlsx`,
     )
   }
 
@@ -190,7 +204,7 @@ export function AprovadasClient({
       ]),
       paisagem: true,
     })
-    baixarArquivo(blob, `folha-aprovada-${competencia.slice(0, 7)}-${e.empresa_nome.replace(/[^\w]+/g, '-')}.pdf`)
+    baixarArquivo(blob, `${nomeArquivo(competencia, e.empresa_nome)}.pdf`)
   }
 
   const todasEmpresas = Array.from(new Set(empresas.map(e => e.empresa_nome)))
