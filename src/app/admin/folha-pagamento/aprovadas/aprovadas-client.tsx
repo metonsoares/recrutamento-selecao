@@ -13,6 +13,7 @@ import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
+import { formatarHoras } from '@/lib/horas'
 
 export interface ItemAprovado {
   candidate_id: string
@@ -79,10 +80,10 @@ const simNaoTexto = (v: boolean | null) => (v === null ? '' : v ? 'Sim' : 'Não'
 /** Horas do mês numa célula de PDF. */
 function resumoHoras(l: ItemAprovado): string {
   return [
-    l.horas_normais > 0 ? `${l.horas_normais}n` : '',
-    l.horas_50 > 0 ? `${l.horas_50} a 50%` : '',
-    l.horas_100 > 0 ? `${l.horas_100} a 100%` : '',
-    l.adicional_noturno > 0 ? `${l.adicional_noturno} not.` : '',
+    l.horas_normais > 0 ? `${formatarHoras(l.horas_normais)} n` : '',
+    l.horas_50 > 0 ? `${formatarHoras(l.horas_50)} 50%` : '',
+    l.horas_100 > 0 ? `${formatarHoras(l.horas_100)} 100%` : '',
+    l.adicional_noturno > 0 ? `${formatarHoras(l.adicional_noturno)} not.` : '',
   ].filter(Boolean).join(' · ')
 }
 
@@ -202,7 +203,8 @@ export function AprovadasClient({
       formatName(l.nome), l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
       l.dias_trabalhados, simNaoTexto(l.vale_transporte), l.faltas, l.domingos, l.feriados,
       simNaoTexto(l.mensalidade_sindical), l.avarias, l.adiantamento,
-      l.horas_normais, l.horas_50, l.horas_100, l.adicional_noturno, l.atrasos,
+      formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
+      formatarHoras(l.adicional_noturno), formatarHoras(l.atrasos),
       l.gratificacao, simNaoTexto(l.insalubridade_20), l.confianca_valor, l.quebra_valor,
       l.gorjeta, paraNumero(l.salario), comentarios[l.candidate_id] ?? '',
     ])
@@ -229,7 +231,7 @@ export function AprovadasClient({
         l.faltas || '', l.domingos + l.feriados || '', simNaoTexto(l.mensalidade_sindical),
         l.avarias > 0 ? brl(l.avarias) : '',
         l.adiantamento > 0 ? brl(l.adiantamento) : '',
-        resumoHoras(l), l.atrasos || '', l.gratificacao > 0 ? brl(l.gratificacao) : '',
+        resumoHoras(l), formatarHoras(l.atrasos), l.gratificacao > 0 ? brl(l.gratificacao) : '',
         simNaoTexto(l.insalubridade_20),
         l.confianca_valor > 0 ? brl(l.confianca_valor) : '',
         l.quebra_valor > 0 ? brl(l.quebra_valor) : '',
@@ -457,13 +459,13 @@ export function AprovadasClient({
                                 {l.adiantamento > 0 && <span className="font-medium text-red-700">{brl(l.adiantamento)}</span>}
                               </td>
                               <td className="px-2 py-2 text-[11.5px] text-gray-700 whitespace-nowrap">
-                                {l.horas_normais > 0 && <span className="block">{l.horas_normais} normais</span>}
-                                {l.horas_50 > 0 && <span className="block">{l.horas_50} a 50%</span>}
-                                {l.horas_100 > 0 && <span className="block">{l.horas_100} a 100%</span>}
-                                {l.adicional_noturno > 0 && <span className="block">{l.adicional_noturno} not. 20%</span>}
+                                {l.horas_normais > 0 && <span className="block">{formatarHoras(l.horas_normais)} normais</span>}
+                                {l.horas_50 > 0 && <span className="block">{formatarHoras(l.horas_50)} a 50%</span>}
+                                {l.horas_100 > 0 && <span className="block">{formatarHoras(l.horas_100)} a 100%</span>}
+                                {l.adicional_noturno > 0 && <span className="block">{formatarHoras(l.adicional_noturno)} not. 20%</span>}
                               </td>
                               <td className="px-2 py-2 text-center">
-                                {l.atrasos > 0 && <span className="font-semibold text-red-600">{l.atrasos}</span>}
+                                {l.atrasos > 0 && <span className="font-semibold text-red-600">{formatarHoras(l.atrasos)}</span>}
                               </td>
                               <td className="px-2 py-2 text-right whitespace-nowrap">
                                 {l.gratificacao > 0 && <span className="font-medium text-emerald-700">{brl(l.gratificacao)}</span>}

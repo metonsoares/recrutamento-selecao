@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
+import { formatarHoras, hhMmParaNumero, horasParaMinutos, minutosParaHhMm } from '@/lib/horas'
 import type { ConfigLancamento, CampoContagem } from '@/lib/folha-lancamentos'
 
 export interface LinhaLancamento {
@@ -167,14 +168,30 @@ export function LancamentosClient({
     return paraNumero(valores[l.candidate_id])
   }
 
-  const contagemDe = (l: LinhaLancamento, campo: CampoContagem) =>
-    paraNumero(contagens[l.candidate_id]?.[campo])
+  const ehHora = (campo: CampoContagem) => !!config.colunas.find(c => c.campo === campo)?.horas
+
+  const contagemDe = (l: LinhaLancamento, campo: CampoContagem) => {
+    const texto = contagens[l.candidate_id]?.[campo]
+    return ehHora(campo) ? hhMmParaNumero(texto ?? '') : paraNumero(texto)
+  }
 
   const temLancamento = (l: LinhaLancamento) =>
     valorDe(l) > 0 || config.colunas.some(c => contagemDe(l, c.campo) > 0)
 
   function mudarContagem(id: string, campo: CampoContagem, v: string) {
-    setContagens(prev => ({ ...prev, [id]: { ...(prev[id] ?? {}), [campo]: v } }))
+    // Em hora, aceita só dígitos e ":" enquanto digita; o hh:mm completo é
+    // montado no blur — formatar a cada tecla atrapalha quem está digitando.
+    const texto = ehHora(campo) ? v.replace(/[^\d:]/g, '').slice(0, 6) : v
+    setContagens(prev => ({ ...prev, [id]: { ...(prev[id] ?? {}), [campo]: texto } }))
+  }
+
+  /** Ao sair do campo, "608" e "6:8" viram "06:08". */
+  function normalizarHora(id: string, campo: CampoContagem) {
+    setContagens(prev => {
+      const atual = prev[id]?.[campo] ?? ''
+      if (!atual.trim()) return prev
+      return { ...prev, [id]: { ...(prev[id] ?? {}), [campo]: formatarHoras(hhMmParaNumero(atual)) } }
+    })
   }
 
   // Com vários lançamentos por mês (avarias), o histórico soma por competência
@@ -277,11 +294,10 @@ export function LancamentosClient({
       for (const [id, r] of aprovadosNoMes) {
         if (novo[id] !== undefined) continue
         const c: Partial<Record<CampoContagem, string>> = {}
-        if (r.quantidade > 0) c.quantidade = paraCampo(r.quantidade)
-        if (r.quantidade2 > 0) c.quantidade2 = paraCampo(r.quantidade2)
-        if (r.quantidade3 > 0) c.quantidade3 = paraCampo(r.quantidade3)
-        if (r.quantidade4 > 0) c.quantidade4 = paraCampo(r.quantidade4)
-        if (r.quantidade5 > 0) c.quantidade5 = paraCampo(r.quantidade5)
+        for (const col of config.colunas) {
+          const v = r[col.campo]
+          if (v > 0) c[col.campo] = col.horas ? formatarHoras(v) : paraCampo(v)
+        }
         if (Object.keys(c).length) novo[id] = c
       }
       return novo
@@ -312,10 +328,17 @@ export function LancamentosClient({
 
   const comLancamento = noEscopo.filter(temLancamento).length
   const totalValor = noEscopo.reduce((s, l) => s + valorDe(l), 0)
-  const totaisContagem = config.colunas.map(c => ({
-    rotulo: c.rotulo,
-    total: noEscopo.reduce((s, l) => s + contagemDe(l, c.campo), 0),
-  }))
+  const totaisContagem = config.colunas.map(c => {
+    const soma = noEscopo.reduce((s, l) => s + contagemDe(l, c.campo), 0)
+    return {
+      rotulo: c.rotulo,
+      total: soma,
+      // Hora se soma em minutos: 6h50 + 6h50 são 13h40, não 13,00.
+      texto: c.horas
+        ? minutosParaHhMm(noEscopo.reduce((s, l) => s + horasParaMinutos(contagemDe(l, c.campo)), 0))
+        : String(Math.round(soma * 100) / 100),
+    }
+  })
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   const baseNome = `${config.slug}-${competencia.slice(0, 7)}${nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''}`
 
@@ -413,7 +436,7 @@ export function LancamentosClient({
     const partes: string[] = []
     for (const c of config.colunas) {
       const v = h[c.campo]
-      if (v > 0) partes.push(`${v} ${c.rotulo.toLowerCase()}`)
+      if (v > 0) partes.push(`${c.horas ? formatarHoras(v) : v} ${c.rotulo.toLowerCase()}`)
     }
     if (config.temValor && h.valor > 0) partes.push(brl(h.valor))
     if (h.desconto > 0) partes.push(`desconto ${brl(h.desconto)}`)
@@ -430,7 +453,7 @@ export function LancamentosClient({
   async function exportar() {
     const corpo = filtradas.map(l => [
       formatName(l.nome), l.empresa ?? '—', l.cargo ?? '—',
-      ...config.colunas.map(c => contagemDe(l, c.campo)),
+      ...config.colunas.map(c => (c.horas ? formatarHoras(contagemDe(l, c.campo)) : contagemDe(l, c.campo))),
       ...(config.temValor && valorFixo ? [sugestaoDe(l), descontoDe(l), valorDe(l)] : []),
       ...(config.temValor && !valorFixo ? [valorDe(l)] : []),
     ])
@@ -538,7 +561,7 @@ export function LancamentosClient({
           <Cartao titulo="Descontos" valor={brl(noEscopo.reduce((s, l) => s + descontoDe(l), 0))} cor="text-amber-700" />
         )}
         {totaisContagem.map(t => (
-          <Cartao key={t.rotulo} titulo={t.rotulo} valor={String(t.total)} cor="text-primary" />
+          <Cartao key={t.rotulo} titulo={t.rotulo} valor={t.texto} cor="text-primary" />
         ))}
       </div>
 
@@ -641,9 +664,11 @@ export function LancamentosClient({
                     {config.colunas.map(c => (
                       <td key={c.campo} className="px-2 py-2 text-center">
                         <input value={contagens[l.candidate_id]?.[c.campo] ?? ''}
-                          onChange={e => mudarContagem(l.candidate_id, c.campo, e.target.value.replace(/[^\d,]/g, ''))}
-                          placeholder="0" inputMode="decimal"
-                          className="h-8 w-16 mx-auto block border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center" />
+                          onChange={e => mudarContagem(l.candidate_id, c.campo, e.target.value)}
+                          onBlur={() => c.horas && normalizarHora(l.candidate_id, c.campo)}
+                          placeholder={c.horas ? '00:00' : '0'} inputMode={c.horas ? 'numeric' : 'decimal'}
+                          title={c.horas ? 'Horas e minutos (hh:mm)' : undefined}
+                          className={`h-8 mx-auto block border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center ${c.horas ? 'w-[68px]' : 'w-16'}`} />
                       </td>
                     ))}
 

@@ -25,6 +25,11 @@ export type CampoContagem =
 export interface ColunaContagem {
   campo: CampoContagem
   rotulo: string
+  /**
+   * Contagem em HORAS: o campo é hh:mm e a soma é feita em minutos. Sem isto,
+   * "6,50 + 6,50" daria 13,00 em vez de 13h40.
+   */
+  horas?: boolean
 }
 
 /** Perfis que alcançam o lançamento. Master está sempre incluído. */
@@ -117,11 +122,11 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
     descricao: 'Horas do mês por tipo de adicional.',
     colunas: [
       // Horas normais primeiro: é a base do mês; os adicionais vêm depois.
-      { campo: 'quantidade4', rotulo: 'Horas normais' },
-      { campo: 'quantidade', rotulo: 'Adicional noturno 20%' },
-      { campo: 'quantidade2', rotulo: 'Hora 50%' },
-      { campo: 'quantidade3', rotulo: 'Hora 100%' },
-      { campo: 'quantidade5', rotulo: 'Atrasos' },
+      { campo: 'quantidade4', rotulo: 'Horas normais', horas: true },
+      { campo: 'quantidade', rotulo: 'Adicional noturno 20%', horas: true },
+      { campo: 'quantidade2', rotulo: 'Hora 50%', horas: true },
+      { campo: 'quantidade3', rotulo: 'Hora 100%', horas: true },
+      { campo: 'quantidade5', rotulo: 'Atrasos', horas: true },
     ],
     temValor: false,
   },
