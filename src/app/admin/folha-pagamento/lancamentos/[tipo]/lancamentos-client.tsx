@@ -32,6 +32,7 @@ export interface RegistroLancamento {
   quantidade: number
   quantidade2: number
   quantidade3: number
+  quantidade4: number
   valor: number
   desconto: number
   observacao: string | null
@@ -45,6 +46,7 @@ interface CicloAprovado {
   total_qtd: number
   total_qtd2: number
   total_qtd3: number
+  total_qtd4: number
   total_desconto: number
   aprovado_por: string | null
 }
@@ -69,6 +71,14 @@ function paraCampo(n: number): string {
   return n > 0 ? n.toFixed(2).replace('.', ',') : ''
 }
 
+/** Qual total do ciclo corresponde a cada campo de contagem. */
+const TOTAL_DO_CAMPO: Record<CampoContagem, (c: CicloAprovado) => number> = {
+  quantidade: c => c.total_qtd,
+  quantidade2: c => c.total_qtd2,
+  quantidade3: c => c.total_qtd3,
+  quantidade4: c => c.total_qtd4,
+}
+
 export function LancamentosClient({
   config, competencia, linhas, empresas, historico, cicloAprovado,
 }: {
@@ -84,7 +94,7 @@ export function LancamentosClient({
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [padrao, setPadrao] = useState('')
   const [valores, setValores] = useState<Record<string, string>>({})
-  /** candidate_id → { quantidade, quantidade2, quantidade3 } digitados */
+  /** candidate_id → { quantidade, quantidade2, quantidade3, quantidade4 } digitados */
   const [contagens, setContagens] = useState<Record<string, Partial<Record<CampoContagem, string>>>>({})
   /** candidate_id → desconto digitado (tipos de valor fixo) */
   const [descontos, setDescontos] = useState<Record<string, string>>({})
@@ -176,6 +186,7 @@ export function LancamentosClient({
         mesmoMes.quantidade += h.quantidade
         mesmoMes.quantidade2 += h.quantidade2
         mesmoMes.quantidade3 += h.quantidade3
+        mesmoMes.quantidade4 += h.quantidade4
         mesmoMes.desconto = Math.round((mesmoMes.desconto + h.desconto) * 100) / 100
       } else {
         arr.push({ ...h })
@@ -195,6 +206,7 @@ export function LancamentosClient({
         atual.quantidade += h.quantidade
         atual.quantidade2 += h.quantidade2
         atual.quantidade3 += h.quantidade3
+        atual.quantidade4 += h.quantidade4
         atual.desconto = Math.round((atual.desconto + h.desconto) * 100) / 100
       } else {
         m.set(h.candidate_id, { ...h })
@@ -250,6 +262,7 @@ export function LancamentosClient({
         if (r.quantidade > 0) c.quantidade = paraCampo(r.quantidade)
         if (r.quantidade2 > 0) c.quantidade2 = paraCampo(r.quantidade2)
         if (r.quantidade3 > 0) c.quantidade3 = paraCampo(r.quantidade3)
+        if (r.quantidade4 > 0) c.quantidade4 = paraCampo(r.quantidade4)
         if (Object.keys(c).length) novo[id] = c
       }
       return novo
@@ -338,6 +351,7 @@ export function LancamentosClient({
             quantidade: contagemDe(l, 'quantidade'),
             quantidade2: contagemDe(l, 'quantidade2'),
             quantidade3: contagemDe(l, 'quantidade3'),
+            quantidade4: contagemDe(l, 'quantidade4'),
           }))
 
       const res = await fetch(`/api/admin/folha-pagamento/lancamentos/${config.slug}`, {
@@ -378,7 +392,7 @@ export function LancamentosClient({
   function resumoRegistro(h: RegistroLancamento): string {
     const partes: string[] = []
     for (const c of config.colunas) {
-      const v = c.campo === 'quantidade' ? h.quantidade : c.campo === 'quantidade2' ? h.quantidade2 : h.quantidade3
+      const v = h[c.campo]
       if (v > 0) partes.push(`${v} ${c.rotulo.toLowerCase()}`)
     }
     if (config.temValor && h.valor > 0) partes.push(brl(h.valor))
@@ -450,8 +464,10 @@ export function LancamentosClient({
           <p className="text-[13px] text-emerald-900 flex-1">
             Mês <strong>registrado</strong>
             {config.temValor && <> — {brl(cicloAprovado.total_valor)}</>}
-            {config.colunas.map((c, i) => {
-              const t = i === 0 ? cicloAprovado.total_qtd : i === 1 ? cicloAprovado.total_qtd2 : cicloAprovado.total_qtd3
+            {/* O total sai do CAMPO da coluna, não da posição dela: a ordem
+                das colunas na tela muda, o campo no banco não. */}
+            {config.colunas.map(c => {
+              const t = TOTAL_DO_CAMPO[c.campo](cicloAprovado)
               return t > 0 ? <span key={c.campo}> · {t} {c.rotulo.toLowerCase()}</span> : null
             })}
             {cicloAprovado.aprovado_por ? ` por ${cicloAprovado.aprovado_por}` : ''}. Reaprovar substitui o registro.

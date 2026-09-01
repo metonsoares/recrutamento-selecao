@@ -38,14 +38,14 @@ export default async function LancamentosPage({
       .in('status', ['contratado', 'em_contrato', 'aprovado'])
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social'),
-    supabase.from('folha_ciclos').select('id, competencia, aprovado_por, total_valor, total_qtd, total_qtd2, total_qtd3, total_desconto').eq('tipo', tipo),
+    supabase.from('folha_ciclos').select('id, competencia, aprovado_por, total_valor, total_qtd, total_qtd2, total_qtd3, total_qtd4, total_desconto').eq('tipo', tipo),
   ])
 
   const cicloIds = (ciclos ?? []).map(c => c.id as string)
   const { data: itens } = cicloIds.length
     ? await supabase.from('folha_itens')
-        .select('ciclo_id, candidate_id, quantidade, quantidade2, quantidade3, valor, desconto, observacao').in('ciclo_id', cicloIds)
-    : { data: [] as { ciclo_id: string; candidate_id: string; quantidade: number; quantidade2: number; quantidade3: number; valor: number; desconto: number; observacao: string | null }[] }
+        .select('ciclo_id, candidate_id, quantidade, quantidade2, quantidade3, quantidade4, valor, desconto, observacao').in('ciclo_id', cicloIds)
+    : { data: [] as { ciclo_id: string; candidate_id: string; quantidade: number; quantidade2: number; quantidade3: number; quantidade4: number; valor: number; desconto: number; observacao: string | null }[] }
 
   const competenciaPorCiclo = new Map((ciclos ?? []).map(c => [c.id as string, c.competencia as string]))
   const historico: RegistroLancamento[] = (itens ?? [])
@@ -58,6 +58,7 @@ export default async function LancamentosPage({
         quantidade: Number(i.quantidade) || 0,
         quantidade2: Number(i.quantidade2) || 0,
         quantidade3: Number(i.quantidade3) || 0,
+        quantidade4: Number(i.quantidade4) || 0,
         valor: Number(i.valor) || 0,
         desconto: Number(i.desconto) || 0,
         observacao: (i.observacao as string | null) ?? null,
@@ -129,6 +130,7 @@ export default async function LancamentosPage({
         total_qtd: Number(cicloDoMes.total_qtd),
         total_qtd2: Number(cicloDoMes.total_qtd2),
         total_qtd3: Number(cicloDoMes.total_qtd3),
+        total_qtd4: Number(cicloDoMes.total_qtd4),
         total_desconto: Number(cicloDoMes.total_desconto),
         aprovado_por: (cicloDoMes.aprovado_por as string) ?? null,
       } : null}

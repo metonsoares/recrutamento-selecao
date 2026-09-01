@@ -18,7 +18,7 @@ export type TipoLancamento =
   | 'quebra-caixa'
 
 /** Campos de contagem disponíveis em folha_itens. */
-export type CampoContagem = 'quantidade' | 'quantidade2' | 'quantidade3'
+export type CampoContagem = 'quantidade' | 'quantidade2' | 'quantidade3' | 'quantidade4'
 
 export interface ColunaContagem {
   campo: CampoContagem
@@ -104,6 +104,8 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
     titulo: 'Horas extras',
     descricao: 'Horas do mês por tipo de adicional.',
     colunas: [
+      // Horas normais primeiro: é a base do mês; os adicionais vêm depois.
+      { campo: 'quantidade4', rotulo: 'Horas normais' },
       { campo: 'quantidade', rotulo: 'Adicional noturno 20%' },
       { campo: 'quantidade2', rotulo: 'Hora 50%' },
       { campo: 'quantidade3', rotulo: 'Hora 100%' },
