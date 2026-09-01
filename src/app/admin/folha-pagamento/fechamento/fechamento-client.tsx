@@ -435,7 +435,7 @@ export function FechamentoClient({
               some justamente na célula que fica parada. */}
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead className="bg-gray-50">
-              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground [&>th]:border-b [&>th]:border-gray-200">
+              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground align-bottom [&>th]:border-b [&>th]:border-gray-200">
                 {/* Marcação e nome ficam parados: rolando para a direita, o
                     número perde o dono se o nome sair da tela. */}
                 <th className="pl-3 pr-1 py-2 w-px sticky left-0 z-20 bg-gray-50">
@@ -446,14 +446,14 @@ export function FechamentoClient({
                 </th>
                 <th className="px-3 py-2 font-semibold sticky left-8 z-20 bg-gray-50">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
-                <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">Dias</th>
+                <th className="px-3 py-2 font-semibold text-center max-w-[70px]">Dias trabalhados</th>
                 <th className="px-3 py-2 font-semibold text-center">Faltas</th>
-                <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">VT</th>
-                <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">Sindical</th>
+                <th className="px-3 py-2 font-semibold text-center max-w-[80px]">Vale transporte</th>
+                <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Mensalidade sindical</th>
                 <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Gorjeta</th>
-                <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">Confiança</th>
-                <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">Insal. 20%</th>
-                <th className="px-3 py-2 font-semibold text-center whitespace-nowrap">Quebra 15%</th>
+                <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Cargo de confiança</th>
+                <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Insalubridade 20%</th>
+                <th className="px-3 py-2 font-semibold text-center max-w-[90px]">Quebra de caixa 15%</th>
                 <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Salário</th>
                 <th className="px-3 py-2 font-semibold min-w-[200px]">Comentário</th>
                 <th className="px-3 py-2 w-px" />
