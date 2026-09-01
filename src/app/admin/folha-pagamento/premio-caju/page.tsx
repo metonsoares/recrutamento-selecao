@@ -132,6 +132,13 @@ export default async function PremioCajuPage({
       if (caju?.not_applicable === true) return null // "Não aplicável" fica fora
 
       const af = a.admission_form as Record<string, unknown> | null
+
+      // "Recebe prêmio Caju?" respondido NÃO na ficha tira da lista. Só o não
+      // explícito exclui: ficha ainda sem resposta (null) continua entrando,
+      // senão a pergunta nova esvaziaria a tela de uma vez.
+      const recebeCaju = af?.premio_caju
+      if (recebeCaju === false || recebeCaju === 'false') return null
+
       const empresaId = String(af?.selected_company_id ?? '')
       const id = a.candidate_id as string
       const dias = faltasPorCand.get(id) ?? 0

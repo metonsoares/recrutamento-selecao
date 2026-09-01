@@ -45,6 +45,7 @@ export interface AdmissionFormData {
   insalubridade_20: boolean | null
   quebra_caixa_15: boolean | null
   gorjeta: boolean | null
+  premio_caju: boolean | null
   function_title: string
   salary: string
   admission_date: string
@@ -159,6 +160,7 @@ function makeEmpty(c: Candidate, jobTitle: string | null): AdmissionFormData {
     identity_number: '', identity_date: '', marital_status: '', education: '',
     union_dues: null, transport_benefit: null,
     cargo_confianca: null, insalubridade_20: null, quebra_caixa_15: null, gorjeta: null,
+    premio_caju: null,
     function_title: jobTitle || '', salary: '', admission_date: '', trial_contract: '45 + 45 dias',
     docs: Object.fromEntries(ALL_DOCS.map(d => [d.key, emptyDoc()])),
     children_count: '0', alimony: false,
@@ -741,6 +743,9 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
             </Field>
             <Field label="Gorjeta?">
               <YesNo value={form.gorjeta} onChange={v => set('gorjeta', v)} />
+            </Field>
+            <Field label="Recebe prêmio Caju?">
+              <YesNo value={form.premio_caju} onChange={v => set('premio_caju', v)} />
             </Field>
           </div>
         </div>
