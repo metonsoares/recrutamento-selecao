@@ -46,6 +46,7 @@ export interface LinhaFechamento {
   confianca_valor: number
   /** valor da quebra de caixa lançada no mês (já com o desconto) */
   quebra_valor: number
+  atrasos: number
 }
 
 export interface EmpresaOpcao { id: string; nome: string }
@@ -53,13 +54,13 @@ export interface EmpresaOpcao { id: string; nome: string }
 /** Só os lançamentos, para somar por colaborador sem repetir onze zeros. */
 type Lancamentos = Pick<LinhaFechamento,
   'domingos' | 'feriados' | 'avarias' | 'adiantamento' | 'horas_normais' | 'horas_50'
-  | 'horas_100' | 'adicional_noturno' | 'gratificacao' | 'confianca_valor' | 'quebra_valor'>
+  | 'horas_100' | 'adicional_noturno' | 'gratificacao' | 'confianca_valor' | 'quebra_valor' | 'atrasos'>
 
 function lancamentosZerados(): Lancamentos {
   return {
     domingos: 0, feriados: 0, avarias: 0, adiantamento: 0, horas_normais: 0,
     horas_50: 0, horas_100: 0, adicional_noturno: 0, gratificacao: 0,
-    confianca_valor: 0, quebra_valor: 0,
+    confianca_valor: 0, quebra_valor: 0, atrasos: 0,
   }
 }
 
@@ -108,7 +109,7 @@ export async function montarFechamento(competencia: string): Promise<{
 
   const { data: itensLanc } = idsLanc.length
     ? await supabase.from('folha_itens')
-        .select('ciclo_id, candidate_id, quantidade, quantidade2, quantidade3, quantidade4, valor')
+        .select('ciclo_id, candidate_id, quantidade, quantidade2, quantidade3, quantidade4, quantidade5, valor')
         .in('ciclo_id', idsLanc)
     : { data: [] as Record<string, unknown>[] }
 
@@ -134,6 +135,7 @@ export async function montarFechamento(competencia: string): Promise<{
         atual.horas_50 += n(i.quantidade2)
         atual.horas_100 += n(i.quantidade3)
         atual.horas_normais += n(i.quantidade4)
+        atual.atrasos += n(i.quantidade5)
         break
     }
     lancPorCand.set(id, atual)

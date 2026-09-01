@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
           gratificacao: l.gratificacao,
           confianca_valor: l.confianca_valor,
           quebra_valor: l.quebra_valor,
+          atrasos: l.atrasos,
         })),
       )
       if (erroItens) return NextResponse.json({ error: erroItens.message }, { status: 400 })

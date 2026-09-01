@@ -168,7 +168,7 @@ export function FechamentoClient({
   const CABECALHO = [
     'Colaborador', 'Empresa', 'Vínculo', 'Dias trabalhados', 'Vale transporte', 'Faltas',
     'Domingos', 'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial',
-    'Horas normais', 'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Gratificação',
+    'Horas normais', 'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Atrasos', 'Gratificação',
     'Insalubridade 20%', 'Cargo de confiança', 'Quebra de caixa', 'Gorjeta',
     'Salário', 'Comentário',
   ]
@@ -230,14 +230,14 @@ export function FechamentoClient({
       subtitulo: `${mes} / ${ano} · ${selecionadas.length} colaboradores · ${totalDias} dias · ${brl(totalSalario)} em salários`,
       cabecalho: [
         'Colaborador', 'Dias', 'VT', 'Faltas', 'Dom/Fer', 'Sindical', 'Avarias', 'Adiant.',
-        'H. extras', 'Gratif.', 'Insal.', 'Confiança', 'Quebra', 'Gorjeta', 'Salário',
+        'H. extras', 'Atrasos', 'Gratif.', 'Insal.', 'Confiança', 'Quebra', 'Gorjeta', 'Salário',
       ],
       linhas: selecionadas.map(l => [
         formatName(l.nome), l.dias_trabalhados || '', simNaoTexto(l.vale_transporte),
         l.faltas || '', l.domingos + l.feriados || '', simNaoTexto(l.mensalidade_sindical),
         l.avarias > 0 ? brl(l.avarias) : '',
         l.adiantamento > 0 ? brl(l.adiantamento) : '',
-        resumoHoras(l), l.gratificacao > 0 ? brl(l.gratificacao) : '',
+        resumoHoras(l), l.atrasos || '', l.gratificacao > 0 ? brl(l.gratificacao) : '',
         simNaoTexto(l.insalubridade_20),
         l.confianca_valor > 0 ? brl(l.confianca_valor) : '',
         l.quebra_valor > 0 ? brl(l.quebra_valor) : '',
@@ -258,7 +258,7 @@ export function FechamentoClient({
       l.dias_trabalhados, simNaoTexto(l.vale_transporte), l.faltas,
       l.domingos, l.feriados, simNaoTexto(l.mensalidade_sindical),
       l.avarias, l.adiantamento,
-      l.horas_normais, l.horas_50, l.horas_100, l.adicional_noturno,
+      l.horas_normais, l.horas_50, l.horas_100, l.adicional_noturno, l.atrasos,
       l.gratificacao, simNaoTexto(l.insalubridade_20), l.confianca_valor, l.quebra_valor,
       l.gorjeta, paraNumero(l.salario), comentarios[l.candidate_id] ?? '',
     ])
@@ -464,19 +464,20 @@ export function FechamentoClient({
                 </th>
                 <th className="px-3 py-2 font-semibold sticky left-8 z-20 bg-gray-50">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
-                <th className="px-2 py-2 font-semibold text-center max-w-[70px]">Dias trabalhados</th>
-                <th className="px-2 py-2 font-semibold text-center max-w-[80px]">Vale transporte</th>
-                <th className="px-2 py-2 font-semibold text-center max-w-[60px]">Faltas</th>
-                <th className="px-2 py-2 font-semibold text-center max-w-[90px]">Domingos e feriados</th>
-                <th className="px-2 py-2 font-semibold text-center max-w-[90px]">Mensalidade sindical</th>
-                <th className="px-2 py-2 font-semibold text-right max-w-[80px]">Avarias</th>
-                <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Adiantamento salarial</th>
-                <th className="px-2 py-2 font-semibold text-center max-w-[110px]">Horas extras</th>
-                <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Gratificação</th>
-                <th className="px-2 py-2 font-semibold text-center max-w-[90px]">Insalubridade 20%</th>
-                <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Cargo de confiança</th>
-                <th className="px-2 py-2 font-semibold text-right max-w-[90px]">Quebra de caixa</th>
-                <th className="px-2 py-2 font-semibold text-right max-w-[80px]">Gorjeta</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[86px]">Dias trabalhados</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[86px]">Vale transporte</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[64px]">Faltas</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[96px]">Domingos e feriados</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[104px]">Mensalidade sindical</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[80px]">Avarias</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[104px]">Adiantamento salarial</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[92px]">Horas extras</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[72px]">Atrasos</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[92px]">Gratificação</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[100px]">Insalubridade 20%</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[100px]">Cargo de confiança</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[92px]">Quebra de caixa</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[80px]">Gorjeta</th>
                 <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Salário</th>
                 <th className="px-3 py-2 font-semibold min-w-[200px]">Comentário</th>
                 <th className="px-3 py-2 w-px" />
@@ -543,6 +544,9 @@ export function FechamentoClient({
                     {l.horas_100 > 0 && <span className="block">{l.horas_100} a 100%</span>}
                     {l.adicional_noturno > 0 && <span className="block">{l.adicional_noturno} not. 20%</span>}
                   </td>
+                  <td className="px-2 py-2 text-center">
+                    {l.atrasos > 0 && <span className="font-semibold text-red-600">{l.atrasos}</span>}
+                  </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap">
                     {l.gratificacao > 0 && <span className="font-medium text-emerald-700">{brl(l.gratificacao)}</span>}
                   </td>
@@ -590,7 +594,7 @@ export function FechamentoClient({
               ))}
               {filtradas.length === 0 && (
                 <tr>
-                  <td colSpan={19} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={20} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Nenhum colaborador neste filtro.
                   </td>
                 </tr>

@@ -19,7 +19,8 @@ export type TipoLancamento =
   | 'quebra-caixa'
 
 /** Campos de contagem disponíveis em folha_itens. */
-export type CampoContagem = 'quantidade' | 'quantidade2' | 'quantidade3' | 'quantidade4'
+export type CampoContagem =
+  | 'quantidade' | 'quantidade2' | 'quantidade3' | 'quantidade4' | 'quantidade5'
 
 export interface ColunaContagem {
   campo: CampoContagem
@@ -120,6 +121,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
       { campo: 'quantidade', rotulo: 'Adicional noturno 20%' },
       { campo: 'quantidade2', rotulo: 'Hora 50%' },
       { campo: 'quantidade3', rotulo: 'Hora 100%' },
+      { campo: 'quantidade5', rotulo: 'Atrasos' },
     ],
     temValor: false,
   },
