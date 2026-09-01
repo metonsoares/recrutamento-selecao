@@ -139,6 +139,8 @@ export function LancamentosClient({
     itensDe(l).reduce((s, it) => s + paraNumero(it.valor), 0)
 
   const valorFixo = !!config.valorFixo
+  /** Valor é a própria conta: sem campo para digitar. */
+  const valorCalculado = !!config.valorCalculado
   const descontoDe = (l: LinhaLancamento) => paraNumero(descontos[l.candidate_id])
 
   /**
@@ -147,6 +149,7 @@ export function LancamentosClient({
    */
   const valorDe = (l: LinhaLancamento) => {
     if (multiplos) return totalItensDe(l)
+    if (valorCalculado) return sugestaoDe(l)
     if (valorFixo) return Math.max(0, Math.round((sugestaoDe(l) - descontoDe(l)) * 100) / 100)
     return paraNumero(valores[l.candidate_id])
   }
@@ -434,8 +437,10 @@ export function LancamentosClient({
       {config.percentualSalario && (
         <p className="text-[12.5px] text-muted-foreground flex items-center gap-1.5">
           <Calculator className="w-3.5 h-3.5 shrink-0" />
-          O valor vem calculado como {Math.round(config.percentualSalario * 100)}% do salário da ficha —
-          confira e ajuste onde precisar antes de aprovar.
+          O valor é {Math.round(config.percentualSalario * 100)}% do salário da ficha
+          {valorCalculado
+            ? ' e não é editável aqui: para mudar, corrija o salário na ficha do colaborador.'
+            : ' — confira e ajuste onde precisar antes de aprovar.'}
         </p>
       )}
 
@@ -467,10 +472,11 @@ export function LancamentosClient({
           <option value="">Todas as empresas</option>
           {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
-        {!multiplos && (
+        {/* Nada para digitar em massa quando o valor é a própria conta. */}
+        {!multiplos && !(valorCalculado && !temContagens) && (
           <div className="flex gap-2">
             <input value={padrao} onChange={e => setPadrao(e.target.value.replace(/[^\d,]/g, ''))}
-              placeholder={valorFixo ? 'Desconto p/ todos' : config.temValor ? 'Valor p/ todos' : `${config.colunas[0]?.rotulo ?? 'Qtd'} p/ todos`}
+              placeholder={valorFixo ? 'Desconto p/ todos' : config.temValor && !valorCalculado ? 'Valor p/ todos' : `${config.colunas[0]?.rotulo ?? 'Qtd'} p/ todos`}
               inputMode="decimal"
               className="h-9 flex-1 min-w-0 border border-gray-300 rounded-md px-2.5 text-sm bg-white" />
             <Button variant="outline" onClick={aplicarATodos} disabled={!padrao.trim() || filtradas.length === 0}
@@ -482,7 +488,7 @@ export function LancamentosClient({
         <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
           disabled={comLancamento === 0}
           title={comLancamento === 0 ? 'Preencha pelo menos um colaborador' : undefined}
-          className={`gap-1.5 w-full ${multiplos ? 'sm:col-start-2 lg:col-start-4' : ''}`}>
+          className={`gap-1.5 w-full ${multiplos || (valorCalculado && !temContagens) ? 'sm:col-start-2 lg:col-start-4' : ''}`}>
           <Check className="w-3.5 h-3.5" />Aprovar
         </Button>
       </div>
@@ -586,7 +592,7 @@ export function LancamentosClient({
                       </td>
                     ))}
 
-                    {config.temValor && !multiplos && !valorFixo && (
+                    {config.temValor && !multiplos && !valorFixo && !valorCalculado && (
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <span className="text-[12px] text-gray-400">R$</span>
@@ -604,6 +610,26 @@ export function LancamentosClient({
                         {config.percentualSalario && sugerido === 0 && (
                           <span className="block text-[10.5px] text-amber-700 mt-0.5">
                             {l.salario ? 'salário por hora — informe o valor' : 'sem salário na ficha'}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {config.temValor && valorCalculado && (
+                      /* Sem campo de propósito: o adicional é regra do cargo,
+                         não digitação. O que muda o valor é o salário da ficha. */
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        {sugerido > 0 ? (
+                          <>
+                            <span className="font-semibold text-gray-900">{brl(sugerido)}</span>
+                            {jaAprovado && <span className="text-[11px] font-semibold text-emerald-700"> ✓</span>}
+                            <span className="block text-[10.5px] text-muted-foreground">
+                              {Math.round((config.percentualSalario ?? 0) * 100)}% de {brl(paraNumero(l.salario))}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-amber-700">
+                            {l.salario ? 'salário por hora — sem cálculo' : 'sem salário na ficha'}
                           </span>
                         )}
                       </td>

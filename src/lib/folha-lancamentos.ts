@@ -51,12 +51,18 @@ export interface ConfigLancamento {
    */
   campoFicha?: 'cargo_confianca' | 'insalubridade_20' | 'quebra_caixa_15'
   /**
-   * Quando definido, o valor já vem calculado como este percentual do salário
-   * da ficha (0.4 = 40%). Continua editável: a conta é um ponto de partida,
-   * não uma trava — salário por hora, proporcional e reajuste no meio do mês
-   * são casos em que o RH precisa corrigir.
+   * Quando definido, o valor vem calculado como este percentual do salário da
+   * ficha (0.4 = 40%). Por padrão a conta é um ponto de partida EDITÁVEL —
+   * salário por hora, proporcional e reajuste no meio do mês são casos em que
+   * o RH precisa corrigir. Use `valorCalculado` para travar.
    */
   percentualSalario?: number
+  /**
+   * O valor é o percentual do salário e ponto: não se digita nada, só se
+   * confere. É o caso do cargo de confiança, em que o adicional é regra fixa
+   * do cargo — deixar o campo aberto convidaria a divergir do salário da ficha.
+   */
+  valorCalculado?: boolean
   /**
    * A base calculada é FIXA (não editável) e o que se digita é um desconto.
    * O valor do mês é `base - desconto`. Sem isto, o campo de valor é livre.
@@ -116,21 +122,23 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
     slug: 'cargo-confianca',
     perfis: ['master'],
     titulo: 'Cargo de confiança',
-    descricao: 'Adicional de 40% sobre o salário. Lista só quem tem "Sim" na ficha.',
+    descricao: 'Adicional de 40% sobre o salário, calculado da ficha. Lista só quem tem "Sim" na ficha.',
     colunas: [],
     temValor: true,
     campoFicha: 'cargo_confianca',
     percentualSalario: 0.4,
+    valorCalculado: true,
   },
   'insalubridade': {
     slug: 'insalubridade',
     perfis: ['master'],
     titulo: 'Insalubridade',
-    descricao: 'Adicional de 20% sobre o salário. Lista só quem tem "Sim" na ficha.',
+    descricao: 'Adicional de 20% sobre o salário, calculado da ficha. Lista só quem tem "Sim" na ficha.',
     colunas: [],
     temValor: true,
     campoFicha: 'insalubridade_20',
     percentualSalario: 0.2,
+    valorCalculado: true,
   },
   'quebra-caixa': {
     slug: 'quebra-caixa',
