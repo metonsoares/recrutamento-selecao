@@ -455,7 +455,7 @@ export function FechamentoClient({
               some justamente na célula que fica parada. */}
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead className="bg-gray-50">
-              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground align-bottom [&>th]:border-b [&>th]:border-gray-200">
+              <tr className="text-left text-[11px] uppercase text-muted-foreground align-bottom [&>th]:border-b [&>th]:border-gray-200">
                 {/* Marcação e nome ficam parados: rolando para a direita, o
                     número perde o dono se o nome sair da tela. */}
                 <th className="pl-3 pr-1 py-2 w-px sticky left-0 z-20 bg-gray-50">
@@ -466,23 +466,23 @@ export function FechamentoClient({
                 </th>
                 <th className="px-3 py-2 font-semibold sticky left-8 z-20 bg-gray-50">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[86px]">Dias trabalhados</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[86px]">Vale transporte</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[64px]">Faltas</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[96px]">Domingos e feriados</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[104px]">Mensalidade sindical</th>
-                <th className="px-2 py-2 font-semibold text-right min-w-[80px]">Avarias</th>
-                <th className="px-2 py-2 font-semibold text-right min-w-[104px]">Adiantamento salarial</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[92px]">Horas extras</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[72px]">Atrasos</th>
-                <th className="px-2 py-2 font-semibold text-right min-w-[92px]">Gratificação</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[100px]">Insalubridade 20%</th>
-                <th className="px-2 py-2 font-semibold text-right min-w-[100px]">Cargo de confiança</th>
-                <th className="px-2 py-2 font-semibold text-right min-w-[92px]">Quebra de caixa</th>
-                <th className="px-2 py-2 font-semibold text-right min-w-[80px]">Gorjeta</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[100px] break-words">Dias trabalhados</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[96px] break-words">Vale transporte</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[64px] break-words">Faltas</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[92px] break-words">Domingos e feriados</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[104px] break-words">Mensalidade sindical</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[80px] break-words">Avarias</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[112px] break-words">Adiantamento salarial</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[108px] break-words">Horas extras</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[76px] break-words">Atrasos</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[104px] break-words">Gratificação</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[112px] break-words">Insalubridade 20%</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[104px] break-words">Cargo de confiança</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[96px] break-words">Quebra de caixa</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[84px] break-words">Gorjeta</th>
                 <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Salário</th>
                 <th className="px-3 py-2 font-semibold min-w-[200px]">Comentário</th>
-                <th className="px-3 py-2 w-px" />
+                <th className="pl-4 pr-5 py-2 w-px sticky right-0 z-20 bg-gray-50" />
               </tr>
             </thead>
             <tbody className="[&>tr>td]:border-t [&>tr>td]:border-gray-200">
@@ -586,7 +586,7 @@ export function FechamentoClient({
                       {salvando === l.candidate_id && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400 shrink-0" />}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="pl-4 pr-5 py-2 text-right sticky right-0 z-10 bg-white group-hover:bg-gray-50">
                     <Link href={`/admin/candidatos/${l.candidate_id}?tab=ficha`}
                       className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline whitespace-nowrap">
                       Ficha<ExternalLink className="w-3 h-3" />
