@@ -1,7 +1,5 @@
 import { requirePermission } from '@/lib/auth-guard'
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
-import { STATUS_LABELS, CandidateStatus } from '@/types'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao, FeriasRegistro, AdvertenciaRegistro } from './relatorios-rh'
 
 /** Respostas do formulário são gravadas como JSON.stringify(valor). */
@@ -15,29 +13,6 @@ function parseTexto(v: string | null): string | null {
 
 export default async function RelatoriosPage() {
   await requirePermission('relatorios.ver')
-  const supabase = await createSupabaseServerClient()
-
-  const { data: candidates } = await supabase
-    .from('candidates')
-    .select('id, created_at')
-    .is('deleted_at', null)
-
-  const activeIds = (candidates || []).map(c => c.id)
-
-  const { data: applications } = activeIds.length
-    ? await supabase
-        .from('applications')
-        .select('status, candidate_id')
-        .eq('is_latest', true)
-        .in('candidate_id', activeIds)
-    : { data: [] }
-
-  const apps = applications || []
-  const totalCandidates = candidates?.length || 0
-
-  const byStatus: Record<string, number> = {}
-  apps.forEach(a => { byStatus[a.status] = (byStatus[a.status] || 0) + 1 })
-
   // ── Relatórios de RH (salários, experiência, aniversariantes) ──────────────
   // Consultas simples e cruzamento em memória — embeds !inner do PostgREST já
   // falharam silenciosamente neste projeto.
@@ -151,33 +126,11 @@ export default async function RelatoriosPage() {
     <div className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold">Relatórios</h1>
-        <p className="text-muted-foreground text-sm mt-1">Visão analítica do processo seletivo</p>
+        <p className="text-muted-foreground text-sm mt-1">Quadro de pessoal: salários, contratos, aniversários, férias e advertências</p>
       </div>
 
       {/* Relatórios de RH */}
       <RelatoriosRh colaboradores={colaboradores} empresas={empresasOpcoes} ferias={ferias} advertencias={advertencias} />
-
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Resumo por Status</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[260px]">
-            <thead><tr className="border-b text-muted-foreground text-xs">
-              <th className="text-left pb-2">Status</th>
-              <th className="text-right pb-2">Qtd</th>
-              <th className="text-right pb-2">%</th>
-            </tr></thead>
-            <tbody>
-              {Object.entries(byStatus).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
-                <tr key={status} className="border-b last:border-0">
-                  <td className="py-2">{STATUS_LABELS[status as CandidateStatus] || status}</td>
-                  <td className="py-2 text-right font-medium">{count}</td>
-                  <td className="py-2 text-right text-muted-foreground">{totalCandidates > 0 ? ((count / totalCandidates) * 100).toFixed(1) : 0}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
     </div>
   )
 }
