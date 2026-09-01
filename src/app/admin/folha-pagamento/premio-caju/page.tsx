@@ -1,5 +1,6 @@
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 import { PremioCajuClient, LinhaCaju, EmpresaOpcao, PagamentoHistorico } from './premio-caju-client'
 
 export const dynamic = 'force-dynamic'
@@ -50,7 +51,7 @@ export default async function PremioCajuPage({
   const [{ data: apps }, { data: empresas }, { data: ciclo }] = await Promise.all([
     supabase
       .from('applications')
-      .select('candidate_id, admission_form, company_docs')
+      .select('candidate_id, admission_form, admission_form_history, company_docs')
       .eq('is_latest', true)
       .eq('status', 'contratado'),
     supabase.from('companies').select('id, apelido, razao_social').order('apelido'),
@@ -131,7 +132,9 @@ export default async function PremioCajuPage({
       const caju = docs?.premio_caju as { not_applicable?: boolean } | undefined
       if (caju?.not_applicable === true) return null // "Não aplicável" fica fora
 
-      const af = a.admission_form as Record<string, unknown> | null
+      // A ficha do MÊS, não a de hoje: quem foi transferido de empresa tem
+      // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
+      const af = fichaDaCompetencia(a, fim)
 
       // "Recebe prêmio Caju?" respondido NÃO na ficha tira da lista. Só o não
       // explícito exclui: ficha ainda sem resposta (null) continua entrando,

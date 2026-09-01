@@ -1,5 +1,7 @@
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { fichaDaCompetencia } from '@/lib/ficha-competencia'
+import { fimDoMes } from '@/lib/competencia'
 import { GorjetasClient, LinhaGorjeta, EmpresaOpcao, PagamentoGorjeta } from './gorjetas-client'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +24,9 @@ export default async function GorjetasPage({
     ? (sp.competencia as string)
     : mesCorrente()
 
+  // Último dia da competência: é ele que diz qual ficha valia no mês.
+  const fim = fimDoMes(competencia)
+
   const supabase = await createSupabaseServiceClient()
 
   const [{ data: apps }, { data: empresas }, { data: ciclo }] = await Promise.all([
@@ -29,7 +34,7 @@ export default async function GorjetasPage({
     // intermitente ficam de fora — regra do dono, e é o que a prática já diz
     // (nenhum lançamento de gorjeta existente é de outro vínculo).
     supabase.from('applications')
-      .select('candidate_id, admission_form, status')
+      .select('candidate_id, admission_form, admission_form_history, status')
       .eq('status', 'contratado')
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social').order('apelido'),
@@ -85,7 +90,9 @@ export default async function GorjetasPage({
     .map(a => {
       const c = candPorId.get(a.candidate_id as string)
       if (!c || c.deleted_at) return null
-      const af = a.admission_form as Record<string, unknown> | null
+      // A ficha do MÊS, não a de hoje: quem foi transferido de empresa tem
+      // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
+      const af = fichaDaCompetencia(a, fim)
       const bruto = af?.gorjeta
       if (!(bruto === true || bruto === 'true')) return null
 

@@ -3,6 +3,7 @@ import { requireAnyRole } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { mesCorrente, fimDoMes, competenciaValida } from '@/lib/competencia'
 import { LANCAMENTOS, tipoValido } from '@/lib/folha-lancamentos'
+import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 import { LancamentosClient, LinhaLancamento, EmpresaOpcao, RegistroLancamento } from './lancamentos-client'
 
 export const dynamic = 'force-dynamic'
@@ -34,7 +35,7 @@ export default async function LancamentosPage({
   // falharam silenciosamente neste projeto.
   const [{ data: apps }, { data: empresas }, { data: ciclos }] = await Promise.all([
     supabase.from('applications')
-      .select('candidate_id, admission_form, status')
+      .select('candidate_id, admission_form, admission_form_history, status')
       .in('status', ['contratado', 'em_contrato', 'aprovado'])
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social'),
@@ -84,7 +85,9 @@ export default async function LancamentosPage({
       const c = candPorId.get(a.candidate_id as string)
       if (!c || c.deleted_at) return null
 
-      const af = a.admission_form as Record<string, unknown> | null
+      // A ficha do MÊS, não a de hoje: quem foi transferido de empresa tem
+      // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
+      const af = fichaDaCompetencia(a, fim)
 
       // Admitido DEPOIS do mês não entra na folha daquele período.
       const admissao = String(af?.admission_date ?? '').trim() || null

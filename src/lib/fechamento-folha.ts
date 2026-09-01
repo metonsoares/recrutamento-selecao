@@ -1,5 +1,6 @@
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { fimDoMes } from '@/lib/competencia'
+import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 
 /**
  * Montagem do fechamento de folha de um mês.
@@ -85,7 +86,7 @@ export async function montarFechamento(competencia: string): Promise<{
     { data: faltas }, { data: comentarios },
   ] = await Promise.all([
     supabase.from('applications')
-      .select('candidate_id, admission_form, status')
+      .select('candidate_id, admission_form, admission_form_history, status')
       .in('status', ['contratado', 'em_contrato', 'aprovado'])
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social'),
@@ -172,7 +173,9 @@ export async function montarFechamento(competencia: string): Promise<{
       const c = candPorId.get(a.candidate_id as string)
       if (!c || c.deleted_at) return null
 
-      const af = a.admission_form as Record<string, unknown> | null
+      // A ficha do MÊS, não a de hoje: quem foi transferido de empresa tem
+      // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
+      const af = fichaDaCompetencia(a, fim)
 
       // Admitido DEPOIS do mês não entra na folha daquele período.
       const admissao = String(af?.admission_date ?? '').trim() || null

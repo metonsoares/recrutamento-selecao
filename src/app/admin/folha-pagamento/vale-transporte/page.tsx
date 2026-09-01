@@ -1,5 +1,7 @@
 import { requireAnyRole } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { fichaDaCompetencia } from '@/lib/ficha-competencia'
+import { fimDoMes } from '@/lib/competencia'
 import { ValeTransporteClient, LinhaVT, EmpresaOpcao, RegistroDias } from './vale-transporte-client'
 
 export const dynamic = 'force-dynamic'
@@ -25,12 +27,15 @@ export default async function ValeTransportePage({
     ? (sp.competencia as string)
     : mesCorrente()
 
+  // Último dia da competência: é ele que diz qual ficha valia no mês.
+  const fim = fimDoMes(competencia)
+
   const supabase = await createSupabaseServiceClient()
 
   const [{ data: apps }, { data: empresas }] = await Promise.all([
     supabase
       .from('applications')
-      .select('candidate_id, admission_form, status')
+      .select('candidate_id, admission_form, admission_form_history, status')
       .in('status', ['contratado', 'em_contrato', 'aprovado'])
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social'),
@@ -87,7 +92,9 @@ export default async function ValeTransportePage({
       const c = candPorId.get(a.candidate_id as string)
       if (!c || c.deleted_at) return null
 
-      const af = a.admission_form as Record<string, unknown> | null
+      // A ficha do MÊS, não a de hoje: quem foi transferido de empresa tem
+      // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
+      const af = fichaDaCompetencia(a, fim)
       const empresaId = String(af?.selected_company_id ?? '')
       const bruto = af?.transport_benefit
       const conf = af?.cargo_confianca
