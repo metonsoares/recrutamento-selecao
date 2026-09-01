@@ -61,13 +61,14 @@ export function FechamentoClient({
   const router = useRouter()
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
+  const [vinculoFiltro, setVinculoFiltro] = useState<'' | 'contratado' | 'intermitente'>('')
 
   // Quem já está numa folha aprovada do mês não pode entrar em outra: fica
   // travado até a folha dele ser excluída em Folhas aprovadas.
   const travados = new Set(jaAprovados)
-  const [marcados, setMarcados] = useState<Set<string>>(
-    () => new Set(linhas.filter(l => !travados.has(l.candidate_id)).map(l => l.candidate_id)),
-  )
+  // Ninguém marcado ao abrir: aprovar folha é ato deliberado, quem entra se
+  // escolhe. Marcar todos de saída convidaria a aprovar sem olhar.
+  const [marcados, setMarcados] = useState<Set<string>>(new Set())
   const alternarMarcado = (id: string) => setMarcados(s => {
     if (travados.has(id)) return s
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
@@ -107,12 +108,21 @@ export function FechamentoClient({
 
   const filtradas = linhas.filter(l => {
     if (empresaFiltro && l.empresa_id !== empresaFiltro) return false
+    if (vinculoFiltro && l.vinculo !== vinculoFiltro) return false
     const termo = busca.trim()
     if (!termo) return true
     const digitos = termo.replace(/\D/g, '')
     if (digitos.length >= 3 && (l.cpf ?? '').includes(digitos)) return true
     return contemBusca(`${l.nome} ${l.cargo ?? ''}`, termo)
   })
+
+  // Contagem por vínculo respeita a empresa escolhida, não a busca: o número
+  // ao lado da opção é para decidir se vale filtrar, não o resultado dela.
+  const contagemVinculo = linhas.reduce((acc, l) => {
+    if (empresaFiltro && l.empresa_id !== empresaFiltro) return acc
+    acc[l.vinculo]++
+    return acc
+  }, { contratado: 0, intermitente: 0 })
 
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   // Só o que está marcado conta: é o que vai ser aprovado e exportado.
@@ -357,6 +367,13 @@ export function FechamentoClient({
           className="h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white">
           <option value="">Todas as empresas</option>
           {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+        </select>
+        <select value={vinculoFiltro}
+          onChange={e => setVinculoFiltro(e.target.value as '' | 'contratado' | 'intermitente')}
+          className="h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white">
+          <option value="">Todos os vínculos</option>
+          <option value="contratado">Contratados ({contagemVinculo.contratado})</option>
+          <option value="intermitente">Intermitentes ({contagemVinculo.intermitente})</option>
         </select>
       </div>
 
