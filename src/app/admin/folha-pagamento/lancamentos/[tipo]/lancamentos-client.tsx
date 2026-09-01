@@ -531,7 +531,7 @@ export function LancamentosClient({
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Colaborador</th>
+                <th className="pl-5 pr-3 py-2 font-semibold">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
                 {/* Quatro contagens cabem porque a coluna é estreita: o
                     conteúdo é sempre um número de 1 a 3 dígitos. */}
@@ -552,7 +552,7 @@ export function LancamentosClient({
                     {multiplos ? `Valor e ${(config.rotuloDescricao ?? 'descrição').toLowerCase()}` : 'Valor'}
                   </th>
                 )}
-                <th className="pl-3 pr-4 py-2 w-px" />
+                <th className="pl-4 pr-5 py-2 w-px" />
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -562,7 +562,7 @@ export function LancamentosClient({
                 const sugerido = sugestaoDe(l)
                 return (
                   <tr key={l.candidate_id} className="hover:bg-gray-50 align-top">
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="pl-5 pr-3 py-2 whitespace-nowrap">
                       <span className="font-medium text-gray-900">{formatName(l.nome)}</span>
                       {l.vinculo === 'intermitente' && (
                         <span className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-sky-100 text-sky-700 align-middle">
@@ -728,7 +728,7 @@ export function LancamentosClient({
                       </td>
                     )}
 
-                    <td className="pl-3 pr-4 py-2 text-right">
+                    <td className="pl-4 pr-5 py-2 text-right align-middle">
                       <Link href={`/admin/candidatos/${l.candidate_id}?tab=ficha`}
                         className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline whitespace-nowrap">
                         Ficha<ExternalLink className="w-3 h-3" />
