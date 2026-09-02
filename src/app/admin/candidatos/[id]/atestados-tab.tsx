@@ -190,19 +190,25 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
                 <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(c.certificate_date)}</td>
                   <td className="px-4 py-3">
-                    {c.file_url ? (
-                      <a href={c.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: c.file_url, path: c.file_path, name: c.file_name })}
-                        target="_blank" rel="noreferrer" download
-                        className="inline-flex items-center gap-1.5 text-sm text-emerald-700 hover:underline font-medium">
-                        {c.file_name?.endsWith('.pdf')
-                          ? <FileText className="w-4 h-4 text-red-500 shrink-0" />
-                          : <FileDown className="w-4 h-4 text-blue-500 shrink-0" />}
-                        <span className="truncate max-w-[220px]">{c.file_name || 'Atestado'}</span>
-                        <Download className="w-3.5 h-3.5 opacity-60" />
-                      </a>
-                    ) : (
-                      <span className="text-xs text-gray-300">Sem arquivo</span>
-                    )}
+                    {/* O nome baixa; o olho abre para conferir. */}
+                    <div className="flex items-center gap-1">
+                      {c.file_url ? (
+                        <>
+                          <a href={c.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: c.file_url, path: c.file_path, name: c.file_name })}
+                            target="_blank" rel="noreferrer" download
+                            className="inline-flex items-center gap-1.5 text-sm text-emerald-700 hover:underline font-medium min-w-0">
+                            {c.file_name?.endsWith('.pdf')
+                              ? <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                              : <FileDown className="w-4 h-4 text-blue-500 shrink-0" />}
+                            <span className="truncate max-w-[220px]">{c.file_name || 'Atestado'}</span>
+                            <Download className="w-3.5 h-3.5 opacity-60" />
+                          </a>
+                          <VerArquivo file={{ url: c.file_url, path: c.file_path, name: c.file_name }} />
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-300">Sem arquivo</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
                     {c.comment ? <span className="line-clamp-1">{c.comment}</span> : <span className="text-gray-300">—</span>}

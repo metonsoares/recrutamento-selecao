@@ -181,15 +181,20 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
                 <tr key={f.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-700">{f.reference || '—'}</td>
                   <td className="px-4 py-3">
-                    {f.file_url ? (
-                      <a href={f.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: f.file_url, path: f.file_path, name: f.file_name })}
-                        target="_blank" rel="noreferrer" download
-                        className="inline-flex items-center gap-1.5 text-emerald-700 hover:underline font-medium">
-                        {f.file_name?.endsWith('.pdf') ? <FileText className="w-4 h-4 text-red-500 shrink-0" /> : <FileDown className="w-4 h-4 text-blue-500 shrink-0" />}
-                        <span className="truncate max-w-[200px]">{f.file_name || 'Arquivo'}</span>
-                        <Download className="w-3.5 h-3.5 opacity-60" />
-                      </a>
-                    ) : <span className="text-xs text-gray-300">—</span>}
+                    <div className="flex items-center gap-1">
+                      {f.file_url ? (
+                        <>
+                          <a href={f.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: f.file_url, path: f.file_path, name: f.file_name })}
+                            target="_blank" rel="noreferrer" download
+                            className="inline-flex items-center gap-1.5 text-emerald-700 hover:underline font-medium min-w-0">
+                            {f.file_name?.endsWith('.pdf') ? <FileText className="w-4 h-4 text-red-500 shrink-0" /> : <FileDown className="w-4 h-4 text-blue-500 shrink-0" />}
+                            <span className="truncate max-w-[200px]">{f.file_name || 'Arquivo'}</span>
+                            <Download className="w-3.5 h-3.5 opacity-60" />
+                          </a>
+                          <VerArquivo file={{ url: f.file_url, path: f.file_path, name: f.file_name }} />
+                        </>
+                      ) : <span className="text-xs text-gray-300">—</span>}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500 hidden md:table-cell text-xs">{formatDate(f.created_at)}</td>
                   {showComprovante && (
