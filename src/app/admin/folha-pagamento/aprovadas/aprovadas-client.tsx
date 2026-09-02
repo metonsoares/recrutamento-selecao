@@ -128,9 +128,15 @@ export function AprovadasClient({
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
 
-  const [comentarios, setComentarios] = useState<Record<string, string>>(
-    () => Object.fromEntries(empresas.flatMap(e => e.linhas.map(l => [l.candidate_id, l.comentario]))),
-  )
+  // O comentário BASE vem sempre das props; o estado guarda só o que foi
+  // editado agora. Inicializar o mapa uma vez fazia o mês seguinte herdar o
+  // mapa do anterior — na navegação por mês o componente não remonta —, e o
+  // campo (e a exportação) apareciam vazios.
+  const [editados, setEditados] = useState<Record<string, string>>({})
+  const [mesEditado, setMesEditado] = useState(competencia)
+  if (mesEditado !== competencia) { setMesEditado(competencia); setEditados({}) }
+
+  const comentarioDe = (l: ItemAprovado) => editados[l.candidate_id] ?? l.comentario
   const [salvando, setSalvando] = useState<string | null>(null)
   const [excluindo, setExcluindo] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState<EmpresaAprovada | null>(null)
@@ -146,7 +152,7 @@ export function AprovadasClient({
   }
 
   async function salvarComentario(l: ItemAprovado) {
-    const texto = comentarios[l.candidate_id] ?? ''
+    const texto = comentarioDe(l)
     if (texto === l.comentario) return          // nada mudou
     setSalvando(l.candidate_id); setErro(''); setOk('')
     try {
@@ -197,7 +203,7 @@ export function AprovadasClient({
       formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
       formatarHoras(l.adicional_noturno), formatarHoras(l.atrasos),
       l.gratificacao, simNaoTexto(l.insalubridade_20), l.confianca_valor, l.quebra_valor,
-      l.gorjeta, paraNumero(l.salario), comentarios[l.candidate_id] ?? '',
+      l.gorjeta, paraNumero(l.salario), comentarioDe(l),
     ])
     baixarArquivo(
       await gerarXlsx([CABECALHO, ...corpo], 'Folha aprovada'),
@@ -263,7 +269,7 @@ export function AprovadasClient({
           { rotulo: 'Cargo', valores: linhas.map(l => l.cargo ?? '') },
           { rotulo: 'Vínculo', valores: linhas.map(l => (l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado')) },
           { rotulo: 'Salário', valores: linhas.map(l => (l.salario ? brl(paraNumero(l.salario)) : '')) },
-          { rotulo: 'Comentário', valores: linhas.map(l => comentarios[l.candidate_id] ?? '') },
+          { rotulo: 'Comentário', valores: linhas.map(l => comentarioDe(l)) },
         ],
       },
     ]
@@ -531,8 +537,8 @@ export function AprovadasClient({
                                 <div className="flex items-center gap-1.5">
                                   <MessageSquare className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                                   <input
-                                    value={comentarios[l.candidate_id] ?? ''}
-                                    onChange={ev => setComentarios(c => ({ ...c, [l.candidate_id]: ev.target.value }))}
+                                    value={comentarioDe(l)}
+                                    onChange={ev => setEditados(c => ({ ...c, [l.candidate_id]: ev.target.value }))}
                                     onBlur={() => salvarComentario(l)}
                                     placeholder="Anotação do mês…"
                                     className="h-8 w-full min-w-[150px] border border-gray-300 rounded-md px-2 text-[13px] bg-white"

@@ -73,9 +73,14 @@ export function FechamentoClient({
     if (travados.has(id)) return s
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
   })
-  const [comentarios, setComentarios] = useState<Record<string, string>>(
-    () => Object.fromEntries(linhas.map(l => [l.candidate_id, l.comentario])),
-  )
+  // Base nas props, estado só para o que se edita agora: inicializar o mapa
+  // uma vez fazia o mês seguinte herdar os comentários do anterior, porque a
+  // navegação por mês não remonta o componente.
+  const [editados, setEditados] = useState<Record<string, string>>({})
+  const [mesEditado, setMesEditado] = useState(competencia)
+  if (mesEditado !== competencia) { setMesEditado(competencia); setEditados({}); setMarcados(new Set()) }
+
+  const comentarioDe = (l: LinhaFechamento) => editados[l.candidate_id] ?? l.comentario
   const [salvando, setSalvando] = useState<string | null>(null)
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
@@ -149,7 +154,7 @@ export function FechamentoClient({
   }
 
   async function salvarComentario(l: LinhaFechamento) {
-    const texto = comentarios[l.candidate_id] ?? ''
+    const texto = comentarioDe(l)
     if (texto === l.comentario) return          // nada mudou
     setSalvando(l.candidate_id); setErro(''); setOk('')
     try {
@@ -262,7 +267,7 @@ export function FechamentoClient({
       formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
       formatarHoras(l.adicional_noturno), formatarHoras(l.atrasos),
       l.gratificacao, simNaoTexto(l.insalubridade_20), l.confianca_valor, l.quebra_valor,
-      l.gorjeta, paraNumero(l.salario), comentarios[l.candidate_id] ?? '',
+      l.gorjeta, paraNumero(l.salario), comentarioDe(l),
     ])
     const sufixo = nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''
     baixarArquivo(
@@ -577,8 +582,8 @@ export function FechamentoClient({
                     <div className="flex items-center gap-1.5">
                       <MessageSquare className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                       <input
-                        value={comentarios[l.candidate_id] ?? ''}
-                        onChange={e => setComentarios(c => ({ ...c, [l.candidate_id]: e.target.value }))}
+                        value={comentarioDe(l)}
+                        onChange={e => setEditados(c => ({ ...c, [l.candidate_id]: e.target.value }))}
                         onBlur={() => salvarComentario(l)}
                         placeholder="Anotação do mês…"
                         className="h-8 w-full min-w-[160px] border border-gray-300 rounded-md px-2 text-[13px] bg-white"
