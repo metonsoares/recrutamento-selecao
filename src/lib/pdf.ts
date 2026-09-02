@@ -4,7 +4,7 @@
 type Celula = string | number | null | undefined
 
 export async function gerarPdfTabela({
-  titulo, subtitulo, cabecalho, linhas, paisagem = false, compacto = false,
+  titulo, subtitulo, cabecalho, linhas, paisagem = false, compacto = false, alinhamentos,
 }: {
   titulo: string
   subtitulo?: string
@@ -14,6 +14,8 @@ export async function gerarPdfTabela({
   /** Tabela com muitas colunas: fonte e respiro menores para o valor não
    *  quebrar em duas linhas ("R$ 1.892,34" partido no meio). */
   compacto?: boolean
+  /** Alinhamento de cada coluna; o padrão do autotable é à esquerda. */
+  alinhamentos?: ('left' | 'center' | 'right')[]
 }): Promise<Blob> {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
@@ -39,6 +41,9 @@ export async function gerarPdfTabela({
     styles: { fontSize: compacto ? 7.5 : 9, cellPadding: compacto ? 3.5 : 5, overflow: 'linebreak' },
     headStyles: { fillColor: [31, 67, 50], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [246, 248, 247] },
+    columnStyles: Object.fromEntries(
+      (alinhamentos ?? []).map((a, i) => [i, { halign: a }]),
+    ),
     margin: { left: 40, right: 40 },
   })
 

@@ -222,33 +222,51 @@ export function AprovadasClient({
     )
   }
 
-  /** Uma linha por colaborador, em paisagem — o formato de conferência. */
+  /**
+   * Uma linha por colaborador, em paisagem. Coluna sem NENHUM lançamento no
+   * mês não é impressa: numa folha de 17 colunas, três vazias só empurram o
+   * resto e cansam quem confere.
+   */
   async function exportarPdf(e: EmpresaAprovada) {
     setMenu(null)
     const [mes, ano] = maiuscula(rotuloMes(competencia)).split(' de ')
     const linhas = filtrar(e)
+    const dinheiro = (v: number) => (v > 0 ? brl(v) : '')
+
+    type Coluna = {
+      titulo: string
+      alinhamento: 'left' | 'center' | 'right'
+      valor: (l: ItemAprovado) => string | number
+      /** Coluna que sai sempre, mesmo vazia. */
+      fixa?: boolean
+    }
+    const colunas: Coluna[] = [
+      { titulo: 'Colaborador', alinhamento: 'left', fixa: true, valor: l => formatName(l.nome) },
+      { titulo: 'Dias', alinhamento: 'center', fixa: true, valor: l => l.dias_trabalhados || '' },
+      { titulo: 'VT', alinhamento: 'center', valor: l => simNaoTexto(l.vale_transporte) },
+      { titulo: 'Faltas', alinhamento: 'center', valor: l => l.faltas || '' },
+      { titulo: 'Dom/Fer', alinhamento: 'center', valor: l => l.domingos + l.feriados || '' },
+      { titulo: 'Sindical', alinhamento: 'center', valor: l => simNaoTexto(l.mensalidade_sindical) },
+      { titulo: 'Avarias', alinhamento: 'center', valor: l => dinheiro(l.avarias) },
+      { titulo: 'Adiant.', alinhamento: 'center', valor: l => dinheiro(l.adiantamento) },
+      { titulo: 'Horas extras', alinhamento: 'left', valor: l => resumoHoras(l) },
+      { titulo: 'Gratif.', alinhamento: 'center', valor: l => dinheiro(l.gratificacao) },
+      { titulo: 'Insal.', alinhamento: 'center', valor: l => simNaoTexto(l.insalubridade_20) },
+      { titulo: 'Confiança', alinhamento: 'center', valor: l => dinheiro(l.confianca_valor) },
+      { titulo: 'Quebra', alinhamento: 'center', valor: l => dinheiro(l.quebra_valor) },
+      { titulo: 'Gorjeta', alinhamento: 'center', valor: l => dinheiro(l.gorjeta) },
+      { titulo: 'Salário', alinhamento: 'center', fixa: true, valor: l => (l.salario ? brl(paraNumero(l.salario)) : '') },
+      { titulo: 'Comentário', alinhamento: 'left', valor: l => comentarioDe(l) },
+    ]
+    const usadas = colunas.filter(c => c.fixa || linhas.some(l => String(c.valor(l)).trim() !== ''))
+
     const blob = await gerarPdfTabela({
       // A empresa sobe para o título e não se repete em toda linha.
       titulo: `Folha aprovada — ${e.empresa_nome}`,
       subtitulo: `${mes} / ${ano} · ${linhas.length} colaboradores · aprovada${e.aprovado_por ? ` por ${e.aprovado_por}` : ''} em ${dataHora(e.aprovado_em)}`,
-      cabecalho: [
-        'Colaborador', 'Dias', 'VT', 'Faltas', 'Dom/Fer', 'Sindical', 'Avarias', 'Adiant.',
-        'Horas extras', 'Gratif.', 'Insal.', 'Confiança', 'Quebra', 'Gorjeta',
-        'Salário', 'Comentário',
-      ],
-      linhas: linhas.map(l => [
-        formatName(l.nome), l.dias_trabalhados || '', simNaoTexto(l.vale_transporte),
-        l.faltas || '', l.domingos + l.feriados || '', simNaoTexto(l.mensalidade_sindical),
-        l.avarias > 0 ? brl(l.avarias) : '',
-        l.adiantamento > 0 ? brl(l.adiantamento) : '',
-        resumoHoras(l), l.gratificacao > 0 ? brl(l.gratificacao) : '',
-        simNaoTexto(l.insalubridade_20),
-        l.confianca_valor > 0 ? brl(l.confianca_valor) : '',
-        l.quebra_valor > 0 ? brl(l.quebra_valor) : '',
-        l.gorjeta > 0 ? brl(l.gorjeta) : '',
-        l.salario ? brl(paraNumero(l.salario)) : '',
-        comentarioDe(l),
-      ]),
+      cabecalho: usadas.map(c => c.titulo),
+      linhas: linhas.map(l => usadas.map(c => c.valor(l))),
+      alinhamentos: usadas.map(c => c.alinhamento),
       paisagem: true,
       compacto: true,
     })
