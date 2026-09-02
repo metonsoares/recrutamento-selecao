@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { VerArquivo } from '@/components/ver-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,7 @@ function DocRow({
                 className="text-[11px] text-emerald-700 hover:underline truncate max-w-[240px]">
                 {f.name}
               </a>
+              <VerArquivo file={f} />
               <button onClick={() => handleRemove(i)} className="ml-auto text-gray-400 hover:text-red-500 shrink-0">
                 <X className="w-3 h-3" />
               </button>
@@ -291,6 +293,7 @@ function CustomDocRow({ item, onChange, onRemove, candidateId }: {
           <div key={i} className="flex items-center gap-1.5 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
             <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
             <a href={f.url} onClick={e => abrirArquivoAssinado(e, f)} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate max-w-[240px]">{f.name}</a>
+            <VerArquivo file={f} />
             <button onClick={() => removeFile(i)} className="ml-auto text-gray-400 hover:text-red-500 shrink-0"><X className="w-3 h-3" /></button>
           </div>
         ))}
@@ -348,6 +351,7 @@ function CustomDocsCard({ title, subtitle, icon: Icon, items, setItems, candidat
             <div className="flex items-center gap-1.5 bg-white border border-emerald-300 rounded-lg px-2.5 py-1">
               <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
               <a href={pinnedFile.url} onClick={e => abrirArquivoAssinado(e, pinnedFile)} target="_blank" rel="noreferrer" download className="text-[11px] text-emerald-700 hover:underline truncate max-w-[260px]">{pinnedFile.name}</a>
+              <VerArquivo file={pinnedFile} />
             </div>
           </div>
         )}

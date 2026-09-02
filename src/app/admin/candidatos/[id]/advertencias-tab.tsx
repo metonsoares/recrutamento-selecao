@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { VerArquivo } from '@/components/ver-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,7 @@ function WarningForm({
           {data.file_url ? (
             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
               <FileText className="w-4 h-4 text-red-500 shrink-0" />
+              <VerArquivo file={{ url: data.file_url, path: data.file_path, name: data.file_name }} />
               <a href={data.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: data.file_url, path: data.file_path, name: data.file_name })}
                 target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">
                 {data.file_name}
@@ -276,17 +278,23 @@ export function AdvertenciasTab({ candidateId, initialWarnings }: Props) {
                       <p className="line-clamp-2">{w.reason}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    {w.file_url ? (
-                      <a href={w.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: w.file_url, path: w.file_path, name: w.file_name })}
-                        target="_blank" rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors">
-                        <FileDown className="w-3.5 h-3.5" />
-                        Exportar PDF
-                      </a>
-                    ) : (
-                      <span className="text-xs text-gray-300">Sem arquivo</span>
-                    )}
+                  <td className="px-4 py-3">
+                    {/* Baixar guarda o arquivo; o olho só abre para conferir. */}
+                    <div className="flex items-center justify-center gap-1">
+                      {w.file_url ? (
+                        <>
+                          <a href={w.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: w.file_url, path: w.file_path, name: w.file_name })}
+                            target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors">
+                            <FileDown className="w-3.5 h-3.5" />
+                            Baixar
+                          </a>
+                          <VerArquivo file={{ url: w.file_url, path: w.file_path, name: w.file_name }} />
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-300">Sem arquivo</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">

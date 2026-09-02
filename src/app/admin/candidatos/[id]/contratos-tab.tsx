@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
 import { parseMoney, formatMoneyExtenso } from '@/lib/currency'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { VerArquivo } from '@/components/ver-arquivo'
 
 export interface ContractItem {
   id: string
@@ -553,6 +554,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
                     <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                       <FileText className="w-4 h-4 text-red-500 shrink-0" />
                       <a href={file.url} onClick={e => abrirArquivoAssinado(e, file)} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{file.name}</a>
+                      <VerArquivo file={file} />
                       <button onClick={() => setFile(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   ) : (

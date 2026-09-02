@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { VerArquivo } from '@/components/ver-arquivo'
 
 interface UploadedFile { url: string; name: string; path: string }
 interface ExamEntry { id: string; date: string; file: UploadedFile | null }
@@ -60,6 +61,7 @@ function FileSlot({ candidateId, file, onChange, label = 'Anexar exame' }: {
     <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
       <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
       <a href={file.url} onClick={e => abrirArquivoAssinado(e, file)} target="_blank" rel="noreferrer" className="text-[11px] text-emerald-700 hover:underline truncate flex-1">{file.name}</a>
+      <VerArquivo file={file} />
       <button onClick={() => onChange(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
     </div>
   ) : (
