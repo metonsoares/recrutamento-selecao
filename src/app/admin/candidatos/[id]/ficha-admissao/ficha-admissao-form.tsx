@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDateTime, formatName } from '@/lib/helpers'
+import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -355,8 +356,6 @@ function DocRow({
         <div className="mt-2 space-y-1.5">
           {Array.from({ length: slots }, (_, i) => {
             const uploaded = files[i]
-            const viewUrl = uploaded ? `/api/img?u=${encodeURIComponent(uploaded.url)}` : ''
-            const dlUrl = uploaded ? `${viewUrl}&dl=1&name=${encodeURIComponent(uploaded.name)}` : ''
             return (
               <div key={i} className="flex items-center gap-2 flex-wrap">
                 {docDef.perChild && childrenCount > 1 && (
@@ -370,11 +369,17 @@ function DocRow({
                     }
                     <span className="text-[11px] text-emerald-700 truncate min-w-0 flex-1">{uploaded.name}</span>
                     <div className="ml-auto flex items-center gap-0.5 shrink-0">
-                      <a href={viewUrl} target="_blank" rel="noreferrer" title="Visualizar"
+                      {/* O bucket é privado: a URL é assinada no clique. Ver
+                          abre a aba; baixar traz o arquivo sem sair da tela. */}
+                      <a href={uploaded.url} target="_blank" rel="noreferrer" title="Visualizar"
+                        onClick={async e => setUploadError(
+                          await abrirArquivoAssinado(e, uploaded, 'admission-docs', { envolverUrl: u => u }) ?? '',
+                        )}
                         className="p-1 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                         <Eye className="w-3.5 h-3.5" />
                       </a>
-                      <a href={dlUrl} download={uploaded.name} title="Baixar"
+                      <a href={uploaded.url} download={uploaded.name} title="Baixar"
+                        onClick={async e => setUploadError(await abrirArquivoAssinado(e, uploaded) ?? '')}
                         className="p-1 rounded-md text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
                         <Download className="w-3.5 h-3.5" />
                       </a>
