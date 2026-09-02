@@ -58,14 +58,12 @@ export interface SecaoFolha {
  * bloco de colaboradores.
  */
 export async function gerarPdfFolhaVertical({
-  titulo, subtitulo, colaboradores, secoes, totais, porPagina = 5,
+  titulo, subtitulo, colaboradores, secoes, porPagina = 5,
 }: {
   titulo: string
   subtitulo?: string
   colaboradores: string[]
   secoes: SecaoFolha[]
-  /** Fecho da empresa, impresso uma vez ao fim da última página. */
-  totais?: { rotulo: string; valor: string }[]
   porPagina?: number
 }): Promise<Blob> {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
@@ -109,7 +107,9 @@ export async function gerarPdfFolhaVertical({
       headStyles: { fillColor: VERDE, textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
       columnStyles: {
         0: { cellWidth: 132, fontStyle: 'bold', textColor: [55, 65, 60] },
-        ...Object.fromEntries(fatia.map((_, i) => [i + 1, { halign: 'right' as const }])),
+        // Valor centralizado na coluna do colaborador: a coluna é estreita e
+        // a leitura é de cima para baixo, campo a campo.
+        ...Object.fromEntries(fatia.map((_, i) => [i + 1, { halign: 'center' as const }])),
       },
       margin: { left: 40, right: 40 },
       didParseCell: data => {
@@ -121,21 +121,6 @@ export async function gerarPdfFolhaVertical({
           data.cell.styles.halign = 'left'
         }
       },
-    })
-  }
-
-  if (totais && totais.length > 0) {
-    // O fecho vai embaixo da última página, aproveitando o espaço que sobra.
-    const y = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 90
-    autoTable(doc, {
-      head: [['Totais da empresa', '']],
-      body: totais.map(t => [t.rotulo, t.valor]),
-      startY: y + 22,
-      tableWidth: 300,
-      styles: { fontSize: 8.5, cellPadding: 4, lineColor: [225, 230, 227], lineWidth: 0.5 },
-      headStyles: { fillColor: VERDE, textColor: 255, fontStyle: 'bold' },
-      columnStyles: { 0: { cellWidth: 180 }, 1: { halign: 'right', fontStyle: 'bold' } },
-      margin: { left: 40, right: 40 },
     })
   }
 

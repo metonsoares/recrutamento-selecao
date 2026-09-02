@@ -273,18 +273,6 @@ export function AprovadasClient({
       subtitulo: `${mes} / ${ano} · ${linhas.length} colaboradores · aprovada${e.aprovado_por ? ` por ${e.aprovado_por}` : ''} em ${dataHora(e.aprovado_em)}`,
       colaboradores: linhas.map(l => formatName(l.nome)),
       secoes,
-      // Fecho da empresa: o que o contador confere de cabeça na última página.
-      totais: [
-        { rotulo: 'Colaboradores', valor: String(linhas.length) },
-        { rotulo: 'Dias trabalhados', valor: String(linhas.reduce((s, l) => s + l.dias_trabalhados, 0)) },
-        { rotulo: 'Faltas', valor: String(linhas.reduce((s, l) => s + l.faltas, 0)) },
-        { rotulo: 'Gorjetas', valor: brl(linhas.reduce((s, l) => s + l.gorjeta, 0)) },
-        { rotulo: 'Avarias', valor: brl(linhas.reduce((s, l) => s + l.avarias, 0)) },
-        { rotulo: 'Adiantamentos', valor: brl(linhas.reduce((s, l) => s + l.adiantamento, 0)) },
-        { rotulo: 'Salários (mensais)', valor: brl(
-          linhas.map(l => paraNumero(l.salario)).filter(v => v >= 100).reduce((s, v) => s + v, 0),
-        ) },
-      ],
     })
     baixarArquivo(blob, `${nomeArquivo(competencia, e.empresa_nome)}.pdf`)
   }
