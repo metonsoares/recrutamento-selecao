@@ -13,6 +13,8 @@ import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
+import { ConferenciaFolha } from '@/components/conferencia-folha'
+import { LinhaNossa } from '@/lib/folha-contador'
 import { formatarHoras } from '@/lib/horas'
 
 export interface ItemAprovado {
@@ -273,6 +275,27 @@ export function AprovadasClient({
     baixarArquivo(blob, `${nomeArquivo(competencia, e.empresa_nome)}.pdf`)
   }
 
+  /** A folha aprovada da empresa no formato que a conferência compara. */
+  function paraConferencia(e: EmpresaAprovada): LinhaNossa[] {
+    return e.linhas.map(l => ({
+      nome: l.nome,
+      // Valor/HORA (intermitente) não se compara com salário base mensal.
+      salario: paraNumero(l.salario) >= 100 ? paraNumero(l.salario) : 0,
+      gorjeta: l.gorjeta,
+      vale_transporte: l.vale_transporte,
+      mensalidade_sindical: l.mensalidade_sindical,
+      faltas: l.faltas,
+      insalubridade_20: l.insalubridade_20,
+      confianca_valor: l.confianca_valor,
+      quebra_valor: l.quebra_valor,
+      gratificacao: l.gratificacao,
+      adiantamento: l.adiantamento,
+      avarias: l.avarias,
+      horas_extras: l.horas_50 > 0 || l.horas_100 > 0,
+      adicional_noturno: l.adicional_noturno > 0,
+    }))
+  }
+
   const todasEmpresas = Array.from(new Set(empresas.map(e => e.empresa_nome)))
     .sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const visiveis = empresas.filter(e => !empresaFiltro || e.empresa_nome === empresaFiltro)
@@ -418,6 +441,11 @@ export function AprovadasClient({
                         </>
                       )}
                     </div>
+                    <ConferenciaFolha
+                      empresa={e.empresa_nome}
+                      competenciaRotulo={maiuscula(rotuloMes(competencia)).replace(' de ', ' / ')}
+                      linhas={paraConferencia(e)}
+                    />
                     <Button size="sm" variant="outline"
                       onClick={() => { setErro(''); setOk(''); setConfirmando(e) }}
                       disabled={excluindo === e.ciclo_id}
