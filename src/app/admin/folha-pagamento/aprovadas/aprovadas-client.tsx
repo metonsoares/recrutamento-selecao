@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
-import { gerarPdfFolhaVertical, SecaoFolha } from '@/lib/pdf'
+import { gerarPdfTabela } from '@/lib/pdf'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
 import { formatarHoras } from '@/lib/horas'
 
@@ -76,6 +76,16 @@ function dataHora(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
 const simNaoTexto = (v: boolean | null) => (v === null ? '' : v ? 'Sim' : 'Não')
+
+/** Horas do mês numa célula de PDF. */
+function resumoHoras(l: ItemAprovado): string {
+  return [
+    l.horas_normais > 0 ? `${formatarHoras(l.horas_normais)} n` : '',
+    l.horas_50 > 0 ? `${formatarHoras(l.horas_50)} 50%` : '',
+    l.horas_100 > 0 ? `${formatarHoras(l.horas_100)} 100%` : '',
+    l.adicional_noturno > 0 ? `${formatarHoras(l.adicional_noturno)} not.` : '',
+  ].filter(Boolean).join(' · ')
+}
 
 
 /** Sim em verde, Não em vermelho — igual ao Fechamento de folha. */
@@ -211,74 +221,35 @@ export function AprovadasClient({
     )
   }
 
-  /**
-   * PDF "de pé": campo nas linhas, colaborador nas colunas — é assim que a
-   * folha se confere no papel. A tabela deitada só cabia em paisagem e ainda
-   * espremia 16 colunas; aqui cabem poucos por página, mas legíveis.
-   */
+  /** Uma linha por colaborador, em paisagem — o formato de conferência. */
   async function exportarPdf(e: EmpresaAprovada) {
     setMenu(null)
     const [mes, ano] = maiuscula(rotuloMes(competencia)).split(' de ')
     const linhas = filtrar(e)
-
-    const dinheiro = (v: number) => (v > 0 ? brl(v) : '')
-    const numero = (v: number) => (v > 0 ? String(v) : '')
-
-    const secoes: SecaoFolha[] = [
-      {
-        titulo: 'Jornada',
-        linhas: [
-          { rotulo: 'Dias trabalhados', valores: linhas.map(l => numero(l.dias_trabalhados)) },
-          { rotulo: 'Faltas', valores: linhas.map(l => numero(l.faltas)) },
-          { rotulo: 'Domingos', valores: linhas.map(l => numero(l.domingos)) },
-          { rotulo: 'Feriados', valores: linhas.map(l => numero(l.feriados)) },
-          { rotulo: 'Horas normais', valores: linhas.map(l => formatarHoras(l.horas_normais)) },
-          { rotulo: 'Hora 50%', valores: linhas.map(l => formatarHoras(l.horas_50)) },
-          { rotulo: 'Hora 100%', valores: linhas.map(l => formatarHoras(l.horas_100)) },
-          { rotulo: 'Adicional noturno 20%', valores: linhas.map(l => formatarHoras(l.adicional_noturno)) },
-          { rotulo: 'Atrasos', valores: linhas.map(l => formatarHoras(l.atrasos)) },
-        ],
-      },
-      {
-        titulo: 'Benefícios',
-        linhas: [
-          { rotulo: 'Vale transporte', valores: linhas.map(l => simNaoTexto(l.vale_transporte)) },
-          { rotulo: 'Mensalidade sindical', valores: linhas.map(l => simNaoTexto(l.mensalidade_sindical)) },
-          { rotulo: 'Gorjeta', valores: linhas.map(l => dinheiro(l.gorjeta)) },
-        ],
-      },
-      {
-        titulo: 'Adicionais',
-        linhas: [
-          { rotulo: 'Gratificação', valores: linhas.map(l => dinheiro(l.gratificacao)) },
-          { rotulo: 'Insalubridade 20%', valores: linhas.map(l => simNaoTexto(l.insalubridade_20)) },
-          { rotulo: 'Cargo de confiança', valores: linhas.map(l => dinheiro(l.confianca_valor)) },
-          { rotulo: 'Quebra de caixa', valores: linhas.map(l => dinheiro(l.quebra_valor)) },
-        ],
-      },
-      {
-        titulo: 'Descontos',
-        linhas: [
-          { rotulo: 'Avarias', valores: linhas.map(l => dinheiro(l.avarias)) },
-          { rotulo: 'Adiantamento salarial', valores: linhas.map(l => dinheiro(l.adiantamento)) },
-        ],
-      },
-      {
-        titulo: 'Contrato',
-        linhas: [
-          { rotulo: 'Cargo', valores: linhas.map(l => l.cargo ?? '') },
-          { rotulo: 'Vínculo', valores: linhas.map(l => (l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado')) },
-          { rotulo: 'Salário', valores: linhas.map(l => (l.salario ? brl(paraNumero(l.salario)) : '')) },
-          { rotulo: 'Comentário', valores: linhas.map(l => comentarioDe(l)) },
-        ],
-      },
-    ]
-
-    const blob = await gerarPdfFolhaVertical({
+    const blob = await gerarPdfTabela({
+      // A empresa sobe para o título e não se repete em toda linha.
       titulo: `Folha aprovada — ${e.empresa_nome}`,
       subtitulo: `${mes} / ${ano} · ${linhas.length} colaboradores · aprovada${e.aprovado_por ? ` por ${e.aprovado_por}` : ''} em ${dataHora(e.aprovado_em)}`,
-      colaboradores: linhas.map(l => formatName(l.nome)),
-      secoes,
+      cabecalho: [
+        'Colaborador', 'Dias', 'VT', 'Faltas', 'Dom/Fer', 'Sindical', 'Avarias', 'Adiant.',
+        'H. extras', 'Atrasos', 'Gratif.', 'Insal.', 'Confiança', 'Quebra', 'Gorjeta',
+        'Salário', 'Comentário',
+      ],
+      linhas: linhas.map(l => [
+        formatName(l.nome), l.dias_trabalhados || '', simNaoTexto(l.vale_transporte),
+        l.faltas || '', l.domingos + l.feriados || '', simNaoTexto(l.mensalidade_sindical),
+        l.avarias > 0 ? brl(l.avarias) : '',
+        l.adiantamento > 0 ? brl(l.adiantamento) : '',
+        resumoHoras(l), formatarHoras(l.atrasos), l.gratificacao > 0 ? brl(l.gratificacao) : '',
+        simNaoTexto(l.insalubridade_20),
+        l.confianca_valor > 0 ? brl(l.confianca_valor) : '',
+        l.quebra_valor > 0 ? brl(l.quebra_valor) : '',
+        l.gorjeta > 0 ? brl(l.gorjeta) : '',
+        l.salario ? brl(paraNumero(l.salario)) : '',
+        comentarioDe(l),
+      ]),
+      paisagem: true,
+      compacto: true,
     })
     baixarArquivo(blob, `${nomeArquivo(competencia, e.empresa_nome)}.pdf`)
   }
