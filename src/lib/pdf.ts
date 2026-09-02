@@ -41,9 +41,15 @@ export async function gerarPdfTabela({
     styles: { fontSize: compacto ? 7.5 : 9, cellPadding: compacto ? 3.5 : 5, overflow: 'linebreak' },
     headStyles: { fillColor: [31, 67, 50], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [246, 248, 247] },
+    // columnStyles do autotable vale só para o CORPO — o cabeçalho continuava
+    // à esquerda e o título ficava fora de prumo com o número embaixo.
     columnStyles: Object.fromEntries(
       (alinhamentos ?? []).map((a, i) => [i, { halign: a }]),
     ),
+    didParseCell: data => {
+      const a = alinhamentos?.[data.column.index]
+      if (a && data.section === 'head') data.cell.styles.halign = a
+    },
     margin: { left: 40, right: 40 },
   })
 
