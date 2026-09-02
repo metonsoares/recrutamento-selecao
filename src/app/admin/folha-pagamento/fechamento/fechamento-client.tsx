@@ -181,12 +181,14 @@ export function FechamentoClient({
   const simNaoTexto = (v: boolean | null) => (v === null ? '' : v ? 'Sim' : 'Não')
 
   /** "8n · 2×50% · 1×100% · 3×20%" — cabe numa célula de PDF. */
+  /** Uma linha por tipo dentro da célula do PDF. */
   const resumoHoras = (l: LinhaFechamento) => [
-    l.horas_normais > 0 ? `${formatarHoras(l.horas_normais)} n` : '',
-    l.horas_50 > 0 ? `${formatarHoras(l.horas_50)} 50%` : '',
-    l.horas_100 > 0 ? `${formatarHoras(l.horas_100)} 100%` : '',
-    l.adicional_noturno > 0 ? `${formatarHoras(l.adicional_noturno)} not.` : '',
-  ].filter(Boolean).join(' · ')
+    l.horas_normais > 0 ? `${formatarHoras(l.horas_normais)} Horas normais` : '',
+    l.adicional_noturno > 0 ? `${formatarHoras(l.adicional_noturno)} Noturno 20%` : '',
+    l.horas_50 > 0 ? `${formatarHoras(l.horas_50)} HE 50%` : '',
+    l.horas_100 > 0 ? `${formatarHoras(l.horas_100)} HE 100%` : '',
+    l.atrasos > 0 ? `${formatarHoras(l.atrasos)} Atrasos` : '',
+  ].filter(Boolean).join('\n')
 
   /**
    * Aprova o fechamento das empresas em escopo. Vai só a lista de marcados —
@@ -236,14 +238,14 @@ export function FechamentoClient({
       subtitulo: `${mes} / ${ano} · ${selecionadas.length} colaboradores · ${totalDias} dias · ${brl(totalSalario)} em salários`,
       cabecalho: [
         'Colaborador', 'Dias', 'VT', 'Faltas', 'Dom/Fer', 'Sindical', 'Avarias', 'Adiant.',
-        'H. extras', 'Atrasos', 'Gratif.', 'Insal.', 'Confiança', 'Quebra', 'Gorjeta', 'Salário',
+        'Horas extras', 'Gratif.', 'Insal.', 'Confiança', 'Quebra', 'Gorjeta', 'Salário',
       ],
       linhas: selecionadas.map(l => [
         formatName(l.nome), l.dias_trabalhados || '', simNaoTexto(l.vale_transporte),
         l.faltas || '', l.domingos + l.feriados || '', simNaoTexto(l.mensalidade_sindical),
         l.avarias > 0 ? brl(l.avarias) : '',
         l.adiantamento > 0 ? brl(l.adiantamento) : '',
-        resumoHoras(l), formatarHoras(l.atrasos), l.gratificacao > 0 ? brl(l.gratificacao) : '',
+        resumoHoras(l), l.gratificacao > 0 ? brl(l.gratificacao) : '',
         simNaoTexto(l.insalubridade_20),
         l.confianca_valor > 0 ? brl(l.confianca_valor) : '',
         l.quebra_valor > 0 ? brl(l.quebra_valor) : '',
@@ -478,8 +480,7 @@ export function FechamentoClient({
                 <th className="px-2 py-2 font-semibold text-center min-w-[104px] break-words">Mensalidade sindical</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[80px] break-words">Avarias</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[112px] break-words">Adiantamento salarial</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[108px] break-words">Horas extras</th>
-                <th className="px-2 py-2 font-semibold text-center min-w-[76px] break-words">Atrasos</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[136px] break-words">Horas extras</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[104px] break-words">Gratificação</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[112px] break-words">Insalubridade 20%</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[104px] break-words">Cargo de confiança</th>
@@ -545,14 +546,14 @@ export function FechamentoClient({
                     {l.adiantamento > 0 && <span className="font-medium text-red-700">{brl(l.adiantamento)}</span>}
                   </td>
                   {/* Cada tipo de hora numa linha, só as que existem. */}
+                  {/* Uma linha por tipo, com o rótulo ao lado do tempo: a
+                      abreviação solta ("00:33 not.") não se lia. */}
                   <td className="px-2 py-2 text-[11.5px] text-gray-700 whitespace-nowrap">
-                    {l.horas_normais > 0 && <span className="block">{formatarHoras(l.horas_normais)} normais</span>}
-                    {l.horas_50 > 0 && <span className="block">{formatarHoras(l.horas_50)} a 50%</span>}
-                    {l.horas_100 > 0 && <span className="block">{formatarHoras(l.horas_100)} a 100%</span>}
-                    {l.adicional_noturno > 0 && <span className="block">{formatarHoras(l.adicional_noturno)} not. 20%</span>}
-                  </td>
-                  <td className="px-2 py-2 text-center">
-                    {l.atrasos > 0 && <span className="font-semibold text-red-600">{formatarHoras(l.atrasos)}</span>}
+                    {l.horas_normais > 0 && <span className="block">{formatarHoras(l.horas_normais)} Horas normais</span>}
+                    {l.adicional_noturno > 0 && <span className="block">{formatarHoras(l.adicional_noturno)} Noturno 20%</span>}
+                    {l.horas_50 > 0 && <span className="block">{formatarHoras(l.horas_50)} HE 50%</span>}
+                    {l.horas_100 > 0 && <span className="block">{formatarHoras(l.horas_100)} HE 100%</span>}
+                    {l.atrasos > 0 && <span className="block text-red-600">{formatarHoras(l.atrasos)} Atrasos</span>}
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap">
                     {l.gratificacao > 0 && <span className="font-medium text-emerald-700">{brl(l.gratificacao)}</span>}
@@ -601,7 +602,7 @@ export function FechamentoClient({
               ))}
               {filtradas.length === 0 && (
                 <tr>
-                  <td colSpan={20} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={19} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Nenhum colaborador neste filtro.
                   </td>
                 </tr>
