@@ -88,11 +88,18 @@ export function ConferenciaFolha({
 
   async function exportarRelatorio() {
     if (!conf) return
-    const corpo = conf.pessoas.flatMap(p =>
-      p.divergencias.length
-        ? p.divergencias.map(d => [formatName(p.nome), d.campo, d.nosso, d.contador])
-        : [[formatName(p.nome), 'Conferido — sem divergência', '', '']],
-    )
+    const corpo = conf.pessoas.flatMap(p => {
+      const linhasPessoa: (string | number)[][] = p.divergencias.map(
+        d => [formatName(p.nome), d.campo, d.nosso, d.contador],
+      )
+      // O item que só o contador tem também vai para o relatório.
+      for (const r of p.rubricasSemPar ?? []) {
+        linhasPessoa.push([formatName(p.nome), 'Só na folha do contador', '—', `${r.descricao} ${brl(r.valor)}`])
+      }
+      return linhasPessoa.length
+        ? linhasPessoa
+        : [[formatName(p.nome), 'Conferido — sem divergência', '', '']]
+    })
     const blob = await gerarPdfTabela({
       titulo: `Conferência de folha — ${empresa}`,
       subtitulo: `${competenciaRotulo}${conf.periodo.encontrado ? ` · PDF do contador: ${conf.periodo.encontrado}` : ''} · `
@@ -199,6 +206,8 @@ function Relatorio({
 }) {
   const limpo = conf.totalDivergencias === 0
   const periodoOk = conf.periodo.confere === true
+  // Rubricas que existem só do lado do contador, somadas em todo mundo.
+  const extras = conf.pessoas.reduce((s, p) => s + (p.rubricasSemPar?.length ?? 0), 0)
 
   return (
     <div className="space-y-4">
@@ -250,12 +259,13 @@ function Relatorio({
         </div>
       ))}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Cartao titulo="Conferidos" valor={String(conf.conferidos)} cor="text-gray-900" />
         <Cartao titulo="Divergências" valor={String(conf.totalDivergencias)}
           cor={limpo ? 'text-emerald-700' : 'text-red-600'} />
         <Cartao titulo="Só na nossa folha" valor={String(conf.soNosso)} cor={conf.soNosso ? 'text-amber-700' : 'text-gray-900'} />
         <Cartao titulo="Só na do contador" valor={String(conf.soContador)} cor={conf.soContador ? 'text-amber-700' : 'text-gray-900'} />
+        <Cartao titulo="Itens extras" valor={String(extras)} cor={extras ? 'text-amber-700' : 'text-gray-900'} />
       </div>
 
       <div className="rounded-xl border overflow-hidden">
@@ -289,7 +299,8 @@ function Relatorio({
       <div className="space-y-2">
         {conf.pessoas.map(p => (
           <div key={p.nome} className={`rounded-xl border p-3 ${
-            p.situacao === 'ok' ? 'border-emerald-200 bg-emerald-50/40' : ''
+            p.situacao === 'ok' && p.rubricasSemPar?.length ? 'border-amber-300 bg-amber-50/50'
+              : p.situacao === 'ok' ? 'border-emerald-200 bg-emerald-50/40' : ''
           }`}>
             <div className="flex items-center gap-2 flex-wrap">
               {p.situacao === 'ok' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
@@ -301,16 +312,31 @@ function Relatorio({
                 <span className="text-[11px] text-muted-foreground">nº {p.codigoContador} na folha do contador</span>
               )}
               {p.situacao === 'ok' && (
-                <span className="ml-auto text-[11px] font-bold uppercase text-emerald-700">Confere</span>
+                <span className={`ml-auto text-[11px] font-bold uppercase ${
+                  p.rubricasSemPar?.length ? 'text-amber-700' : 'text-emerald-700'
+                }`}>
+                  {p.rubricasSemPar?.length ? 'Confere · com item extra' : 'Confere'}
+                </span>
               )}
             </div>
             {p.rubricasSemPar && p.rubricasSemPar.length > 0 && (
-              /* O valor pode estar lá com outro nome — mostrar evita concluir
-                 que o contador esqueceu. */
-              <p className="mt-1.5 text-[12px] text-muted-foreground">
-                Na folha do contador também consta:{' '}
-                {p.rubricasSemPar.map(r => `${r.descricao} ${brl(r.valor)}`).join(' · ')}
-              </p>
+              /* Amarelo: existe na folha do contador e não tem par aqui. Pode
+                 ser rubrica legítima (contribuição assistencial) ou um nome de
+                 rubrica que ainda não conhecemos — os dois pedem uma olhada. */
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2">
+                <p className="text-[11px] font-bold uppercase text-amber-800">Só na folha do contador</p>
+                <ul className="mt-1 space-y-0.5">
+                  {p.rubricasSemPar.map((r, i) => (
+                    <li key={i} className="text-[12.5px] text-amber-900 flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-semibold">{r.descricao}</span>
+                      <span>{brl(r.valor)}</span>
+                      <span className="text-[11px] text-amber-700">
+                        {r.tipo === 'desconto' ? 'desconto' : 'provento'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {p.divergencias.length > 0 && (
               <ul className="mt-1.5 space-y-1">
