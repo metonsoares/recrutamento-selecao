@@ -76,17 +76,24 @@ export default async function FolhasAprovadasPage({
 
   // O que mais fechou no mesmo mês, para o cabeçalho dar o contexto.
   const [{ data: lancamentos }, { data: vt }, { data: gorjetas }, { data: premio }] = await Promise.all([
-    supabase.from('folha_ciclos').select('tipo').eq('competencia', competencia),
-    supabase.from('vt_ciclos').select('id').eq('competencia', competencia),
-    supabase.from('gorjeta_ciclos').select('id').eq('competencia', competencia),
-    supabase.from('premio_caju_ciclos').select('id').eq('competencia', competencia),
+    supabase.from('folha_ciclos').select('tipo, aprovado_em').eq('competencia', competencia),
+    supabase.from('vt_ciclos').select('aprovado_em').eq('competencia', competencia),
+    supabase.from('gorjeta_ciclos').select('aprovado_em').eq('competencia', competencia),
+    supabase.from('premio_caju_ciclos').select('aprovado_em').eq('competencia', competencia),
   ])
 
   const outras: string[] = []
-  for (const l of lancamentos ?? []) outras.push(String(l.tipo).replace(/-/g, ' '))
-  if ((vt ?? []).length) outras.push('vale transporte')
-  if ((gorjetas ?? []).length) outras.push('gorjetas')
-  if ((premio ?? []).length) outras.push('prêmio caju')
+  // Quando cada lançamento foi aprovado: se algum é mais novo que o retrato da
+  // folha, aquele número não entrou nela — e é melhor a tela dizer isso.
+  const lancamentosDoMes: { nome: string; aprovado_em: string }[] = []
+  const anotar = (nome: string, aprovado_em: unknown) => {
+    outras.push(nome)
+    if (typeof aprovado_em === 'string') lancamentosDoMes.push({ nome, aprovado_em })
+  }
+  for (const l of lancamentos ?? []) anotar(String(l.tipo).replace(/-/g, ' '), l.aprovado_em)
+  for (const v of vt ?? []) anotar('vale transporte', v.aprovado_em)
+  for (const g of gorjetas ?? []) anotar('gorjetas', g.aprovado_em)
+  for (const p of premio ?? []) anotar('prêmio caju', p.aprovado_em)
   outras.sort()
 
   const empresas: EmpresaAprovada[] = []
@@ -114,5 +121,8 @@ export default async function FolhasAprovadasPage({
   }
   empresas.sort((a, b) => a.empresa_nome.localeCompare(b.empresa_nome, 'pt-BR'))
 
-  return <AprovadasClient competencia={competencia} empresas={empresas} outras={outras} />
+  return (
+    <AprovadasClient competencia={competencia} empresas={empresas} outras={outras}
+      lancamentosDoMes={lancamentosDoMes} />
+  )
 }

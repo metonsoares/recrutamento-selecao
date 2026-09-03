@@ -123,12 +123,14 @@ const CABECALHO = [
 ]
 
 export function AprovadasClient({
-  competencia, empresas, outras,
+  competencia, empresas, outras, lancamentosDoMes = [],
 }: {
   competencia: string
   empresas: EmpresaAprovada[]
   /** Outros fechamentos do mesmo mês (gorjetas, vale transporte, lançamentos). */
   outras: string[]
+  /** Quando cada lançamento do mês foi aprovado — para achar folha atrasada. */
+  lancamentosDoMes?: { nome: string; aprovado_em: string }[]
 }) {
   const router = useRouter()
   // Poucas empresas por mês: todas já abertas evita um clique por cartão.
@@ -153,6 +155,14 @@ export function AprovadasClient({
   const [salvando, setSalvando] = useState<string | null>(null)
   const [excluindo, setExcluindo] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState<EmpresaAprovada | null>(null)
+
+  /**
+   * Lançamentos aprovados DEPOIS do retrato desta folha: os números deles não
+   * entraram. Foi o caso das horas extras de agosto, aprovadas no dia seguinte
+   * ao fechamento — a folha não estava errada, estava velha.
+   */
+  const atrasados = (e: EmpresaAprovada) =>
+    lancamentosDoMes.filter(l => l.aprovado_em > e.aprovado_em).map(l => l.nome)
 
   const alternarCard = (id: string) => setAbertos(s => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
@@ -457,6 +467,15 @@ export function AprovadasClient({
                       Excluir
                     </Button>
                   </div>
+
+                  {atrasados(e).length > 0 && (
+                    <p className="mx-4 mb-3 -mt-1 text-[12.5px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                      <strong>{atrasados(e).join(', ')}</strong>{' '}
+                      {atrasados(e).length === 1 ? 'foi aprovado' : 'foram aprovados'} DEPOIS desta
+                      folha, então {atrasados(e).length === 1 ? 'não entrou' : 'não entraram'} nela.
+                      Para incluir, exclua a folha e aprove de novo no Fechamento.
+                    </p>
+                  )}
 
                   {aberto && (
                     <div className="border-t overflow-x-auto">
