@@ -304,6 +304,14 @@ function Relatorio({
                 <span className="ml-auto text-[11px] font-bold uppercase text-emerald-700">Confere</span>
               )}
             </div>
+            {p.rubricasSemPar && p.rubricasSemPar.length > 0 && (
+              /* O valor pode estar lá com outro nome — mostrar evita concluir
+                 que o contador esqueceu. */
+              <p className="mt-1.5 text-[12px] text-muted-foreground">
+                Na folha do contador também consta:{' '}
+                {p.rubricasSemPar.map(r => `${r.descricao} ${brl(r.valor)}`).join(' · ')}
+              </p>
+            )}
             {p.divergencias.length > 0 && (
               <ul className="mt-1.5 space-y-1">
                 {p.divergencias.map((d, i) => (

@@ -195,6 +195,13 @@ export interface ConferenciaPessoa {
   /** Referência do contador, quando encontrada. */
   codigoContador?: string
   liquido?: number
+  /**
+   * Rubricas do contador que não se encaixaram em nada nosso (fora INSS, FGTS
+   * e afins). É o que denuncia um nome de rubrica que ainda não conhecemos —
+   * sem isso, a divergência apareceria como "contador: R$ 0,00" e ninguém
+   * saberia que o valor está lá, com outro rótulo.
+   */
+  rubricasSemPar?: { descricao: string; valor: number; tipo: 'provento' | 'desconto' }[]
 }
 
 /** Um par que PARECE ser a mesma pessoa e precisa da palavra de quem confere. */
@@ -258,21 +265,33 @@ function nomeParecido(a: string, b: string): string | null {
   return null
 }
 
+/**
+ * O contador nomeia as rubricas com o vocabulário DELE: o que aqui é "cargo de
+ * confiança" chega como "GRATIFICAÇÃO DE FUNÇÃO". Por isso a busca é por
+ * padrão, não por igualdade — e "função" sozinha já vale como confiança, que
+ * em folha é sempre a mesma coisa.
+ */
 const PADROES = {
-  salario: /sal[áa]rio\s*base|sal\.?\s*base/i,
+  salario: /sal[áa]rio\s*base|sal\.?\s*base|ordenado/i,
   gorjeta: /gorjeta/i,
-  vale_transporte: /vale\s*transporte|vale-transporte|\bv\.?t\.?\b/i,
-  sindical: /sindical|contrib.*sind/i,
+  vale_transporte: /vale\s*transporte|vale-transporte|\bv\.?\s?t\.?\b/i,
+  sindical: /sindical|contrib.*sind|mensalidade\s*sind/i,
   faltas: /falta|d\.?s\.?r\.?\s*sobre\s*falta/i,
   insalubridade: /insalubr/i,
-  confianca: /confian[çc]a|gratifica[çc][ãa]o\s*de\s*fun[çc][ãa]o/i,
+  // "Gratificação de função", "grat. função", "adicional de função", "função
+  // gratificada" — tudo isso é o adicional de cargo de confiança.
+  confianca: /confian[çc]a|fun[çc][ãa]o/i,
   quebra: /quebra\s*de\s*caixa/i,
-  gratificacao: /gratifica[çc][ãa]o(?!\s*de\s*fun)/i,
-  adiantamento: /adiantamento/i,
-  avarias: /avaria|desconto\s*de\s*danos/i,
-  horas_extras: /hora[s]?\s*extra|\bh\.?e\.?\b/i,
+  // Gratificação avulsa é a que NÃO é de função.
+  gratificacao: /gratifica[çc][ãa]o(?!.*fun[çc][ãa]o)/i,
+  adiantamento: /adiantamento|vale\s*sal[áa]rio/i,
+  avarias: /avaria|desconto\s*de\s*danos|quebra\s*de\s*material/i,
+  horas_extras: /hora[s]?\s*extra|\bh\.?\s?e\.?\s*\d/i,
   noturno: /noturn/i,
 }
+
+/** Rubricas que todo holerite tem e não vieram desta folha — não são "sobra". */
+const DE_PRAXE = /inss|fgts|irrf|i\.?r\.?r\.?f|imposto\s*de\s*renda|sal[áa]rio\s*fam[íi]lia|arredond|l[íi]quido|base\s/i
 
 const CENTAVO = 0.02
 
@@ -342,6 +361,25 @@ export function conferirFolha(
     const salarioContador = somaDe(f, PADROES.salario) || f.salarioContratual
     if (n.salario > 0) compararValor('Salário base', n.salario, salarioContador)
 
+    /**
+     * Adicional que é percentual do salário: confere a conta DENTRO da folha do
+     * contador (o valor dele sobre a base dele). Comparar com a nossa base
+     * esconderia o erro quando as duas bases já divergem — e é justamente aí
+     * que a conta costuma sair errada.
+     */
+    const conferirPercentual = (campo: string, percentual: number, lancado: number) => {
+      if (lancado <= 0 || salarioContador <= 0) return
+      const esperado = Math.round(salarioContador * percentual * 100) / 100
+      if (Math.abs(lancado - esperado) > CENTAVO) {
+        d.push({
+          campo: `${campo} ${Math.round(percentual * 100)}%`,
+          nosso: `${brl(esperado)} (${Math.round(percentual * 100)}% de ${brl(salarioContador)})`,
+          contador: brl(lancado),
+          gravidade: 'alta',
+        })
+      }
+    }
+
     if (n.gorjeta > 0 || tem(f, PADROES.gorjeta)) {
       compararValor('Gorjeta', n.gorjeta, somaDe(f, PADROES.gorjeta))
     }
@@ -352,9 +390,14 @@ export function conferirFolha(
     compararPresenca('Horas extras', n.horas_extras, tem(f, PADROES.horas_extras))
     compararPresenca('Adicional noturno', n.adicional_noturno, tem(f, PADROES.noturno))
 
-    if (n.confianca_valor > 0 || tem(f, PADROES.confianca)) {
-      compararValor('Cargo de confiança', n.confianca_valor, somaDe(f, PADROES.confianca))
+    const confiancaContador = somaDe(f, PADROES.confianca)
+    if (n.confianca_valor > 0 || confiancaContador > 0) {
+      compararValor('Cargo de confiança', n.confianca_valor, confiancaContador)
+      conferirPercentual('Cargo de confiança', 0.4, confiancaContador)
     }
+    // A insalubridade vem só como sim/não da ficha; o que dá para conferir é a
+    // conta do contador.
+    conferirPercentual('Insalubridade', 0.2, somaDe(f, PADROES.insalubridade))
     if (n.quebra_valor > 0 || tem(f, PADROES.quebra)) {
       compararValor('Quebra de caixa', n.quebra_valor, somaDe(f, PADROES.quebra))
     }
@@ -362,12 +405,18 @@ export function conferirFolha(
     if (n.adiantamento > 0) compararValor('Adiantamento salarial', n.adiantamento, somaDe(f, PADROES.adiantamento))
     if (n.avarias > 0) compararValor('Avarias', n.avarias, somaDe(f, PADROES.avarias))
 
+    const conhecidas = Object.values(PADROES)
+    const semPar = f.rubricas
+      .filter(r => !DE_PRAXE.test(r.descricao) && !conhecidas.some(re => re.test(r.descricao)))
+      .map(r => ({ descricao: r.descricao, valor: r.valor, tipo: r.tipo }))
+
     pessoas.push({
       nome: n.nome,
       situacao: d.length ? 'divergente' : 'ok',
       divergencias: d,
       codigoContador: f.codigo,
       liquido: f.liquido,
+      rubricasSemPar: semPar.length ? semPar : undefined,
     })
   }
 
