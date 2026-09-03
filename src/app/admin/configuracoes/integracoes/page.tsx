@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { Plug } from 'lucide-react'
 import { D4SignCard } from './d4sign-card'
 import { ControlIdCard } from './controlid-card'
+import { Mind7Card } from './mind7-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,18 @@ export default async function IntegracoesPage() {
 
   const cidMeta = (cid?.meta as { domain?: string | null; cliente?: string | null } | null) ?? null
   const cidStatus = (cid?.status === 'connected' ? 'connected' : 'disconnected') as 'connected' | 'disconnected'
+
+  // Mind7 — painel de consultas
+  const { data: m7 } = await supabase
+    .from('integrations')
+    .select('status, connected_at, meta, account_email')
+    .eq('provider', 'mind7')
+    .maybeSingle()
+
+  const m7Meta = (m7?.meta as { alcance?: string; alcance_detalhe?: string } | null) ?? null
+  const m7Status = (m7?.status === 'connected' ? 'connected' : 'disconnected') as 'connected' | 'disconnected'
+  const m7Alcance = m7Meta?.alcance === 'servidor' ? 'servidor'
+    : m7Meta?.alcance === 'navegador' ? 'navegador' : null
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl space-y-6">
@@ -61,6 +74,14 @@ export default async function IntegracoesPage() {
           initialEmail={(cid?.account_email as string | null) ?? ''}
           initialDomain={cidMeta?.domain ?? ''}
           initialCliente={cidMeta?.cliente ?? null}
+        />
+
+        <Mind7Card
+          initialStatus={m7Status}
+          initialConnectedAt={(m7?.connected_at as string | null) ?? null}
+          initialUsuario={(m7?.account_email as string | null) ?? ''}
+          initialAlcance={m7Alcance}
+          initialAlcanceDetalhe={m7Meta?.alcance_detalhe ?? null}
         />
       </div>
     </div>
