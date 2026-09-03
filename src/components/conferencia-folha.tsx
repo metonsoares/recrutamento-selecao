@@ -1,14 +1,15 @@
 'use client'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  FileSearch, Upload, Loader2, AlertCircle, CheckCircle2, X, UserMinus, UserPlus, Download,
+  FileSearch, Upload, Loader2, AlertCircle, CheckCircle2, X, UserMinus, UserPlus,
+  Download, HelpCircle, CalendarCheck, CalendarX,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName } from '@/lib/helpers'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { baixarArquivo } from '@/lib/xlsx'
 import {
-  lerFolhaContador, conferirFolha, Conferencia, LinhaNossa, LinhaPdf,
+  lerFolhaContador, conferirFolha, Conferencia, FolhaContador, LinhaNossa, LinhaPdf,
 } from '@/lib/folha-contador'
 
 /**
@@ -20,10 +21,12 @@ import {
  * PII que ninguém pediu. O relatório é o resultado, não o arquivo.
  */
 export function ConferenciaFolha({
-  empresa, competenciaRotulo, linhas,
+  empresa, competencia, competenciaRotulo, linhas,
 }: {
   empresa: string
-  /** "Agosto / 2026" — para avisar quando o período do PDF for outro. */
+  /** 'AAAA-MM-01' — usada para validar o período impresso no PDF. */
+  competencia: string
+  /** "Agosto / 2026" — como se lê na tela. */
   competenciaRotulo: string
   linhas: LinhaNossa[]
 }) {
@@ -31,10 +34,21 @@ export function ConferenciaFolha({
   const [lendo, setLendo] = useState(false)
   const [erro, setErro] = useState('')
   const [arquivo, setArquivo] = useState('')
-  const [conf, setConf] = useState<Conferencia | null>(null)
+  const [folha, setFolha] = useState<FolhaContador | null>(null)
+  /** Pares que a pessoa confirmou serem o mesmo colaborador. */
+  const [vinculos, setVinculos] = useState<Record<string, string>>({})
+  /** Pares que ela recusou — não perguntamos de novo. */
+  const [recusados, setRecusados] = useState<string[]>([])
+
+  // Recalcula a cada confirmação: quem era "ausente dos dois lados" vira uma
+  // pessoa conferida de verdade, com os valores comparados.
+  const conf: Conferencia | null = useMemo(
+    () => (folha ? conferirFolha(linhas, folha, { competencia, vinculos }) : null),
+    [folha, linhas, competencia, vinculos],
+  )
 
   async function lerPdf(file: File) {
-    setLendo(true); setErro(''); setConf(null); setArquivo(file.name)
+    setLendo(true); setErro(''); setFolha(null); setVinculos({}); setRecusados([]); setArquivo(file.name)
     try {
       const pdfjs = await import('pdfjs-dist')
       pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -60,11 +74,11 @@ export function ConferenciaFolha({
         }
       }
 
-      const folha = lerFolhaContador(paginas)
-      if (folha.funcionarios.length === 0) {
+      const lida = lerFolhaContador(paginas)
+      if (lida.funcionarios.length === 0) {
         throw new Error('Não reconheci nenhum funcionário neste PDF. Ele é a folha de pagamento do contador?')
       }
-      setConf(conferirFolha(linhas, folha))
+      setFolha(lida)
     } catch (e) {
       setErro((e as Error).message || 'Não consegui ler o arquivo.')
     } finally {
@@ -77,11 +91,11 @@ export function ConferenciaFolha({
     const corpo = conf.pessoas.flatMap(p =>
       p.divergencias.length
         ? p.divergencias.map(d => [formatName(p.nome), d.campo, d.nosso, d.contador])
-        : [[formatName(p.nome), 'Sem divergência', '', '']],
+        : [[formatName(p.nome), 'Conferido — sem divergência', '', '']],
     )
     const blob = await gerarPdfTabela({
       titulo: `Conferência de folha — ${empresa}`,
-      subtitulo: `${competenciaRotulo}${conf.periodo ? ` · PDF do contador: ${conf.periodo}` : ''} · `
+      subtitulo: `${competenciaRotulo}${conf.periodo.encontrado ? ` · PDF do contador: ${conf.periodo.encontrado}` : ''} · `
         + `${conf.totalDivergencias} divergência(s) em ${conf.conferidos} conferidos`,
       cabecalho: ['Colaborador', 'Campo', 'Nossa folha', 'Folha do contador'],
       linhas: corpo,
@@ -92,8 +106,10 @@ export function ConferenciaFolha({
   }
 
   function fechar() {
-    setAberto(false); setConf(null); setErro(''); setArquivo('')
+    setAberto(false); setFolha(null); setErro(''); setArquivo(''); setVinculos({}); setRecusados([])
   }
+
+  const pendentes = (conf?.sugestoes ?? []).filter(s => !recusados.includes(`${s.nosso}|${s.contador}`))
 
   return (
     <>
@@ -105,7 +121,6 @@ export function ConferenciaFolha({
         <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto"
           onClick={fechar}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-8" onClick={e => e.stopPropagation()}>
-            {/* ── Cabeçalho ── */}
             <div className="flex items-start gap-3 p-5 border-b">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                 <FileSearch className="w-5 h-5 text-primary" />
@@ -123,7 +138,6 @@ export function ConferenciaFolha({
             </div>
 
             <div className="p-5 space-y-4">
-              {/* ── Upload ── */}
               <label className={`flex items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
                 lendo ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-primary hover:bg-primary/5'
               }`}>
@@ -151,7 +165,16 @@ export function ConferenciaFolha({
                 </p>
               )}
 
-              {conf && <Relatorio conf={conf} competenciaRotulo={competenciaRotulo} onExportar={exportarRelatorio} />}
+              {conf && (
+                <Relatorio
+                  conf={conf}
+                  competenciaRotulo={competenciaRotulo}
+                  pendentes={pendentes}
+                  onConfirmar={(nosso, contador) => setVinculos(v => ({ ...v, [nosso]: contador }))}
+                  onRecusar={(nosso, contador) => setRecusados(r => [...r, `${nosso}|${contador}`])}
+                  onExportar={exportarRelatorio}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -165,25 +188,67 @@ function brl(n: number): string {
 }
 
 function Relatorio({
-  conf, competenciaRotulo, onExportar,
+  conf, competenciaRotulo, pendentes, onConfirmar, onRecusar, onExportar,
 }: {
   conf: Conferencia
   competenciaRotulo: string
+  pendentes: Conferencia['sugestoes']
+  onConfirmar: (nosso: string, contador: string) => void
+  onRecusar: (nosso: string, contador: string) => void
   onExportar: () => void
 }) {
   const limpo = conf.totalDivergencias === 0
-  // O PDF do contador traz o período dele; se for outro mês, tudo o mais é ruído.
-  const mesDiferente = conf.periodo && !periodoBate(conf.periodo, competenciaRotulo)
+  const periodoOk = conf.periodo.confere === true
 
   return (
     <div className="space-y-4">
-      {mesDiferente && (
-        <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-1.5">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
-          O PDF é do período <strong>{conf.periodo}</strong>, e esta folha é de <strong>{competenciaRotulo}</strong>.
-          Confira se é o arquivo certo antes de considerar as diferenças.
-        </p>
-      )}
+      {/* ── Validação do período: primeira coisa a olhar ── */}
+      <div className={`rounded-xl border p-3 flex items-start gap-2 ${
+        periodoOk ? 'border-emerald-200 bg-emerald-50' : 'border-amber-300 bg-amber-50'
+      }`}>
+        {periodoOk
+          ? <CalendarCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          : <CalendarX className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
+        <div className="text-[13px] flex-1">
+          <p className={periodoOk ? 'text-emerald-900' : 'text-amber-900'}>
+            <strong>Período</strong>{' — '}
+            {conf.periodo.encontrado
+              ? <>o PDF é de <strong>{conf.periodo.encontrado}</strong> e esta folha é de <strong>{competenciaRotulo}</strong>.</>
+              : <>não achei o período impresso no PDF; confira se é o arquivo do mês certo.</>}
+          </p>
+          {conf.periodo.confere === false && (
+            <p className="text-amber-900 font-semibold mt-0.5">
+              Meses diferentes — as diferenças abaixo provavelmente são só isso.
+            </p>
+          )}
+        </div>
+        {periodoOk && <span className="text-[11px] font-bold text-emerald-700 uppercase">confere</span>}
+      </div>
+
+      {/* ── Nomes parecidos: a máquina não decide isso sozinha ── */}
+      {pendentes.map(s => (
+        <div key={`${s.nosso}|${s.contador}`} className="rounded-xl border border-sky-200 bg-sky-50 p-3">
+          <div className="flex items-start gap-2">
+            <HelpCircle className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+            <div className="flex-1 text-[13px] text-sky-900">
+              <p>
+                <strong>{formatName(s.nosso)}</strong> (nossa folha) e{' '}
+                <strong>{formatName(s.contador)}</strong> (nº {s.codigoContador} na do contador)
+                {' '}são a mesma pessoa?
+              </p>
+              <p className="text-[11.5px] text-sky-700">{s.motivo}</p>
+            </div>
+            <div className="flex gap-1.5 shrink-0">
+              <Button size="sm" onClick={() => onConfirmar(s.nosso, s.contador)} className="gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />É a mesma
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onRecusar(s.nosso, s.contador)}>
+                São diferentes
+              </Button>
+            </div>
+          </div>
+        </div>
+      ))}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Cartao titulo="Conferidos" valor={String(conf.conferidos)} cor="text-gray-900" />
@@ -220,24 +285,26 @@ function Relatorio({
         </table>
       </div>
 
-      {limpo && conf.soNosso === 0 && conf.soContador === 0 ? (
-        <p className="text-[13px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-1.5">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-px" />
-          Tudo bateu: mesmas pessoas, mesmos salários e mesmos lançamentos.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {conf.pessoas.filter(p => p.divergencias.length > 0).map(p => (
-            <div key={p.nome} className="rounded-xl border p-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                {p.situacao === 'so_nosso' && <UserMinus className="w-4 h-4 text-amber-600" />}
-                {p.situacao === 'so_contador' && <UserPlus className="w-4 h-4 text-amber-600" />}
-                {p.situacao === 'divergente' && <AlertCircle className="w-4 h-4 text-red-600" />}
-                <span className="font-semibold text-gray-900">{formatName(p.nome)}</span>
-                {p.codigoContador && (
-                  <span className="text-[11px] text-muted-foreground">nº {p.codigoContador} na folha do contador</span>
-                )}
-              </div>
+      {/* ── Colaborador a colaborador: quem bateu leva o ✓ ── */}
+      <div className="space-y-2">
+        {conf.pessoas.map(p => (
+          <div key={p.nome} className={`rounded-xl border p-3 ${
+            p.situacao === 'ok' ? 'border-emerald-200 bg-emerald-50/40' : ''
+          }`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              {p.situacao === 'ok' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+              {p.situacao === 'divergente' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
+              {p.situacao === 'so_nosso' && <UserMinus className="w-4 h-4 text-amber-600 shrink-0" />}
+              {p.situacao === 'so_contador' && <UserPlus className="w-4 h-4 text-amber-600 shrink-0" />}
+              <span className="font-semibold text-gray-900">{formatName(p.nome)}</span>
+              {p.codigoContador && (
+                <span className="text-[11px] text-muted-foreground">nº {p.codigoContador} na folha do contador</span>
+              )}
+              {p.situacao === 'ok' && (
+                <span className="ml-auto text-[11px] font-bold uppercase text-emerald-700">Confere</span>
+              )}
+            </div>
+            {p.divergencias.length > 0 && (
               <ul className="mt-1.5 space-y-1">
                 {p.divergencias.map((d, i) => (
                   <li key={i} className="text-[13px] flex flex-wrap items-baseline gap-x-2">
@@ -251,10 +318,10 @@ function Relatorio({
                   </li>
                 ))}
               </ul>
-            </div>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        ))}
+      </div>
 
       <div className="flex justify-end">
         <Button variant="outline" onClick={onExportar} className="gap-1.5">
@@ -263,16 +330,6 @@ function Relatorio({
       </div>
     </div>
   )
-}
-
-/** "01/08/2026 a 31/08/2026" bate com "Agosto / 2026"? */
-function periodoBate(periodo: string, competenciaRotulo: string): boolean {
-  const m = periodo.match(/(\d{2})\/(\d{4})/)
-  if (!m) return true
-  const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-  const alvo = `${meses[Number(m[1]) - 1]} / ${m[2]}`
-  return competenciaRotulo.toLowerCase().replace(/\s+/g, ' ').includes(alvo)
 }
 
 function Cartao({ titulo, valor, cor }: { titulo: string; valor: string; cor: string }) {

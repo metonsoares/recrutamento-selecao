@@ -197,14 +197,25 @@ export interface ConferenciaPessoa {
   liquido?: number
 }
 
+/** Um par que PARECE ser a mesma pessoa e precisa da palavra de quem confere. */
+export interface SugestaoNome {
+  nosso: string
+  contador: string
+  codigoContador: string
+  motivo: string
+}
+
 export interface Conferencia {
   empresa: string | null
-  periodo: string | null
+  /** Período impresso no PDF do contador, conferido contra a competência. */
+  periodo: { encontrado: string | null; esperado: string | null; confere: boolean | null }
   pessoas: ConferenciaPessoa[]
   totalDivergencias: number
   conferidos: number
   soNosso: number
   soContador: number
+  /** Pares parecidos ainda sem confirmação — a tela pergunta. */
+  sugestoes: SugestaoNome[]
   /** Somas comparáveis dos dois lados. */
   totais: { rotulo: string; nosso: number; contador: number }[]
 }
@@ -217,6 +228,34 @@ function chaveNome(n: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase()
+}
+
+/** Partes do nome que valem para comparar: fora as ligações e as iniciais. */
+const LIGACOES = new Set(['DA', 'DE', 'DO', 'DAS', 'DOS', 'E'])
+function partesNome(n: string): string[] {
+  return chaveNome(n).split(' ').filter(t => t.length > 2 && !LIGACOES.has(t))
+}
+
+/**
+ * "Thais Ferreira" e "Thais Ferreira da Silva" são a mesma pessoa? Provavelmente
+ * — o nome curto está inteiro dentro do longo. Provavelmente não basta: quem
+ * confere é que decide, então isto só gera a PERGUNTA.
+ */
+function nomeParecido(a: string, b: string): string | null {
+  const A = partesNome(a)
+  const B = partesNome(b)
+  if (A.length === 0 || B.length === 0) return null
+  const menor = A.length <= B.length ? A : B
+  const maior = A.length <= B.length ? B : A
+  const comuns = menor.filter(t => maior.includes(t))
+  if (comuns.length >= 2 && comuns.length === menor.length) {
+    return `${comuns.length} nomes em comum (${comuns.join(' ')})`
+  }
+  // Primeiro e último nome iguais cobre o caso do nome do meio faltando.
+  if (A[0] === B[0] && A[A.length - 1] === B[B.length - 1] && A[0] !== A[A.length - 1]) {
+    return 'primeiro e último nome iguais'
+  }
+  return null
 }
 
 const PADROES = {
@@ -237,11 +276,23 @@ const PADROES = {
 
 const CENTAVO = 0.02
 
-/** Compara a nossa folha aprovada com a folha do contador. */
-export function conferirFolha(nossas: LinhaNossa[], folha: FolhaContador): Conferencia {
+/**
+ * Compara a nossa folha aprovada com a folha do contador.
+ *
+ * `vinculos` são os pares que a pessoa já confirmou serem o mesmo colaborador
+ * (nome nosso → nome do contador): sem eles, "Thais Ferreira" e "Thais Ferreira
+ * da Silva" apareceriam como duas ausências.
+ */
+export function conferirFolha(
+  nossas: LinhaNossa[],
+  folha: FolhaContador,
+  opcoes: { competencia?: string; vinculos?: Record<string, string> } = {},
+): Conferencia {
   const porNome = new Map(folha.funcionarios.map(f => [chaveNome(f.nome), f]))
+  const vinculos = opcoes.vinculos ?? {}
   const usados = new Set<string>()
   const pessoas: ConferenciaPessoa[] = []
+  const sugestoes: SugestaoNome[] = []
 
   const tem = (f: FuncionarioContador, re: RegExp) => f.rubricas.some(r => re.test(r.descricao))
   const somaDe = (f: FuncionarioContador, re: RegExp) =>
@@ -249,15 +300,27 @@ export function conferirFolha(nossas: LinhaNossa[], folha: FolhaContador): Confe
 
   for (const n of nossas) {
     const chave = chaveNome(n.nome)
-    const f = porNome.get(chave)
+    const vinculado = vinculos[n.nome]
+    const f = porNome.get(chave) ?? (vinculado ? porNome.get(chaveNome(vinculado)) : undefined)
     if (!f) {
+      // Antes de dar por ausente, procura um nome parecido ainda livre.
+      const parecido = folha.funcionarios
+        .filter(x => !usados.has(chaveNome(x.nome)) && !nossas.some(o => chaveNome(o.nome) === chaveNome(x.nome)))
+        .map(x => ({ x, motivo: nomeParecido(n.nome, x.nome) }))
+        .find(c => c.motivo)
+      if (parecido?.motivo) {
+        sugestoes.push({
+          nosso: n.nome, contador: parecido.x.nome,
+          codigoContador: parecido.x.codigo, motivo: parecido.motivo,
+        })
+      }
       pessoas.push({
         nome: n.nome, situacao: 'so_nosso',
         divergencias: [{ campo: 'Presença na folha', nosso: 'aprovado aqui', contador: 'não consta', gravidade: 'alta' }],
       })
       continue
     }
-    usados.add(chave)
+    usados.add(chaveNome(f.nome))
 
     const d: Divergencia[] = []
     const compararValor = (campo: string, nosso: number, contador: number, gravidade: Divergencia['gravidade'] = 'alta') => {
@@ -326,12 +389,13 @@ export function conferirFolha(nossas: LinhaNossa[], folha: FolhaContador): Confe
 
   return {
     empresa: folha.empresa,
-    periodo: folha.periodoInicio && folha.periodoFim ? `${folha.periodoInicio} a ${folha.periodoFim}` : null,
+    periodo: conferirPeriodo(folha, opcoes.competencia),
     pessoas: pessoas.sort((a, b) => {
       const peso = { so_contador: 0, so_nosso: 1, divergente: 2, ok: 3 }
       return peso[a.situacao] - peso[b.situacao] || a.nome.localeCompare(b.nome, 'pt-BR')
     }),
     conferidos: pessoas.filter(p => p.situacao === 'ok' || p.situacao === 'divergente').length,
+    sugestoes,
     totalDivergencias: pessoas.reduce((s, p) => s + p.divergencias.length, 0),
     soNosso: pessoas.filter(p => p.situacao === 'so_nosso').length,
     soContador: pessoas.filter(p => p.situacao === 'so_contador').length,
@@ -341,6 +405,24 @@ export function conferirFolha(nossas: LinhaNossa[], folha: FolhaContador): Confe
       { rotulo: 'Gorjetas', nosso: somaNossa(l => l.gorjeta), contador: somaContador(PADROES.gorjeta) },
     ],
   }
+}
+
+/**
+ * O PDF é do mês certo? Sem isso, todo o resto é ruído: conferir agosto contra
+ * setembro acusa divergência em quase todo mundo.
+ */
+function conferirPeriodo(folha: FolhaContador, competencia?: string): Conferencia['periodo'] {
+  const encontrado = folha.periodoInicio && folha.periodoFim
+    ? `${folha.periodoInicio} a ${folha.periodoFim}`
+    : null
+  if (!competencia) return { encontrado, esperado: null, confere: null }
+
+  const [ano, mes] = competencia.split('-')
+  const esperado = `${mes}/${ano}`
+  if (!folha.periodoInicio) return { encontrado, esperado, confere: null }
+
+  const doPdf = folha.periodoInicio.slice(3)   // "01/08/2026" → "08/2026"
+  return { encontrado, esperado, confere: doPdf === esperado }
 }
 
 function brl(n: number): string {

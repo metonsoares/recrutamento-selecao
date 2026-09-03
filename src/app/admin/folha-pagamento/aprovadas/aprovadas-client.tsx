@@ -443,6 +443,7 @@ export function AprovadasClient({
                     </div>
                     <ConferenciaFolha
                       empresa={e.empresa_nome}
+                      competencia={competencia}
                       competenciaRotulo={maiuscula(rotuloMes(competencia)).replace(' de ', ' / ')}
                       linhas={paraConferencia(e)}
                     />
