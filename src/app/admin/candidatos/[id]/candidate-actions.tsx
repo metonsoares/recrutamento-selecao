@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult } from '@/types'
-import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus, HandCoins } from 'lucide-react'
+import { STATUS_LABELS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult, Mind7CheckResult } from '@/types'
+import { Brain, FlaskConical, Eye, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Shield, Globe, RefreshCw, UserMinus, HandCoins, Briefcase, Copy, ExternalLink, Trash2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
 
 // Status disponíveis no seletor (ordem definida)
@@ -35,6 +35,240 @@ function Toast({ type, message }: { type: 'success' | 'error'; message: string }
       }
       {message}
     </div>
+  )
+}
+
+// ─── Modal: Check Mind7 (linha do tempo de vínculos de emprego) ────────────────
+
+/** "2019-03-15" ou "2019-03" → "15/03/2019" / "03/2019". Sem inventar o dia. */
+function mesOuData(v?: string): string {
+  if (!v) return ''
+  const m = v.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/)
+  if (!m) return v
+  return m[3] ? `${m[3]}/${m[2]}/${m[1]}` : `${m[2]}/${m[1]}`
+}
+
+const MIND7_CONSULTA = 'https://www.mind-7.org/painel/consultas/cpf/'
+
+function Mind7CheckModal({
+  open, onClose, result, checkedAt, candidateId, candidateCpf, onRefresh,
+}: {
+  open: boolean
+  onClose: () => void
+  result: Mind7CheckResult | null
+  checkedAt: string | null
+  candidateId: string
+  candidateCpf: string | null
+  onRefresh: (r: Mind7CheckResult | null, at: string | null) => void
+}) {
+  const [texto, setTexto] = useState('')
+  const [lendo, setLendo] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
+  // Com resultado guardado, o formulário fica recolhido até pedirem nova consulta.
+  const [colando, setColando] = useState(false)
+
+  const cpfNumeros = candidateCpf?.replace(/\D/g, '') ?? ''
+  const cpfFormatado = cpfNumeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+
+  async function copiarCpf() {
+    try {
+      await navigator.clipboard.writeText(cpfNumeros)
+      setCopiado(true); setTimeout(() => setCopiado(false), 2000)
+    } catch { setErr('Não consegui copiar — selecione o CPF acima e copie na mão.') }
+  }
+
+  async function enviar() {
+    setLendo(true); setErr(null)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/mind7-check`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setErr(data?.error || `Erro ${res.status}`); return }
+      onRefresh(data.result as Mind7CheckResult, data.checkedAt as string)
+      setTexto(''); setColando(false)
+    } catch {
+      setErr('Erro de conexão. Tente novamente.')
+    } finally { setLendo(false) }
+  }
+
+  async function apagar() {
+    setLendo(true); setErr(null)
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/mind7-check`, { method: 'DELETE' })
+      if (!res.ok) { setErr('Não consegui apagar a consulta.'); return }
+      onRefresh(null, null); setColando(true)
+    } finally { setLendo(false) }
+  }
+
+  // O relatório pode ser de outra pessoa (CPF digitado errado no painel).
+  const cpfDivergente = !!result?.cpf_consultado && !!cpfNumeros && result.cpf_consultado !== cpfNumeros
+  const mostrarFormulario = colando || !result
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="w-[95vw] max-w-2xl p-0 gap-0 overflow-hidden flex flex-col max-h-[90vh]">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+            <Briefcase className="w-5 h-5 text-indigo-600 shrink-0" />
+            Check Mind7 — vínculos de emprego
+          </DialogTitle>
+          {cpfNumeros && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Consulta Big Data · CPF: <span className="font-mono font-semibold text-gray-700">{cpfFormatado}</span>
+            </p>
+          )}
+        </DialogHeader>
+
+        {checkedAt && (
+          <div className="px-6 py-3 border-b bg-gray-50 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+            <span className="text-xs text-muted-foreground">Última consulta: {formatDateTime(checkedAt)}</span>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" variant="outline" onClick={() => setColando(v => !v)} disabled={lendo} className="gap-1.5">
+                <RefreshCw className="w-4 h-4" />Nova consulta
+              </Button>
+              <Button size="sm" variant="outline" onClick={apagar} disabled={lendo}
+                className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50">
+                <Trash2 className="w-4 h-4" />Apagar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 [word-break:break-word]">
+          {err && <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{err}</div>}
+
+          {!cpfNumeros && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+              Este candidato não tem CPF cadastrado — a consulta do Mind7 é por CPF.
+            </div>
+          )}
+
+          {mostrarFormulario && cpfNumeros && (
+            /* A consulta sai do NAVEGADOR: o painel do Mind7 fica atrás do desafio
+               da Cloudflare e recusa login feito pelo servidor (medido na
+               integração). Então o passo a passo é explícito, e aqui a gente
+               transforma o relatório em linha do tempo. */
+            <div className="space-y-3">
+              <ol className="space-y-2.5">
+                <li className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700">Copie o CPF e abra a consulta Big Data no Mind7 (você já logado).</p>
+                    <div className="flex gap-2 mt-1.5 flex-wrap">
+                      <Button size="sm" variant="outline" onClick={copiarCpf} className="gap-1.5">
+                        {copiado ? <><CheckCircle2 className="w-4 h-4 text-emerald-600" />CPF copiado</> : <><Copy className="w-4 h-4" />Copiar CPF</>}
+                      </Button>
+                      <a href={MIND7_CONSULTA} target="_blank" rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm font-medium border border-indigo-300 text-indigo-700 rounded-lg px-3 py-1.5 hover:bg-indigo-50 transition-colors">
+                        <ExternalLink className="w-4 h-4" />Abrir consulta no Mind7
+                      </a>
+                    </div>
+                  </div>
+                </li>
+                <li className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                  <p className="text-sm text-gray-700 flex-1">
+                    Com o resultado na tela, selecione tudo (<kbd className="px-1 py-0.5 rounded border bg-gray-50 text-[11px]">Ctrl+A</kbd>),
+                    copie (<kbd className="px-1 py-0.5 rounded border bg-gray-50 text-[11px]">Ctrl+C</kbd>) e cole abaixo.
+                  </p>
+                </li>
+              </ol>
+
+              <textarea
+                value={texto}
+                onChange={e => setTexto(e.target.value)}
+                placeholder="Cole aqui o resultado da consulta Big Data…"
+                rows={7}
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-[13px] font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button onClick={enviar} disabled={lendo || texto.trim().length < 40} className="gap-1.5">
+                  {lendo ? <><Loader2 className="w-4 h-4 animate-spin" />Montando a linha do tempo…</> : <><Briefcase className="w-4 h-4" />Montar linha do tempo</>}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Guardamos só os vínculos de emprego — o texto colado não fica salvo.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {result && !colando && (
+            <>
+              <div className={`rounded-xl p-5 flex items-start gap-4 border-2 ${
+                result.encontrado ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50 border-gray-300'
+              }`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${result.encontrado ? 'bg-indigo-100' : 'bg-gray-200'}`}>
+                  <Briefcase className={`w-6 h-6 ${result.encontrado ? 'text-indigo-600' : 'text-gray-500'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-base font-bold mb-1 ${result.encontrado ? 'text-indigo-800' : 'text-gray-700'}`}>
+                    {result.encontrado ? `${result.vinculos.length} vínculo(s) de emprego` : 'Nenhum vínculo encontrado'}
+                  </p>
+                  <p className="text-sm leading-relaxed text-gray-700 break-words">{result.resumo}</p>
+                  {result.nome_consultado && (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Relatório em nome de <strong>{result.nome_consultado}</strong>
+                      {result.cpf_consultado ? ` · CPF ${result.cpf_consultado.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}` : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {cpfDivergente && (
+                /* Erro caro de não perceber: relatório de outra pessoa entrando
+                   na ficha como se fosse a do candidato. */
+                <div className="rounded-lg bg-red-50 border border-red-300 px-4 py-3 text-sm text-red-800">
+                  <strong>O CPF do relatório é diferente do CPF do candidato.</strong> Confira se a
+                  consulta foi feita com o CPF certo antes de usar estes dados.
+                </div>
+              )}
+
+              {result.observacao && (
+                <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{result.observacao}</p>
+              )}
+
+              {result.vinculos.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-700">Linha do tempo</p>
+                  {result.vinculos.map((v, i) => (
+                    <div key={i} className={`rounded-lg border px-4 py-3 ${v.vinculo_ativo ? 'border-emerald-300 bg-emerald-50/50' : 'bg-white'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">{v.empresa}</p>
+                          {v.cargo && <p className="text-[13px] text-gray-700">{v.cargo}</p>}
+                        </div>
+                        {v.vinculo_ativo && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">ATUAL</span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-muted-foreground">
+                        {(v.admissao || v.saida) && (
+                          <span>{mesOuData(v.admissao) || '?'} → {v.saida ? mesOuData(v.saida) : 'atual'}</span>
+                        )}
+                        {v.duracao && <span>· {v.duracao}</span>}
+                        {typeof v.salario === 'number' && (
+                          <span>· {v.salario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        )}
+                        {v.cnpj && <span>· CNPJ {v.cnpj}</span>}
+                      </div>
+                      {v.observacao && <p className="text-[11.5px] text-gray-500 mt-1">{v.observacao}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-2">
+                Dados lidos do relatório do <strong>Mind7</strong> (consulta Big Data). Confirme na
+                carteira de trabalho antes de qualquer decisão.
+              </p>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -439,6 +673,8 @@ export function CandidateActions({
   initialBackgroundCheckAt,
   initialAuxiliosCheck,
   initialAuxiliosCheckAt,
+  initialMind7Check,
+  initialMind7CheckAt,
   candidateCpf,
   hasExistingAnalysis,
 }: {
@@ -452,6 +688,8 @@ export function CandidateActions({
   initialBackgroundCheckAt?: string | null
   initialAuxiliosCheck?: AuxiliosCheckResult | null
   initialAuxiliosCheckAt?: string | null
+  initialMind7Check?: Mind7CheckResult | null
+  initialMind7CheckAt?: string | null
   candidateCpf?: string | null
   hasExistingAnalysis?: boolean
 }) {
@@ -469,6 +707,9 @@ export function CandidateActions({
   const [auxOpen, setAuxOpen] = useState(false)
   const [auxResult, setAuxResult] = useState<AuxiliosCheckResult | null>(initialAuxiliosCheck ?? null)
   const [auxAt, setAuxAt] = useState<string | null>(initialAuxiliosCheckAt ?? null)
+  const [mind7Open, setMind7Open] = useState(false)
+  const [mind7Result, setMind7Result] = useState<Mind7CheckResult | null>(initialMind7Check ?? null)
+  const [mind7At, setMind7At] = useState<string | null>(initialMind7CheckAt ?? null)
   const [analyzing, setAnalyzing] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
@@ -634,6 +875,16 @@ export function CandidateActions({
         onRefresh={(r, at) => { setAuxResult(r); setAuxAt(at) }}
       />
 
+      <Mind7CheckModal
+        open={mind7Open}
+        onClose={() => setMind7Open(false)}
+        result={mind7Result}
+        checkedAt={mind7At}
+        candidateId={candidateId}
+        candidateCpf={candidateCpf ?? null}
+        onRefresh={(r, at) => { setMind7Result(r); setMind7At(at) }}
+      />
+
       <div className="mt-3 space-y-2.5">
         {/* Linha 1 — Alterar status (+ ações de status contextuais) */}
         <div className="flex gap-2 flex-wrap items-center">
@@ -793,6 +1044,26 @@ export function CandidateActions({
                 auxResult.encontrado ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
               }`}>
                 {auxResult.recebendo ? '● RECEBENDO' : auxResult.encontrado ? '○ RECEBEU' : '✓ NÃO'}
+              </span>
+            )}
+          </Button>
+
+          {/* Check Mind7 */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMind7Open(true)}
+            className={`gap-1 ${mind7Result?.encontrado
+              ? 'border-indigo-300 text-indigo-700 hover:bg-indigo-50'
+              : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'}`}
+          >
+            <Briefcase className="w-4 h-4" />
+            Check Mind7
+            {mind7Result && (
+              <span className={`ml-1 text-[10px] font-bold px-1 py-0.5 rounded-full ${
+                mind7Result.encontrado ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {mind7Result.encontrado ? `${mind7Result.vinculos.length} VÍNCULOS` : '○ SEM REGISTRO'}
               </span>
             )}
           </Button>

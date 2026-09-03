@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { STATUS_LABELS, STATUS_COLORS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult } from '@/types'
+import { STATUS_LABELS, STATUS_COLORS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult, Mind7CheckResult } from '@/types'
 import { formatDate, formatDateTime, formatName } from '@/lib/helpers'
 import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
@@ -531,6 +531,8 @@ export default async function CandidatePage({
         initialBackgroundCheckAt={candidate.background_check_at ?? null}
         initialAuxiliosCheck={(candidate.auxilios_check_result as AuxiliosCheckResult | null) ?? null}
         initialAuxiliosCheckAt={candidate.auxilios_check_at ?? null}
+        initialMind7Check={(candidate.mind7_check_result as Mind7CheckResult | null) ?? null}
+        initialMind7CheckAt={candidate.mind7_check_at ?? null}
         candidateCpf={(candidate.cpf as string | null) ?? null}
         hasExistingAnalysis={!!latestApp?.ai_summary}
       />}

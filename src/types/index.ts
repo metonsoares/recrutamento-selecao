@@ -139,6 +139,36 @@ export interface AuxiliosCheckResult {
   erro?: string
 }
 
+/** Um emprego na linha do tempo do candidato, lido da consulta Big Data do Mind7. */
+export interface Mind7Vinculo {
+  empresa: string
+  /** CNPJ, quando aparece na consulta. */
+  cnpj?: string
+  cargo?: string
+  /** 'AAAA-MM' ou 'AAAA-MM-DD' — como veio, sem inventar dia. */
+  admissao?: string
+  /** Vazio = ainda no emprego. */
+  saida?: string
+  /** "1 ano e 3 meses" — já calculado quando a consulta traz as duas datas. */
+  duracao?: string
+  /** Último salário informado, em reais. */
+  salario?: number
+  vinculo_ativo?: boolean
+  observacao?: string
+}
+
+export interface Mind7CheckResult {
+  encontrado: boolean
+  resumo: string
+  vinculos: Mind7Vinculo[]
+  /** Nome como o Mind7 devolveu — serve para conferir se é a pessoa certa. */
+  nome_consultado?: string
+  cpf_consultado?: string
+  observacao?: string
+  /** De onde veio o texto: colado do painel ou consultado pelo servidor. */
+  origem?: 'colado' | 'servidor'
+}
+
 export interface Application {
   id: string
   candidate_id: string
