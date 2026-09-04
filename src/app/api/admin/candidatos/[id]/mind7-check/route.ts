@@ -13,7 +13,7 @@ export const maxDuration = 60
  * login feito daqui responde 403 (medido ao conectar a integração, em
  * Configurações → Integrações). Por isso a consulta acontece onde ela consegue
  * acontecer — no navegador de quem já está logado — e esta rota trata o
- * RESULTADO: recebe o texto da consulta Big Data, estrutura a linha do tempo e
+ * RESULTADO: recebe o texto da consulta de emprego, estrutura a linha do tempo e
  * guarda no candidato.
  *
  * Se um dia o painel aceitar requisição de servidor (a integração passa a
@@ -52,7 +52,7 @@ async function estruturar(bruto: string, nome: string, cpf: string): Promise<Min
     throw new Error('Chave de IA não configurada — necessária para ler o relatório do Mind7. Configure em Configurações → Configuração da IA.')
   }
 
-  const prompt = `Você recebe o texto bruto de uma consulta Big Data do Mind7 sobre uma pessoa.
+  const prompt = `Você recebe o texto bruto da consulta de emprego do Mind7 sobre uma pessoa.
 Extraia APENAS a linha do tempo de VÍNCULOS DE EMPREGO (empregos com registro).
 
 Pessoa consultada aqui: ${nome} — CPF ${cpf}
@@ -106,7 +106,7 @@ Regras:
   const json = saida.slice(saida.indexOf('{'), saida.lastIndexOf('}') + 1)
   let cru: Record<string, unknown>
   try { cru = JSON.parse(json) } catch {
-    throw new Error('Não consegui interpretar o relatório. Confira se o texto colado é o resultado da consulta Big Data.')
+    throw new Error('Não consegui interpretar o relatório. Confira se o texto colado é o resultado da consulta de emprego.')
   }
 
   const vinculos: Mind7Vinculo[] = (Array.isArray(cru.vinculos) ? cru.vinculos : [])
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (bruto.length < 40) {
       return NextResponse.json({
-        error: 'Cole o resultado da consulta Big Data do Mind7 (selecione a página inteira do relatório e copie).',
+        error: 'Cole o resultado da consulta de emprego do Mind7 (selecione a página inteira do relatório e copie).',
       }, { status: 400 })
     }
 

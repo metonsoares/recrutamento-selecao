@@ -139,7 +139,7 @@ export interface AuxiliosCheckResult {
   erro?: string
 }
 
-/** Um emprego na linha do tempo do candidato, lido da consulta Big Data do Mind7. */
+/** Um emprego na linha do tempo do candidato, lido da consulta de emprego do Mind7. */
 export interface Mind7Vinculo {
   empresa: string
   /** CNPJ, quando aparece na consulta. */

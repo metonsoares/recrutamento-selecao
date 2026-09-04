@@ -6,7 +6,7 @@ import { encryptToken } from '@/lib/helpers'
 export const maxDuration = 30
 
 /**
- * Integração Mind7 — painel de consultas (CPF, Big Data, vínculos de emprego).
+ * Integração Mind7 — painel de consultas (a de emprego traz os vínculos do CPF).
  *
  * O Mind7 não publica API: o acesso é o próprio painel web, e o site inteiro
  * fica atrás do desafio anti-robô da Cloudflare. Um login feito daqui (servidor
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
       meta: {
         base_url: MIND7_BASE,
-        url_consulta: `${MIND7_BASE}/painel/consultas/cpf/`,
+        url_consulta: `${MIND7_BASE}/painel/consultas/emprego/`,
         alcance,
         alcance_detalhe: detalhe,
         medido_em: new Date().toISOString(),

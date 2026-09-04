@@ -48,7 +48,7 @@ function mesOuData(v?: string): string {
   return m[3] ? `${m[3]}/${m[2]}/${m[1]}` : `${m[2]}/${m[1]}`
 }
 
-const MIND7_CONSULTA = 'https://www.mind-7.org/painel/consultas/cpf/'
+const MIND7_CONSULTA = 'https://www.mind-7.org/painel/consultas/emprego/'
 
 function Mind7CheckModal({
   open, onClose, result, checkedAt, candidateId, candidateCpf, onRefresh,
@@ -117,7 +117,7 @@ function Mind7CheckModal({
           </DialogTitle>
           {cpfNumeros && (
             <p className="text-xs text-muted-foreground mt-0.5">
-              Consulta Big Data · CPF: <span className="font-mono font-semibold text-gray-700">{cpfFormatado}</span>
+              Consulta de emprego · CPF: <span className="font-mono font-semibold text-gray-700">{cpfFormatado}</span>
             </p>
           )}
         </DialogHeader>
@@ -156,14 +156,14 @@ function Mind7CheckModal({
                 <li className="flex gap-2.5 items-start">
                   <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700">Copie o CPF e abra a consulta Big Data no Mind7 (você já logado).</p>
+                    <p className="text-sm text-gray-700">Copie o CPF e abra a consulta de emprego no Mind7 (você já logado).</p>
                     <div className="flex gap-2 mt-1.5 flex-wrap">
                       <Button size="sm" variant="outline" onClick={copiarCpf} className="gap-1.5">
                         {copiado ? <><CheckCircle2 className="w-4 h-4 text-emerald-600" />CPF copiado</> : <><Copy className="w-4 h-4" />Copiar CPF</>}
                       </Button>
                       <a href={MIND7_CONSULTA} target="_blank" rel="noreferrer"
                         className="inline-flex items-center gap-1.5 text-sm font-medium border border-indigo-300 text-indigo-700 rounded-lg px-3 py-1.5 hover:bg-indigo-50 transition-colors">
-                        <ExternalLink className="w-4 h-4" />Abrir consulta no Mind7
+                        <ExternalLink className="w-4 h-4" />Abrir consulta de emprego
                       </a>
                     </div>
                   </div>
@@ -180,7 +180,7 @@ function Mind7CheckModal({
               <textarea
                 value={texto}
                 onChange={e => setTexto(e.target.value)}
-                placeholder="Cole aqui o resultado da consulta Big Data…"
+                placeholder="Cole aqui o resultado da consulta de emprego…"
                 rows={7}
                 className="w-full rounded-xl border border-gray-300 px-3 py-2 text-[13px] font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
@@ -261,7 +261,7 @@ function Mind7CheckModal({
               )}
 
               <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-2">
-                Dados lidos do relatório do <strong>Mind7</strong> (consulta Big Data). Confirme na
+                Dados lidos do relatório do <strong>Mind7</strong> (consulta de emprego). Confirme na
                 carteira de trabalho antes de qualquer decisão.
               </p>
             </>

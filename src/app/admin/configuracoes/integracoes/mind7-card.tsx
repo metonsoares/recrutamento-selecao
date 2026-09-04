@@ -7,7 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 
 /**
- * Mind7 — painel de consultas (CPF, Big Data, vínculos de emprego).
+ * Mind7 — painel de consultas (a de emprego traz os vínculos do CPF).
  *
  * O Mind7 não tem API e o site fica atrás do desafio anti-robô da Cloudflare:
  * login feito pelo servidor responde 403. Por isso o card guarda a credencial
@@ -92,7 +92,7 @@ export function Mind7Card({
             )}
           </div>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            Painel de consultas — CPF, Big Data e a linha do tempo de vínculos de emprego.
+            Painel de consultas — a de emprego devolve a linha do tempo de vínculos por CPF.
           </p>
           {conectado && (
             <p className="text-[11.5px] text-muted-foreground mt-1">
@@ -113,7 +113,7 @@ export function Mind7Card({
             pelo servidor não passa. A credencial fica guardada aqui, criptografada, e a consulta
             é feita com você logado no painel.
           </p>
-          <a href="https://www.mind-7.org/painel/consultas/cpf/" target="_blank" rel="noreferrer"
+          <a href="https://www.mind-7.org/painel/consultas/emprego/" target="_blank" rel="noreferrer"
             className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-amber-900 hover:underline">
             Abrir o painel do Mind7<ExternalLink className="w-3 h-3" />
           </a>
