@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requireMasterApi } from '@/lib/auth-guard'
 import { getAnthropicKey } from '@/lib/ai-key'
+import { lerVinculosMind7 } from '@/lib/mind7-emprego'
 import { Mind7CheckResult, Mind7Vinculo } from '@/types'
 
 export const maxDuration = 60
@@ -106,7 +107,10 @@ Regras:
   const json = saida.slice(saida.indexOf('{'), saida.lastIndexOf('}') + 1)
   let cru: Record<string, unknown>
   try { cru = JSON.parse(json) } catch {
-    throw new Error('Não consegui interpretar o relatório. Confira se o texto colado é o resultado da consulta de emprego.')
+    // O que a IA devolveu fica no log: sem isso, um formato novo vira só
+    // "não consegui" e não dá para consertar.
+    console.error('[mind7-check] resposta da IA fora do formato:', saida.slice(0, 300))
+    throw new Error('Não reconheci o formato deste relatório. Confira se o texto colado é o resultado da consulta de emprego do Mind7.')
   }
 
   const vinculos: Mind7Vinculo[] = (Array.isArray(cru.vinculos) ? cru.vinculos : [])
@@ -160,7 +164,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }, { status: 400 })
     }
 
-    const result = await estruturar(bruto, candidate.full_name as string, cpf)
+    // 1) Leitura direta do relatório: previsível, instantânea e sem custo.
+    // 2) Só quando o layout não é reconhecido a IA entra como plano B.
+    let result = lerVinculosMind7(bruto)
+    if (!result.encontrado) result = await estruturar(bruto, candidate.full_name as string, cpf)
     const agora = new Date().toISOString()
 
     // Guardamos só o resultado estruturado, não o texto bruto: o relatório traz
