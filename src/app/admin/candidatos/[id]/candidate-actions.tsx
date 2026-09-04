@@ -50,6 +50,13 @@ function mesOuData(v?: string): string {
 
 const MIND7_CONSULTA = 'https://www.mind-7.org/painel/consultas/emprego/'
 
+/** "31127244000163" → "31.127.244/0001-63" */
+function cnpjMascara(v: string): string {
+  return v.length === 14
+    ? v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+    : v
+}
+
 function Mind7CheckModal({
   open, onClose, result, checkedAt, candidateId, candidateCpf, onRefresh,
 }: {
@@ -240,19 +247,24 @@ function Mind7CheckModal({
                           <p className="text-sm font-semibold text-gray-900">{v.empresa}</p>
                           {v.cargo && <p className="text-[13px] text-gray-700">{v.cargo}</p>}
                         </div>
-                        {v.vinculo_ativo && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">ATUAL</span>
+                        {(v.vinculo_ativo || v.situacao) && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            v.vinculo_ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {v.vinculo_ativo ? 'ATUAL' : v.situacao}
+                          </span>
                         )}
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-muted-foreground">
-                        {(v.admissao || v.saida) && (
-                          <span>{mesOuData(v.admissao) || '?'} → {v.saida ? mesOuData(v.saida) : 'atual'}</span>
-                        )}
-                        {v.duracao && <span>· {v.duracao}</span>}
-                        {typeof v.salario === 'number' && (
-                          <span>· {v.salario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                        )}
-                        {v.cnpj && <span>· CNPJ {v.cnpj}</span>}
+                      <div className="mt-1 text-[12px] text-muted-foreground">
+                        {/* "atual" só quando o vínculo está mesmo aberto: sem data de
+                            saída num vínculo DESLIGADO é falha do relatório, não emprego
+                            em curso. */}
+                        {[
+                          v.admissao ? `${mesOuData(v.admissao)} → ${v.saida ? mesOuData(v.saida) : (v.vinculo_ativo ? 'atual' : 'sem data de saída')}` : '',
+                          v.duracao ?? '',
+                          typeof v.salario === 'number' ? v.salario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '',
+                          v.cnpj ? `CNPJ ${cnpjMascara(v.cnpj)}` : '',
+                        ].filter(Boolean).join('  ·  ')}
                       </div>
                       {v.observacao && <p className="text-[11.5px] text-gray-500 mt-1">{v.observacao}</p>}
                     </div>

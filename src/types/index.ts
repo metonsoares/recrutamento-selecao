@@ -154,6 +154,8 @@ export interface Mind7Vinculo {
   /** Último salário informado, em reais. */
   salario?: number
   vinculo_ativo?: boolean
+  /** Como o relatório rotulou o vínculo: DESLIGADO, SEM CONFIRMAÇÃO, ATIVO… */
+  situacao?: string
   observacao?: string
 }
 

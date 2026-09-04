@@ -18,7 +18,7 @@
 import { Mind7CheckResult, Mind7Vinculo } from '@/types'
 
 const PERIODO = /^(\d{2}\/\d{2}\/\d{4})\s*(?:→|->|a)\s*(\d{2}\/\d{2}\/\d{4}|sem data de sa[íi]da)$/i
-const STATUS = /^(desligado|ativo|afastado|em atividade)$/i
+const STATUS = /^(desligado|ativo|afastado|em atividade|sem confirma[çc][ãa]o|confirmado|sem informa[çc][ãa]o|indeterminado)$/i
 const CNPJ = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/
 const SALARIO = /^R\$\s*([\d.]+,\d{2})$/
 const CPF_LINHA = /^\d{3}\.\d{3}\.\d{3}-\d{2}$/
@@ -27,7 +27,7 @@ const MOTIVO = /^(t[ée]rmino do contrato|dispensa sem justa causa|dispensa com 
 /** Linhas que são enfeite do relatório e nunca são cargo. */
 const RUIDO = [
   // O bloco "Detalhe por safra" repete o status em minúsculas — não é cargo.
-  /^(desligado|ativo|afastado|em atividade)$/i,
+  /^(desligado|ativo|afastado|em atividade|sem confirma[çc][ãa]o|confirmado|sem informa[çc][ãa]o|indeterminado)$/i,
   /^R\$/, /^\d+\s*fontes?$/i, /^remunera[çc][ãa]o/i, /^m[ée]dia\b/i,
   /^detalhe por safra/i, /^admitido\b/i, /^\d{4}$/, /^·/, /^\d+\s*(m|meses|ano|anos)\b/i,
   /^\d{2}\/\d{2}$/, /^linha do tempo/i, /^empresas?$/i, /^ativos?$/i, /^primeiro$/i,
@@ -123,11 +123,11 @@ export function lerVinculosMind7(bruto: string): Mind7CheckResult {
       saida: saidaBr ? iso(saidaBr) : undefined,
       duracao: duracao || (saidaBr ? duracaoEntre(admissaoBr, saidaBr) : undefined) || undefined,
       salario: salario && salario > 0 ? salario : undefined,
-      vinculo_ativo: /ativo|em atividade/i.test(status),
-      observacao: [
-        semSaida ? 'sem data de saída no relatório' : '',
-        ...motivos,
-      ].filter(Boolean).join(' · ') || undefined,
+      vinculo_ativo: /^(ativo|em atividade)$/i.test(status),
+      situacao: temStatus ? linhas[i - 1].toUpperCase() : undefined,
+      // A falta da data de saída já aparece na linha do período; aqui fica só o
+      // motivo do desligamento, que é o que não se vê em outro lugar.
+      observacao: motivos.join(' · ') || undefined,
     })
   }
 
