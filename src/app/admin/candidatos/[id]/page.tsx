@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { STATUS_LABELS, STATUS_COLORS, CandidateStatus, BackgroundCheckResult, AuxiliosCheckResult, Mind7CheckResult } from '@/types'
-import { formatDate, formatDateTime, formatName } from '@/lib/helpers'
+import { formatDate, formatDateTime, formatName, dataPura } from '@/lib/helpers'
+import { salarioVigente } from '@/lib/salario-vigente'
 import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
@@ -292,6 +293,31 @@ export default async function CandidatePage({
       type: 'funcao',
     })
   }
+  // Transferências de empresa: cada ficha arquivada é uma troca de empresa, e a
+  // empresa de destino é a da ficha seguinte (a última aponta para a ativa).
+  admissionFormHistory.forEach((h, i) => {
+    const quando = (h as { transferida_em?: string }).transferida_em
+      || (h.arquivada_em ? String(h.arquivada_em).slice(0, 10) : '')
+    if (!quando) return
+    const nomeEmpresa = (companyId?: string) => {
+      const c = fichaCompanies.find(x => x.id === companyId)
+      return c?.apelido || c?.razao_social || null
+    }
+    const de = nomeEmpresa(h.selected_company_id)
+    const para = nomeEmpresa(
+      admissionFormHistory[i + 1]?.selected_company_id ?? admissionForm?.selected_company_id,
+    )
+    timeline.push({
+      date: quando,
+      // Há fichas arquivadas em que a empresa acabou não mudando: escrever
+      // "X → X" ali só confunde quem lê a linha do tempo.
+      label: de && para && de !== para ? `Transferência de empresa: ${de} → ${para}`
+        : (para || de) ? `Transferência de empresa (${para || de})`
+        : 'Transferência de empresa',
+      type: 'transferencia',
+    })
+  })
+
   if (latestApp?.terminated_at) {
     const td = latestApp.termination_data as { requester?: string } | null
     const who = td?.requester === 'funcionario' ? ' (a pedido do funcionário)' : td?.requester === 'empresa' ? ' (pela empresa)' : ''
@@ -724,7 +750,7 @@ export default async function CandidatePage({
             city={candidate.city as string | null}
             age={age}
             admissionDate={admissionForm?.admission_date || null}
-            salary={admissionForm?.salary || null}
+            salary={salarioVigente(admissionForm?.salary || null, salaryRaises, dataPura(new Date()))}
             registeredAt={candidate.created_at}
             warningsCount={(warningsData || []).length}
             minimal={minimalResumo}

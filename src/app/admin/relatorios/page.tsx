@@ -1,5 +1,7 @@
 import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
+import { dataPura } from '@/lib/helpers'
 import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao, FeriasRegistro, AdvertenciaRegistro } from './relatorios-rh'
 
 /** Respostas do formulário são gravadas como JSON.stringify(valor). */
@@ -55,6 +57,15 @@ export default async function RelatoriosPage() {
   }
 
   const rhCandPorId = new Map((rhCands ?? []).map(c => [c.id as string, c]))
+
+  // O relatório mostra quanto a pessoa ganha HOJE: a ficha tem o salário da
+  // admissão e os aumentos vivem em salary_raises.
+  const { data: aumentosRh } = rhCandIds.length
+    ? await service.from('salary_raises')
+        .select('candidate_id, raise_date, new_value').in('candidate_id', rhCandIds)
+    : { data: [] as { candidate_id: string; raise_date: string; new_value: number }[] }
+  const aumentosPorCand = agruparAumentos(aumentosRh)
+  const hoje = dataPura(new Date())
   const rhEmpresaPorId = new Map(
     (empresasRh ?? []).map(e => [e.id as string, (e.apelido as string) || (e.razao_social as string) || '—']),
   )
@@ -71,7 +82,11 @@ export default async function RelatoriosPage() {
         cargo: String(af?.function_title ?? '').trim() || null,
         empresa_id: empresaId || null,
         empresa: rhEmpresaPorId.get(empresaId) ?? null,
-        salario: String(af?.salary ?? '').trim() || null,
+        salario: salarioVigente(
+          String(af?.salary ?? '').trim() || null,
+          aumentosPorCand.get(a.candidate_id as string),
+          hoje,
+        ),
         admissao: String(af?.admission_date ?? '').trim() || null,
         contrato_experiencia: String(af?.trial_contract ?? '').trim() || null,
         nascimento: nascimentoPorApp.get(a.id as string) ?? null,

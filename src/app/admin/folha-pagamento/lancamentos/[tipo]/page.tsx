@@ -4,6 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { mesCorrente, fimDoMes, competenciaValida } from '@/lib/competencia'
 import { LANCAMENTOS, tipoValido } from '@/lib/folha-lancamentos'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
+import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
 import { LancamentosClient, LinhaLancamento, EmpresaOpcao, RegistroLancamento } from './lancamentos-client'
 
 export const dynamic = 'force-dynamic'
@@ -77,6 +78,13 @@ export default async function LancamentosPage({
     : { data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }
 
   const candPorId = new Map((cands ?? []).map(c => [c.id as string, c]))
+
+  // Salário vigente no mês (a ficha só tem o da admissão).
+  const { data: aumentos } = candIds.length
+    ? await supabase.from('salary_raises')
+        .select('candidate_id, raise_date, new_value').in('candidate_id', candIds)
+    : { data: [] as { candidate_id: string; raise_date: string; new_value: number }[] }
+  const aumentosPorCand = agruparAumentos(aumentos)
   const empresaPorId = new Map(
     (empresas ?? []).map(e => [e.id as string, (e.apelido as string) || (e.razao_social as string) || '—']),
   )
@@ -110,8 +118,12 @@ export default async function LancamentosPage({
         empresa_id: empresaId || null,
         empresa: empresaPorId.get(empresaId) ?? null,
         vinculo: a.status === 'aprovado' ? ('intermitente' as const) : ('contratado' as const),
-        // Como veio da ficha ("1.892,34"): serve para calcular percentuais.
-        salario: String(af?.salary ?? '').trim() || null,
+        // Salário em vigor no mês ("1.892,34"): base dos percentuais.
+        salario: salarioVigente(
+          String(af?.salary ?? '').trim() || null,
+          aumentosPorCand.get(a.candidate_id as string),
+          fim,
+        ),
       }
     })
     .filter(Boolean) as LinhaLancamento[]

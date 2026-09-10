@@ -5,6 +5,8 @@ import {
   ArrowRightLeft, Building2, ChevronDown, ChevronUp, Loader2, X, AlertCircle, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { dataPura } from '@/lib/helpers'
 
 // ─── Transferir de empresa ────────────────────────────────────────────────────
 // Arquiva a ficha ATUAL (vira seção recolhível somente leitura) e mantém a
@@ -15,11 +17,17 @@ export function TransferCompanySection({ candidateId, hasFicha }: { candidateId:
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [data, setData] = useState('')
 
   async function handleTransfer() {
+    if (!data) { setError('Informe a data da transferência.'); return }
     setSaving(true); setError('')
     try {
-      const res = await fetch(`/api/admin/candidatos/${candidateId}/transfer-company`, { method: 'POST' })
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/transfer-company`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_transferencia: data }),
+      })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Erro ao transferir.')
       setOpen(false)
@@ -42,7 +50,8 @@ export function TransferCompanySection({ candidateId, hasFicha }: { candidateId:
           </div>
         </div>
         <Button
-          variant="outline" size="sm" onClick={() => { setError(''); setOpen(true) }}
+          variant="outline" size="sm"
+          onClick={() => { setError(''); setData(dataPura(new Date())); setOpen(true) }}
           disabled={!hasFicha}
           title={hasFicha ? undefined : 'Salve a ficha antes de transferir.'}
           className="gap-1.5 shrink-0 border-teal-300 text-teal-700 hover:bg-teal-50"
@@ -72,6 +81,17 @@ export function TransferCompanySection({ candidateId, hasFicha }: { candidateId:
                 <strong> Empresa contratante</strong> (e o que mais for necessário) e salve a ficha.
               </p>
               <p>O status do funcionário permanece <strong>Contratado</strong>.</p>
+            </div>
+
+            {/* A data manda na folha: é ela que diz de qual empresa a pessoa era
+                em cada mês, então não pode ser o dia do clique. */}
+            <div className="space-y-1">
+              <label className="text-[12px] font-medium text-gray-700">Data da transferência</label>
+              <Input type="date" value={data} onChange={e => setData(e.target.value)} className="h-9" />
+              <p className="text-[11px] text-muted-foreground">
+                A partir dessa data a pessoa passa a ser da nova empresa. Os meses anteriores
+                continuam na empresa antiga.
+              </p>
             </div>
             {error && (
               <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>

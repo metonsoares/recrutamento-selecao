@@ -1,6 +1,7 @@
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { fimDoMes } from '@/lib/competencia'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
+import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
 
 /**
  * Montagem do fechamento de folha de um mês.
@@ -157,6 +158,15 @@ export async function montarFechamento(competencia: string): Promise<{
     : { data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }
 
   const candPorId = new Map((cands ?? []).map(c => [c.id as string, c]))
+
+  // Aumentos de salário: a ficha guarda o valor da admissão, então sem isto a
+  // folha calcularia insalubridade e cargo de confiança sobre salário vencido.
+  const { data: aumentos } = candIds.length
+    ? await supabase.from('salary_raises')
+        .select('candidate_id, raise_date, new_value').in('candidate_id', candIds)
+    : { data: [] as { candidate_id: string; raise_date: string; new_value: number }[] }
+  const aumentosPorCand = agruparAumentos(aumentos)
+
   const empresaPorId = new Map(
     (empresas ?? []).map(e => [e.id as string, (e.apelido as string) || (e.razao_social as string) || '—']),
   )
@@ -202,7 +212,8 @@ export async function montarFechamento(competencia: string): Promise<{
         cargo_confianca: simNao(af?.cargo_confianca),
         insalubridade_20: simNao(af?.insalubridade_20),
         quebra_caixa_15: simNao(af?.quebra_caixa_15),
-        salario: String(af?.salary ?? '').trim() || null,
+        // O salário daquele mês: aumento posterior não reescreve o passado.
+        salario: salarioVigente(String(af?.salary ?? '').trim() || null, aumentosPorCand.get(id), fim),
         comentario: comentarioPorCand.get(id) ?? '',
         ...(lancPorCand.get(id) ?? lancamentosZerados()),
       }

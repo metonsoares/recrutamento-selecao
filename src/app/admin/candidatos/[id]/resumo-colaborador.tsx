@@ -3,7 +3,7 @@ import { formatDate, dataPura } from '@/lib/helpers'
 import {
   CalendarClock, User, Plane, AlertTriangle, Briefcase,
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
-  ClipboardList, FolderArchive, Stethoscope, UserMinus, TrendingUp,
+  ClipboardList, FolderArchive, Stethoscope, UserMinus, TrendingUp, ArrowRightLeft,
 } from 'lucide-react'
 import { EditContact } from './edit-contact'
 import { SalaryRaise } from './salary-raises-panel'
@@ -274,6 +274,7 @@ const TIMELINE_STYLE: Record<string, { icon: React.ElementType; bg: string; fg: 
   desligamento: { icon: UserMinus,     bg: 'bg-rose-100',    fg: 'text-rose-700' },
   aumento:      { icon: TrendingUp,    bg: 'bg-teal-100',    fg: 'text-teal-700' },
   funcao:       { icon: Briefcase,     bg: 'bg-indigo-100',  fg: 'text-indigo-700' },
+  transferencia:{ icon: ArrowRightLeft, bg: 'bg-teal-100',    fg: 'text-teal-700' },
 }
 
 function RichTimeline({ events }: { events: { date: string; label: string; type: string }[] }) {

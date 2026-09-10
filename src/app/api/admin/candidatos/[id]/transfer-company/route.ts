@@ -6,12 +6,23 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 // como a ficha ativa/editável — o usuário então troca a empresa contratante
 // e demais campos na ficha ativa. O status do funcionário não é alterado
 // (permanece "Contratado").
+//
+// A DATA é informada por quem transfere, não é o dia do clique: ela decide de
+// qual empresa a pessoa era em cada mês (fichaDaCompetencia lê o dia de
+// arquivada_em) — transferência lançada com atraso jogaria a folha do mês
+// passado para a empresa errada. O horário do clique fica no fim do carimbo só
+// para manter arquivada_em único, que é como o histórico é identificado.
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params
+    const { data_transferencia } = await _req.json().catch(() => ({} as { data_transferencia?: string }))
+    const data = String(data_transferencia ?? '').slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      return NextResponse.json({ error: 'Informe a data da transferência.' }, { status: 400 })
+    }
     const supabase = await createSupabaseServiceClient()
 
     const { data: app, error: appError } = await supabase
@@ -32,7 +43,8 @@ export async function POST(
     const history = Array.isArray(app.admission_form_history) ? app.admission_form_history : []
     const archived = {
       ...(app.admission_form as Record<string, unknown>),
-      arquivada_em: new Date().toISOString(),
+      arquivada_em: `${data}T${new Date().toISOString().slice(11)}`,
+      transferida_em: data,
     }
 
     const { error } = await supabase
