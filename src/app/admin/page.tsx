@@ -3,7 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Users, UserCheck, ClipboardList, FlaskConical, Brain,
   ThumbsDown, Star, UserPlus, Briefcase, Link2, CalendarClock, FileSignature, UserMinus,
+  CalendarX, Palmtree, Cake, CalendarDays,
 } from 'lucide-react'
+import { resumoDoMes } from '@/lib/resumo-mes'
+import { rotuloMesLongo } from '@/lib/competencia'
 import { CandidateStatus, STATUS_LABELS } from '@/types'
 import { DashboardPublicLink } from './dashboard-public-link'
 
@@ -54,8 +57,40 @@ const statCards = [
   { status: 'desligado', label: 'Desligados', icon: UserMinus, color: 'text-rose-700 bg-rose-100' },
 ]
 
+// ─── Quadro do mês ────────────────────────────────────────────────────────────
+
+function plural(n: number, um: string, varios: string) {
+  return `${n} ${n === 1 ? um : varios}`
+}
+
+function Indicador({ icon: Icon, cor, rotulo, valor, detalhe, alerta = false }: {
+  icon: React.ElementType
+  cor: string
+  rotulo: string
+  valor: number
+  detalhe: string
+  alerta?: boolean
+}) {
+  return (
+    <div className={`rounded-xl border p-3 sm:p-4 min-w-0 ${alerta ? 'border-amber-300 bg-amber-50/60' : 'bg-white'}`}>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className={`p-1.5 sm:p-2 rounded-lg ${cor}`}>
+          <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        </div>
+        <span className="text-xl sm:text-2xl font-bold">{valor}</span>
+      </div>
+      {/* Rótulo e detalhe quebram linha em vez de truncar. */}
+      <p className="text-xs font-medium text-foreground leading-tight">{rotulo}</p>
+      <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">{detalhe}</p>
+    </div>
+  )
+}
+
 export default async function DashboardPage() {
-  const { statusCounts, total, newThisMonth, apps } = await getDashboardStats()
+  const [{ statusCounts, total, newThisMonth, apps }, mes] = await Promise.all([
+    getDashboardStats(),
+    resumoDoMes(),
+  ])
 
   const vagaCounts: Record<string, number> = {}
   apps.forEach((a) => {
@@ -76,6 +111,43 @@ export default async function DashboardPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-1">Visão geral do processo seletivo</p>
       </div>
+
+      {/* ── Quadro do mês ──────────────────────────────────── */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-primary" />
+            Quadro de {rotuloMesLongo(mes.competencia)}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+          <Indicador icon={UserPlus} cor="text-gray-600 bg-gray-50"
+            rotulo="Novos candidatos" valor={mes.novosCandidatos} detalhe="cadastrados no mês" />
+          <Indicador icon={Briefcase} cor="text-green-700 bg-green-100"
+            rotulo="Contratados" valor={mes.contratados.admitidos}
+            detalhe={`admitidos no mês · ${plural(mes.contratados.ativos, 'ativo', 'ativos')}`} />
+          <Indicador icon={CalendarClock} cor="text-emerald-700 bg-emerald-100"
+            rotulo="Intermitentes" valor={mes.intermitentes.admitidos}
+            detalhe={`admitidos no mês · ${plural(mes.intermitentes.ativos, 'ativo', 'ativos')}`} />
+          {/* Freelancer não tem data de admissão nem histórico de status:
+              só dá para saber quantos há hoje, e o rótulo diz isso. */}
+          <Indicador icon={Briefcase} cor="text-sky-600 bg-sky-50"
+            rotulo="Freelancers" valor={mes.freelancers} detalhe="total atual" />
+          <Indicador icon={CalendarX} cor="text-rose-700 bg-rose-100"
+            rotulo="Faltas registradas" valor={mes.faltas.registros}
+            detalhe={mes.faltas.registros
+              ? `${plural(mes.faltas.dias, 'dia', 'dias')} · ${plural(mes.faltas.pessoas, 'pessoa', 'pessoas')}`
+              : 'nenhuma no mês'} />
+          <Indicador icon={Palmtree} cor="text-amber-700 bg-amber-100"
+            rotulo="Férias vencendo" valor={mes.feriasVencendo.noMes}
+            alerta={mes.feriasVencendo.noMes > 0 || mes.feriasVencendo.jaVencidas > 0}
+            detalhe={mes.feriasVencendo.jaVencidas
+              ? `prazo para agendar no mês · +${mes.feriasVencendo.jaVencidas} já vencidas`
+              : 'prazo para agendar no mês'} />
+          <Indicador icon={Cake} cor="text-pink-600 bg-pink-50"
+            rotulo="Aniversariantes" valor={mes.aniversariantes} detalhe="contratados e intermitentes" />
+        </CardContent>
+      </Card>
 
       {/* ── Link público de cadastro ──────────────────────── */}
       <Card className="border-2 border-dashed border-[#e0e0e0]">

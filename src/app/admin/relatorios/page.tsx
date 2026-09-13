@@ -2,16 +2,8 @@ import { requirePermission } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
 import { dataPura } from '@/lib/helpers'
+import { nascimentosPorApp } from '@/lib/nascimento'
 import { RelatoriosRh, ColaboradorRelatorio, EmpresaOpcao, FeriasRegistro, AdvertenciaRegistro } from './relatorios-rh'
-
-/** Respostas do formulário são gravadas como JSON.stringify(valor). */
-function parseTexto(v: string | null): string | null {
-  if (!v) return null
-  try {
-    const p = JSON.parse(v)
-    return typeof p === 'string' ? p : null
-  } catch { return v }
-}
 
 export default async function RelatoriosPage() {
   await requirePermission('relatorios.ver')
@@ -32,29 +24,12 @@ export default async function RelatoriosPage() {
   const rhCandIds = appsRhList.map(a => a.candidate_id as string).filter(Boolean)
   const rhAppIds = appsRhList.map(a => a.id as string)
 
-  const [{ data: rhCands }, { data: perguntasData }] = await Promise.all([
-    rhCandIds.length
-      ? service.from('candidates').select('id, full_name, cpf, deleted_at').in('id', rhCandIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }),
-    service.from('form_questions').select('id').eq('field_type', 'date'),
-  ])
+  const { data: rhCands } = rhCandIds.length
+    ? await service.from('candidates').select('id, full_name, cpf, deleted_at').in('id', rhCandIds)
+    : { data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }
 
-  // Data de nascimento: primeira resposta de pergunta do tipo data.
-  const perguntasData_ids = (perguntasData ?? []).map(q => q.id as string)
-  const { data: respostasData } = perguntasData_ids.length && rhAppIds.length
-    ? await service.from('form_answers')
-        .select('application_id, answer_text')
-        .in('question_id', perguntasData_ids)
-        .in('application_id', rhAppIds)
-    : { data: [] as { application_id: string; answer_text: string | null }[] }
-
-  const nascimentoPorApp = new Map<string, string>()
-  for (const r of respostasData ?? []) {
-    const d = parseTexto(r.answer_text as string | null)
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && !nascimentoPorApp.has(r.application_id as string)) {
-      nascimentoPorApp.set(r.application_id as string, d)
-    }
-  }
+  // Nascimento: mesma leitura do quadro do mês no Dashboard.
+  const nascimentoPorApp = await nascimentosPorApp(service, rhAppIds)
 
   const rhCandPorId = new Map((rhCands ?? []).map(c => [c.id as string, c]))
 
