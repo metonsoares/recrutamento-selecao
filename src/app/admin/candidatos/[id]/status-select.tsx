@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 
+// Sem "Desligado": este seletor é o dos perfis que não são master, e desligar
+// é só do master (a rota de status recusa o mesmo pedido).
 const ALLOWED_STATUSES: CandidateStatus[] = [
   'novo', 'apto_para_entrevista', 'entrevista_agendada',
   'aprovado_processo', 'contratado',
-  'aprovado', 'em_contrato', 'freelancer', 'reprovado', 'desligado',
+  'aprovado', 'em_contrato', 'freelancer', 'reprovado',
 ]
 const STATUS_LABEL_OVERRIDE: Partial<Record<CandidateStatus, string>> = {
   novo: 'Novo currículo',

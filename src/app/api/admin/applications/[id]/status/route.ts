@@ -19,6 +19,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!granted.has('candidatos.status')) {
       return NextResponse.json({ error: 'Sem permissão para alterar status.' }, { status: 403 })
     }
+    // Desligar é só do master. Esconder a opção no seletor não basta: a rota
+    // aceitaria o mesmo pedido feito direto.
+    if (status === 'desligado' && role !== 'master') {
+      return NextResponse.json({ error: 'Somente o master pode desligar um colaborador.' }, { status: 403 })
+    }
 
     const supabase = await createSupabaseServiceClient()
 
