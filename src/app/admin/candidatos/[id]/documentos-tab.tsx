@@ -41,7 +41,7 @@ const COMPANY_DOCS: {
   { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: true,  na: false },
   { key: 'vale_transporte',     label: 'Termo declaração vale transporte',               multiple: true,  na: true  },
   { key: 'uniformes_epis',      label: 'Termo entrega de uniformes/EPIs',                multiple: true,  na: false, max: 10 },
-  { key: 'acrm_geral',          label: 'Termo entrega geral',                           multiple: true,  na: false, max: 10 },
+  { key: 'acrm_geral',          label: 'Termo entrega geral',                           multiple: true,  na: true,  max: 10 },
   { key: 'acrm_escala',         label: 'Acordo individual de escala 12×36',             multiple: false, na: true  },
   { key: 'premio_caju',         label: 'Prêmio Caju',                                    multiple: true,  na: true, max: 10 },
 ]
