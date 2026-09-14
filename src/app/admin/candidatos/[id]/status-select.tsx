@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
 import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 
-// Sem "Desligado": este seletor é o dos perfis que não são master, e desligar
-// é só do master (a rota de status recusa o mesmo pedido).
+// "Desligado" entra só para quem pode desligar (master e Gestor RH) — a rota
+// de status recusa o mesmo pedido vindo de outro perfil.
 const ALLOWED_STATUSES: CandidateStatus[] = [
   'novo', 'apto_para_entrevista', 'entrevista_agendada',
   'aprovado_processo', 'contratado',
@@ -24,7 +24,11 @@ function statusOptionLabel(s: CandidateStatus) { return STATUS_LABEL_OVERRIDE[s]
  * `candidatos.status` mas não são master (ex.: RH, Gestor), que não veem o
  * painel completo de ações. O dropdown só altera o rascunho; salvar é explícito.
  */
-export function StatusSelect({ applicationId, currentStatus }: { applicationId?: string; currentStatus: CandidateStatus }) {
+export function StatusSelect({ applicationId, currentStatus, podeDesligar = false }: {
+  applicationId?: string
+  currentStatus: CandidateStatus
+  podeDesligar?: boolean
+}) {
   const router = useRouter()
   const [status, setStatus] = useState<CandidateStatus>(currentStatus)
   const [saving, setSaving] = useState(false)
@@ -55,7 +59,10 @@ export function StatusSelect({ applicationId, currentStatus }: { applicationId?:
           <span>{statusOptionLabel(status)}</span>
         </SelectTrigger>
         <SelectContent>
-          {(ALLOWED_STATUSES.includes(status) ? ALLOWED_STATUSES : [status, ...ALLOWED_STATUSES]).map(s => (
+          {(() => {
+            const opcoes: CandidateStatus[] = podeDesligar ? [...ALLOWED_STATUSES, 'desligado'] : ALLOWED_STATUSES
+            return opcoes.includes(status) ? opcoes : [status, ...opcoes]
+          })().map(s => (
             <SelectItem key={s} value={s}>{statusOptionLabel(s)}</SelectItem>
           ))}
         </SelectContent>

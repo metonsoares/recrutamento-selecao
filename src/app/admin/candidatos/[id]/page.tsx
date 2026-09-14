@@ -167,6 +167,8 @@ export default async function CandidatePage({
   const { role: realRole } = await getEffectiveRole()
   const isMaster = realRole === 'master'
   const podeEditarNascimento = realRole === 'master' || realRole === 'gestor_rh'
+  // Desligar colaborador: só master e Gestor RH (a rota de status aplica a mesma regra).
+  const podeDesligar = realRole === 'master' || realRole === 'gestor_rh'
 
   // Queries que dependem só do id — em paralelo (evita waterfall de round-trips)
   const [granted, { data: candidate }, { data: applications }, { data: notes }, { data: allJobs }] = await Promise.all([
@@ -563,7 +565,7 @@ export default async function CandidatePage({
         hasExistingAnalysis={!!latestApp?.ai_summary}
       />}
       {!isMaster && canChangeStatus && activeTab === 'curriculo' && (
-        <StatusSelect applicationId={latestApp?.id} currentStatus={currentStatus} />
+        <StatusSelect applicationId={latestApp?.id} currentStatus={currentStatus} podeDesligar={podeDesligar} />
       )}
 
       {/* ── Tabs: Currículo | Ficha Admissão ── */}
@@ -1034,7 +1036,7 @@ export default async function CandidatePage({
       </div>
 
       {/* ── Desligar funcionário (rodapé) ── */}
-      {isMaster && ['contratado', 'aprovado'].includes(currentStatus) && (
+      {podeDesligar && ['contratado', 'aprovado'].includes(currentStatus) && (
         <DesligarFuncionarioButton candidateId={id} applicationId={latestApp?.id} />
       )}
 
