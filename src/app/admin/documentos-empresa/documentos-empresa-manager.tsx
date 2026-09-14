@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate, contemBusca } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { VerArquivo } from '@/components/ver-arquivo'
 
 interface CompanyFile {
   id: string
@@ -258,6 +259,10 @@ export function DocumentosEmpresaManager({ files: initial, companyOptions }: Pro
                               <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${toneClass[v.tone]}`}>
                                 {v.tone === 'danger' ? <ShieldAlert className="w-3 h-3" /> : v.tone === 'none' ? null : <Clock className="w-3 h-3" />}
                                 {v.label}
+                              </span>
+                              {/* Olho abre numa aba; clicar no nome continua baixando. */}
+                              <span className="p-0.5 shrink-0">
+                                <VerArquivo file={{ url: f.file_url, path: f.file_path, name: f.file_name }} titulo="Visualizar sem baixar" />
                               </span>
                               <button onClick={() => openEdit(f)}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors shrink-0" title="Editar">
