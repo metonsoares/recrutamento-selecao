@@ -33,7 +33,7 @@ const COMPANY_DOCS: {
 }[] = [
   { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: true,  na: false, max: 2 },
   { key: 'contrato_tempo_determinado', label: 'Contrato de prestação de serviço',        multiple: true,  na: true  },
-  { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: false },
+  { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: true  },
   { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false },
   { key: 'contrato_intermitente', label: 'Contrato de trabalho intermitente',             multiple: false, na: false, soIntermitente: true },
   { key: 'regulamento_interno', label: 'Regulamento interno',                            multiple: false, na: false },
