@@ -103,7 +103,7 @@ const ALL_DOCS = [
   { key: 'comprovante_residencia',     label: 'Comprovante de Residência' },
   { key: 'certidao_nascimento_filhos', label: 'Certidão de Nascimento dos filhos', perChild: true },
   { key: 'cpf_dependentes',            label: 'CPF dos dependentes', perChild: true },
-  { key: 'carteira_vacinacao',         label: 'Carteira de Vacinação (filhos)', perChild: true },
+  { key: 'carteira_vacinacao',         label: 'Carteira de Vacinação (filhos)', perChild: true, maxArquivos: 4 },
   { key: 'declaracao_escolar',         label: 'Declaração Escolar dos filhos', perChild: true },
   { key: 'pensao_alimenticia',         label: 'Decisão Judicial – Pensão Alimentícia' },
 ]
@@ -262,7 +262,12 @@ function DocRow({
     }
   }
 
-  const slots = docDef.perChild ? Math.max(1, childrenCount) : 1
+  // Espaços de anexo: um por filho (ou um só). Em documentos com `maxArquivos`,
+  // abre um espaço novo a cada arquivo enviado, até o teto — a carteira de
+  // vacinação costuma vir em várias páginas fotografadas.
+  const baseSlots = docDef.perChild ? Math.max(1, childrenCount) : 1
+  const teto = Math.max(docDef.maxArquivos ?? 1, baseSlots)
+  const slots = Math.min(teto, Math.max(baseSlots, (state.files ?? []).filter(Boolean).length + 1))
   const isNA = state.not_applicable
   const files = state.files ?? []
 
@@ -342,6 +347,7 @@ function DocRow({
         <span className={`flex-1 text-sm font-medium leading-snug ${isNA ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
           {docDef.label}
           {docDef.perChild && childrenCount > 1 && <span className="ml-1 text-[10px] text-muted-foreground font-normal">({childrenCount} filhos)</span>}
+          {docDef.maxArquivos && <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">(até {docDef.maxArquivos} arquivos)</span>}
         </span>
 
         {/* N/A checkbox */}
@@ -358,7 +364,7 @@ function DocRow({
             const uploaded = files[i]
             return (
               <div key={i} className="flex items-center gap-2 flex-wrap">
-                {docDef.perChild && childrenCount > 1 && (
+                {docDef.perChild && childrenCount > 1 && i < childrenCount && (
                   <span className="text-[10px] text-muted-foreground shrink-0 w-12">Filho {i + 1}</span>
                 )}
                 {uploaded ? (
