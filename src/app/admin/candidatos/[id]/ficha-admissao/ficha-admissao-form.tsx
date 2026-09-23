@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { formatDateTime, formatName } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 import { LinkDocumentos } from './link-documentos'
+import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -242,6 +243,7 @@ function DocRow({
   const fileRefs = useRef<(HTMLInputElement | null)[]>([])
   const [uploading, setUploading] = useState<number | null>(null)
   const [uploadError, setUploadError] = useState('')
+  const { ask, dialog } = useConfirmarExclusao()
   const [reqState, setReqState] = useState<'idle' | 'sending'>('idle')
   const [reqError, setReqError] = useState('')
   const [requestedAt, setRequestedAt] = useState<string | null>(initialRequestedAt ?? null)
@@ -312,6 +314,9 @@ function DocRow({
   }
 
   async function handleRemove(slotIdx: number) {
+    // Remoção apaga o arquivo do Storage: sem confirmar, um toque errado no
+    // celular some com o documento.
+    if (!(await ask('Remover este arquivo?'))) return
     const f = files[slotIdx]
     if (f?.path) {
       await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, {
@@ -333,6 +338,7 @@ function DocRow({
 
   return (
     <div className={`rounded-xl border p-3 transition-all ${isNA ? 'bg-gray-50 border-gray-200' : overallStatus === 'done' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50/50 border-amber-200'}`}>
+      {dialog}
       {/* Header row */}
       <div className="flex items-start gap-2 flex-wrap">
         {/* Status badge */}
