@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDateTime, formatName } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { LinkDocumentos } from './link-documentos'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -581,8 +582,10 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
       )}
 
       <div className="bg-white rounded-2xl border shadow-sm p-6 sm:p-8 space-y-0 max-w-3xl">
-        <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
           <h2 className="text-xl font-bold text-gray-900">Ficha Cadastral</h2>
+          {/* Ficha arquivada não gera link: ela é histórico, não recebe documento. */}
+          {!readOnly && <LinkDocumentos candidateId={candidate.id} />}
           {!readOnly && (
             <Button onClick={handleSave} disabled={saving || !!cpfError} size="sm" className="gap-1.5 shrink-0">
               {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar ficha</>}
