@@ -3,6 +3,8 @@ import { cookies } from 'next/headers'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AdminNav } from '@/components/admin/sidebar'
 import { PresenceHeartbeat } from '@/components/PresenceHeartbeat'
+import { AvisoNovaVersao } from '@/components/aviso-nova-versao'
+import { versaoAtual } from '@/lib/versao'
 import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
 import { ROLE_LABELS, ALL_ROLES, type Role } from '@/lib/permissions'
@@ -52,6 +54,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         perms={Array.from(granted)}
       />
       <PresenceHeartbeat />
+      {/* Avisa quem está com a aba aberta que saiu publicação nova. */}
+      <AvisoNovaVersao versaoAtual={versaoAtual()} />
 
       {perfilPreview && (
         <div className="lg:pl-72">
