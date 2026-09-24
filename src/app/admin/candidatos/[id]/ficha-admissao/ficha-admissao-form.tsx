@@ -333,7 +333,10 @@ function DocRow({
   // Overall status
   let overallStatus: 'na' | 'done' | 'pending'
   if (isNA) overallStatus = 'na'
-  else if (files.filter(Boolean).length >= slots) overallStatus = 'done'
+  // Entregue = tem o que a ficha EXIGE (um arquivo, ou um por filho). `slots`
+  // é só quantos espaços de anexo aparecem, e em documento com teto ele cresce
+  // a cada envio — comparar com ele deixava entregue marcado como pendente.
+  else if (files.filter(Boolean).length >= baseSlots) overallStatus = 'done'
   else overallStatus = 'pending'
 
   return (
