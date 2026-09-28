@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { SinoNotificacoes } from './sino-notificacoes'
+import { BotaoTema } from './botao-tema'
 import { cn } from '@/lib/utils'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
@@ -140,7 +141,8 @@ function SidebarContent({
             <p className="text-[14px] font-semibold text-[#333333]">Banco de Talentos</p>
             <p className="text-[12px] text-[#8a8a8a]">{companyName || 'Brownie do Ton'}</p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-0.5">
+            <BotaoTema />
             <SinoNotificacoes />
           </div>
         </div>
@@ -552,6 +554,7 @@ export function AdminNav({
           <span className="text-[14px] font-semibold text-[#333333]">Banco de Talentos</span>
         </div>
         <div className="flex items-center gap-1">
+        <BotaoTema />
         <SinoNotificacoes />
         <button
           onClick={() => setMobileOpen(true)}

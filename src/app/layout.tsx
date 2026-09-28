@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { SCRIPT_TEMA } from "@/lib/tema";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -34,7 +35,14 @@ export default function RootLayout({
     <html
       lang="pt-BR"
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
+      // A classe do tema é aplicada antes da hidratação pelo script abaixo.
+      suppressHydrationWarning
     >
+      <head>
+        {/* Aplica o modo tela preta ANTES da primeira pintura: sem isto a tela
+            pisca branca a cada carregamento. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
