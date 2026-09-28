@@ -339,7 +339,10 @@ export default async function CandidatePage({
   // Dados Bancários
   const showBankTab = ['contratado', 'freelancer', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Ficha Admissão (inclui em_contrato)
-  const showFicha = ['contratado', 'aprovado', 'em_contrato', 'desligado'].includes(currentStatus)
+  // 'aprovado_processo' (rótulo "Aprovado") entra: a ficha começa a ser
+  // preenchida antes da contratação, junto com Dados para contrato e Documentos,
+  // que essa fase já libera.
+  const showFicha = ['contratado', 'aprovado', 'aprovado_processo', 'em_contrato', 'desligado'].includes(currentStatus)
   // Dados para contrato: pré-contratação + colaboradores (contratado, intermitente, freelancer, desligado)
   const showContract = ['em_contrato', 'aprovado_processo', 'contratado', 'aprovado', 'freelancer', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Documentos
