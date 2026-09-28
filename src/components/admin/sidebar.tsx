@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { SinoNotificacoes } from './sino-notificacoes'
 import { cn } from '@/lib/utils'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
@@ -138,6 +139,9 @@ function SidebarContent({
           <div className="leading-tight">
             <p className="text-[14px] font-semibold text-[#333333]">Banco de Talentos</p>
             <p className="text-[12px] text-[#8a8a8a]">{companyName || 'Brownie do Ton'}</p>
+          </div>
+          <div className="ml-auto">
+            <SinoNotificacoes />
           </div>
         </div>
       </div>
@@ -547,6 +551,8 @@ export function AdminNav({
           )}
           <span className="text-[14px] font-semibold text-[#333333]">Banco de Talentos</span>
         </div>
+        <div className="flex items-center gap-1">
+        <SinoNotificacoes />
         <button
           onClick={() => setMobileOpen(true)}
           aria-label="Abrir menu"
@@ -554,6 +560,7 @@ export function AdminNav({
         >
           <Menu className="w-5 h-5" />
         </button>
+        </div>
       </header>
 
       <div className="lg:hidden h-14" />

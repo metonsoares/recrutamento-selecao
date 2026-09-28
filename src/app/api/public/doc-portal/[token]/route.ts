@@ -91,6 +91,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       .update({ last_upload_at: agora, updated_at: agora, application_id: app.id })
       .eq('id', portal.id as string)
 
+    // Aviso para o sino do painel: este é um evento, não um prazo — só existe
+    // quem o registre na hora em que o arquivo chega.
+    const { data: dono } = await supabase
+      .from('candidates').select('full_name').eq('id', portal.candidate_id as string).maybeSingle()
+    const rotulo = FICHA_DOCS.find(d => d.key === docKey)?.label ?? docKey
+    await supabase.from('notificacoes').insert({
+      tipo: 'documento_enviado',
+      chave: `documento:${portal.id}:${docKey}:${agora}`,
+      titulo: `Documento recebido: ${dono?.full_name ?? 'colaborador'}`,
+      descricao: `${rotulo} enviado pelo link externo.`,
+      url: `/admin/candidatos/${portal.candidate_id}?tab=ficha`,
+      candidate_id: portal.candidate_id as string,
+    })
+
     return NextResponse.json({ ok: true, pendentes: docsPendentesFicha(novaFicha as FichaComDocs) })
   } catch (err) {
     console.error('[doc-portal POST]', err)
