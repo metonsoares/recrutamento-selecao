@@ -3,10 +3,14 @@
 interface DocState { not_applicable?: boolean; files?: unknown[] }
 
 /** Documentos da Ficha de Admissão (mesmas chaves do ficha-admissao-form). */
-export const FICHA_DOCS: { key: string; label: string; perChild?: boolean; pensao?: boolean }[] = [
-  { key: 'carteira_profissional', label: 'Carteira Profissional (folhas de identificação e qualificação)' },
+export const FICHA_DOCS: {
+  key: string; label: string; perChild?: boolean; pensao?: boolean
+  /** Quem anexa é a empresa — não entra no link externo do colaborador. */
+  daEmpresa?: boolean
+}[] = [
+  { key: 'carteira_profissional', label: 'Carteira de Trabalho Digital' },
   { key: 'foto_3x4', label: '01 Foto 3 × 4' },
-  { key: 'atestado_admissional', label: 'Atestado Admissional (Médico do Trabalho)' },
+  { key: 'atestado_admissional', label: 'Atestado Admissional (Médico do Trabalho)', daEmpresa: true },
   { key: 'cartao_pis', label: 'Cartão de Inscrição no PIS' },
   { key: 'cpf', label: 'CPF' },
   { key: 'identidade', label: 'Carteira de Identidade (RG)' },
@@ -51,7 +55,10 @@ export interface DocPendente {
  * ficha diz que há filhos ou pensão. O link externo do colaborador lê daqui,
  * então as duas pontas nunca discordam sobre o que está pendente.
  */
-export function docsPendentesFicha(af: FichaComDocs | null | undefined): DocPendente[] {
+export function docsPendentesFicha(
+  af: FichaComDocs | null | undefined,
+  opcoes: { soDoColaborador?: boolean } = {},
+): DocPendente[] {
   const docs = (af?.docs || {}) as Record<string, DocState>
   const children = parseInt(af?.children_count || '0') || 0
   const alimony = af?.alimony === true
@@ -60,6 +67,8 @@ export function docsPendentesFicha(af: FichaComDocs | null | undefined): DocPend
   for (const d of FICHA_DOCS) {
     if (d.perChild && children === 0) continue
     if (d.pensao && !alimony) continue
+    // O link externo pede só o que o colaborador tem como entregar.
+    if (opcoes.soDoColaborador && d.daEmpresa) continue
     const s = docs[d.key]
     if (s?.not_applicable === true) continue
     const needed = d.perChild ? Math.max(1, children) : 1

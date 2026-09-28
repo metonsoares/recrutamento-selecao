@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (!app?.id) return NextResponse.json({ error: 'Ficha não encontrada.' }, { status: 404 })
 
     const ficha = (app.admission_form as FichaComDocs) ?? null
-    if (!docsPendentesFicha(ficha).some(d => d.key === docKey)) {
+    if (!docsPendentesFicha(ficha, { soDoColaborador: true }).some(d => d.key === docKey)) {
       return NextResponse.json({ error: 'Este documento já foi entregue.' }, { status: 409 })
     }
 
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       candidate_id: portal.candidate_id as string,
     })
 
-    return NextResponse.json({ ok: true, pendentes: docsPendentesFicha(novaFicha as FichaComDocs) })
+    return NextResponse.json({ ok: true, pendentes: docsPendentesFicha(novaFicha as FichaComDocs, { soDoColaborador: true }) })
   } catch (err) {
     console.error('[doc-portal POST]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })

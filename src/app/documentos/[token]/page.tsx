@@ -40,7 +40,7 @@ export default async function DocumentosPublicPage({ params }: { params: Promise
     .from('applications').select('admission_form')
     .eq('candidate_id', portal.candidate_id as string).eq('is_latest', true).maybeSingle()
 
-  const pendentes = docsPendentesFicha(app?.admission_form as Parameters<typeof docsPendentesFicha>[0])
+  const pendentes = docsPendentesFicha(app?.admission_form as Parameters<typeof docsPendentesFicha>[0], { soDoColaborador: true })
 
   await supabase.from('doc_portals')
     .update({ last_opened_at: new Date().toISOString() })

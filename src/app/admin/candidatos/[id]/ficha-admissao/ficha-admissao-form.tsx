@@ -92,7 +92,7 @@ interface Props {
 // ─── Docs definition ──────────────────────────────────────────────────────────
 
 const ALL_DOCS = [
-  { key: 'carteira_profissional',      label: 'Carteira Profissional (folhas de identificação e qualificação)' },
+  { key: 'carteira_profissional',      label: 'Carteira de Trabalho Digital' },
   { key: 'foto_3x4',                   label: '01 Foto 3 × 4' },
   { key: 'atestado_admissional',       label: 'Atestado Admissional (Médico do Trabalho)' },
   { key: 'cartao_pis',                 label: 'Cartão de Inscrição no PIS' },
