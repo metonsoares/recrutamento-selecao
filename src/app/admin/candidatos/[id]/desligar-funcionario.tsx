@@ -9,6 +9,8 @@ import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 interface Props { candidateId: string; applicationId?: string }
 
+interface ArquivoCarta { url: string; name: string; path: string }
+
 export function DesligarFuncionarioButton({ candidateId, applicationId }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -47,8 +49,8 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
     setError('')
     if (!date) { setError('Informe a data do desligamento.'); return }
     if (!requester) { setError('Informe quem solicitou o desligamento.'); return }
-    // Carta de demissão só é exigida quando o próprio funcionário solicita o desligamento.
-    if (requester === 'funcionario' && !letter) { setError('Anexe a carta de demissão.'); return }
+    // A carta não trava o desligamento: nem sempre existe no dia, e o registro
+    // do desligamento não pode esperar por ela. Dá para anexar depois.
     setSaving(true)
     const supabase = createSupabaseBrowserClient()
     const now = new Date().toISOString()
@@ -102,7 +104,7 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
               {/* Carta de demissão: apenas quando o desligamento é solicitado pelo funcionário */}
               {requester === 'funcionario' && (
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600">Carta de demissão * (PDF/JPG/PNG)</label>
+                  <label className="text-xs font-medium text-gray-600">Carta de demissão (PDF/JPG/PNG)</label>
                   {letter ? (
                     <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                       <FileText className="w-4 h-4 text-red-500 shrink-0" />
@@ -116,6 +118,11 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
                     </button>
                   )}
                   <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleFile} />
+                  {!letter && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Opcional agora — dá para anexar depois, na ficha do desligado.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -137,6 +144,94 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Carta de demissão de quem JÁ foi desligado.
+ *
+ * O botão de desligar some quando a pessoa sai, e a carta costuma chegar
+ * depois do registro — sem este painel ela não teria onde entrar.
+ */
+export function CartaDesligamento({
+  candidateId, applicationId, terminationData,
+}: {
+  candidateId: string
+  applicationId?: string
+  terminationData: { requester?: string; date?: string; letter?: ArquivoCarta | null } | null
+}) {
+  const router = useRouter()
+  const [letter, setLetter] = useState<ArquivoCarta | null>(terminationData?.letter ?? null)
+  const [uploading, setUploading] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  if (!applicationId) return null
+
+  async function anexar(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (e.target) e.target.value = ''
+    if (!f) return
+    setError('')
+    if (f.size > 4 * 1024 * 1024) { setError('Arquivo excede 4 MB'); return }
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(f.type)) { setError('Use PDF, JPG ou PNG'); return }
+
+    setUploading(true)
+    const fd = new FormData(); fd.append('file', f); fd.append('docKey', 'carta-demissao')
+    try {
+      const res = await fetch(`/api/admin/candidatos/${candidateId}/admission-docs`, { method: 'POST', body: fd })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      const arquivo = { url: d.url as string, name: f.name, path: d.path as string }
+
+      setSalvando(true)
+      const supabase = createSupabaseBrowserClient()
+      // Mantém o resto do desligamento (quem pediu, quando) e troca só a carta.
+      const { error: err } = await supabase.from('applications').update({
+        termination_data: { ...(terminationData ?? {}), letter: arquivo },
+        updated_at: new Date().toISOString(),
+      }).eq('id', applicationId)
+      if (err) throw new Error('Erro ao salvar.')
+      setLetter(arquivo)
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message || 'Erro no upload')
+    } finally { setUploading(false); setSalvando(false) }
+  }
+
+  return (
+    <div className="mt-6 border-t pt-5 max-w-3xl">
+      <div className="rounded-2xl border bg-white p-4 sm:p-5">
+        <div className="flex items-start gap-2.5 flex-wrap">
+          <UserMinus className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-[220px]">
+            <p className="text-sm font-bold text-gray-900">Carta de demissão</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              {letter ? 'Anexada ao desligamento.' : 'Ainda não anexada — envie quando o documento chegar.'}
+            </p>
+          </div>
+
+          {letter ? (
+            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5 min-w-[200px]">
+              <FileText className="w-4 h-4 text-red-500 shrink-0" />
+              <a href={letter.url} onClick={e => abrirArquivoAssinado(e, letter)} target="_blank" rel="noreferrer"
+                className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{letter.name}</a>
+              <button onClick={() => fileRef.current?.click()} title="Trocar arquivo"
+                className="text-[11px] font-medium text-gray-500 hover:text-primary shrink-0">Trocar</button>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" disabled={uploading || salvando}
+              onClick={() => fileRef.current?.click()} className="gap-1.5 shrink-0">
+              {uploading || salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              Anexar carta
+            </Button>
+          )}
+          <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={anexar} />
+        </div>
+        {error && <p className="mt-2 text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</p>}
+      </div>
     </div>
   )
 }

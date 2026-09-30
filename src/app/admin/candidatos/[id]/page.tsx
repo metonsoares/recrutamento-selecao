@@ -10,7 +10,7 @@ import { CandidateActions } from './candidate-actions'
 import { CandidateNotesEditor } from './notes-editor'
 import { PhotoViewer, PhotoPlaceholder } from './photo-viewer'
 import { DeleteCandidateSection } from './delete-candidate-section'
-import { DesligarFuncionarioButton } from './desligar-funcionario'
+import { DesligarFuncionarioButton, CartaDesligamento } from './desligar-funcionario'
 import { EditVagaButton } from './edit-vaga-button'
 import { CandidateTabNav } from './candidate-tab-nav'
 import { InviteInterviewButton } from './invite-interview-button'
@@ -1041,6 +1041,15 @@ export default async function CandidatePage({
       {/* ── Desligar funcionário (rodapé) ── */}
       {podeDesligar && ['contratado', 'aprovado'].includes(currentStatus) && (
         <DesligarFuncionarioButton candidateId={id} applicationId={latestApp?.id} />
+      )}
+
+      {/* Já desligado: a carta pode chegar depois do registro. */}
+      {podeDesligar && currentStatus === 'desligado' && (
+        <CartaDesligamento
+          candidateId={id}
+          applicationId={latestApp?.id}
+          terminationData={(latestApp?.termination_data as { requester?: string; date?: string; letter?: { url: string; name: string; path: string } | null } | null) ?? null}
+        />
       )}
 
       {/* ── Zona de perigo — somente Master ── */}
