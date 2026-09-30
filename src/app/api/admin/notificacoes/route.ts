@@ -9,11 +9,20 @@ export const dynamic = 'force-dynamic'
 /** Avisos com mais de 60 dias somem da lista — o sino é do que é acionável agora. */
 const JANELA_DIAS = 60
 
-/** GET — recalcula os avisos de prazo e devolve a lista com a contagem de não lidos. */
+/**
+ * Sino de avisos.
+ *
+ * A leitura é POR PESSOA: marcar como lido esconde o aviso de quem leu e deixa
+ * o dos colegas intacto. Por isso a lista devolve só o que a pessoa ainda não
+ * leu — o que ela já viu sai de vez.
+ */
 export async function GET() {
   try {
     const denied = await requirePermissionApi('candidatos.ver')
     if (denied) return denied
+
+    const { user } = await getEffectiveRole()
+    if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
 
     const service = await createSupabaseServiceClient()
     await gravarNotificacoes(service, await calcularAvisosDePrazo(service))
@@ -21,37 +30,57 @@ export async function GET() {
     const desde = new Date(Date.now() - JANELA_DIAS * 86400000).toISOString()
     const { data, error } = await service
       .from('notificacoes')
-      .select('id, tipo, titulo, descricao, url, criada_em, lida_em')
+      .select('id, tipo, titulo, descricao, url, criada_em')
       .gte('criada_em', desde)
       .order('criada_em', { ascending: false })
-      .limit(50)
+      .limit(80)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    const itens = data ?? []
-    return NextResponse.json({
-      ok: true,
-      itens,
-      naoLidas: itens.filter(i => !i.lida_em).length,
-    })
+    const todos = data ?? []
+    const { data: lidas } = todos.length
+      ? await service.from('notificacao_leituras')
+          .select('notificacao_id')
+          .eq('user_id', user.id)
+          .in('notificacao_id', todos.map(n => n.id as string))
+      : { data: [] as { notificacao_id: string }[] }
+
+    const jaLidas = new Set((lidas ?? []).map(l => l.notificacao_id as string))
+    const itens = todos.filter(n => !jaLidas.has(n.id as string)).slice(0, 50)
+
+    return NextResponse.json({ ok: true, itens, naoLidas: itens.length })
   } catch (err) {
     console.error('[notificacoes GET]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
   }
 }
 
-/** PUT — marca um aviso como lido, ou todos de uma vez. */
+/** PUT — marca como lido para QUEM chamou: um aviso, ou todos os que ele vê. */
 export async function PUT(req: NextRequest) {
   try {
     const denied = await requirePermissionApi('candidatos.ver')
     if (denied) return denied
 
     const { user } = await getEffectiveRole()
+    if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+
     const body = await req.json().catch(() => ({}))
     const service = await createSupabaseServiceClient()
-    const marca = { lida_em: new Date().toISOString(), lida_por: user?.email ?? null }
 
-    const q = service.from('notificacoes').update(marca).is('lida_em', null)
-    const { error } = body?.todas === true ? await q : await q.eq('id', String(body?.id ?? ''))
+    let ids: string[] = []
+    if (body?.todas === true) {
+      const desde = new Date(Date.now() - JANELA_DIAS * 86400000).toISOString()
+      const { data } = await service.from('notificacoes').select('id').gte('criada_em', desde)
+      ids = (data ?? []).map(n => n.id as string)
+    } else if (typeof body?.id === 'string' && body.id) {
+      ids = [body.id]
+    }
+    if (!ids.length) return NextResponse.json({ ok: true })
+
+    // Já lido é estado, não evento: repetir a marcação não pode dar erro.
+    const { error } = await service.from('notificacao_leituras').upsert(
+      ids.map(id => ({ notificacao_id: id, user_id: user.id, user_email: user.email ?? null })),
+      { onConflict: 'notificacao_id,user_id', ignoreDuplicates: true },
+    )
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     return NextResponse.json({ ok: true })

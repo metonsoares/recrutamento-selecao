@@ -11,7 +11,6 @@ interface Notificacao {
   descricao: string | null
   url: string | null
   criada_em: string
-  lida_em: string | null
 }
 
 const ICONE: Record<string, { Icon: React.ElementType; cor: string }> = {
@@ -130,9 +129,10 @@ export function SinoNotificacoes() {
     }
   }, [aberto])
 
+  // Lido é por pessoa: o aviso sai da lista de quem leu e continua na dos
+  // colegas. Some da tela na hora, sem esperar o servidor responder.
   async function marcar(id?: string) {
-    const agora = new Date().toISOString()
-    setItens(p => p.map(i => (id ? (i.id === id ? { ...i, lida_em: agora } : i) : { ...i, lida_em: agora })))
+    setItens(p => (id ? p.filter(i => i.id !== id) : []))
     setNaoLidas(n => (id ? Math.max(0, n - 1) : 0))
     await fetch('/api/admin/notificacoes', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -171,7 +171,7 @@ export function SinoNotificacoes() {
         {itens.map(n => {
           const { Icon, cor } = ICONE[n.tipo] ?? { Icon: Bell, cor: 'text-gray-500 bg-gray-100' }
           const conteudo = (
-            <div className={`flex items-start gap-2.5 px-4 py-3 hover:bg-gray-50 transition-colors ${n.lida_em ? 'opacity-60' : ''}`}>
+            <div className="flex items-start gap-2.5 px-4 py-3 hover:bg-gray-50 transition-colors">
               <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${cor}`}>
                 <Icon className="w-3.5 h-3.5" />
               </span>
@@ -180,7 +180,7 @@ export function SinoNotificacoes() {
                 {n.descricao && <p className="text-[12px] text-muted-foreground leading-snug break-words mt-0.5">{n.descricao}</p>}
                 <p className="text-[11px] text-gray-400 mt-1">{quando(n.criada_em)}</p>
               </div>
-              {!n.lida_em && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1.5" aria-label="não lido" />}
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1.5" aria-label="não lido" />
             </div>
           )
           return n.url ? (
