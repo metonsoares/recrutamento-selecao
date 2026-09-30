@@ -66,7 +66,10 @@ export async function POST(req: NextRequest) {
 
     const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(path)
 
-    return NextResponse.json({ url: publicUrl, filename: file.name })
+    // `path` vai junto para quem gravar o registro poder guardar o caminho
+    // interno; a URL segue sendo devolvida porque é o que as telas já usam
+    // (e dela mesma se extrai o caminho — ver src/lib/arquivo-url.ts).
+    return NextResponse.json({ url: publicUrl, path, filename: file.name })
   } catch (err) {
     console.error('[upload-file]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { formatDate, formatName } from '@/lib/helpers'
 import { AutoPrint } from './auto-print'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
+import { urlProtegida } from '@/lib/arquivo-url'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -307,7 +308,7 @@ export default async function PrintPage({ params }: { params: Promise<{ id: stri
             }}>
               {photoUrl !== '—' ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt="Foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={urlProtegida(photoUrl) ?? photoUrl} alt="Foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <span style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center', padding: 4 }}>Sem foto</span>
               )}

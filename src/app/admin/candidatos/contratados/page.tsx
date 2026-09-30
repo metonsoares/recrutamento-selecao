@@ -1,4 +1,5 @@
 import { requirePermission } from '@/lib/auth-guard'
+import { assinarUrlsDeArquivos } from '@/lib/arquivo-assinado-servidor'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { UserCheck, ArrowLeft, Users } from 'lucide-react'
@@ -94,6 +95,12 @@ export default async function ContratadosPage() {
           const url = pa.answer_text.replace(/^"|"$/g, '')
           if (url.startsWith('http')) photoMap[pa.application_id] = url
         }
+      }
+      // O bucket das fotos não é público: o `next/image` só consegue buscar a
+      // imagem por URL assinada (o otimizador vai ao Storage sem os cookies).
+      const assinadas = await assinarUrlsDeArquivos(Object.values(photoMap))
+      for (const [appId, url] of Object.entries(photoMap)) {
+        if (assinadas[url]) photoMap[appId] = assinadas[url]
       }
     }
   }
