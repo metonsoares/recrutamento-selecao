@@ -43,6 +43,20 @@ export interface RegistroLancamento {
 /** Um item avulso (avarias): valor + o que foi avariado. */
 interface ItemAvulso { valor: string; descricao: string }
 
+/**
+ * Perda ou dano pedido na Central de Chamados: o valor de reposição do
+ * uniforme/EPI vira desconto do colaborador no mês da solicitação.
+ * `candidate_id` é nulo quando quem pediu não tem ficha no Banco de Talentos.
+ */
+export interface AvariaCentral {
+  candidate_id: string | null
+  colaborador: string
+  numero: string
+  item: string
+  valor: number
+  descricao: string
+}
+
 interface CicloAprovado {
   total_valor: number
   total_qtd: number
@@ -84,7 +98,7 @@ const TOTAL_DO_CAMPO: Record<CampoContagem, (c: CicloAprovado) => number> = {
 }
 
 export function LancamentosClient({
-  config, competencia, linhas, empresas, historico, cicloAprovado,
+  config, competencia, linhas, empresas, historico, cicloAprovado, avariasCentral = [],
 }: {
   config: ConfigLancamento
   competencia: string
@@ -92,6 +106,8 @@ export function LancamentosClient({
   empresas: EmpresaOpcao[]
   historico: RegistroLancamento[]
   cicloAprovado: CicloAprovado | null
+  /** Perdas e danos vindos da Central de Chamados (só o tipo "avarias" recebe). */
+  avariasCentral?: AvariaCentral[]
 }) {
   const router = useRouter()
   const [busca, setBusca] = useState('')
@@ -307,11 +323,35 @@ export function LancamentosClient({
       for (const [id, lista] of itensAprovadosNoMes) {
         if (novo[id] === undefined) novo[id] = lista
       }
+      // Perda ou dano pedido na Central entra sozinho no mês da solicitação:
+      // o RH confere e aprova. Repetido é reconhecido pela descrição, que
+      // carrega o número do chamado. Para NÃO cobrar, o caminho é cancelar o
+      // chamado na Central — aí ele deixa de vir.
+      for (const a of avariasCentral) {
+        const id = a.candidate_id
+        if (!id) continue
+        const lista = (novo[id] ?? []).filter(i => i.descricao.trim() || paraNumero(i.valor) > 0)
+        if (lista.some(i => i.descricao.trim() === a.descricao.trim())) continue
+        novo[id] = [...lista, { valor: paraCampo(a.valor), descricao: a.descricao }]
+      }
       return novo
     })
     // `linhas` é estável dentro do mesmo render do servidor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aprovadosNoMes, itensAprovadosNoMes])
+  }, [aprovadosNoMes, itensAprovadosNoMes, avariasCentral])
+
+  // Quem a Central cobrou e não tem ficha no Banco de Talentos: não dá para
+  // lançar, então o RH precisa ver o nome em vez de a cobrança sumir.
+  const idsConhecidos = useMemo(() => new Set(linhas.map(l => l.candidate_id)), [linhas])
+  const avariasLancadas = useMemo(
+    () => avariasCentral.filter(a => a.candidate_id && idsConhecidos.has(a.candidate_id)),
+    [avariasCentral, idsConhecidos],
+  )
+
+  const avariasSemFicha = useMemo(
+    () => avariasCentral.filter(a => !a.candidate_id || !idsConhecidos.has(a.candidate_id)),
+    [avariasCentral, idsConhecidos],
+  )
 
   const filtradas = linhas.filter(l => {
     if (empresaFiltro && l.empresa_id !== empresaFiltro) return false
@@ -504,6 +544,37 @@ export function LancamentosClient({
             })}
             {cicloAprovado.aprovado_por ? ` por ${cicloAprovado.aprovado_por}` : ''}. Reaprovar substitui o registro.
           </p>
+        </div>
+      )}
+
+      {/* ── Perdas e danos vindos da Central de Chamados ── */}
+      {multiplos && avariasCentral.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Wallet className="w-4 h-4 text-amber-700 shrink-0" />
+            <p className="text-[13px] text-amber-900 flex-1">
+              <strong>{avariasLancadas.length}</strong> perda(s)/dano(s) pedidos na Central de Chamados em{' '}
+              {rotuloMes(competencia)} já estão lançados abaixo — confira e aprove o mês. Para não cobrar, cancele o
+              chamado na Central.
+            </p>
+          </div>
+          {avariasLancadas.length > 0 && (
+            <ul className="text-[12px] text-amber-900/90 flex flex-col gap-0.5">
+              {avariasLancadas.slice(0, 8).map(a => (
+                <li key={`${a.numero}-${a.descricao}`}>
+                  {formatName(a.colaborador)} — {a.descricao} · {brl(a.valor)}
+                </li>
+              ))}
+              {avariasLancadas.length > 8 && <li>e mais {avariasLancadas.length - 8}…</li>}
+            </ul>
+          )}
+          {avariasSemFicha.length > 0 && (
+            <p className="text-[12px] text-amber-900/90">
+              {avariasSemFicha.length} sem ficha no Banco de Talentos (não dá para lançar):{' '}
+              {avariasSemFicha.slice(0, 4).map(a => formatName(a.colaborador)).join(', ')}
+              {avariasSemFicha.length > 4 ? '…' : ''}
+            </p>
+          )}
         </div>
       )}
 

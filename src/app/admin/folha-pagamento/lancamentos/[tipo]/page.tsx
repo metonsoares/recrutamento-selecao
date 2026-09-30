@@ -5,7 +5,8 @@ import { mesCorrente, fimDoMes, competenciaValida } from '@/lib/competencia'
 import { LANCAMENTOS, tipoValido } from '@/lib/folha-lancamentos'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
-import { LancamentosClient, LinhaLancamento, EmpresaOpcao, RegistroLancamento } from './lancamentos-client'
+import { portalBridge } from '@/lib/portal-bridge'
+import { LancamentosClient, LinhaLancamento, EmpresaOpcao, RegistroLancamento, AvariaCentral } from './lancamentos-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,6 +131,15 @@ export default async function LancamentosPage({
 
   linhas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
+  // Perdas e danos pedidos na Central de Chamados entram como avaria do mês:
+  // o valor de reposição do uniforme/EPI é desconto do colaborador. Só leitura
+  // — quem grava é o RH, aprovando a competência como sempre.
+  let avariasCentral: AvariaCentral[] = []
+  if (tipo === 'avarias') {
+    const resp = await portalBridge<{ avarias?: AvariaCentral[] }>('avarias', { competencia })
+    avariasCentral = Array.isArray(resp?.avarias) ? resp.avarias : []
+  }
+
   const empresasOpcoes: EmpresaOpcao[] = Array.from(
     new Map(linhas.filter(l => l.empresa_id).map(l => [l.empresa_id as string, l.empresa ?? '—'])).entries(),
   ).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
@@ -141,6 +151,7 @@ export default async function LancamentosPage({
       linhas={linhas}
       empresas={empresasOpcoes}
       historico={historico}
+      avariasCentral={avariasCentral}
       cicloAprovado={cicloDoMes ? {
         total_valor: Number(cicloDoMes.total_valor),
         total_qtd: Number(cicloDoMes.total_qtd),
