@@ -1,16 +1,10 @@
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
-import { fimDoMes } from '@/lib/competencia'
+import { fimDoMes, mesPadraoFolha } from '@/lib/competencia'
 import { GorjetasClient, LinhaGorjeta, EmpresaOpcao, PagamentoGorjeta } from './gorjetas-client'
 
 export const dynamic = 'force-dynamic'
-
-/** Mês corrente (yyyy-mm-01) no fuso de São Paulo. */
-function mesCorrente(): string {
-  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 export default async function GorjetasPage({
   searchParams,
@@ -22,7 +16,7 @@ export default async function GorjetasPage({
 
   const competencia = /^\d{4}-\d{2}-01$/.test(sp.competencia ?? '')
     ? (sp.competencia as string)
-    : mesCorrente()
+    : mesPadraoFolha()
 
   // Último dia da competência: é ele que diz qual ficha valia no mês.
   const fim = fimDoMes(competencia)
@@ -126,6 +120,16 @@ export default async function GorjetasPage({
       cicloAprovado={ciclo ? {
         total: Number(ciclo.total),
         aprovado_por: (ciclo.aprovado_por as string) ?? null,
+        total_apurado: Number(ciclo.total_apurado ?? 0),
+        retencao_pct: Number(ciclo.retencao_pct ?? 0),
+        descontos: Number(ciclo.descontos ?? 0),
+        // O valor de cada um como foi aprovado: é ele que a tela mostra ao
+        // reabrir o mês, em vez de recalcular e arriscar outro número.
+        valores: Object.fromEntries(
+          (todosItens ?? [])
+            .filter(i => i.ciclo_id === ciclo.id)
+            .map(i => [i.candidate_id as string, Number(i.valor)]),
+        ),
       } : null}
     />
   )

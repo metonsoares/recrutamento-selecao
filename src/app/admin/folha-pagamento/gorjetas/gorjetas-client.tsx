@@ -28,7 +28,20 @@ export interface LinhaGorjeta {
 export interface EmpresaOpcao { id: string; nome: string }
 export interface PagamentoGorjeta { candidate_id: string; competencia: string; valor: number }
 
-interface CicloAprovado { total: number; aprovado_por: string | null }
+interface CicloAprovado {
+  total: number
+  aprovado_por: string | null
+  total_apurado: number
+  retencao_pct: number
+  descontos: number
+  /** candidate_id → valor aprovado. */
+  valores: Record<string, number>
+}
+
+/** 46903.07 → "46.903,07" (o mesmo formato que o campo aceita de volta). */
+function paraCampo(n: number): string {
+  return n > 0 ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,7 +72,9 @@ export function GorjetasClient({
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   // Sempre em branco: valor preenchido de saída convida a aprovar sem conferir.
-  const [valorPadrao, setValorPadrao] = useState('')
+  // Mês já aprovado reabre com o que foi aprovado — campos vazios faziam a
+  // tela mostrar R$ 0,00 em todo mundo depois de fechar o mês.
+  const [valorPadrao, setValorPadrao] = useState(() => paraCampo(cicloAprovado?.total_apurado ?? 0))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
@@ -72,8 +87,12 @@ export function GorjetasClient({
   const [pesoEdit, setPesoEdit] = useState<Record<string, string>>({})
   const [diasEdit, setDiasEdit] = useState<Record<string, string>>({})
   const [salvandoPeso, setSalvandoPeso] = useState<string | null>(null)
-  const [retencao, setRetencao] = useState('27')
-  const [descontos, setDescontos] = useState('')
+  const [retencao, setRetencao] = useState(() =>
+    cicloAprovado ? String(cicloAprovado.retencao_pct).replace('.', ',') : '27')
+  const [descontos, setDescontos] = useState(() => paraCampo(cicloAprovado?.descontos ?? 0))
+  // Enquanto ninguém mexe, a tela mostra o valor APROVADO de cada um; ao editar
+  // apurado, retenção, desconto, peso ou dias, ela volta a calcular ao vivo.
+  const [recalcular, setRecalcular] = useState(false)
 
   const padraoNum = Number(valorPadrao.replace(/\./g, '').replace(',', '.')) || 0
 
@@ -135,6 +154,7 @@ export function GorjetasClient({
 
   /** Quanto a pessoa recebe do líquido. */
   function valorDe(l: LinhaGorjeta): number {
+    if (cicloAprovado && !recalcular) return cicloAprovado.valores[l.candidate_id] ?? 0
     if (somaFatores <= 0 || liquido <= 0) return 0
     return Math.round((liquido * fatorDe(l) / somaFatores) * 100) / 100
   }
@@ -333,7 +353,7 @@ export function GorjetasClient({
           <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Valor apurado no mês</label>
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
-            <input value={valorPadrao} onChange={e => setValorPadrao(e.target.value.replace(/[^\d,.]/g, ''))}
+            <input value={valorPadrao} onChange={e => { setRecalcular(true); setValorPadrao(e.target.value.replace(/[^\d,.]/g, '')) }}
               placeholder="0,00" inputMode="decimal"
               className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white" />
           </div>
@@ -341,7 +361,7 @@ export function GorjetasClient({
         <div className="space-y-1">
           <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Retenção</label>
           <div className="relative">
-            <input value={retencao} onChange={e => setRetencao(e.target.value.replace(/[^\d,.]/g, '').slice(0, 5))}
+            <input value={retencao} onChange={e => { setRecalcular(true); setRetencao(e.target.value.replace(/[^\d,.]/g, '').slice(0, 5)) }}
               inputMode="decimal" className="h-9 w-full border border-gray-300 rounded-md px-2.5 pr-7 text-sm bg-white" />
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
           </div>
@@ -351,7 +371,7 @@ export function GorjetasClient({
           <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Descontos</label>
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
-            <input value={descontos} onChange={e => setDescontos(e.target.value.replace(/[^\d,.]/g, ''))}
+            <input value={descontos} onChange={e => { setRecalcular(true); setDescontos(e.target.value.replace(/[^\d,.]/g, '')) }}
               placeholder="0,00" inputMode="decimal"
               className="h-9 w-full border border-gray-300 rounded-md pl-9 pr-2.5 text-sm bg-white" />
           </div>
@@ -444,7 +464,7 @@ export function GorjetasClient({
                       <div className="flex items-center gap-1">
                         <input
                           value={pesoEdit[l.candidate_id] ?? String(pesos[l.candidate_id] ?? 1).replace('.', ',')}
-                          onChange={e => setPesoEdit(pv => ({ ...pv, [l.candidate_id]: e.target.value.replace(/[^\d,.]/g, '').slice(0, 4) }))}
+                          onChange={e => { setRecalcular(true); setPesoEdit(pv => ({ ...pv, [l.candidate_id]: e.target.value.replace(/[^\d,.]/g, '').slice(0, 4) })) }}
                           onBlur={() => salvarPeso(l)}
                           inputMode="decimal" title="Peso da função (ex.: 1 ou 0,7). Salva ao sair do campo."
                           className="h-8 w-16 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center"
@@ -455,7 +475,7 @@ export function GorjetasClient({
                     <td className="px-4 py-2.5">
                       <input
                         value={diasEdit[l.candidate_id] ?? String(diasTrabalhados[l.candidate_id] ?? '')}
-                        onChange={e => setDiasEdit(d => ({ ...d, [l.candidate_id]: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                        onChange={e => { setRecalcular(true); setDiasEdit(d => ({ ...d, [l.candidate_id]: e.target.value.replace(/\D/g, '').slice(0, 2) })) }}
                         placeholder="0" inputMode="numeric"
                         title="Dias trabalhados no mês (vêm do Vale transporte)"
                         className="h-8 w-14 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-center"
