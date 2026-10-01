@@ -1,4 +1,5 @@
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { listarCargos } from '@/lib/cargos'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -208,6 +209,7 @@ export default async function CandidatePage({
     { data: docReqRows },
     { data: salaryRaisesData },
     { data: roleChangesData },
+    cargos,
   ] = await Promise.all([
     service.from('ai_settings').select('company_name').limit(1).single(),
     service.from('companies').select('id, apelido, razao_social, cnpj').order('created_at', { ascending: false }),
@@ -224,6 +226,7 @@ export default async function CandidatePage({
     service.from('doc_requests').select('doc_key, last_requested_at').eq('candidate_id', id),
     service.from('salary_raises').select('*').eq('candidate_id', id).order('raise_date', { ascending: false }).order('created_at', { ascending: false }),
     service.from('role_changes').select('*').eq('candidate_id', id).order('change_date', { ascending: false }).order('created_at', { ascending: false }),
+    listarCargos(service),
   ])
 
   const fichaCompanies = (companiesData || []) as CompanyOption[]
@@ -585,6 +588,7 @@ export default async function CandidatePage({
             candidateId={id}
             initialChanges={roleChanges}
             funcaoAtual={admissionForm?.function_title ?? null}
+            cargos={cargos}
           />
 
           {/* Transferir de empresa — arquiva a ficha atual e mantém a ativa editável */}
@@ -614,6 +618,7 @@ export default async function CandidatePage({
                       companyName={brand?.company_name ?? null}
                       initialData={h}
                       companies={fichaCompanies}
+                      cargos={cargos}
                       readOnly
                     />
                   </ArchivedFicha>
@@ -629,6 +634,7 @@ export default async function CandidatePage({
             companyName={brand?.company_name ?? null}
             initialData={admissionForm}
             companies={fichaCompanies}
+            cargos={cargos}
             contractCompanyId={contractCompanyId}
             docRequestDates={docRequestDates}
           />

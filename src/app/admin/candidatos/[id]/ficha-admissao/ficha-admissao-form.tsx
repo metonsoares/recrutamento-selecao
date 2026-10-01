@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { formatDateTime, formatName } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 import { LinkDocumentos } from './link-documentos'
+import { SelectCargo } from '@/components/admin/select-cargo'
 import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -83,6 +84,8 @@ interface Props {
   candidate: Candidate; jobTitle: string | null; companyName: string | null
   initialData: AdmissionFormData | null
   companies: CompanyOption[]
+  /** Lista oficial de cargos (Configurações → Empresa → Cadastro de cargos) */
+  cargos?: string[]
   contractCompanyId?: string
   docRequestDates?: Record<string, string>
   /** Ficha arquivada (histórico de transferência de empresa): campos desabilitados, sem Salvar */
@@ -463,7 +466,7 @@ function DocRow({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies, contractCompanyId = '', docRequestDates = {}, readOnly = false }: Props) {
+export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyName, initialData, companies, cargos = [], contractCompanyId = '', docRequestDates = {}, readOnly = false }: Props) {
   const [form, setForm] = useState<AdmissionFormData>(() => {
     const base = initialData ? migrateData(initialData, candidate, jobTitle) : makeEmpty(candidate, jobTitle)
     // Puxa a empresa contratante da aba "Dados para contrato" quando a ficha ainda não tem uma
@@ -728,7 +731,12 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         <SectionTitle>Dados do Empregador</SectionTitle>
         <div className="grid grid-cols-1 gap-3">
           <Field label="Função / Cargo">
-            <Input value={form.function_title} onChange={e => set('function_title', e.target.value)} placeholder="Ex: Auxiliar de produção" />
+            <SelectCargo value={form.function_title} cargos={cargos} onChange={v => set('function_title', v)} />
+            {!readOnly && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                A lista vem de Configurações → Empresa → Cadastro de cargos.
+              </p>
+            )}
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Salário Base">

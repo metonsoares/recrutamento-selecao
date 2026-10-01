@@ -6,6 +6,7 @@ import { CandidateTabNav } from '../candidate-tab-nav'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao-form'
 import { parseAddressAnswer } from '@/lib/parse-address'
 import { formatName } from '@/lib/helpers'
+import { listarCargos } from '@/lib/cargos'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,9 +46,10 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
   }
 
   const service = await createSupabaseServiceClient()
-  const [{ data: brand }, { data: companiesData }] = await Promise.all([
+  const [{ data: brand }, { data: companiesData }, cargos] = await Promise.all([
     service.from('ai_settings').select('company_name').limit(1).single(),
     service.from('companies').select('id, apelido, razao_social, cnpj').order('created_at', { ascending: false }),
+    listarCargos(service),
   ])
   const companies = (companiesData || []) as CompanyOption[]
 
@@ -87,6 +89,7 @@ export default async function FichaAdmissaoPage({ params }: { params: Promise<{ 
         companyName={brand?.company_name ?? null}
         initialData={admissionForm}
         companies={companies}
+        cargos={cargos}
       />
     </div>
   )

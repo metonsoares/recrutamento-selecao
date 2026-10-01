@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
+import { SelectCargo } from '@/components/admin/select-cargo'
 
 export interface RoleChange {
   id: string
@@ -23,6 +24,8 @@ interface Props {
   initialChanges: RoleChange[]
   /** Função que está valendo hoje, vinda da ficha. */
   funcaoAtual: string | null
+  /** Lista oficial de cargos (Configurações → Empresa → Cadastro de cargos) */
+  cargos: string[]
 }
 
 /**
@@ -31,7 +34,7 @@ interface Props {
  * Registrar uma troca atualiza a função da ficha E guarda a linha do tempo,
  * com a função anterior anotada em cada passo. Trocar não apaga o passado.
  */
-export function RoleChangesPanel({ candidateId, initialChanges, funcaoAtual }: Props) {
+export function RoleChangesPanel({ candidateId, initialChanges, funcaoAtual, cargos }: Props) {
   const router = useRouter()
   const [changes, setChanges] = useState<RoleChange[]>(initialChanges)
   const [open, setOpen] = useState(false)
@@ -170,7 +173,7 @@ export function RoleChangesPanel({ candidateId, initialChanges, funcaoAtual }: P
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Nova função</label>
-                <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Ex.: Supervisor Comercial" />
+                <SelectCargo value={newTitle} cargos={cargos} onChange={setNewTitle} />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
