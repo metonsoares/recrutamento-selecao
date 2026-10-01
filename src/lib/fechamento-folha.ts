@@ -189,9 +189,12 @@ export async function montarFechamento(competencia: string): Promise<{
       // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
       const af = fichaDaCompetencia(a, fim)
 
-      // Admitido DEPOIS do mês não entra na folha daquele período.
-      const admissao = String(af?.admission_date ?? '').trim() || null
-      if (admissao && /^\d{4}-\d{2}-\d{2}$/.test(admissao) && admissao > fim) return null
+      // Sem data de admissão a pessoa ainda está em contratação: não há mês
+      // trabalhado para fechar. E quem foi admitido DEPOIS do mês também não
+      // entra no período.
+      const admissao = String(af?.admission_date ?? '').trim()
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(admissao)) return null
+      if (admissao > fim) return null
 
       const id = a.candidate_id as string
       const empresaId = String(af?.selected_company_id ?? '')
