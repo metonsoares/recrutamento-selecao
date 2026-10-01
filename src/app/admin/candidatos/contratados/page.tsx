@@ -1,4 +1,5 @@
 import { requirePermission } from '@/lib/auth-guard'
+import { countFichaPending, countCompanyPending } from '@/lib/doc-pendency'
 import { assinarUrlsDeArquivos } from '@/lib/arquivo-assinado-servidor'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
@@ -30,7 +31,10 @@ export default async function ContratadosPage() {
     created_at: string
     final_score: number | null
     culture_score: number | null
-    admission_form: { selected_company_id?: string; function_title?: string } | null
+    admission_form: {
+      selected_company_id?: string; function_title?: string
+      docs?: Record<string, unknown>; children_count?: string; alimony?: boolean | null
+    } | null
     company_docs: Record<string, { not_applicable?: boolean; files?: unknown[] }> | null
     jobs: { title: string } | { title: string }[] | null
   }
@@ -105,22 +109,15 @@ export default async function ContratadosPage() {
     }
   }
 
-  // Documentos da empresa exigidos (mesma lista da aba Documentos)
-  const COMPANY_DOC_KEYS = [
-    'ficha_registro', 'contrato_tempo_determinado', 'contrato_experiencia', 'contrato_trabalho', 'regulamento_interno',
-    'banco_horas', 'cessao_imagem', 'vale_transporte', 'uniformes_epis',
-    'acrm_geral', 'acrm_escala',
-  ]
-
+  /**
+   * "Ok" só quando não falta NADA: ficha de admissão e documentos da empresa.
+   * Olhando só os documentos da empresa, quem tinha 6 pendências na ficha
+   * aparecia como em dia — e a lista contradizia a própria ficha.
+   */
   function getPendencia(app: AppRow | null): 'ok' | 'pendente' {
-    const docs = app?.company_docs
-    if (!docs) return 'pendente'
-    for (const key of COMPANY_DOC_KEYS) {
-      const s = docs[key]
-      const resolved = s?.not_applicable === true || (s?.files?.length ?? 0) > 0
-      if (!resolved) return 'pendente'
-    }
-    return 'ok'
+    if (!app) return 'pendente'
+    const pendentes = countFichaPending(app.admission_form ?? null) + countCompanyPending(app.company_docs)
+    return pendentes === 0 ? 'ok' : 'pendente'
   }
 
   // Monta rows serializáveis para o Client Component
