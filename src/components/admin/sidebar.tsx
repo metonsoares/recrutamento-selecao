@@ -546,6 +546,7 @@ export function AdminNav({
         </div>
         <div className="flex items-center gap-1">
         <SinoNotificacoes />
+        <MenuUsuario nome={nome} perfilLabel={perfilLabel} podeVerAtualizacoes={podeVerAtualizacoes} />
         <button
           onClick={() => setMobileOpen(true)}
           aria-label="Abrir menu"
@@ -553,7 +554,6 @@ export function AdminNav({
         >
           <Menu className="w-5 h-5" />
         </button>
-        <MenuUsuario nome={nome} perfilLabel={perfilLabel} podeVerAtualizacoes={podeVerAtualizacoes} />
         </div>
       </header>
 
