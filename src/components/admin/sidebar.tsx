@@ -75,7 +75,8 @@ function SidebarContent({
     pathname.startsWith('/admin/vagas') || pathname.startsWith('/admin/teste-cultural')
   const inEmpresa =
     pathname.startsWith('/admin/configuracoes/empresa') ||
-    pathname.startsWith('/admin/configuracoes/cadastro-empresa')
+    pathname.startsWith('/admin/configuracoes/cadastro-empresa') ||
+    pathname.startsWith('/admin/configuracoes/cargos')
   const inUsuarios =
     pathname.startsWith('/admin/configuracoes/usuarios') ||
     pathname.startsWith('/admin/configuracoes/cadastrar-usuarios')
@@ -469,6 +470,11 @@ function SidebarContent({
                         {can('config.empresa_cadastro') && (
                         <Link href="/admin/configuracoes/cadastro-empresa" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cadastro-empresa') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
                           <Building2 className="w-3 h-3 shrink-0 opacity-50" />Cadastro de empresa
+                        </Link>
+                        )}
+                        {can('config.empresa_cadastro') && (
+                        <Link href="/admin/configuracoes/cargos" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/cargos') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                          <Briefcase className="w-3 h-3 shrink-0 opacity-50" />Cadastro de cargos
                         </Link>
                         )}
                         {can('config.empresa_cultura') && (
