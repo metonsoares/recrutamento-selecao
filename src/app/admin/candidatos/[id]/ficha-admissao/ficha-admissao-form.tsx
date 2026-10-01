@@ -107,7 +107,7 @@ const ALL_DOCS = [
   { key: 'cpf_dependentes',            label: 'CPF dos dependentes', perChild: true },
   { key: 'carteira_vacinacao',         label: 'Carteira de Vacinação (filhos)', perChild: true, maxArquivos: 4 },
   { key: 'declaracao_escolar',         label: 'Declaração Escolar dos filhos', perChild: true },
-  { key: 'pensao_alimenticia',         label: 'Decisão Judicial – Pensão Alimentícia' },
+  { key: 'pensao_alimenticia',         label: 'Decisão Judicial – Pensão Alimentícia', maxArquivos: 10 },
 ]
 
 const MARITAL = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável', 'Separado(a)']
