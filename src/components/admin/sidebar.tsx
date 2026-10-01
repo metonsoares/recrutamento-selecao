@@ -1,13 +1,12 @@
 'use client'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { SinoNotificacoes } from './sino-notificacoes'
-import { BotaoTema } from './botao-tema'
+import { MenuUsuario } from './menu-usuario'
 import { cn } from '@/lib/utils'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
-  MessageSquare, BarChart3, LogOut, ChevronDown,
+  MessageSquare, BarChart3, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
   Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark, Coins, Wallet, CheckCheck } from 'lucide-react'
 
@@ -48,7 +47,6 @@ function SidebarContent({
   perms?: string[]
 }) {
   const pathname = usePathname()
-  const router = useRouter()
 
   const permSet = new Set(perms)
   const can = (p: string) => permSet.has(p)
@@ -107,13 +105,6 @@ function SidebarContent({
   const [empresaOpen, setEmpresaOpen] = useState(inEmpresa)
   const [usuariosOpen, setUsuariosOpen] = useState(inUsuarios)
 
-  async function handleLogout() {
-    const supabase = createSupabaseBrowserClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
-
   function go() { onNavClick?.() }
 
   return (
@@ -143,7 +134,6 @@ function SidebarContent({
             <p className="text-[12px] text-[#8a8a8a]">{companyName || 'Brownie do Ton'}</p>
           </div>
           <div className="ml-auto flex items-center gap-0.5">
-            <BotaoTema />
             <SinoNotificacoes />
           </div>
         </div>
@@ -514,17 +504,6 @@ function SidebarContent({
 
       </nav>
 
-      {/* ── Logout ────────────────────────────────────────────────── */}
-      <div className="px-2 py-2 border-t border-[#e8e8e8]">
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2.5 px-3 h-9 w-full rounded-[6px] text-[16px] text-[#8a8a8a] hover:bg-red-50 hover:text-red-500 transition-colors"
-        >
-          <LogOut className="w-[15px] h-[15px] shrink-0" />
-          Sair
-        </button>
-      </div>
-
     </div>
   )
 }
@@ -536,11 +515,17 @@ export function AdminNav({
   companyName,
   role,
   perms = [],
+  nome,
+  perfilLabel,
+  podeVerAtualizacoes,
 }: {
   logoUrl?: string | null
   companyName?: string | null
   role?: UserRole
   perms?: string[]
+  nome: string
+  perfilLabel: string
+  podeVerAtualizacoes: boolean
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -560,7 +545,6 @@ export function AdminNav({
           <span className="text-[14px] font-semibold text-[#333333]">Banco de Talentos</span>
         </div>
         <div className="flex items-center gap-1">
-        <BotaoTema />
         <SinoNotificacoes />
         <button
           onClick={() => setMobileOpen(true)}
@@ -569,6 +553,7 @@ export function AdminNav({
         >
           <Menu className="w-5 h-5" />
         </button>
+        <MenuUsuario nome={nome} perfilLabel={perfilLabel} podeVerAtualizacoes={podeVerAtualizacoes} />
         </div>
       </header>
 

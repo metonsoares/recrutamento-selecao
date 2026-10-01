@@ -15,7 +15,7 @@ const PORTAL_URL =
 const PORTAL_PUBLISHABLE_KEY =
   process.env.PORTAL_SUPABASE_KEY || 'sb_publishable_5WNUgNJi51Rx3kZIQRtVfA_hVRf1tC9'
 
-type AcaoBridge = 'perfil' | 'online' | 'beat' | 'avarias'
+type AcaoBridge = 'perfil' | 'online' | 'beat' | 'avarias' | 'atualizacoes'
 
 /**
  * Chama a Edge Function `recrutamento-bridge` do Portal.

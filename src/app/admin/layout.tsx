@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { AdminNav } from '@/components/admin/sidebar'
+import { MenuUsuario } from '@/components/admin/menu-usuario'
 import { PresenceHeartbeat } from '@/components/PresenceHeartbeat'
 import { AvisoNovaVersao } from '@/components/aviso-nova-versao'
 import { versaoAtual } from '@/lib/versao'
@@ -45,6 +46,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     getGrantedPerms(perfilPreview ?? role),
   ])
 
+  // Nome e perfil mostrados no menu do usuário. O nome vem do cadastro do
+  // Portal (gravado no metadata ao provisionar); sem ele, o começo do e-mail
+  // ainda identifica quem está logado melhor que um avatar mudo.
+  const nome =
+    (user.user_metadata?.full_name as string | undefined)?.trim() ||
+    (user.user_metadata?.name as string | undefined)?.trim() ||
+    (user.email ?? '').split('@')[0]
+
+  // "Atualizações" é o diário de publicações do app — item de quem gere.
+  const podeVerAtualizacoes = (['master', 'admin', 'gestor', 'gestor_rh'] as Role[])
+    .includes(perfilPreview ?? role)
+
   return (
     <div className="min-h-screen bg-muted/30">
       <AdminNav
@@ -52,13 +65,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         companyName={brandSettings?.company_name ?? null}
         role={perfilPreview ?? role}
         perms={Array.from(granted)}
+        nome={nome}
+        perfilLabel={ROLE_LABELS[perfilPreview ?? role]}
+        podeVerAtualizacoes={podeVerAtualizacoes}
       />
       <PresenceHeartbeat />
       {/* Avisa quem está com a aba aberta que saiu publicação nova. */}
       <AvisoNovaVersao versaoAtual={versaoAtual()} />
 
+      <div className="lg:pl-72">
+        {/* Barra superior (computador): o menu do usuário mora aqui, à direita,
+            como nos outros apps da casa. No celular ele fica no cabeçalho fixo. */}
+        <header className="hidden lg:flex sticky top-0 z-30 h-14 items-center justify-end px-6 bg-white border-b border-[#e8e8e8]">
+          <MenuUsuario
+            nome={nome}
+            perfilLabel={ROLE_LABELS[perfilPreview ?? role]}
+            podeVerAtualizacoes={podeVerAtualizacoes}
+            mostrarNome
+          />
+        </header>
+
       {perfilPreview && (
-        <div className="lg:pl-72">
+        <div>
           <div className="m-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 flex items-center gap-2 flex-wrap">
             <span className="text-[13px] text-amber-900">
               Você está vendo o menu como <strong>{ROLE_LABELS[perfilPreview]}</strong>.
@@ -71,9 +99,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </div>
       )}
-      <main className="lg:pl-72 min-h-screen">
-        {children}
-      </main>
+        <main className="min-h-screen lg:min-h-[calc(100vh-3.5rem)]">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
