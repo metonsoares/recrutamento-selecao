@@ -1,6 +1,6 @@
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { mesCorrente, competenciaValida } from '@/lib/competencia'
+import { mesPadraoFolha, competenciaValida } from '@/lib/competencia'
 import { AprovadasClient, EmpresaAprovada, ItemAprovado } from './aprovadas-client'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +20,7 @@ export default async function FolhasAprovadasPage({
 }) {
   await requireMaster()
   const sp = await searchParams
-  const competencia = competenciaValida(sp.competencia) ? sp.competencia : mesCorrente()
+  const competencia = competenciaValida(sp.competencia) ? sp.competencia : mesPadraoFolha()
   const supabase = await createSupabaseServiceClient()
 
   const { data: ciclos } = await supabase

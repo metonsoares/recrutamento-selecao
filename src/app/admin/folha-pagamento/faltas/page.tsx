@@ -1,15 +1,10 @@
 import { requireAnyRole } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { mesPadraoFolha } from '@/lib/competencia'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 import { FaltasClient, LinhaFalta, EmpresaOpcao } from './faltas-client'
 
 export const dynamic = 'force-dynamic'
-
-/** Mês corrente (yyyy-mm-01) no fuso de São Paulo. */
-function mesCorrente(): string {
-  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 /** Último dia do mês (yyyy-mm-dd). */
 function fimDoMes(competencia: string): string {
@@ -28,7 +23,7 @@ export default async function FaltasPage({
 
   const competencia = /^\d{4}-\d{2}-01$/.test(sp.competencia ?? '')
     ? (sp.competencia as string)
-    : mesCorrente()
+    : mesPadraoFolha()
   const fim = fimDoMes(competencia)
 
   const supabase = await createSupabaseServiceClient()

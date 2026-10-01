@@ -1,16 +1,10 @@
 import { requireAnyRole } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
-import { fimDoMes } from '@/lib/competencia'
+import { fimDoMes, mesPadraoFolha } from '@/lib/competencia'
 import { ValeTransporteClient, LinhaVT, EmpresaOpcao, RegistroDias } from './vale-transporte-client'
 
 export const dynamic = 'force-dynamic'
-
-/** Mês corrente (yyyy-mm-01) no fuso de São Paulo. */
-function mesCorrente(): string {
-  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 // Exclusivo do Master. Quem recebe vale transporte vem da FICHA do colaborador
 // (admission_form.transport_benefit). Vale para contratados e intermitentes
@@ -25,7 +19,7 @@ export default async function ValeTransportePage({
 
   const competencia = /^\d{4}-\d{2}-01$/.test(sp.competencia ?? '')
     ? (sp.competencia as string)
-    : mesCorrente()
+    : mesPadraoFolha()
 
   // Último dia da competência: é ele que diz qual ficha valia no mês.
   const fim = fimDoMes(competencia)

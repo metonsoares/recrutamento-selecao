@@ -46,6 +46,17 @@ export function mesCorrente(): string {
   return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`
 }
 
+/**
+ * Mês que as telas de folha abrem por padrão: o ANTERIOR ao corrente.
+ *
+ * Folha se fecha sobre o mês que terminou — abrir no mês em curso obrigava a
+ * voltar um mês em toda tela, e um lançamento feito sem perceber caía na
+ * competência errada.
+ */
+export function mesPadraoFolha(): string {
+  return mesVizinho(mesCorrente(), -1)
+}
+
 /** Último dia do mês da competência, em `yyyy-mm-dd`. */
 export function fimDoMes(competencia: string): string {
   const [ano, mes] = competencia.split('-').map(Number)

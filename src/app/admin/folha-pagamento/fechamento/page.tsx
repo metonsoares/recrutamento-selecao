@@ -1,6 +1,6 @@
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { mesCorrente, competenciaValida } from '@/lib/competencia'
+import { mesPadraoFolha, competenciaValida } from '@/lib/competencia'
 import { montarFechamento } from '@/lib/fechamento-folha'
 import { FechamentoClient } from './fechamento-client'
 
@@ -20,7 +20,7 @@ export default async function FechamentoPage({
 }) {
   await requireMaster()
   const sp = await searchParams
-  const competencia = competenciaValida(sp.competencia) ? sp.competencia : mesCorrente()
+  const competencia = competenciaValida(sp.competencia) ? sp.competencia : mesPadraoFolha()
 
   // A montagem vive em lib/fechamento-folha porque a tela de Folhas aprovadas
   // mostra exatamente a mesma tabela — duplicar faria as duas divergirem.

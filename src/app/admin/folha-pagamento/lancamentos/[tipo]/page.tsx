@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { requireAnyRole } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { mesCorrente, fimDoMes, competenciaValida } from '@/lib/competencia'
+import { mesPadraoFolha, fimDoMes, competenciaValida } from '@/lib/competencia'
 import { LANCAMENTOS, tipoValido } from '@/lib/folha-lancamentos'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
@@ -28,7 +28,7 @@ export default async function LancamentosPage({
   // não têm como divergir.
   await requireAnyRole(config.perfis)
   const sp = await searchParams
-  const competencia = competenciaValida(sp.competencia) ? sp.competencia : mesCorrente()
+  const competencia = competenciaValida(sp.competencia) ? sp.competencia : mesPadraoFolha()
   const fim = fimDoMes(competencia)
 
   const supabase = await createSupabaseServiceClient()
