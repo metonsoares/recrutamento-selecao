@@ -2,6 +2,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { fimDoMes } from '@/lib/competencia'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
+import { LANCAMENTOS } from '@/lib/folha-lancamentos'
 
 /**
  * Montagem do fechamento de folha de um mês.
@@ -56,6 +57,23 @@ export interface EmpresaOpcao { id: string; nome: string }
 type Lancamentos = Pick<LinhaFechamento,
   'domingos' | 'feriados' | 'avarias' | 'adiantamento' | 'horas_normais' | 'horas_50'
   | 'horas_100' | 'adicional_noturno' | 'gratificacao' | 'confianca_valor' | 'quebra_valor' | 'atrasos'>
+
+/** "R$ 1.234,56" -> 1234.56 (o salario da ficha e texto). */
+function paraNumero(v: string | null): number {
+  if (!v) return 0
+  return Number(String(v).replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.')) || 0
+}
+
+/**
+ * Percentual do salario, com a MESMA regra da tela de lancamento: salario
+ * abaixo de R$ 100 na ficha e valor/HORA (padrao do intermitente) e nao serve
+ * de base — calcular sobre ele daria um adicional irrisorio e enganoso.
+ */
+function percentualDoSalario(salario: string | null, percentual: number): number {
+  const base = paraNumero(salario)
+  if (base < 100) return 0
+  return Math.round(base * percentual * 100) / 100
+}
 
 function lancamentosZerados(): Lancamentos {
   return {
@@ -198,6 +216,19 @@ export async function montarFechamento(competencia: string): Promise<{
 
       const id = a.candidate_id as string
       const empresaId = String(af?.selected_company_id ?? '')
+      // O salário daquele mês: aumento posterior não reescreve o passado.
+      const salario = salarioVigente(String(af?.salary ?? '').trim() || null, aumentosPorCand.get(id), fim)
+      const confianca = simNao(af?.cargo_confianca)
+      const lanc = { ...(lancPorCand.get(id) ?? lancamentosZerados()) }
+
+      // Cargo de confiança é regra fixa do cargo — 40% do salário da ficha, sem
+      // nada para digitar (a tela de lançamento só mostra a conta). Enquanto
+      // ninguém abrisse o lançamento do mês, o fechamento somava zero e a folha
+      // saía sem o adicional, mesmo com a ficha dizendo "Sim". A conta vale
+      // aqui também; lançamento aprovado continua mandando.
+      if (confianca === true && lanc.confianca_valor === 0) {
+        lanc.confianca_valor = percentualDoSalario(salario, LANCAMENTOS['cargo-confianca'].percentualSalario ?? 0)
+      }
 
       return {
         candidate_id: id,
@@ -212,13 +243,12 @@ export async function montarFechamento(competencia: string): Promise<{
         vale_transporte: simNao(af?.transport_benefit),
         mensalidade_sindical: simNao(af?.union_dues),
         gorjeta: gorjetaPorCand.get(id) ?? 0,
-        cargo_confianca: simNao(af?.cargo_confianca),
+        cargo_confianca: confianca,
         insalubridade_20: simNao(af?.insalubridade_20),
         quebra_caixa_15: simNao(af?.quebra_caixa_15),
-        // O salário daquele mês: aumento posterior não reescreve o passado.
-        salario: salarioVigente(String(af?.salary ?? '').trim() || null, aumentosPorCand.get(id), fim),
+        salario,
         comentario: comentarioPorCand.get(id) ?? '',
-        ...(lancPorCand.get(id) ?? lancamentosZerados()),
+        ...lanc,
       }
     })
     .filter(Boolean) as LinhaFechamento[]
