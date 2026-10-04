@@ -223,6 +223,43 @@
 .dark .text-\[\#8a8a8a\] { color: #9aa29e; }
 .dark .text-\[\#666666\] { color: #b6bdb9; }
 
+/*
+ * Os hexadecimais curtos e os que faltavam. Sem estas linhas o texto do cartão
+ * do quadro de currículos (text-[#1a1a1a]) continuava quase preto sobre o
+ * cartão escuro e sumia — o nome do candidato não aparecia.
+ */
+.dark .text-\[\#1a1a1a\], .dark .text-\[\#222\] { color: #e9edea; }
+.dark .text-\[\#666\] { color: #b6bdb9; }
+.dark .text-\[\#777\], .dark .text-\[\#888\] { color: #9aa29e; }
+/* #bbb e #ccc são ícones decorativos (alça de arrastar, moldura de imagem):
+   no claro quase não aparecem, então no escuro também não podem gritar. */
+.dark .text-\[\#bbb\], .dark .text-\[\#ccc\] { color: #6f7773; }
+
+/* Superfícies claras que ainda clareavam blocos inteiros no escuro. */
+.dark .bg-\[\#f4f4f4\], .dark .bg-\[\#f5f5f5\], .dark .hover\:bg-\[\#f5f5f5\]:hover { background-color: #171b19; }
+.dark .bg-\[\#f8f9fb\], .dark .bg-\[\#f9fafb\] { background-color: #141716; }
+.dark .bg-\[\#eee\], .dark .hover\:bg-\[\#eee\]:hover { background-color: #232825; }
+/* Item ATIVO do menu: um degrau acima do hover, para continuar se destacando. */
+.dark .bg-\[\#e6e6e6\], .dark .bg-\[\#e8e8e8\] { background-color: #2a302d; }
+.dark .border-\[\#ebebeb\], .dark .border-\[\#f0f0f0\] { border-color: rgb(255 255 255 / 8%); }
+.dark .border-\[\#d0d0d0\] { border-color: rgb(255 255 255 / 15%); }
+.dark .border-\[\#aaa\] { border-color: rgb(255 255 255 / 22%); }
+
+/* WhatsApp: o verde do balão enviado e o cinza do fundo são da marca dele —
+   no escuro viram a mesma coisa em tom escuro, senão a conversa fica um
+   retângulo branco com letra clara por cima (ilegível). */
+.dark .bg-\[\#f0f2f5\] { background-color: #141716; }
+.dark .bg-\[\#d9fdd3\] { background-color: #1e4435; }
+/* Verde escuro do WhatsApp e azul do D4Sign: legíveis no branco, não no preto. */
+.dark .text-\[\#128C7E\] { color: #3ddc95; }
+.dark .text-\[\#0b5cff\] { color: #7aa5ff; }
+
+/* Ardósia aparece só no selo "ver" da matriz de acessos, mas sem regra ele
+   fica claro no escuro. */
+.dark .bg-slate-100 { background-color: #1d211f; }
+.dark .border-slate-200 { border-color: rgb(255 255 255 / 11%); }
+.dark .text-slate-600 { color: #b6bdb9; }
+
 /* Selos e cartões coloridos: pastel vira véu da própria cor */
 .dark .bg-amber-50 { background-color: rgb(245 158 11 / 12%); }
 .dark .bg-amber-100 { background-color: rgb(245 158 11 / 20%); }
