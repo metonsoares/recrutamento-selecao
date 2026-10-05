@@ -128,19 +128,22 @@ export default async function PremioCajuPage({
       const c = candPorId.get(a.candidate_id as string)
       if (!c || c.deleted_at) return null
 
-      const docs = a.company_docs as Record<string, unknown> | null
-      const caju = docs?.premio_caju as { not_applicable?: boolean } | undefined
-      if (caju?.not_applicable === true) return null // "Não aplicável" fica fora
-
       // A ficha do MÊS, não a de hoje: quem foi transferido de empresa tem
       // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
       const af = fichaDaCompetencia(a, fim)
 
-      // "Recebe prêmio Caju?" respondido NÃO na ficha tira da lista. Só o não
-      // explícito exclui: ficha ainda sem resposta (null) continua entrando,
-      // senão a pergunta nova esvaziaria a tela de uma vez.
+      // Quem decide o DIREITO é a ficha ("Recebe prêmio Caju?"). O "Não
+      // aplicável" do documento Prêmio Caju fala de PAPEL — é o anexo do termo
+      // — e só vale como resposta enquanto a ficha não tiver uma: com os dois
+      // marcados ao contrário, quem tem "Sim" na ficha sumia da lista sem
+      // ninguém entender por quê.
       const recebeCaju = af?.premio_caju
       if (recebeCaju === false || recebeCaju === 'false') return null
+
+      const docs = a.company_docs as Record<string, unknown> | null
+      const caju = docs?.premio_caju as { not_applicable?: boolean } | undefined
+      const fichaRespondeu = recebeCaju === true || recebeCaju === 'true'
+      if (!fichaRespondeu && caju?.not_applicable === true) return null
 
       const empresaId = String(af?.selected_company_id ?? '')
       const id = a.candidate_id as string
