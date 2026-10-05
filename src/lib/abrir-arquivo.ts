@@ -36,14 +36,18 @@ export async function abrirArquivoAssinado(
    * `envolverUrl` significa VISUALIZAR; sem ele, o arquivo é BAIXADO, que é o
    * que se espera de um anexo.
    */
-  opcoes: { envolverUrl?: (assinada: string) => string } = {},
+  opcoes: {
+    envolverUrl?: (assinada: string) => string
+    /** Abre o arquivo numa aba em vez de baixar — para PDF, que o navegador já exibe. */
+    visualizar?: boolean
+  } = {},
 ): Promise<string | null> {
   e.preventDefault()
   e.stopPropagation()
 
   if (!file) return 'Arquivo não encontrado.'
 
-  const visualizar = !!opcoes.envolverUrl
+  const visualizar = !!opcoes.envolverUrl || opcoes.visualizar === true
 
   if (!file.path) {
     if (file.url) { window.open(file.url, '_blank', 'noopener'); return null }
@@ -67,7 +71,7 @@ export async function abrirArquivoAssinado(
     if (!res.ok || !d.url) throw new Error(d.error || 'Não foi possível abrir o arquivo.')
 
     if (visualizar) {
-      const destino = opcoes.envolverUrl!(d.url as string)
+      const destino = opcoes.envolverUrl ? opcoes.envolverUrl(d.url as string) : (d.url as string)
       if (aba) aba.location.replace(destino)
       else window.open(destino, '_blank', 'noopener')
       return null

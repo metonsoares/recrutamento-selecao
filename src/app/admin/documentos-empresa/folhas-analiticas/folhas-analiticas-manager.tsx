@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   FileSpreadsheet, Plus, Search, Upload, X, Loader2, Trash2,
-  AlertCircle, CheckCircle2, ExternalLink, Building2,
+  AlertCircle, CheckCircle2, ExternalLink, Building2, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MESES, rotuloMesLongo } from '@/lib/competencia'
@@ -138,10 +138,27 @@ export function FolhasAnaliticasManager({
                   <td className="px-4 py-2.5 text-gray-500 hidden sm:table-cell truncate max-w-[240px]">{f.file_name}</td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     {f.path && (
-                      <a href="#" onClick={e => abrirArquivoAssinado(e, { path: f.path }, 'folhas-analiticas')}
-                        className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline mr-2">
-                        Abrir PDF<ExternalLink className="w-3 h-3" />
-                      </a>
+                      <>
+                        {/* Abrir mostra o PDF na aba; baixar entrega o arquivo com o
+                            nome dele. São coisas diferentes — antes "Abrir PDF"
+                            baixava, e quem só queria conferir ficava com um
+                            arquivo novo na pasta de downloads. */}
+                        <a href="#" onClick={async e => {
+                          const erro = await abrirArquivoAssinado(e, { path: f.path, name: f.file_name }, 'folhas-analiticas', { visualizar: true })
+                          if (erro) setAviso({ tipo: 'erro', msg: erro })
+                        }}
+                          className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline mr-2">
+                          Abrir PDF<ExternalLink className="w-3 h-3" />
+                        </a>
+                        <button onClick={async e => {
+                          const erro = await abrirArquivoAssinado(e, { path: f.path, name: f.file_name }, 'folhas-analiticas')
+                          if (erro) setAviso({ tipo: 'erro', msg: erro })
+                        }}
+                          title={`Baixar ${f.file_name}`} aria-label={`Baixar ${f.file_name}`}
+                          className="p-1 text-gray-400 hover:text-primary rounded align-middle mr-1">
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                     <button onClick={() => setRemovendo(f)} title="Remover"
                       className="p-1 text-gray-400 hover:text-red-600 rounded align-middle">
