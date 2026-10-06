@@ -27,6 +27,10 @@ export interface LinhaCaju {
   /** yyyy-mm-dd — fim do período de experiência (null = sem experiência ou sem data) */
   fim_experiencia: string | null
   sem_data_admissao: boolean
+  /** Dias da competência em que a pessoa esteve de férias (0 = mês inteiro trabalhado). */
+  dias_ferias: number
+  /** Dias do mês da competência, base do cálculo proporcional. */
+  dias_mes: number
   elegivel: boolean
 }
 
@@ -170,7 +174,19 @@ export function PremioCajuClient({
   function valorDe(l: LinhaCaju): number {
     const aj = ajustes[l.candidate_id]
     if (aj !== undefined) return Number(aj.replace(/\./g, '').replace(',', '.')) || 0
-    return padraoNum
+    return proporcionalDe(l)
+  }
+
+  /**
+   * Valor do mês proporcional aos dias trabalhados: quem passou parte da
+   * competência de férias recebe a parte do mês em que esteve trabalhando
+   * (sai dia 15 de setembro → 14 dos 30 dias). Sem férias no mês, é o valor
+   * cheio. O campo da linha continua mandando quando o RH digita outro valor.
+   */
+  function proporcionalDe(l: LinhaCaju): number {
+    if (padraoNum <= 0 || l.dias_ferias <= 0 || l.dias_mes <= 0) return padraoNum
+    const trabalhados = Math.max(0, l.dias_mes - l.dias_ferias)
+    return Math.round((padraoNum * trabalhados / l.dias_mes) * 100) / 100
   }
 
   const historicoPorCand = useMemo(() => {
@@ -211,10 +227,13 @@ export function PremioCajuClient({
 
   /** Replica o valor do mês nas linhas que estão listadas no filtro atual. */
   function aplicarATodos() {
-    const texto = valorPadrao.trim()
     setAjustes(a => {
       const novo = { ...a }
-      for (const l of elegiveis) novo[l.candidate_id] = texto
+      // Cada linha recebe o SEU valor: quem teve férias no mês leva a parte
+      // proporcional, não o valor cheio digitado em cima.
+      for (const l of elegiveis) {
+        novo[l.candidate_id] = proporcionalDe(l).toFixed(2).replace('.', ',')
+      }
       return novo
     })
     setOk(`Valor aplicado a ${elegiveis.length} colaborador${elegiveis.length !== 1 ? 'es' : ''}${nomeEmpresa ? ` de ${nomeEmpresa}` : ''}.`)
@@ -247,7 +266,13 @@ export function PremioCajuClient({
     const total = itens.reduce((s, i) => s + i.valor, 0)
     const empresaLabel = empresas.find(e => e.id === empresaId)?.nome
     const nomeArquivo = `premio-caju-${periodo.slice(0, 7)}${empresaLabel ? '-' + empresaLabel.replace(/[^\w]+/g, '-') : ''}`
-    const cabecalho = ['Funcionário', 'Empresa', 'Valor']
+    // CPF no Excel e no PDF (o CSV do pedido de premiação segue só "CPF;Saldo"):
+    // sem ele, um CPF solto no arquivo não tem como ser conferido com a pessoa.
+    const cabecalho = ['Funcionário', 'CPF', 'Empresa', 'Valor']
+    const cpfDe = (id: string) => {
+      const d = cpfs[id] ?? ''
+      return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : '—'
+    }
     const situacao = aprovados.length > 0 ? 'aprovado' : 'ainda não aprovado'
 
     if (formato === 'csv') {
@@ -270,15 +295,15 @@ export function PremioCajuClient({
     }
 
     if (formato === 'xlsx') {
-      const corpo = itens.map(i => [formatName(i.nome), i.empresa_nome ?? '—', i.valor])
-      baixarArquivo(await gerarXlsx([cabecalho, ...corpo, ['TOTAL', '', total]], 'Prêmio Caju'), `${nomeArquivo}.xlsx`)
+      const corpo = itens.map(i => [formatName(i.nome), cpfDe(i.candidate_id), i.empresa_nome ?? '—', i.valor])
+      baixarArquivo(await gerarXlsx([cabecalho, ...corpo, ['TOTAL', '', '', total]], 'Prêmio Caju'), `${nomeArquivo}.xlsx`)
     } else {
-      const corpo = itens.map(i => [formatName(i.nome), i.empresa_nome ?? '—', brl(i.valor)])
+      const corpo = itens.map(i => [formatName(i.nome), cpfDe(i.candidate_id), i.empresa_nome ?? '—', brl(i.valor)])
       const blob = await gerarPdfTabela({
         titulo: 'Prêmio Caju',
         subtitulo: `${maiuscula(rotuloMes(periodo))} · ${empresaLabel ?? 'Todas as empresas'} · ${itens.length} colaboradores · Total ${brl(total)} · pagar até ${prazoPagamento(periodo)} · ${situacao}`,
         cabecalho,
-        linhas: [...corpo, ['TOTAL', '', brl(total)]],
+        linhas: [...corpo, ['TOTAL', '', '', brl(total)]],
       })
       baixarArquivo(blob, `${nomeArquivo}.pdf`)
     }
@@ -443,6 +468,12 @@ export function PremioCajuClient({
                           Efetivado
                         </span>
                       )}
+                      {l.dias_ferias > 0 && (
+                        <span title={`${l.dias_ferias} de ${l.dias_mes} dias de férias no mês — prêmio proporcional aos ${l.dias_mes - l.dias_ferias} dias trabalhados`}
+                          className="ml-1.5 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-sky-100 text-sky-700 align-middle">
+                          Férias {l.dias_ferias}d
+                        </span>
+                      )}
                       {l.sem_data_admissao && (
                         <span title="Ficha sem data de admissão — não dá para calcular a experiência"
                           className="ml-1.5 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-gray-100 text-gray-500 align-middle">
@@ -496,8 +527,15 @@ export function PremioCajuClient({
                     <td className="px-4 py-2.5 text-gray-600 hidden sm:table-cell">{l.empresa ?? '—'}</td>
                     <td className="px-4 py-2.5">
                       {l.elegivel ? (
-                        <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700">
-                          <CheckCircle2 className="w-3.5 h-3.5" />Sem ocorrência
+                        <span className="inline-flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700">
+                            <CheckCircle2 className="w-3.5 h-3.5" />Sem ocorrência
+                          </span>
+                          {l.dias_ferias > 0 && (
+                            <span className="text-[11px] text-sky-700">
+                              Proporcional: {l.dias_mes - l.dias_ferias} de {l.dias_mes} dias
+                            </span>
+                          )}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-red-600">
@@ -517,7 +555,7 @@ export function PremioCajuClient({
                           <input
                             value={ajustes[l.candidate_id] ?? ''}
                             onChange={e => setAjustes(a => ({ ...a, [l.candidate_id]: e.target.value.replace(/[^\d,.]/g, '') }))}
-                            placeholder={padraoNum ? String(padraoNum).replace('.', ',') : '0,00'}
+                            placeholder={padraoNum ? proporcionalDe(l).toFixed(2).replace('.', ',') : '0,00'}
                             inputMode="decimal"
                             className="h-8 w-full border border-gray-300 rounded-md pl-7 pr-2 text-[13px] bg-white"
                           />

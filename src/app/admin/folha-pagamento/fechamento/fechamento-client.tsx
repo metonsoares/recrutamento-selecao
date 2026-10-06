@@ -172,7 +172,7 @@ export function FechamentoClient({
   }
 
   const CABECALHO = [
-    'Colaborador', 'Empresa', 'Vínculo', 'Dias trabalhados', 'Vale transporte', 'Faltas',
+    'Colaborador', 'Empresa', 'Vínculo', 'Dias trabalhados', 'Dias de férias', 'Vale transporte', 'Faltas',
     'Domingos', 'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial',
     'Horas normais', 'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Atrasos', 'Gratificação',
     'Insalubridade 20%', 'Cargo de confiança', 'Quebra de caixa', 'Gorjeta',
@@ -248,6 +248,7 @@ export function FechamentoClient({
     const colunas: Coluna[] = [
       { titulo: 'Colaborador', alinhamento: 'left', fixa: true, valor: l => formatName(l.nome) },
       { titulo: 'Dias', alinhamento: 'center', fixa: true, valor: l => l.dias_trabalhados || '' },
+      { titulo: 'Férias', alinhamento: 'center', valor: l => l.dias_ferias || '' },
       { titulo: 'VT', alinhamento: 'center', valor: l => simNaoTexto(l.vale_transporte) },
       { titulo: 'Faltas', alinhamento: 'center', valor: l => l.faltas || '' },
       { titulo: 'Dom/Fer', alinhamento: 'center', valor: l => l.domingos + l.feriados || '' },
@@ -283,7 +284,7 @@ export function FechamentoClient({
     const corpo = selecionadas.map(l => [
       formatName(l.nome), l.empresa ?? '—',
       l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
-      l.dias_trabalhados, simNaoTexto(l.vale_transporte), l.faltas,
+      l.dias_trabalhados, l.dias_ferias, simNaoTexto(l.vale_transporte), l.faltas,
       l.domingos, l.feriados, simNaoTexto(l.mensalidade_sindical),
       l.avarias, l.adiantamento,
       formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
@@ -494,6 +495,7 @@ export function FechamentoClient({
                 <th className="px-3 py-2 font-semibold sticky left-8 z-20 bg-gray-50">Colaborador</th>
                 <th className="px-3 py-2 font-semibold">Empresa</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[100px] break-words">Dias trabalhados</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[72px] break-words">Férias</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[96px] break-words">Vale transporte</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[64px] break-words">Faltas</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[92px] break-words">Domingos e feriados</th>
@@ -542,6 +544,16 @@ export function FechamentoClient({
                   </td>
                   <td className="px-3 py-2 text-gray-600 whitespace-nowrap group-hover:bg-gray-50">{l.empresa ?? '—'}</td>
                   <td className="px-2 py-2 text-center font-semibold text-gray-900">{l.dias_trabalhados || ''}</td>
+                  {/* Dias de férias dentro do mês: é o que torna proporcional o
+                      prêmio e o que explica um mês com menos dias trabalhados. */}
+                  <td className="px-2 py-2 text-center">
+                    {l.dias_ferias > 0 && (
+                      <span className="font-semibold text-sky-700"
+                        title={`${l.dias_ferias} dia(s) de férias dentro da competência`}>
+                        {l.dias_ferias}
+                      </span>
+                    )}
+                  </td>
                   {/* Recebe VT em verde, não recebe em vermelho. */}
                   <td className="px-2 py-2 text-center"><SimNao v={l.vale_transporte} /></td>
                   <td className="px-2 py-2 text-center">

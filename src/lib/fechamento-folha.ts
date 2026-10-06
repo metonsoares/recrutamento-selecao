@@ -2,6 +2,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { fimDoMes } from '@/lib/competencia'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
 import { agruparAumentos, salarioVigente } from '@/lib/salario-vigente'
+import { diasDeFeriasNoPeriodo } from '@/lib/ferias'
 import { LANCAMENTOS } from '@/lib/folha-lancamentos'
 
 /**
@@ -22,6 +23,8 @@ export interface LinhaFechamento {
   empresa: string | null
   vinculo: 'contratado' | 'intermitente'
   dias_trabalhados: number
+  /** Dias da competência em que a pessoa esteve de férias. */
+  dias_ferias: number
   faltas: number
   /** null = a ficha ainda não respondeu */
   vale_transporte: boolean | null
@@ -103,7 +106,7 @@ export async function montarFechamento(competencia: string): Promise<{
   // falharam silenciosamente neste projeto.
   const [
     { data: apps }, { data: empresas }, { data: vtCiclo }, { data: gorjetaCiclo },
-    { data: faltas }, { data: comentarios },
+    { data: faltas }, { data: comentarios }, { data: feriasMes },
   ] = await Promise.all([
     supabase.from('applications')
       .select('candidate_id, admission_form, admission_form_history, status')
@@ -117,6 +120,9 @@ export async function montarFechamento(competencia: string): Promise<{
       .gte('absence_date', competencia).lte('absence_date', fim),
     supabase.from('fechamento_comentarios')
       .select('candidate_id, comentario').eq('competencia', competencia),
+    // Férias que cruzam o mês: quem fecha a folha precisa ver quem esteve fora.
+    supabase.from('vacations').select('candidate_id, start_date, end_date')
+      .lte('start_date', fim).gte('end_date', competencia),
   ])
 
   // Lançamentos do mês (avarias, horas extras, gratificação…): o fechamento
@@ -198,6 +204,14 @@ export async function montarFechamento(competencia: string): Promise<{
     faltasPorCand.set(id, (faltasPorCand.get(id) ?? 0) + (Number(f.days) || 1))
   }
 
+  const feriasPorCand = new Map<string, { inicio: string; fim: string }[]>()
+  for (const f of feriasMes ?? []) {
+    const k = f.candidate_id as string
+    const lista = feriasPorCand.get(k) ?? []
+    lista.push({ inicio: String(f.start_date), fim: String(f.end_date) })
+    feriasPorCand.set(k, lista)
+  }
+
   const linhas: LinhaFechamento[] = appsList
     .map(a => {
       const c = candPorId.get(a.candidate_id as string)
@@ -239,6 +253,7 @@ export async function montarFechamento(competencia: string): Promise<{
         empresa: empresaPorId.get(empresaId) ?? null,
         vinculo: a.status === 'aprovado' ? ('intermitente' as const) : ('contratado' as const),
         dias_trabalhados: diasPorCand.get(id) ?? 0,
+        dias_ferias: diasDeFeriasNoPeriodo(feriasPorCand.get(id) ?? [], competencia, fim),
         faltas: faltasPorCand.get(id) ?? 0,
         vale_transporte: simNao(af?.transport_benefit),
         mensalidade_sindical: simNao(af?.union_dues),

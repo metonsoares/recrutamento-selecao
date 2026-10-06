@@ -1,6 +1,7 @@
 import { requireMaster } from '@/lib/auth-guard'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { fichaDaCompetencia } from '@/lib/ficha-competencia'
+import { diasDeFeriasNoPeriodo, diasDoMes } from '@/lib/ferias'
 import { PremioCajuClient, LinhaCaju, EmpresaOpcao, PagamentoHistorico } from './premio-caju-client'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +62,7 @@ export default async function PremioCajuPage({
   const appsList = apps ?? []
   const candIds = appsList.map(a => a.candidate_id as string).filter(Boolean)
 
-  const [{ data: cands }, { data: faltas }, { data: advertencias }] = await Promise.all([
+  const [{ data: cands }, { data: faltas }, { data: advertencias }, { data: feriasMes }] = await Promise.all([
     candIds.length
       ? supabase.from('candidates').select('id, full_name, cpf, deleted_at').in('id', candIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }),
@@ -70,6 +71,10 @@ export default async function PremioCajuPage({
       .eq('kind', 'injustificada').gte('absence_date', inicio).lte('absence_date', fim),
     supabase.from('warnings').select('candidate_id, occurred_at')
       .gte('occurred_at', inicio).lte('occurred_at', fim),
+    // Férias que cruzam o mês: quem passou parte da competência fora não
+    // trabalhou o mês inteiro, e o prêmio acompanha os dias trabalhados.
+    supabase.from('vacations').select('candidate_id, start_date, end_date')
+      .lte('start_date', fim).gte('end_date', inicio),
   ])
 
   // Histórico de pagamentos aprovados (mês + valor por pessoa).
@@ -93,6 +98,15 @@ export default async function PremioCajuPage({
     const k = f.candidate_id as string
     faltasPorCand.set(k, (faltasPorCand.get(k) ?? 0) + (Number(f.days) || 1))
   }
+  const feriasPorCand = new Map<string, { inicio: string; fim: string }[]>()
+  for (const f of feriasMes ?? []) {
+    const k = f.candidate_id as string
+    const lista = feriasPorCand.get(k) ?? []
+    lista.push({ inicio: String(f.start_date), fim: String(f.end_date) })
+    feriasPorCand.set(k, lista)
+  }
+  const diasNoMes = diasDoMes(competencia)
+
   const advPorCand = new Map<string, number>()
   for (const a of advertencias ?? []) {
     const k = a.candidate_id as string
@@ -156,6 +170,8 @@ export default async function PremioCajuPage({
       const fimExp = fimDaExperiencia(admissao, String(af?.trial_contract ?? '') || null)
       const emExperiencia = fimExp !== null && fimExp >= fim
 
+      const diasFerias = diasDeFeriasNoPeriodo(feriasPorCand.get(id) ?? [], inicio, fim)
+
       return {
         candidate_id: id,
         nome: c.full_name,
@@ -167,6 +183,8 @@ export default async function PremioCajuPage({
         em_experiencia: emExperiencia,
         fim_experiencia: fimExp,
         sem_data_admissao: !admissao,
+        dias_ferias: diasFerias,
+        dias_mes: diasNoMes,
         // Sem data de admissão não há mês trabalhado para premiar — é a mesma
         // regra do fechamento de folha, e sem a data nem dá para saber se a
         // experiência já acabou.

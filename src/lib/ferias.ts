@@ -46,6 +46,40 @@ export function diasEntre(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000)
 }
 
+/**
+ * Quantos dias de férias de uma pessoa caem DENTRO de um período (a competência
+ * da folha). Conta os dois extremos: quem sai dia 15 e volta dia 4 do mês
+ * seguinte fica 16 dias fora em setembro, de 15 a 30.
+ *
+ * É o que permite pagar o prêmio proporcional ao que a pessoa trabalhou no mês:
+ * quem passou metade do mês de férias não trabalhou o mês inteiro.
+ */
+export function diasDeFeriasNoPeriodo(
+  periodos: { inicio: string; fim: string }[],
+  de: string,
+  ate: string,
+): number {
+  const limiteDe = paraData(de)
+  const limiteAte = paraData(ate)
+  const dias = new Set<string>()
+  for (const p of periodos) {
+    if (!p?.inicio || !p?.fim) continue
+    const ini = paraData(p.inicio) < limiteDe ? limiteDe : paraData(p.inicio)
+    const fim = paraData(p.fim) > limiteAte ? limiteAte : paraData(p.fim)
+    for (const d = new Date(ini); d <= fim; d.setDate(d.getDate() + 1)) {
+      // Conjunto de datas: dois registros que se sobrepõem não contam duas vezes.
+      dias.add(d.toDateString())
+    }
+  }
+  return dias.size
+}
+
+/** Dias do mês da competência (yyyy-mm-01). */
+export function diasDoMes(competencia: string): number {
+  const [ano, mes] = competencia.split('-').map(Number)
+  return new Date(ano, mes, 0).getDate()
+}
+
 /** Meses inteiros entre duas datas puras. */
 function mesesEntre(deIso: string, ate: Date): number {
   const de = paraData(deIso)
