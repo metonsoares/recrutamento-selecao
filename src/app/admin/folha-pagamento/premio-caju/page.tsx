@@ -167,7 +167,10 @@ export default async function PremioCajuPage({
         em_experiencia: emExperiencia,
         fim_experiencia: fimExp,
         sem_data_admissao: !admissao,
-        elegivel: dias === 0 && adv === 0 && !emExperiencia,
+        // Sem data de admissão não há mês trabalhado para premiar — é a mesma
+        // regra do fechamento de folha, e sem a data nem dá para saber se a
+        // experiência já acabou.
+        elegivel: dias === 0 && adv === 0 && !emExperiencia && !!admissao,
       }
     })
     .filter(Boolean) as LinhaCaju[]
