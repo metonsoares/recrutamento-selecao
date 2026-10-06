@@ -171,9 +171,24 @@ export function PremioCajuClient({
    * histórico embaixo do nome, e a tela começa sempre zerada para o valor ser
    * uma decisão consciente a cada rodada.
    */
+  /**
+   * O que já foi aprovado NESTE mês, por pessoa. Mês fechado mostra o valor que
+   * foi aprovado — antes a tela voltava zerada e o "Total do mês" não batia com
+   * o fechamento.
+   */
+  const aprovadoPorCand = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const h of historico) {
+      if (h.competencia === competencia) m.set(h.candidate_id, Number(h.valor) || 0)
+    }
+    return m
+  }, [historico, competencia])
+
   function valorDe(l: LinhaCaju): number {
     const aj = ajustes[l.candidate_id]
     if (aj !== undefined) return Number(aj.replace(/\./g, '').replace(',', '.')) || 0
+    const aprovado = aprovadoPorCand.get(l.candidate_id)
+    if (aprovado !== undefined) return aprovado
     return proporcionalDe(l)
   }
 
@@ -219,7 +234,17 @@ export function PremioCajuClient({
     l => l.elegivel && (!empresaFiltro || l.empresa_id === empresaFiltro),
   )
   const bloqueados = filtradas.length - elegiveis.length
-  const totalPagar = elegiveis.reduce((s, l) => s + valorDe(l), 0)
+  /**
+   * Total do mês. Em mês já aprovado é a SOMA DO FECHAMENTO (inclusive de quem
+   * saiu da lista depois, por falta ou desligamento); enquanto não há
+   * aprovação, é o que está montado na tela.
+   */
+  const aprovadosDoMes = historico.filter(
+    h => h.competencia === competencia && (!empresaFiltro || h.empresa_id === empresaFiltro),
+  )
+  const totalPagar = aprovadosDoMes.length > 0
+    ? aprovadosDoMes.reduce((s, h) => s + (Number(h.valor) || 0), 0)
+    : elegiveis.reduce((s, l) => s + valorDe(l), 0)
   // Só entram no fechamento quem tem valor > 0 — é isso que habilita o Aprovar
   // (antes o botão exigia o campo "Valor do mês", mesmo com valores por linha).
   const comValor = elegiveis.filter(l => valorDe(l) > 0).length
@@ -428,7 +453,10 @@ export function PremioCajuClient({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Cartao titulo="Vão receber" valor={String(elegiveis.length)} cor="text-emerald-700" />
         <Cartao titulo="Sem direito" valor={String(bloqueados)} cor="text-red-600" />
-        <Cartao titulo="Total do mês" valor={brl(totalPagar)} cor="text-gray-900" />
+        <Cartao titulo="Total do mês" valor={brl(totalPagar)} cor="text-gray-900"
+          nota={aprovadosDoMes.length > 0
+            ? `aprovado · ${aprovadosDoMes.length} colaborador${aprovadosDoMes.length !== 1 ? 'es' : ''}`
+            : undefined} />
         <Cartao titulo="Empresa" valor={nomeEmpresa ?? 'Todas'} cor="text-gray-900" pequeno />
       </div>
 
@@ -793,11 +821,16 @@ function ModalExportar({
   )
 }
 
-function Cartao({ titulo, valor, cor, pequeno }: { titulo: string; valor: string; cor: string; pequeno?: boolean }) {
+function Cartao({ titulo, valor, cor, pequeno, nota }: {
+  titulo: string; valor: string; cor: string; pequeno?: boolean
+  /** Uma linha curta embaixo do número, dizendo de onde ele veio. */
+  nota?: string
+}) {
   return (
     <div className="rounded-xl border bg-white p-3.5 shadow-sm">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">{titulo}</p>
       <p className={`${pequeno ? 'text-sm font-semibold' : 'text-2xl font-bold'} ${cor} mt-0.5 truncate`}>{valor}</p>
+      {nota && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{nota}</p>}
     </div>
   )
 }
