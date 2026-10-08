@@ -111,6 +111,9 @@ export function LancamentosClient({
 }) {
   const router = useRouter()
   const [busca, setBusca] = useState('')
+  // "Quem aparece": a tela lista a empresa inteira para poder lançar, mas na
+  // hora de conferir o que já foi lançado a lista cheia atrapalha.
+  const [quem, setQuem] = useState<'todos' | 'com' | 'sem'>('todos')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [padrao, setPadrao] = useState('')
   const [valores, setValores] = useState<Record<string, string>>({})
@@ -355,6 +358,8 @@ export function LancamentosClient({
 
   const filtradas = linhas.filter(l => {
     if (empresaFiltro && l.empresa_id !== empresaFiltro) return false
+    if (quem === 'com' && !temLancamento(l)) return false
+    if (quem === 'sem' && temLancamento(l)) return false
     const termo = busca.trim()
     if (!termo) return true
     const digitos = termo.replace(/\D/g, '')
@@ -591,6 +596,12 @@ export function LancamentosClient({
           <option value="">Todas as empresas</option>
           {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
+        <select value={quem} onChange={e => setQuem(e.target.value as 'todos' | 'com' | 'sem')}
+          className="h-9 w-full border border-gray-300 rounded-md px-2.5 text-sm bg-white">
+          <option value="todos">Todos os colaboradores</option>
+          <option value="com">Só com {config.titulo.toLowerCase()}</option>
+          <option value="sem">Só sem {config.titulo.toLowerCase()}</option>
+        </select>
         {/* Nada para digitar em massa quando o valor é a própria conta. */}
         {!multiplos && !(valorCalculado && !temContagens) && (
           <div className="flex gap-2">
@@ -607,7 +618,7 @@ export function LancamentosClient({
         <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
           disabled={comLancamento === 0}
           title={comLancamento === 0 ? 'Preencha pelo menos um colaborador' : undefined}
-          className={`gap-1.5 w-full ${multiplos || (valorCalculado && !temContagens) ? 'sm:col-start-2 lg:col-start-4' : ''}`}>
+          className="gap-1.5 w-full sm:col-start-2 lg:col-start-4">
           <Check className="w-3.5 h-3.5" />Aprovar
         </Button>
       </div>
