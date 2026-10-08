@@ -637,38 +637,40 @@ export function LancamentosClient({
 
       {/* ── Lista ── */}
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* A rolagem é DESTA área (e não da página): é o que dá ao cabeçalho um
+            ponto fixo para grudar enquanto a lista corre por baixo. */}
+        <div className="overflow-auto max-h-[70vh]">
           {/* border-separate porque a coluna presa precisa pintar o próprio
               fundo e a própria borda — com bordas colapsadas a linha some
               justamente na célula que fica parada. */}
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead className="bg-gray-50 border-b">
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground align-bottom [&>th]:border-b [&>th]:border-gray-200">
-                <th className="pl-5 pr-3 py-2 font-semibold">Colaborador</th>
-                <th className="px-3 py-2 font-semibold">Empresa</th>
+                <th className="pl-5 pr-3 py-2 font-semibold sticky top-0 z-20 bg-gray-50">Colaborador</th>
+                <th className="px-3 py-2 font-semibold sticky top-0 z-20 bg-gray-50">Empresa</th>
                 {/* Quatro contagens cabem porque a coluna é estreita: o
                     conteúdo é sempre um número de 1 a 3 dígitos. */}
                 {/* O rótulo quebra em duas linhas em vez de esticar a coluna:
                     "Adicional noturno 20%" numa linha só empurrava a tabela
                     para fora do quadro. */}
                 {config.colunas.map(c => (
-                  <th key={c.campo} className="px-2 py-2 font-semibold text-center max-w-[86px]">{c.rotulo}</th>
+                  <th key={c.campo} className="px-2 py-2 font-semibold text-center max-w-[86px] sticky top-0 z-20 bg-gray-50">{c.rotulo}</th>
                 ))}
                 {config.temValor && valorFixo && (
                   <>
-                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">
+                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap sticky top-0 z-20 bg-gray-50">
                       Base ({Math.round((config.percentualSalario ?? 0) * 100)}%)
                     </th>
-                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Desconto</th>
-                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">Valor do mês</th>
+                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap sticky top-0 z-20 bg-gray-50">Desconto</th>
+                    <th className="px-3 py-2 font-semibold text-right whitespace-nowrap sticky top-0 z-20 bg-gray-50">Valor do mês</th>
                   </>
                 )}
                 {config.temValor && !valorFixo && (
-                  <th className="px-3 py-2 font-semibold">
+                  <th className="px-3 py-2 font-semibold sticky top-0 z-20 bg-gray-50">
                     {multiplos ? `Valor e ${(config.rotuloDescricao ?? 'descrição').toLowerCase()}` : 'Valor'}
                   </th>
                 )}
-                <th className="pl-4 pr-5 py-2 w-px sticky right-0 z-20 bg-gray-50" />
+                <th className="pl-4 pr-5 py-2 w-px sticky right-0 top-0 z-30 bg-gray-50" />
               </tr>
             </thead>
             <tbody className="[&>tr>td]:border-t [&>tr>td]:border-gray-200">
