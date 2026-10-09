@@ -32,8 +32,11 @@ export default async function FaltasPage({
   // falharam silenciosamente neste projeto).
   const [{ data: apps }, { data: empresas }, { data: faltas }] = await Promise.all([
     supabase.from('applications')
-      .select('candidate_id, admission_form, admission_form_history, status')
-      .in('status', ['contratado', 'em_contrato', 'aprovado'])
+      // Desligado também entra: a falta dele continua existindo no mês em que
+      // ainda trabalhava, e sumir da tela ao desligar escondia o lançamento de
+      // meses fechados. Abaixo ele só fica na lista se tiver falta no mês.
+      .select('candidate_id, admission_form, admission_form_history, status, termination_data')
+      .in('status', ['contratado', 'em_contrato', 'aprovado', 'desligado'])
       .eq('is_latest', true),
     supabase.from('companies').select('id, apelido, razao_social'),
     supabase.from('absences')
@@ -77,6 +80,15 @@ export default async function FaltasPage({
       const id = a.candidate_id as string
       const reg = porCandidato.get(id)
 
+      // Quem já foi desligado só aparece no mês em que tem falta lançada (ou
+      // se o desligamento é posterior à competência): a lista é de quem está
+      // na folha do mês, não um arquivo de ex-colaboradores.
+      if (a.status === 'desligado') {
+        const saida = String((a.termination_data as { date?: string } | null)?.date ?? '')
+        const aindaNoMes = /^\d{4}-\d{2}-\d{2}$/.test(saida) && saida >= competencia
+        if (!reg && !aindaNoMes) return null
+      }
+
       return {
         candidate_id: id,
         nome: c.full_name,
@@ -85,6 +97,7 @@ export default async function FaltasPage({
         empresa_id: empresaId || null,
         empresa: empresaPorId.get(empresaId) ?? null,
         vinculo: a.status === 'aprovado' ? ('intermitente' as const) : ('contratado' as const),
+        desligado: a.status === 'desligado',
         dias: reg?.dias ?? 0,
         registros: reg?.registros ?? 0,
         datas: reg?.datas ?? [],

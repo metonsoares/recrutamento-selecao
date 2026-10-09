@@ -19,6 +19,8 @@ export interface LinhaFalta {
   empresa_id: string | null
   empresa: string | null
   vinculo: 'contratado' | 'intermitente'
+  /** Já desligado: entra na lista só no mês em que tem falta lançada. */
+  desligado?: boolean
   /** total de dias de falta no mês */
   dias: number
   registros: number
@@ -197,6 +199,12 @@ export function FaltasClient({
                     {l.vinculo === 'intermitente' && (
                       <span className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-sky-100 text-sky-700 align-middle">
                         Intermitente
+                      </span>
+                    )}
+                    {l.desligado && (
+                      <span title="Desligado — aparece por ter falta lançada neste mês"
+                        className="ml-2 text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-gray-200 text-gray-600 align-middle">
+                        Desligado
                       </span>
                     )}
                     {l.cargo && <span className="block text-[11px] text-muted-foreground">{l.cargo}</span>}
