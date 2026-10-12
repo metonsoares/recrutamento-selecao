@@ -82,7 +82,7 @@ export function FolhasAnaliticasManager({
         <div className="flex-1 min-w-[220px]">
           <h1 className="text-2xl font-bold leading-tight">Folhas analíticas</h1>
           <p className="text-sm text-muted-foreground">
-            {folhas.length} documento{folhas.length !== 1 ? 's' : ''} — um por empresa e período
+            {folhas.length} documento{folhas.length !== 1 ? 's' : ''} — um ou mais por empresa e período
           </p>
         </div>
         <Button onClick={() => { setAviso(null); setModalAberto(true) }} className="gap-1.5">
@@ -197,8 +197,12 @@ export function FolhasAnaliticasManager({
               <h2 className="text-base font-semibold text-gray-900">Remover folha analítica</h2>
             </div>
             <div className="px-5 py-4 text-sm text-gray-600">
-              Remover a folha de <strong>{removendo.empresa}</strong> referente a{' '}
+              Remover <strong>{removendo.file_name}</strong> — folha de{' '}
+              <strong>{removendo.empresa}</strong> referente a{' '}
               <strong>{periodoCurto(removendo.competencia)}</strong>?
+              <span className="block mt-1 text-gray-500">
+                Só este arquivo sai; outras folhas do mesmo período continuam.
+              </span>
               <span className="block mt-1 text-gray-500">O arquivo PDF também é apagado.</span>
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
@@ -227,7 +231,7 @@ function ModalAdicionar({
   const [empresa, setEmpresa] = useState('')
   const [mes, setMes] = useState(String(agora.getMonth() + 1).padStart(2, '0'))
   const [ano, setAno] = useState(String(agora.getFullYear()))
-  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [arquivos, setArquivos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -235,18 +239,19 @@ function ModalAdicionar({
 
   async function enviar() {
     if (!empresa) { setErro('Escolha a empresa.'); return }
-    if (!arquivo) { setErro('Anexe o arquivo PDF.'); return }
+    if (arquivos.length === 0) { setErro('Anexe ao menos um arquivo PDF.'); return }
     setEnviando(true); setErro('')
     try {
       const fd = new FormData()
       fd.append('empresa', empresa)
       fd.append('competencia', `${ano}-${mes}-01`)
-      fd.append('file', arquivo)
+      for (const a of arquivos) fd.append('file', a)
       const res = await fetch('/api/admin/folhas-analiticas', { method: 'POST', body: fd })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d.error || 'Erro ao enviar.')
-      onPronto(d.substituida
-        ? `Folha de ${mes}/${ano} substituída para ${empresa}.`
+      const n = Number(d.enviados) || arquivos.length
+      onPronto(n > 1
+        ? `${n} folhas de ${mes}/${ano} adicionadas para ${empresa}.`
         : `Folha de ${mes}/${ano} adicionada para ${empresa}.`)
     } catch (e) {
       setErro((e as Error).message)
@@ -291,16 +296,25 @@ function ModalAdicionar({
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Arquivo (PDF)</label>
+            <label className="text-[11px] font-medium text-gray-600">Arquivos (PDF)</label>
             <label className="flex items-center gap-2 h-9 px-2.5 border border-gray-300 border-dashed rounded-md bg-white cursor-pointer hover:border-primary/50">
               <Upload className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               <span className="text-[12.5px] text-gray-600 truncate">
-                {arquivo ? arquivo.name : 'Escolher arquivo…'}
+                {arquivos.length === 0
+                  ? 'Escolher arquivo…'
+                  : arquivos.length === 1 ? arquivos[0].name : `${arquivos.length} arquivos escolhidos`}
               </span>
-              <input type="file" accept="application/pdf" className="hidden"
-                onChange={e => { setArquivo(e.target.files?.[0] ?? null); setErro('') }} />
+              {/* Vários de uma vez: o período pode ter mais de uma folha, e
+                  cada arquivo entra como um documento (não substitui o outro). */}
+              <input type="file" accept="application/pdf" multiple className="hidden"
+                onChange={e => { setArquivos(Array.from(e.target.files ?? [])); setErro('') }} />
             </label>
-            <p className="text-[10px] text-muted-foreground">Somente PDF, até 25 MB.</p>
+            {arquivos.length > 1 && (
+              <ul className="text-[10px] text-muted-foreground space-y-0.5">
+                {arquivos.map(a => <li key={a.name} className="truncate">· {a.name}</li>)}
+              </ul>
+            )}
+            <p className="text-[10px] text-muted-foreground">Somente PDF, até 25 MB cada. Pode anexar mais de um no mesmo período.</p>
           </div>
 
           {erro && <p className="text-[12px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erro}</p>}

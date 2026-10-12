@@ -5,14 +5,17 @@ import { requirePermissionApi } from '@/lib/auth-guard'
 const BUCKET = 'folhas-analiticas'
 const MAX_SIZE = 25 * 1024 * 1024 // 25 MB — folha analítica costuma ser grande
 
-/** POST — envia a folha analítica de uma empresa em uma competência. */
+/** POST — envia uma ou mais folhas analíticas de uma empresa em uma competência. */
 export async function POST(req: NextRequest) {
   try {
     const denied = await requirePermissionApi('documentos_empresa')
     if (denied) return denied
 
     const form = await req.formData()
-    const file = form.get('file') as File | null
+    // Um período pode ter mais de uma folha (empresa com mais de um lote, folha
+    // complementar, 13º): cada arquivo vira um registro e NADA é substituído —
+    // para trocar um documento, remove-se o antigo pela lixeira.
+    const arquivos = form.getAll('file').filter((f): f is File => f instanceof File)
     const empresa = (form.get('empresa') as string | null)?.trim() || ''
     const competencia = (form.get('competencia') as string | null)?.trim() || '' // yyyy-mm-01
 
@@ -20,40 +23,37 @@ export async function POST(req: NextRequest) {
     if (!/^\d{4}-\d{2}-01$/.test(competencia)) {
       return NextResponse.json({ error: 'Informe o período (mês e ano).' }, { status: 400 })
     }
-    if (!file) return NextResponse.json({ error: 'Anexe o arquivo PDF.' }, { status: 400 })
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ error: 'O arquivo precisa ser um PDF.' }, { status: 400 })
+    if (arquivos.length === 0) {
+      return NextResponse.json({ error: 'Anexe ao menos um arquivo PDF.' }, { status: 400 })
     }
-    if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'Arquivo excede 25 MB.' }, { status: 400 })
+    for (const file of arquivos) {
+      if (file.type !== 'application/pdf') {
+        return NextResponse.json({ error: `"${file.name}" não é PDF.` }, { status: 400 })
+      }
+      if (file.size > MAX_SIZE) {
+        return NextResponse.json({ error: `"${file.name}" excede 25 MB.` }, { status: 400 })
+      }
     }
 
     const supabase = await createSupabaseServiceClient()
 
-    // Uma folha por empresa/competência: substitui a anterior em vez de duplicar.
-    const { data: existente } = await supabase
-      .from('folhas_analiticas').select('id, file_path')
-      .eq('empresa', empresa).eq('competencia', competencia).maybeSingle()
+    const enviados: string[] = []
+    for (const file of arquivos) {
+      const path = `${competencia.slice(0, 7)}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${file.name.replace(/[^\w.-]+/g, '_')}`
+      const { error: upErr } = await supabase.storage
+        .from(BUCKET).upload(path, await file.arrayBuffer(), { contentType: 'application/pdf', upsert: false })
+      if (upErr) return NextResponse.json({ error: upErr.message, enviados: enviados.length }, { status: 500 })
 
-    const path = `${competencia.slice(0, 7)}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, '_')}`
-    const { error: upErr } = await supabase.storage
-      .from(BUCKET).upload(path, await file.arrayBuffer(), { contentType: 'application/pdf', upsert: false })
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
-
-    if (existente) {
-      await supabase.storage.from(BUCKET).remove([existente.file_path as string]).catch(() => {})
       const { error } = await supabase.from('folhas_analiticas')
-        .update({ file_name: file.name, file_path: path })
-        .eq('id', existente.id)
-      if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-      return NextResponse.json({ ok: true, substituida: true })
+        .insert({ empresa, competencia, file_name: file.name, file_path: path })
+      if (error) {
+        await supabase.storage.from(BUCKET).remove([path]).catch(() => {})
+        return NextResponse.json({ error: error.message, enviados: enviados.length }, { status: 400 })
+      }
+      enviados.push(file.name)
     }
 
-    const { error } = await supabase.from('folhas_analiticas')
-      .insert({ empresa, competencia, file_name: file.name, file_path: path })
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, enviados: enviados.length })
   } catch (err) {
     console.error('[folhas-analiticas POST]', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })
