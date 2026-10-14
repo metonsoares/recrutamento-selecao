@@ -98,7 +98,7 @@ const TOTAL_DO_CAMPO: Record<CampoContagem, (c: CicloAprovado) => number> = {
 }
 
 export function LancamentosClient({
-  config, competencia, linhas, empresas, historico, cicloAprovado, avariasCentral = [],
+  config, competencia, linhas, empresas, historico, cicloAprovado, avariasCentral = [], catalogo = [],
 }: {
   config: ConfigLancamento
   competencia: string
@@ -108,6 +108,8 @@ export function LancamentosClient({
   cicloAprovado: CicloAprovado | null
   /** Perdas e danos vindos da Central de Chamados (só o tipo "avarias" recebe). */
   avariasCentral?: AvariaCentral[]
+  /** Lista de preços dos itens de avaria (Avarias → Itens). */
+  catalogo?: { nome: string; valor: number }[]
 }) {
   const router = useRouter()
   const [busca, setBusca] = useState('')
@@ -148,10 +150,27 @@ export function LancamentosClient({
   const itensDe = (l: LinhaLancamento): ItemAvulso[] =>
     itensPorCand[l.candidate_id] ?? [{ valor: '', descricao: '' }]
 
+  /**
+   * Preço do item no cadastro, ignorando maiúscula e espaço — é o que permite
+   * digitar "taça bordeaux" e receber o valor sem escolher no mouse.
+   */
+  function precoDoCadastro(nome: string): number | null {
+    const chave = nome.trim().toLowerCase()
+    if (!chave) return null
+    const achado = catalogo.find(c => c.nome.trim().toLowerCase() === chave)
+    return achado ? achado.valor : null
+  }
+
   function mudarItem(id: string, i: number, campo: keyof ItemAvulso, v: string) {
     setItensPorCand(prev => {
       const lista = [...(prev[id] ?? [{ valor: '', descricao: '' }])]
       lista[i] = { ...lista[i], [campo]: v }
+      // Item reconhecido no cadastro traz o valor junto; item de fora segue
+      // digitado à mão, que é como as avarias novas entram.
+      if (campo === 'descricao') {
+        const preco = precoDoCadastro(v)
+        if (preco !== null) lista[i] = { ...lista[i], valor: paraCampo(preco) }
+      }
       return { ...prev, [id]: lista }
     })
   }
@@ -504,6 +523,16 @@ export function LancamentosClient({
         <div className="flex-1 min-w-[220px]">
           <h1 className="text-2xl font-bold leading-tight">{config.titulo}</h1>
           <p className="text-sm text-muted-foreground">{config.descricao}</p>
+          {config.slug === 'avarias' && (
+            <p className="text-[12.5px] text-muted-foreground mt-0.5">
+              {catalogo.length > 0
+                ? `Digite o começo do nome: ${catalogo.length} ite${catalogo.length !== 1 ? 'ns' : 'm'} cadastrado${catalogo.length !== 1 ? 's' : ''} preenche${catalogo.length !== 1 ? 'm' : ''} o valor sozinho. `
+                : 'Nenhum item cadastrado ainda — dá para digitar o nome e o valor na hora. '}
+              <Link href="/admin/folha-pagamento/itens-avaria" className="text-primary font-medium hover:underline">
+                Itens de avaria
+              </Link>
+            </p>
+          )}
         </div>
 
         <div className="inline-flex items-center rounded-lg border bg-white overflow-hidden">
@@ -634,6 +663,14 @@ export function LancamentosClient({
 
       {erro && <p className="text-[13px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />{erro}</p>}
       {ok && <p className="text-[13px] text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{ok}</p>}
+
+      {/* Sugestões do cadastro de itens: nativo do navegador, funciona no
+          celular e não atrapalha quem digita um item que não está na lista. */}
+      {catalogo.length > 0 && (
+        <datalist id="cadastro-itens-avaria">
+          {catalogo.map(c => <option key={c.nome} value={c.nome}>{brl(c.valor)}</option>)}
+        </datalist>
+      )}
 
       {/* ── Lista ── */}
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
@@ -834,6 +871,8 @@ export function LancamentosClient({
                               <input value={it.descricao}
                                 onChange={e => mudarItem(l.candidate_id, i, 'descricao', e.target.value)}
                                 placeholder={config.rotuloDescricao ?? 'Descrição'}
+                                list={catalogo.length > 0 ? 'cadastro-itens-avaria' : undefined}
+                                autoComplete="off"
                                 className="h-8 flex-1 min-w-[160px] border border-gray-300 rounded-md px-2 text-[13px] bg-white" />
                               <span className="text-[12px] text-gray-400">R$</span>
                               <input value={it.valor}

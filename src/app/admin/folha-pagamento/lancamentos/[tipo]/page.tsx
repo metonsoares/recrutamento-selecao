@@ -138,9 +138,14 @@ export default async function LancamentosPage({
   // o valor de reposição do uniforme/EPI é desconto do colaborador. Só leitura
   // — quem grava é o RH, aprovando a competência como sempre.
   let avariasCentral: AvariaCentral[] = []
+  // Lista de preços de avaria: a tela sugere o item e já traz o valor.
+  let catalogo: { nome: string; valor: number }[] = []
   if (tipo === 'avarias') {
     const resp = await portalBridge<{ avarias?: AvariaCentral[] }>('avarias', { competencia })
     avariasCentral = Array.isArray(resp?.avarias) ? resp.avarias : []
+    const { data: itensCad } = await supabase
+      .from('avaria_itens').select('nome, valor').eq('ativo', true).order('nome')
+    catalogo = (itensCad ?? []).map(i => ({ nome: String(i.nome), valor: Number(i.valor) || 0 }))
   }
 
   const empresasOpcoes: EmpresaOpcao[] = Array.from(
@@ -155,6 +160,7 @@ export default async function LancamentosPage({
       empresas={empresasOpcoes}
       historico={historico}
       avariasCentral={avariasCentral}
+      catalogo={catalogo}
       cicloAprovado={cicloDoMes ? {
         total_valor: Number(cicloDoMes.total_valor),
         total_qtd: Number(cicloDoMes.total_qtd),

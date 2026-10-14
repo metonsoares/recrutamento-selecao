@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Briefcase, ClipboardList,
   MessageSquare, BarChart3, ChevronDown,
   FlaskConical, Zap, Building2, Menu, X, Layers,
-  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark, Coins, Wallet, CheckCheck } from 'lucide-react'
+  Settings2, BrainCircuit, UserCheck, CalendarClock, UserMinus, FolderArchive, FileSignature, ShieldCheck, Plug, GraduationCap, Network, Banknote, Gift, Bus, FileSpreadsheet, CalendarX, Landmark, Coins, Wallet, CheckCheck, PackageSearch } from 'lucide-react'
 
 import { useState } from 'react'
 import Image from 'next/image'
@@ -273,10 +273,20 @@ function SidebarContent({
               {ORDEM_LANCAMENTOS.filter(slug =>
                 (LANCAMENTOS[slug].perfis as readonly string[]).includes(role),
               ).map(slug => (
-                <Link key={slug} href={`/admin/folha-pagamento/lancamentos/${slug}`} onClick={go}
-                  className={cn(DEEP_BASE, pathname.startsWith(`/admin/folha-pagamento/lancamentos/${slug}`) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                  <Wallet className="w-3 h-3 shrink-0 opacity-50" />{LANCAMENTOS[slug].titulo}
-                </Link>
+                <div key={slug}>
+                  <Link href={`/admin/folha-pagamento/lancamentos/${slug}`} onClick={go}
+                    className={cn(DEEP_BASE, pathname.startsWith(`/admin/folha-pagamento/lancamentos/${slug}`) ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                    <Wallet className="w-3 h-3 shrink-0 opacity-50" />{LANCAMENTOS[slug].titulo}
+                  </Link>
+                  {/* A lista de preços é um apêndice de Avarias, não um assunto
+                      novo: fica logo abaixo, mais recuada. */}
+                  {slug === 'avarias' && (
+                    <Link href="/admin/folha-pagamento/itens-avaria" onClick={go}
+                      className={cn(DEEP_BASE, 'pl-7', pathname.startsWith('/admin/folha-pagamento/itens-avaria') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
+                      <PackageSearch className="w-3 h-3 shrink-0 opacity-50" />Itens
+                    </Link>
+                  )}
+                </div>
               ))}
               {/* Fechamento é tela e grupo ao mesmo tempo: o texto abre o
                   fechamento do mês, a seta abre as Folhas aprovadas — que são
