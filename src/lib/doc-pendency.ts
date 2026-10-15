@@ -34,14 +34,13 @@ const COMPANY_DOCS = [
 ]
 
 /**
- * O que o FREELANCER tem de documento da empresa. Ele é prestador de serviço:
- * registro, experiência, banco de horas, vale transporte e escala 12×36 não
- * existem para ele e não podem virar pendência — é a mesma lista que a aba
- * Documentos mostra quando o vínculo é freelancer.
+ * O que o FREELANCER tem de documento da empresa: contrato de prestação de
+ * serviço, cessão de imagem e termo de entrega geral. O resto é da CLT (ou não
+ * se aplica a prestador) e não pode virar pendência — é a mesma lista que a
+ * aba Documentos mostra quando o vínculo é freelancer.
  */
 const COMPANY_DOCS_FREELANCER = [
-  'contrato_tempo_determinado', 'regulamento_interno', 'cessao_imagem',
-  'uniformes_epis', 'acrm_geral',
+  'contrato_tempo_determinado', 'cessao_imagem', 'acrm_geral',
 ]
 
 export interface FichaComDocs {
