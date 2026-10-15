@@ -349,7 +349,12 @@ export default async function CandidatePage({
   // Dados para contrato: pré-contratação + colaboradores (contratado, intermitente, freelancer, desligado)
   const showContract = ['em_contrato', 'aprovado_processo', 'contratado', 'aprovado', 'freelancer', 'desligado'].includes(currentStatus) || isBlockedFreelancer
   // Documentos
-  const showDocumentos = ['contratado', 'aprovado', 'aprovado_processo', 'aprovado_barraca', 'aprovado_carrinho', 'em_contrato', 'desligado'].includes(currentStatus)
+  // Freelancer também tem documento da empresa (contrato de prestação, cessão
+  // de imagem, entrega de uniforme) — só não tem os da CLT, que a própria aba
+  // esconde para ele.
+  const ehFreelancer = currentStatus === 'freelancer' || isBlockedFreelancer
+  const showDocumentos = ehFreelancer
+    || ['contratado', 'aprovado', 'aprovado_processo', 'aprovado_barraca', 'aprovado_carrinho', 'em_contrato', 'desligado'].includes(currentStatus)
   // Férias: contratado e desligado
   const showVacationTab = ['contratado', 'desligado'].includes(currentStatus)
   // Advertências + Atestados: contratado e desligado
@@ -661,6 +666,7 @@ export default async function CandidatePage({
           initialDocs={companyDocs}
           showDesligamento={isDesligado}
           intermitente={currentStatus === 'aprovado'}
+          freelancer={ehFreelancer}
           terminationLetter={(latestApp?.termination_data as { letter?: { url: string; name: string; path: string } } | null)?.letter ?? null}
         />
       )}
@@ -767,7 +773,7 @@ export default async function CandidatePage({
             minimal={minimalResumo}
             candidateId={id}
             fichaPending={showFicha ? countFichaPending(admissionForm) : 0}
-            companyDocsPending={showDocumentos ? countCompanyPending(companyDocs) : 0}
+            companyDocsPending={showDocumentos ? countCompanyPending(companyDocs, { freelancer: ehFreelancer }) : 0}
             timeline={timeline}
             isMaster={isMaster}
             salaryRaises={salaryRaises}

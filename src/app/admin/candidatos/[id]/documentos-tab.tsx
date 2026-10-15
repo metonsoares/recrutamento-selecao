@@ -29,22 +29,27 @@ interface CustomDoc {
 
 // `soIntermitente` limita o documento a quem é intermitente (status `aprovado`):
 // o contrato de trabalho intermitente não existe para o contratado comum.
+//
+// `semFreelancer` esconde do freelancer o que é da CLT (registro, experiência,
+// banco de horas, vale transporte, escala, prêmio): o freelancer é prestador
+// de serviço, e listar isso para ele só criaria pendência que não existe.
 const COMPANY_DOCS: {
-  key: string; label: string; multiple: boolean; na: boolean; max?: number; soIntermitente?: boolean
+  key: string; label: string; multiple: boolean; na: boolean; max?: number
+  soIntermitente?: boolean; semFreelancer?: boolean
 }[] = [
-  { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: true,  na: false, max: 2 },
+  { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: true,  na: false, max: 2, semFreelancer: true },
   { key: 'contrato_tempo_determinado', label: 'Contrato de prestação de serviço',        multiple: true,  na: true  },
-  { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: true  },
-  { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false },
+  { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: true, semFreelancer: true },
+  { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false, semFreelancer: true },
   { key: 'contrato_intermitente', label: 'Contrato de trabalho intermitente',             multiple: false, na: false, soIntermitente: true },
   { key: 'regulamento_interno', label: 'Regulamento interno',                            multiple: false, na: false },
-  { key: 'banco_horas',         label: 'Acordo individual de banco de horas',            multiple: true,  na: true  },
+  { key: 'banco_horas',         label: 'Acordo individual de banco de horas',            multiple: true,  na: true, semFreelancer: true },
   { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: true,  na: false },
-  { key: 'vale_transporte',     label: 'Termo declaração vale transporte',               multiple: true,  na: true  },
+  { key: 'vale_transporte',     label: 'Termo declaração vale transporte',               multiple: true,  na: true, semFreelancer: true },
   { key: 'uniformes_epis',      label: 'Termo entrega de uniformes/EPIs',                multiple: true,  na: false, max: 10 },
   { key: 'acrm_geral',          label: 'Termo entrega geral',                           multiple: true,  na: true,  max: 10 },
-  { key: 'acrm_escala',         label: 'Acordo individual de escala 12×36',             multiple: false, na: true  },
-  { key: 'premio_caju',         label: 'Prêmio Caju',                                    multiple: true,  na: true, max: 10 },
+  { key: 'acrm_escala',         label: 'Acordo individual de escala 12×36',             multiple: false, na: true, semFreelancer: true },
+  { key: 'premio_caju',         label: 'Prêmio Caju',                                    multiple: true,  na: true, max: 10, semFreelancer: true },
 ]
 
 function emptyDoc(): DocState { return { not_applicable: false, files: [] } }
@@ -360,6 +365,8 @@ interface Props {
   terminationLetter?: UploadedFile | null
   /** Intermitente (status `aprovado`) — libera os documentos exclusivos dele. */
   intermitente?: boolean
+  /** Freelancer: lista só os documentos de prestador de serviço. */
+  freelancer?: boolean
 }
 
 function initCustom(saved: Record<string, unknown> | null, key: string): CustomDoc[] {
@@ -370,7 +377,7 @@ function initCustom(saved: Record<string, unknown> | null, key: string): CustomD
   return []
 }
 
-export function DocumentosTab({ candidateId, initialDocs, showDesligamento = false, terminationLetter = null, intermitente = false }: Props) {
+export function DocumentosTab({ candidateId, initialDocs, showDesligamento = false, terminationLetter = null, intermitente = false, freelancer = false }: Props) {
   const [docs, setDocs] = useState<Record<string, DocState>>(() => initDocs(initialDocs))
   const [treinamentos, setTreinamentos] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__treinamentos'))
   const [circulares, setCirculares] = useState<CustomDoc[]>(() => initCustom(initialDocs, '__circulares'))
@@ -431,7 +438,8 @@ export function DocumentosTab({ candidateId, initialDocs, showDesligamento = fal
 
   // O estado guarda todos os documentos; a tela mostra só os que valem para
   // este vínculo — assim nada se perde se o colaborador mudar de status.
-  const docsVisiveis = COMPANY_DOCS.filter(d => !d.soIntermitente || intermitente)
+  const docsVisiveis = COMPANY_DOCS.filter(d =>
+    (!d.soIntermitente || intermitente) && !(freelancer && d.semFreelancer))
 
   const done = docsVisiveis.filter(d => {
     const s = docs[d.key]

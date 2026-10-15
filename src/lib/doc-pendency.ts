@@ -33,6 +33,17 @@ const COMPANY_DOCS = [
   'uniformes_epis', 'acrm_geral', 'acrm_escala',
 ]
 
+/**
+ * O que o FREELANCER tem de documento da empresa. Ele é prestador de serviço:
+ * registro, experiência, banco de horas, vale transporte e escala 12×36 não
+ * existem para ele e não podem virar pendência — é a mesma lista que a aba
+ * Documentos mostra quando o vínculo é freelancer.
+ */
+const COMPANY_DOCS_FREELANCER = [
+  'contrato_tempo_determinado', 'regulamento_interno', 'cessao_imagem',
+  'uniformes_epis', 'acrm_geral',
+]
+
 export interface FichaComDocs {
   docs?: Record<string, unknown>
   children_count?: string
@@ -83,10 +94,13 @@ export function countFichaPending(af: FichaComDocs | null): number {
   return docsPendentesFicha(af).length
 }
 
-export function countCompanyPending(companyDocs: Record<string, unknown> | null): number {
+export function countCompanyPending(
+  companyDocs: Record<string, unknown> | null,
+  opcoes: { freelancer?: boolean } = {},
+): number {
   const docs = (companyDocs || {}) as Record<string, DocState>
   let pending = 0
-  for (const key of COMPANY_DOCS) {
+  for (const key of (opcoes.freelancer ? COMPANY_DOCS_FREELANCER : COMPANY_DOCS)) {
     const s = docs[key]
     const resolved = s?.not_applicable === true || (s?.files?.length ?? 0) > 0
     if (!resolved) pending++
