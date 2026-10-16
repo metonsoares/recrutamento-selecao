@@ -1056,6 +1056,35 @@ async function conferirMes(f: Funcionario, mes: string, diasDoMes: DiaPonto[], u
   }
 }
 
+/** Indícios agrupados por tipo (contagem + até 6 datas) — a lista completa fica em bdt_compare_schedule_vs_actual. */
+function indiciosResumidos(indicios: { data: string; tipo: string; regra: string }[]) {
+  const porTipo = new Map<string, { quantidade: number; datas: string[]; regra: string }>()
+  for (const i of indicios) {
+    const g = porTipo.get(i.tipo) ?? { quantidade: 0, datas: [], regra: i.regra }
+    g.quantidade++
+    if (g.datas.length < 6 && i.data !== '-') g.datas.push(i.data)
+    porTipo.set(i.tipo, g)
+  }
+  return Object.fromEntries(porTipo)
+}
+
+/** Totais enxutos em H:MM para o resumo de auditoria. */
+function totaisResumidos(t: ReturnType<typeof somar>) {
+  return {
+    dias_trabalhados: t.dias_trabalhados,
+    folgas: t.folgas,
+    faltas_dia_inteiro: t.faltas_dia_inteiro,
+    domingos_trabalhados: t.domingos_trabalhados,
+    feriados_trabalhados: t.feriados_trabalhados,
+    previsto: t.em_horas.previsto,
+    trabalhado: t.em_horas.trabalhado,
+    extras: t.em_horas.extras_total,
+    extras_por_percentual: t.extras_por_percentual.map(p => `${p.percentual}%: ${p.hhmm}`),
+    noturno_computado: t.em_horas.noturno_total_reduzido,
+    falta_atraso: t.em_horas.falta_atraso,
+  }
+}
+
 async function emParalelo<T, R>(itens: T[], limite: number, fn: (x: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(itens.length)
   let i = 0
@@ -1352,18 +1381,28 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
             const marcas = marcacoesPorDia(espelhos)
             const ev = evidencias(dias, marcas)
             r.ponto = {
-              totais: somar(dias),
-              por_mes: meses.map(m => ({ competencia: m, ...somar(dias.filter(d => d.data.startsWith(m))).em_horas })),
+              totais: totaisResumidos(somar(dias)),
+              por_mes: meses.map(m => {
+                const t = somar(dias.filter(d => d.data.startsWith(m)))
+                return { competencia: m, dias_trabalhados: t.dias_trabalhados, trabalhado: t.em_horas.trabalhado, extras: t.em_horas.extras_total, falta_atraso: t.em_horas.falta_atraso }
+              }),
+              dias_com_pendencia_no_rhid: dias.filter(d => d.pendencias_rhid).length,
               dias_com_marcacao_incluida_manualmente: marcas.filter(m => m.incluidas_manualmente.length).length,
               ajustes: await ajustesPorTipo(p, ini, fim).catch(() => 'indisponível'),
-              indicios: ev.indicios,
+              indicios_total: ev.indicios.length,
+              indicios_por_tipo: indiciosResumidos(ev.indicios),
             }
             if (pode('folha_read')) {
               const conf = []
               for (const m of meses) {
                 try { conf.push(await conferirMes(f, m, dias.filter(d => d.data.startsWith(m)), args.ocr === true)) } catch (e) { lacunas.push(`Folha ${m}: ${(e as Error).message}`) }
               }
-              r.pago_x_apurado = conf.map(c => ({ competencia: c.competencia, fonte_pago: c.pago.fonte, confianca: c.pago.confianca, comparacao: c.comparacao, avisos: c.avisos }))
+              r.pago_x_apurado = conf.map(c => ({
+                competencia: c.competencia,
+                fonte_pago: c.pago.fonte,
+                confianca: c.pago.confianca,
+                itens: c.comparacao.map(i => ({ item: i.item, apurado: i.apurado, pago: i.pago_referencia, status: i.status })),
+              }))
             }
           } catch (e) { lacunas.push(`Ponto: ${(e as Error).message}`) }
         }
@@ -1373,14 +1412,19 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
             db.from('vacations').select('start_date, end_date, days, kind').eq('candidate_id', f.id).lte('start_date', fim).gte('end_date', ini),
             db.from('medical_certificates').select('certificate_date').eq('candidate_id', f.id).gte('certificate_date', ini).lte('certificate_date', fim),
           ])
-          r.ocorrencias_rh = { faltas: faltas.data ?? [], ferias_licencas: ferias.data ?? [], atestados_datas: (atestados.data ?? []).map(a => a.certificate_date) }
+          r.ocorrencias_rh = {
+            faltas: (faltas.data ?? []).length,
+            ferias_licencas: (ferias.data ?? []).map(v => `${v.start_date} a ${v.end_date}${v.kind ? ` (${v.kind})` : ''}`),
+            atestados: (atestados.data ?? []).length,
+          }
         } catch { lacunas.push('Ocorrências do RH indisponíveis.') }
         if (pode('documentos_rh_read')) {
           const docs = await documentosDe(f)
           const noPeriodo = new Set(meses)
+          const conta = (lista: Doc[]) => lista.reduce<Record<string, number>>((acc, d) => { acc[d.tipo] = (acc[d.tipo] ?? 0) + 1; return acc }, {})
           r.documentos = {
-            no_periodo: docs.filter(d => noPeriodo.has(competenciaDaReferencia(d.competencia) ?? '')).map(d => ({ id: d.id, tipo: d.tipo, competencia: d.competencia })),
-            contratuais: docs.filter(d => /^(contrato|acordo)/.test(d.tipo)).map(d => ({ id: d.id, tipo: d.tipo, nome_arquivo: d.nome })),
+            do_periodo_por_tipo: conta(docs.filter(d => noPeriodo.has(competenciaDaReferencia(d.competencia) ?? ''))),
+            contratos_e_acordos_por_tipo: conta(docs.filter(d => /^(contrato|acordo)/.test(d.tipo))),
           }
         }
         if (f.vinculo === 'intermitente') lacunas.push('Intermitente: convocações não são registradas no sistema; analisar separado da escala regular.')
@@ -1397,7 +1441,7 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
             periodo: { inicio: ini, fim },
             grupos_usados: ctx.escopos,
             observacoes: [
-              'Resumo por funcionário; detalhe dia a dia sob demanda em bdt_compare_schedule_vs_actual e bdt_compare_paid_vs_worked.',
+              'RESUMO por funcionário (indícios contados por tipo com até 6 datas; documentos contados por tipo). Detalhe dia a dia: bdt_compare_schedule_vs_actual; pago × apurado com rubricas: bdt_compare_paid_vs_worked; documentos: bdt_list_employee_documents.',
               'Indícios citam a regra legal de referência; acordo, CCT, 12x36 e cargo de confiança podem afastá-los. Não são conclusões.',
               NOTA_MINUTOS,
               LACUNA_PONTO,
