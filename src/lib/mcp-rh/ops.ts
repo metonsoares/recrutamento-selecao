@@ -399,12 +399,14 @@ async function lerContrachequeComOcr(bytes: Uint8Array, pdf: PdfLido, usarOcr: b
     }
   }
   // Prefere a leitura cuja soma fecha com os totais impressos; depois a mais confiável.
+  // Empate: o OCR do servidor ganha (traz a certeza de cada número).
   const nota = (l: ReturnType<typeof lerContracheque>) =>
     (l.soma_confere ? 1000 : 0) + (l.confianca === 'alta' ? 100 : l.confianca === 'media' ? 50 : 0) + l.rubricas.length
+    + (l.origem_texto === 'ocr_servidor' ? 0.5 : 0)
   leituras.sort((a, b) => nota(b) - nota(a))
   return {
     melhor: leituras[0] ?? null,
-    alternativas: leituras.slice(1).map(l => ({ origem_texto: l.origem_texto, rubricas: l.rubricas.length, soma_confere: l.soma_confere, confianca: l.confianca })),
+    alternativas: leituras.slice(1).map(l => ({ origem_texto: l.origem_texto, rubricas: l.rubricas.length, soma_confere: l.soma_confere, conferencia_da_soma: l.conferencia_da_soma, confianca: l.confianca })),
     ocr,
   }
 }
@@ -945,7 +947,7 @@ interface ContrachequeDoMes {
   nome_arquivo: string
   origem_texto: string
   leitura: ReturnType<typeof lerContracheque> | null
-  leituras_alternativas?: { origem_texto: string; rubricas: number; soma_confere: boolean | null; confianca: string }[]
+  leituras_alternativas?: { origem_texto: string; rubricas: number; soma_confere: boolean | null; conferencia_da_soma: string; confianca: string }[]
   ocr_servidor?: { confianca_media: number; numeros_duvidosos: number } | null
 }
 

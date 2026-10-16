@@ -117,8 +117,9 @@ export interface ContrachequeLido {
   total_descontos: number | null
   liquido: number | null
   bases: Record<string, number>
-  /** Soma das rubricas lidas bate com os totais impressos (prova de leitura completa). */
+  /** Soma das rubricas lidas bate com os totais impressos ou com o líquido (prova de leitura completa). */
   soma_confere: boolean | null
+  conferencia_da_soma: string
   confianca: 'alta' | 'media' | 'baixa'
   avisos: string[]
 }
@@ -195,7 +196,15 @@ export function lerContracheque(pdf: PdfLido, duvidosos: string[] = []): Contrac
       const texto = l.itens.map(i => i.s.trim()).join(' ').replace(/\s+/g, ' ').trim()
       const valores = l.itens.filter(i => EH_VALOR.test(i.s.trim()))
 
-      if (/L[íi]quido/i.test(texto) && valores.length) { liquido = valorBr(valores[valores.length - 1].s); continue }
+      if (/L[íi]quido/i.test(texto)) {
+        // O OCR cola número e texto ("999,99Valor Líquido"): pega o número do texto.
+        const m = texto.match(/([\d.]*\d,\d{2})\s*Valor\s*L[íi]quido/i) ?? texto.match(/L[íi]quido\D{0,20}([\d.]*\d,\d{2})/i)
+        if (m) liquido = valorBr(m[1])
+        else if (valores.length) liquido = valorBr(valores[valores.length - 1].s)
+        continue
+      }
+      // Rodapé e avisos impressos não são rubrica.
+      if (/Atestado\s+vencido|ASSINATURA|DECLARO|Recebi|^DATA/i.test(texto)) continue
 
       // Linha de bases (cabeçalho com FGTS/INSS/IRRF e a linha seguinte com os números).
       if (/FGTS|Base\s*C[áa]l/i.test(texto) && !valores.length) {
@@ -228,7 +237,7 @@ export function lerContracheque(pdf: PdfLido, duvidosos: string[] = []): Contrac
           valor: valorBr(valorItem.s),
           tipo: colunaDe(valorItem.x),
           categoria: categoriaRubrica(descricao),
-          duvidoso: duvida.has(valorItem.s.trim()) || (refItem ? duvida.has(refItem.s.trim()) : false) || undefined,
+          duvidoso: duvida.has(valorItem.s.trim()) || (refItem ? duvida.has(refItem.s.trim()) : false),
         })
         continue
       }
@@ -253,20 +262,27 @@ export function lerContracheque(pdf: PdfLido, duvidosos: string[] = []): Contrac
   if (pdf.origem === 'ocr_servidor') {
     avisos.push('Texto lido por OCR no servidor (Tesseract) a partir da imagem digitalizada. Rubricas com "duvidoso" tiveram baixa certeza de reconhecimento.')
   }
-  // Coerência: soma das rubricas × totais impressos (e líquido = vencimentos − descontos).
+  // Coerência: soma das rubricas × totais impressos; sem totais, pelo líquido
+  // (vencimentos − descontos = líquido). É a prova de que a leitura está completa.
   let somaConfere: boolean | null = null
+  let conferencia = ''
+  const somaV = rubricas.filter(r => r.tipo === 'vencimento').reduce((s, r) => s + r.valor, 0)
+  const somaD = rubricas.filter(r => r.tipo === 'desconto').reduce((s, r) => s + r.valor, 0)
   if (totalV != null) {
-    const somaV = rubricas.filter(r => r.tipo === 'vencimento').reduce((s, r) => s + r.valor, 0)
-    const somaD = rubricas.filter(r => r.tipo === 'desconto').reduce((s, r) => s + r.valor, 0)
     somaConfere = Math.abs(somaV - totalV) <= 0.05 && (totalD == null || Math.abs(somaD - totalD) <= 0.05)
-    if (!somaConfere) {
-      avisos.push(`Soma lida (vencimentos ${somaV.toFixed(2)} / descontos ${somaD.toFixed(2)}) não bate com os totais impressos (${totalV.toFixed(2)} / ${totalD?.toFixed(2) ?? '—'}): leitura incompleta ou com erro.`)
-      if (confianca === 'alta') confianca = 'media'
-    } else if (confianca === 'media' && !rubricas.some(r => r.duvidoso)) {
-      // OCR cuja soma fecha com os totais impressos e sem número duvidoso.
-      confianca = 'alta'
-      avisos.push('Soma das rubricas confere com os totais impressos.')
-    }
+    conferencia = `vencimentos lidos ${somaV.toFixed(2)} × total impresso ${totalV.toFixed(2)}; descontos lidos ${somaD.toFixed(2)} × total impresso ${totalD?.toFixed(2) ?? '—'}`
+  } else if (liquido != null && rubricas.length) {
+    somaConfere = Math.abs(somaV - somaD - liquido) <= 0.05
+    conferencia = `vencimentos ${somaV.toFixed(2)} − descontos ${somaD.toFixed(2)} = ${(somaV - somaD).toFixed(2)} × líquido impresso ${liquido.toFixed(2)}`
+  } else {
+    conferencia = 'Totais e líquido não localizados na leitura: soma não verificável.'
+  }
+  if (somaConfere === false) {
+    avisos.push(`Soma não fecha (${conferencia}): alguma rubrica faltou ou foi lida errada.`)
+    if (confianca === 'alta') confianca = 'media'
+  } else if (somaConfere && confianca === 'media' && !rubricas.some(r => r.duvidoso)) {
+    confianca = 'alta'
+    avisos.push('Soma das rubricas confere com o impresso.')
   }
   return {
     origem_texto: pdf.origem,
@@ -276,6 +292,7 @@ export function lerContracheque(pdf: PdfLido, duvidosos: string[] = []): Contrac
     liquido,
     bases,
     soma_confere: somaConfere,
+    conferencia_da_soma: conferencia,
     confianca,
     avisos,
   }
