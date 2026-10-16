@@ -113,14 +113,22 @@ function dataRhid(v: string): string | null {
   return new Date(Number(m[1])).toLocaleString('sv-SE', { timeZone: FUSO })
 }
 
-/** Remove campos pessoais e converte datas do RHiD, recursivamente. */
+// Campos que só servem à tela do RHiD (cor de alerta, colunas configuráveis vazias).
+const CHAVE_DE_TELA = /^(colorAlert|colunaMix\d+|css|style|cor|color)$/i
+
+/**
+ * Remove campos pessoais e de tela e converte datas do RHiD, recursivamente.
+ * Campos null/"" são omitidos para caber períodos longos na conversa; zeros
+ * são mantidos (0 é um valor apurado, não ausência).
+ */
 function sanitiza(v: unknown, prof = 0): unknown {
   if (prof > 12) return null
   if (Array.isArray(v)) return v.map(x => sanitiza(x, prof + 1))
   if (v && typeof v === 'object') {
     const out: Json = {}
     for (const [k, x] of Object.entries(v as Json)) {
-      if (CHAVE_SENSIVEL.test(k)) continue
+      if (CHAVE_SENSIVEL.test(k) || CHAVE_DE_TELA.test(k)) continue
+      if (x === null || x === undefined || x === '') continue
       out[k] = sanitiza(x, prof + 1)
     }
     return out
