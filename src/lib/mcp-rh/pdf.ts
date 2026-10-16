@@ -204,7 +204,7 @@ export function lerContracheque(pdf: PdfLido, duvidosos: string[] = []): Contrac
         continue
       }
       // Rodapé e avisos impressos não são rubrica.
-      if (/Atestado\s+vencido|ASSINATURA|DECLARO|Recebi|^DATA/i.test(texto)) continue
+      if (/Atestado\s+vencido|ASSINATURA|DECLARO|Recebi|^DATA\s*$/i.test(texto)) continue
 
       // Linha de bases (cabeçalho com FGTS/INSS/IRRF e a linha seguinte com os números).
       if (/FGTS|Base\s*C[áa]l/i.test(texto) && !valores.length) {
