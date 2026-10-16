@@ -310,8 +310,15 @@ export function marcacoesPorDia(espelhos: Awaited<ReturnType<typeof lerEspelhos>
     }
   }
   const ord = (a: string, b: string) => a.localeCompare(b)
+  // A mesma batida pode vir repetida (duas leituras do mesmo registro): uma só por minuto.
+  const unicas = (l: string[]) => [...new Set(l)].sort(ord)
   const dias = [...mapa.values()]
-    .map(d => ({ ...d, originais: d.originais.sort(ord), tratadas: d.tratadas.sort(ord), incluidas_manualmente: d.incluidas_manualmente.sort(ord) }))
+    .map(d => ({
+      ...d,
+      originais: unicas(d.originais),
+      tratadas: d.tratadas.sort(ord),
+      incluidas_manualmente: unicas(d.incluidas_manualmente).filter(h => !d.originais.includes(h)),
+    }))
     .sort((a, b) => a.data.localeCompare(b.data))
 
   // Turno que passa da meia-noite: a saída depois das 0h cai no dia seguinte
