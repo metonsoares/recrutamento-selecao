@@ -337,6 +337,19 @@ async function documentosDe(f: Funcionario): Promise<Doc[]> {
   return docs
 }
 
+/**
+ * A referência do documento ("08/2026", "01/2025 a 04/2025") cai no período?
+ * Referência que não dá para ler entra (melhor sobrar que esconder).
+ */
+function competenciaNoPeriodo(ref: string | null, ini: string, fim: string): boolean {
+  const meses = [...(ref ?? '').matchAll(/(\d{1,2})\/(\d{4})/g)]
+    .map(m => `${m[2]}-${m[1].padStart(2, '0')}`)
+  if (meses.length === 0) return true
+  const a = meses[0]
+  const b = meses[meses.length - 1]
+  return a <= fim.slice(0, 7) && b >= ini.slice(0, 7)
+}
+
 async function extrairTexto(bytes: Uint8Array): Promise<{ paginas: string[]; total: number }> {
   const { getDocumentProxy, extractText } = await import('unpdf')
   const pdf = await getDocumentProxy(bytes)
@@ -747,7 +760,7 @@ export const OPERACOES: Record<string, Operacao> = {
         })
         .filter(x => x.competencia && x.competencia >= ini.slice(0, 7) + '-01' && x.competencia <= fim)
       const contracheques = (await documentosDe(f))
-        .filter(d => d.tipo === 'contracheque')
+        .filter(d => d.tipo === 'contracheque' && competenciaNoPeriodo(d.competencia, ini, fim))
         .map(d => ({ id: d.id, competencia: d.competencia, nome_arquivo: d.nome }))
       return {
         linhas: fech.length,
