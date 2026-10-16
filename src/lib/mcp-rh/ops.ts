@@ -1228,6 +1228,8 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
                 saida_antecipada_min: d.saida_antecipada_min,
                 falta_dia_inteiro: d.falta_dia_inteiro,
               },
+              pendencia_no_rhid: d.pendencias_rhid || undefined,
+              batidas_impares: (m?.originais.length ?? 0) % 2 === 1 || undefined,
             }
           }),
           totais: somar(dias),
@@ -1239,6 +1241,8 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
             periodo: { inicio: ini, fim },
             observacoes: [
               'Quatro camadas lado a lado: previsto (escala/horário do RHiD), marcações originais, tratadas/incluídas e apurado.',
+              'Dia com batida e trabalhado 0:00 costuma ser pendência no RHiD (batida faltando/ímpar): o RHiD não calcula o dia até alguém tratar. Veja pendencia_no_rhid e batidas_impares.',
+              'Horário "24:30" nas originais = 00:30 do dia seguinte, devolvido ao turno que virou o dia (virou_o_dia=true).',
               'Indícios são evidência para análise, não conclusão: acordo de compensação, 12x36, CCT ou cargo de confiança podem mudar a regra.',
               'Escala proposta (ex.: novembro) não está no sistema: compare a que vier anexada com estes dados.',
               NOTA_MINUTOS,
@@ -1287,9 +1291,18 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
       const f = await obterFuncionario(ctx, argId(args))
       const { ini, fim } = periodo(args)
       const { dias } = await diasApurados(f, ini, fim)
+      // Dia de corte do ponto: com corte 15, o dia 16/07 já conta para a folha de 08.
+      const corte = Math.trunc(Number(args.corte_dia) || 0)
+      if (corte && (corte < 1 || corte > 28)) throw new ErroMcp('corte_dia deve ser de 1 a 28.')
+      const competenciaDoDia = (data: string) => {
+        if (!corte || Number(data.slice(8, 10)) <= corte) return data.slice(0, 7)
+        const [a, m] = data.slice(0, 7).split('-').map(Number)
+        return m === 12 ? `${a + 1}-01` : `${a}-${String(m + 1).padStart(2, '0')}`
+      }
+      const meses = [...new Set(dias.map(d => competenciaDoDia(d.data)))].sort()
       const competencias = []
-      for (const mes of mesesDoPeriodo(ini, fim)) {
-        competencias.push(await conferirMes(f, mes, dias.filter(d => d.data.startsWith(mes))))
+      for (const mes of meses) {
+        competencias.push(await conferirMes(f, mes, dias.filter(d => competenciaDoDia(d.data) === mes)))
       }
       return {
         linhas: competencias.length,
@@ -1302,6 +1315,8 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
             criterio: 'Compara horas (referência da rubrica em H:MM) com minutos apurados no RHiD; tolerância de 6 min. "confere"/"diverge" é sobre QUANTIDADE de horas; valor em R$ depende de salário-hora, percentual da CCT e reflexos (DSR).',
             observacoes: [
               'Período parcial do mês compara apurado parcial com folha do mês inteiro — use meses cheios.',
+              corte ? `Competência montada com corte no dia ${corte} (dias após o corte contam para a folha do mês seguinte).` : 'Competência = mês civil. Se a folha usa corte do ponto (ex.: 16 a 15), informe corte_dia e um período que cubra os dois meses.',
+              'Extras que vão para o banco de horas não aparecem como extra apurada; o pagamento do saldo do banco aparece na folha como HORA EXTRA — confira bdt_get_time_bank.',
               'Adicional noturno: compara com minutos computados (hora reduzida) e com minutos do relógio; a folha pode usar qualquer dos dois.',
               'Quando o pago vem de OCR (confianca=media), confirme na imagem antes de concluir.',
             ],
