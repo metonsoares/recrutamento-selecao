@@ -167,12 +167,17 @@ async function carregarFuncionarios(ctx: ContextoMcp): Promise<Funcionario[]> {
   const db = await createSupabaseServiceClient()
   const [{ data: apps, error }, { data: empresas }] = await Promise.all([
     db.from('applications')
-      .select('id, status, admission_form, contract_data, company_docs, terminated_at, candidate:candidates(id, full_name, cpf, deleted_at)')
+      // Dois vínculos entre as tabelas (candidate_id e latest_application_id):
+      // o embed precisa nomear a FK, senão o PostgREST recusa por ambiguidade.
+      .select('id, status, admission_form, contract_data, company_docs, terminated_at, candidate:candidates!applications_candidate_id_fkey(id, full_name, cpf, deleted_at)')
       .eq('is_latest', true)
       .in('status', STATUS_FUNCIONARIO),
     db.from('companies').select('id, apelido, razao_social'),
   ])
-  if (error) throw new ErroMcp('Falha ao ler o cadastro de funcionários.', 500)
+  if (error) {
+    console.error('[mcp-rh] cadastro:', error.message)
+    throw new ErroMcp('Falha ao ler o cadastro de funcionários.', 500)
+  }
   const porId = new Map((empresas ?? []).map(e => [e.id as string, e]))
 
   const lista: Funcionario[] = []
