@@ -15,7 +15,7 @@ import { lerFolhaContador, valorBr, type LinhaPdf } from '@/lib/folha-contador'
  * Nenhum OCR é feito aqui e nada é enviado a terceiros por esta camada.
  */
 
-export type OrigemTexto = 'nativo' | 'ocr_do_scanner' | 'sem_texto'
+export type OrigemTexto = 'nativo' | 'ocr_do_scanner' | 'ocr_servidor' | 'sem_texto'
 
 export interface PaginaLida {
   pagina: number
@@ -106,16 +106,32 @@ export interface Rubrica {
   valor: number
   tipo: 'vencimento' | 'desconto'
   categoria: string
+  /** Número reconhecido com pouca certeza pelo OCR. */
+  duvidoso?: boolean
 }
 
 export interface ContrachequeLido {
+  origem_texto: OrigemTexto
   rubricas: Rubrica[]
   total_vencimentos: number | null
   total_descontos: number | null
   liquido: number | null
   bases: Record<string, number>
+  /** Soma das rubricas lidas bate com os totais impressos (prova de leitura completa). */
+  soma_confere: boolean | null
   confianca: 'alta' | 'media' | 'baixa'
   avisos: string[]
+}
+
+/** Texto vindo do OCR do servidor, no mesmo formato da leitura do PDF. */
+export function pdfDeOcr(linhas: LinhaPdf[], texto: string[]): PdfLido {
+  return {
+    totalPaginas: 1,
+    origem: 'ocr_servidor',
+    paginas: [{ pagina: 1, linhas: texto }],
+    posicionadas: [linhas],
+    temImagens: true,
+  }
 }
 
 const EH_VALOR = /^\*{0,5}[\d.]*\d,\d{2}\*{0,5}$/
@@ -150,7 +166,8 @@ function minutosDe(ref: string): number | null {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null
 }
 
-export function lerContracheque(pdf: PdfLido): ContrachequeLido {
+export function lerContracheque(pdf: PdfLido, duvidosos: string[] = []): ContrachequeLido {
+  const duvida = new Set(duvidosos.map(s => s.trim()))
   const avisos: string[] = []
   const rubricas: Rubrica[] = []
   const bases: Record<string, number> = {}
@@ -211,6 +228,7 @@ export function lerContracheque(pdf: PdfLido): ContrachequeLido {
           valor: valorBr(valorItem.s),
           tipo: colunaDe(valorItem.x),
           categoria: categoriaRubrica(descricao),
+          duvidoso: duvida.has(valorItem.s.trim()) || (refItem ? duvida.has(refItem.s.trim()) : false) || undefined,
         })
         continue
       }
@@ -230,17 +248,37 @@ export function lerContracheque(pdf: PdfLido): ContrachequeLido {
     avisos.push('Nenhuma rubrica reconhecida: use o texto por linha ou a imagem da página.')
   }
   if (pdf.origem === 'ocr_do_scanner') {
-    avisos.push('Texto vem do OCR do scanner (digitalização): números podem ter erro de reconhecimento. Confira na imagem (incluir_imagem=true) antes de concluir.')
+    avisos.push('Texto vem do OCR do scanner (digitalização): números podem ter erro de reconhecimento.')
   }
-  // Coerência: soma das rubricas × totais impressos.
+  if (pdf.origem === 'ocr_servidor') {
+    avisos.push('Texto lido por OCR no servidor (Tesseract) a partir da imagem digitalizada. Rubricas com "duvidoso" tiveram baixa certeza de reconhecimento.')
+  }
+  // Coerência: soma das rubricas × totais impressos (e líquido = vencimentos − descontos).
+  let somaConfere: boolean | null = null
   if (totalV != null) {
     const somaV = rubricas.filter(r => r.tipo === 'vencimento').reduce((s, r) => s + r.valor, 0)
-    if (Math.abs(somaV - totalV) > 0.05) {
-      avisos.push(`Soma dos vencimentos lidos (${somaV.toFixed(2)}) difere do total impresso (${totalV.toFixed(2)}): leitura incompleta ou com erro.`)
+    const somaD = rubricas.filter(r => r.tipo === 'desconto').reduce((s, r) => s + r.valor, 0)
+    somaConfere = Math.abs(somaV - totalV) <= 0.05 && (totalD == null || Math.abs(somaD - totalD) <= 0.05)
+    if (!somaConfere) {
+      avisos.push(`Soma lida (vencimentos ${somaV.toFixed(2)} / descontos ${somaD.toFixed(2)}) não bate com os totais impressos (${totalV.toFixed(2)} / ${totalD?.toFixed(2) ?? '—'}): leitura incompleta ou com erro.`)
       if (confianca === 'alta') confianca = 'media'
+    } else if (confianca === 'media' && !rubricas.some(r => r.duvidoso)) {
+      // OCR cuja soma fecha com os totais impressos e sem número duvidoso.
+      confianca = 'alta'
+      avisos.push('Soma das rubricas confere com os totais impressos.')
     }
   }
-  return { rubricas, total_vencimentos: totalV, total_descontos: totalD, liquido, bases, confianca, avisos }
+  return {
+    origem_texto: pdf.origem,
+    rubricas,
+    total_vencimentos: totalV,
+    total_descontos: totalD,
+    liquido,
+    bases,
+    soma_confere: somaConfere,
+    confianca,
+    avisos,
+  }
 }
 
 // ---------------------------------------------------------------------------

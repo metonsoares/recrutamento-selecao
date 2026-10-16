@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // OCR da ponte do ChatGPT (src/lib/mcp-rh/ocr.ts): o tesseract.js sobe um
+  // worker_thread a partir dos próprios arquivos — não pode ser empacotado.
+  serverExternalPackages: ['tesseract.js'],
   images: {
     remotePatterns: [
       {

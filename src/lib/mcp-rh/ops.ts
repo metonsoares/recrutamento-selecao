@@ -6,7 +6,8 @@ import {
   ContextoRhid, consolidarApuracao, evidencias, hhmm, janelasMensais, lerApuracao, lerEscalaDiaria,
   lerEspelhos, lerSaldoBanco, marcacoesPorDia, porSemana, somar, type DiaPonto,
 } from './ponto'
-import { extrairJpegs, funcionarioNaFolhaAnalitica, lerContracheque, lerPdf } from './pdf'
+import { extrairJpegs, funcionarioNaFolhaAnalitica, lerContracheque, lerPdf, pdfDeOcr, type PdfLido } from './pdf'
+import { ocrImagem } from './ocr'
 
 /**
  * Operações da ponte de RH do ChatGPT — TODAS SOMENTE LEITURA.
@@ -380,6 +381,34 @@ function imagensDasPaginas(bytes: Uint8Array, paginas: number[]): { pagina: numb
   return out
 }
 
+/** Melhor leitura do contracheque: texto do PDF e/ou OCR no servidor (digitalizado). */
+async function lerContrachequeComOcr(bytes: Uint8Array, pdf: PdfLido, usarOcr: boolean) {
+  const leituras: ReturnType<typeof lerContracheque>[] = []
+  if (pdf.origem !== 'sem_texto') leituras.push(lerContracheque(pdf))
+  let ocr: { confianca_media: number; numeros_duvidosos: number } | null = null
+  if (usarOcr && pdf.origem !== 'nativo') {
+    const jpg = extrairJpegs(bytes, 1)[0]
+    if (jpg) {
+      try {
+        const o = await ocrImagem(jpg)
+        leituras.push(lerContracheque(pdfDeOcr(o.linhas, o.texto), o.duvidosos))
+        ocr = { confianca_media: o.confianca_media, numeros_duvidosos: o.duvidosos.length }
+      } catch (e) {
+        console.error('[mcp-rh] ocr:', (e as Error).message)
+      }
+    }
+  }
+  // Prefere a leitura cuja soma fecha com os totais impressos; depois a mais confiável.
+  const nota = (l: ReturnType<typeof lerContracheque>) =>
+    (l.soma_confere ? 1000 : 0) + (l.confianca === 'alta' ? 100 : l.confianca === 'media' ? 50 : 0) + l.rubricas.length
+  leituras.sort((a, b) => nota(b) - nota(a))
+  return {
+    melhor: leituras[0] ?? null,
+    alternativas: leituras.slice(1).map(l => ({ origem_texto: l.origem_texto, rubricas: l.rubricas.length, soma_confere: l.soma_confere, confianca: l.confianca })),
+    ocr,
+  }
+}
+
 /** Folha analítica do contador para a empresa/competência do funcionário (se houver). */
 async function folhaAnaliticaDe(f: Funcionario, competenciaAAAAMM: string) {
   if (!f.empresaNome) return null
@@ -534,7 +563,7 @@ export const OPERACOES: Record<string, Operacao> = {
             periodo: { inicio: ini, fim },
             campos: {
               originais: 'batidas do relógio/app (espelho.afdt) — o registro original',
-              tratadas: 'horários exibidos no espelho após tratamento (acjef.horariosEspelho)',
+              tratadas: 'horários que o espelho imprime (acjef): batidas tratadas ou, em dia sem batida, o horário PREVISTO — não é batida',
               incluidas_manualmente: 'marcações que não vieram do relógio (afdtNaoOriginal) — inclusão manual',
             },
             observacoes: [
@@ -792,7 +821,24 @@ export const OPERACOES: Record<string, Operacao> = {
       }
 
       const pdf = await lerPdf(bytes)
-      const contracheque = doc.tipo === 'contracheque' && pdf.origem !== 'sem_texto' ? lerContracheque(pdf) : null
+      const usarOcr = args.ocr !== false && pdf.origem !== 'nativo'
+      let contracheque: ReturnType<typeof lerContracheque> | null = null
+      let ocrServidor: Json | null = null
+      if (doc.tipo === 'contracheque') {
+        const r = await lerContrachequeComOcr(bytes, pdf, usarOcr)
+        contracheque = r.melhor
+        ocrServidor = r.ocr ? { ...r.ocr, leituras_alternativas: r.alternativas } : null
+      } else if (usarOcr) {
+        const jpg = extrairJpegs(bytes, 40)[paginaPedida - 1]
+        if (jpg) {
+          try {
+            const o = await ocrImagem(jpg)
+            ocrServidor = { pagina: paginaPedida, linhas: o.texto, confianca_media: o.confianca_media, numeros_duvidosos: o.duvidosos }
+          } catch (e) {
+            console.error('[mcp-rh] ocr:', (e as Error).message)
+          }
+        }
+      }
       const imagens = incluirImagem ? imagensDasPaginas(bytes, [paginaPedida]) : []
       return {
         linhas: pdf.paginas.length,
@@ -801,16 +847,19 @@ export const OPERACOES: Record<string, Operacao> = {
           origem_texto: pdf.origem,
           legivel: pdf.origem !== 'sem_texto',
           motivo: pdf.origem === 'sem_texto'
-            ? 'PDF digitalizado sem camada de texto. Peça de novo com incluir_imagem=true para ler a imagem da página.'
+            ? 'PDF digitalizado sem camada de texto: veja ocr_servidor (OCR feito no servidor, com confiança).'
             : pdf.origem === 'ocr_do_scanner'
-              ? 'Texto vem do OCR do scanner: pode ter erro de reconhecimento. Para valores, confira a imagem (incluir_imagem=true).'
+              ? 'Texto do PDF vem do OCR do scanner (pode ter erro). ocr_servidor traz uma segunda leitura, com confiança por número.'
               : null,
           contracheque_estruturado: contracheque,
+          ocr_servidor: ocrServidor,
           paginas: pdf.paginas,
           imagens,
           meta: meta('Recrutamento/RH · Storage admission-docs (PDF original, sem alteração)', {
             observacoes: [
               'Linhas remontadas pela posição na página (esquerda → direita).',
+              'OCR (quando há) roda no próprio servidor do Recrutamento — a imagem não vai a terceiros. ocr=false desliga.',
+              'O ChatGPT não lê os pixels de imagens vindas do conector: use o texto/ocr_servidor; incluir_imagem serve só para exibir.',
               pdf.temImagens && !incluirImagem ? 'O documento tem imagem digitalizada: use incluir_imagem=true e pagina=N para receber a imagem.' : null,
               incluirImagem && imagens.length === 0 ? 'Imagem não disponível para esta página (formato não-JPEG ou acima de 3 MB).' : null,
             ].filter(Boolean),
@@ -896,20 +945,25 @@ interface ContrachequeDoMes {
   nome_arquivo: string
   origem_texto: string
   leitura: ReturnType<typeof lerContracheque> | null
+  leituras_alternativas?: { origem_texto: string; rubricas: number; soma_confere: boolean | null; confianca: string }[]
+  ocr_servidor?: { confianca_media: number; numeros_duvidosos: number } | null
 }
 
-async function contrachequesDoMes(f: Funcionario, mes: string): Promise<ContrachequeDoMes[]> {
+async function contrachequesDoMes(f: Funcionario, mes: string, usarOcr = true): Promise<ContrachequeDoMes[]> {
   const docs = (await documentosDe(f)).filter(d => d.tipo === 'contracheque' && competenciaDaReferencia(d.competencia) === mes)
   const out: ContrachequeDoMes[] = []
   for (const d of docs) {
     const bytes = await baixar(d)
     if (!ehPdf(bytes)) { out.push({ documento_id: d.id, nome_arquivo: d.nome, origem_texto: 'sem_texto', leitura: null }); continue }
     const pdf = await lerPdf(bytes)
+    const r = await lerContrachequeComOcr(bytes, pdf, usarOcr)
     out.push({
       documento_id: d.id,
       nome_arquivo: d.nome,
-      origem_texto: pdf.origem,
-      leitura: pdf.origem === 'sem_texto' ? null : lerContracheque(pdf),
+      origem_texto: r.melhor?.origem_texto ?? pdf.origem,
+      leitura: r.melhor,
+      leituras_alternativas: r.alternativas,
+      ocr_servidor: r.ocr,
     })
   }
   return out
@@ -942,10 +996,10 @@ function comparaItem(nome: string, apuradoMin: number | null, pagas: RubricaPaga
   }
 }
 
-async function conferirMes(f: Funcionario, mes: string, diasDoMes: DiaPonto[]) {
+async function conferirMes(f: Funcionario, mes: string, diasDoMes: DiaPonto[], usarOcr = true) {
   const apurado = somar(diasDoMes)
   const analitica = await folhaAnaliticaDe(f, mes).catch(() => null)
-  const contracheques = await contrachequesDoMes(f, mes).catch(() => [] as ContrachequeDoMes[])
+  const contracheques = await contrachequesDoMes(f, mes, usarOcr).catch(() => [] as ContrachequeDoMes[])
   // Fonte do pago: folha analítica com texto nativo > contracheque.
   let fonte = 'nenhuma'
   let confianca = 'nenhuma'
@@ -957,7 +1011,7 @@ async function conferirMes(f: Funcionario, mes: string, diasDoMes: DiaPonto[]) {
   } else {
     const lido = contracheques.find(c => c.leitura && c.leitura.rubricas.length)
     if (lido?.leitura) {
-      fonte = `contracheque ${lido.nome_arquivo} (${lido.documento_id})`
+      fonte = `contracheque ${lido.nome_arquivo} (${lido.documento_id}) · leitura: ${lido.leitura.origem_texto}`
       confianca = lido.leitura.confianca
       pagas = lido.leitura.rubricas.map(r => ({ ...r }))
     }
@@ -970,7 +1024,7 @@ async function conferirMes(f: Funcionario, mes: string, diasDoMes: DiaPonto[]) {
     }),
     ...(apurado.extras_por_percentual.length ? [] : [comparaItem('horas extras', apurado.extras_total_min, de('hora_extra'))]),
     comparaItem('adicional noturno', apurado.noturno_total_reduzido_min, de('adicional_noturno'), apurado.noturno_total_min),
-    comparaItem('faltas/atrasos (horas)', apurado.ausente_min + apurado.atraso_min, [...de('faltas'), ...de('atrasos')]),
+    comparaItem('faltas/atrasos (horas)', apurado.falta_atraso_min, [...de('faltas'), ...de('atrasos')]),
   ]
   const semTexto = contracheques.filter(c => !c.leitura)
   return {
@@ -993,7 +1047,7 @@ async function conferirMes(f: Funcionario, mes: string, diasDoMes: DiaPonto[]) {
     comparacao: itens,
     documentos_para_conferencia_visual: contracheques.map(c => ({ documento_id: c.documento_id, nome_arquivo: c.nome_arquivo, origem_texto: c.origem_texto })),
     avisos: [
-      confianca === 'media' ? 'Valores pagos lidos de digitalização (OCR do scanner): confira na imagem do contracheque.' : null,
+      confianca !== 'alta' && fonte !== 'nenhuma' ? 'Valores pagos lidos de digitalização por OCR e sem prova de soma: trate como estimativa até conferir no documento.' : null,
       fonte === 'nenhuma' ? 'Sem folha analítica nem contracheque com texto para o mês: leia a imagem do contracheque (bdt_read_employee_document com incluir_imagem=true).' : null,
       semTexto.length ? `${semTexto.length} contracheque(s) do mês sem texto (só imagem).` : null,
     ].filter(Boolean),
@@ -1163,7 +1217,8 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
               dia_semana: d.dia_semana,
               previsto: { folga: d.folga, feriado: d.feriado, horas: hhmm(d.previsto_min) },
               marcacoes_originais: m?.originais ?? [],
-              marcacoes_tratadas: m?.tratadas ?? [],
+              horarios_no_espelho: m?.tratadas ?? [],
+              virou_o_dia: m?.virou_o_dia || undefined,
               incluidas_manualmente: m?.incluidas_manualmente ?? [],
               apurado: {
                 trabalhado: hhmm(d.trabalhado_min),
@@ -1200,7 +1255,7 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
       const f = await obterFuncionario(ctx, argId(args))
       const mes = competenciaDaReferencia(argTexto(args, 'competencia'))
       if (!mes) throw new ErroMcp('Informe competencia no formato MM/AAAA (ex.: 08/2026).')
-      const [lidos, analitica] = await Promise.all([contrachequesDoMes(f, mes), folhaAnaliticaDe(f, mes).catch(() => null)])
+      const [lidos, analitica] = await Promise.all([contrachequesDoMes(f, mes, args.ocr !== false), folhaAnaliticaDe(f, mes).catch(() => null)])
       let imagens: { pagina: number; mime: string; base64: string }[] = []
       if (args.incluir_imagem === true) {
         const doc = (await documentosDe(f)).find(d => d.tipo === 'contracheque' && competenciaDaReferencia(d.competencia) === mes)
@@ -1289,7 +1344,7 @@ const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
             if (pode('folha_read')) {
               const conf = []
               for (const m of meses) {
-                try { conf.push(await conferirMes(f, m, dias.filter(d => d.data.startsWith(m)))) } catch (e) { lacunas.push(`Folha ${m}: ${(e as Error).message}`) }
+                try { conf.push(await conferirMes(f, m, dias.filter(d => d.data.startsWith(m)), args.ocr === true)) } catch (e) { lacunas.push(`Folha ${m}: ${(e as Error).message}`) }
               }
               r.pago_x_apurado = conf.map(c => ({ competencia: c.competencia, fonte_pago: c.pago.fonte, confianca: c.pago.confianca, comparacao: c.comparacao, avisos: c.avisos }))
             }

@@ -168,6 +168,8 @@ export interface DiaPonto {
   saida_antecipada_min: number
   falta_dia_inteiro: boolean
   ausente_min: number
+  /** Falta + atraso em minutos, como o RHiD desconta (horasFaltaAtraso). */
+  falta_atraso_min: number
   pulou_intervalo: boolean
   saldo_banco_fim_dia_min: number | null
   pendencias_rhid: boolean
@@ -199,7 +201,8 @@ export function consolidarApuracao(linhas: Json[]): DiaPonto[] {
       atraso_min: n(l.atrasoEntrada ?? l.apenasAtraso),
       saida_antecipada_min: n(l.saidaAntecipada),
       falta_dia_inteiro: l.faltaDiaInteiro === true,
-      ausente_min: n(l.horasAusentes ?? l.horasFaltaAtraso),
+      ausente_min: n(l.horasAusentes),
+      falta_atraso_min: n(l.horasFaltaAtraso),
       pulou_intervalo: n(l.pulouAlmoco) > 0,
       saldo_banco_fim_dia_min: l.saldoBancoFinalDia == null ? null : n(l.saldoBancoFinalDia),
       pendencias_rhid: l.possuiPendencias === true,
@@ -230,6 +233,7 @@ export function somar(dias: DiaPonto[]) {
     atraso_min: soma('atraso_min'),
     saida_antecipada_min: soma('saida_antecipada_min'),
     ausente_min: soma('ausente_min'),
+    falta_atraso_min: soma('falta_atraso_min'),
     extras_por_percentual: [...porPct].map(([percentual, minutos]) => ({ percentual, minutos, hhmm: hhmm(minutos) })),
   }
   return {
@@ -267,9 +271,12 @@ export function porSemana(dias: DiaPonto[]) {
 // ---------------------------------------------------------------------------
 export interface MarcacoesDia {
   data: string
+  /** Batidas do relógio/app (afdt). "24:30" = 00:30 do dia seguinte (turno que virou o dia). */
   originais: string[]
+  /** O que o espelho imprime (acjef): batidas tratadas ou, sem batida, o horário previsto. */
   tratadas: string[]
   incluidas_manualmente: string[]
+  virou_o_dia?: boolean
 }
 
 function hora(v: unknown): string | null {
@@ -303,9 +310,28 @@ export function marcacoesPorDia(espelhos: Awaited<ReturnType<typeof lerEspelhos>
     }
   }
   const ord = (a: string, b: string) => a.localeCompare(b)
-  return [...mapa.values()]
+  const dias = [...mapa.values()]
     .map(d => ({ ...d, originais: d.originais.sort(ord), tratadas: d.tratadas.sort(ord), incluidas_manualmente: d.incluidas_manualmente.sort(ord) }))
     .sort((a, b) => a.data.localeCompare(b.data))
+
+  // Turno que passa da meia-noite: a saída depois das 0h cai no dia seguinte
+  // do relógio. Se o dia ficou com número ÍMPAR de batidas e o seguinte começa
+  // de madrugada (antes das 6h), essa batida volta para o dia do turno como
+  // "24:MM"/"25:MM" — e é marcada em virou_o_dia para ficar visível.
+  for (let i = 0; i + 1 < dias.length; i++) {
+    const hoje = dias[i]
+    const amanha = dias[i + 1]
+    const seguido = new Date(`${amanha.data}T12:00:00Z`).getTime() - new Date(`${hoje.data}T12:00:00Z`).getTime() === 864e5
+    const primeira = amanha.originais[0]
+    const min = primeira ? minutosDaHora(primeira) : null
+    if (seguido && hoje.originais.length % 2 === 1 && min != null && min < 360) {
+      amanha.originais.shift()
+      const h = min + 1440
+      hoje.originais.push(`${Math.floor(h / 60)}:${String(h % 60).padStart(2, '0')}`)
+      ;(hoje as MarcacoesDia).virou_o_dia = true
+    }
+  }
+  return dias
 }
 
 const REGRAS = {
@@ -326,8 +352,14 @@ export function evidencias(dias: DiaPonto[], marcas: MarcacoesDia[]) {
 
   for (const d of [...dias].sort((a, b) => a.data.localeCompare(b.data))) {
     const m = porData.get(d.data)
-    const batidas = (m?.originais.length ? m.originais : m?.tratadas ?? []).map(h => minutosDaHora(h)!).filter(x => x != null)
-    const trabalhou = d.trabalhado_min > 0 || batidas.length >= 2
+    // Só batidas REAIS (relógio + incluídas manualmente). Os horários impressos
+    // no espelho (acjef) repetem o horário previsto em dia sem batida — usá-los
+    // aqui gerava falso indício de interjornada/7º dia.
+    const batidas = [...(m?.originais ?? []), ...(m?.incluidas_manualmente ?? [])]
+      .map(h => minutosDaHora(h))
+      .filter((x): x is number => x != null)
+      .sort((a, b) => a - b)
+    const trabalhou = d.trabalhado_min > 0
 
     if (trabalhou) consecutivos++
     else consecutivos = 0
@@ -336,7 +368,7 @@ export function evidencias(dias: DiaPonto[], marcas: MarcacoesDia[]) {
     }
     if (d.dia_semana === 'domingo') domingosPorSemana.push(trabalhou ? 'T' : 'F')
 
-    if (batidas.length >= 2) {
+    if (trabalhou && batidas.length >= 2) {
       // Intervalo = maior pausa entre pares (saída → próxima entrada).
       let maiorPausa = 0
       for (let i = 1; i + 1 < batidas.length; i += 2) maiorPausa = Math.max(maiorPausa, batidas[i + 1] - batidas[i])
@@ -354,7 +386,9 @@ export function evidencias(dias: DiaPonto[], marcas: MarcacoesDia[]) {
       if (d.trabalhado_min > 600) {
         indicios.push({ data: d.data, tipo: 'jornada_acima_10h', detalhe: `Trabalhado ${hhmm(d.trabalhado_min)} no dia.`, regra: REGRAS.jornada })
       }
-      if (anteriorFim) {
+      // Interjornada só entre dias de calendário seguidos, ambos com batida real.
+      const ontem = new Date(new Date(`${d.data}T12:00:00Z`).getTime() - 864e5).toISOString().slice(0, 10)
+      if (anteriorFim && anteriorFim.data === ontem) {
         const gap = (new Date(`${d.data}T12:00:00Z`).getTime() - new Date(`${anteriorFim.data}T12:00:00Z`).getTime()) / 6e4 - anteriorFim.min + batidas[0]
         if (gap > 0 && gap < 660) {
           indicios.push({ data: d.data, tipo: 'interjornada_menor_11h', detalhe: `Descanso de ${hhmm(gap)} desde a última saída de ${anteriorFim.data}.`, regra: REGRAS.interjornada })
