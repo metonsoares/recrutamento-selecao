@@ -175,6 +175,33 @@ export async function diasTrabalhados(
   return total
 }
 
+/**
+ * Chamada genérica de LEITURA ao RHiD (usada pela ponte do ChatGPT,
+ * src/lib/mcp-rh). Só caminhos que a própria tela do RHiD usa para exibir
+ * dados — quem chama escolhe o caminho a partir de uma lista fixa, nunca de
+ * texto vindo de fora.
+ */
+export async function rhidLeitura(
+  s: SessaoRhid,
+  metodo: 'GET' | 'POST',
+  caminho: string,
+  opcoes: { params?: Record<string, string>; body?: unknown; timeoutMs?: number } = {},
+): Promise<unknown> {
+  const qs = opcoes.params ? `?${new URLSearchParams(opcoes.params).toString()}` : ''
+  const res = await comTimeout(`${RHID_BASE}/${caminho}${qs}`, {
+    method: metodo,
+    headers: cabecalhos(s),
+    body: metodo === 'POST' ? JSON.stringify(opcoes.body ?? {}) : undefined,
+  }, opcoes.timeoutMs ?? 60000)
+  if (!res.ok) throw new ErroRhid(`O RHiD recusou a consulta (HTTP ${res.status}).`, 502)
+  const corpo = await res.json().catch(() => null)
+  if (corpo && typeof corpo === 'object' && !Array.isArray(corpo)) {
+    const erro = (corpo as Record<string, unknown>).error
+    if (typeof erro === 'string' && erro.trim()) throw new ErroRhid(`RHiD: ${erro}`, 502)
+  }
+  return corpo
+}
+
 /** Primeiro e último dia do mês (yyyyMMdd) a partir de uma competência yyyy-mm-01. */
 export function periodoDaCompetencia(competencia: string): { ini: string; fim: string } {
   const [ano, mes] = competencia.split('-').map(Number)
