@@ -20,12 +20,34 @@ export interface OcrPagina {
 }
 
 const CONFIANCA_MINIMA = 80
+const LIMITE_MS = 50_000
 
+/** OCR com limite de tempo: falha ou demora vira erro tratável, nunca trava a consulta. */
 export async function ocrImagem(jpeg: Uint8Array): Promise<OcrPagina> {
+  let cancelar: () => void = () => undefined
+  const limite = new Promise<never>((_, rej) => {
+    const t = setTimeout(() => rej(new Error('OCR excedeu o tempo limite.')), LIMITE_MS)
+    cancelar = () => clearTimeout(t)
+  })
+  try {
+    return await Promise.race([executarOcr(jpeg), limite])
+  } finally {
+    cancelar()
+  }
+}
+
+async function executarOcr(jpeg: Uint8Array): Promise<OcrPagina> {
   const { createWorker } = await import('tesseract.js')
-  const worker = await createWorker('por', 1, { cachePath: '/tmp' })
+  // errorHandler: erro do worker vira rejeição aqui em vez de exceção solta
+  // (que derrubava a função inteira).
+  let erroDoWorker: unknown = null
+  const worker = await createWorker('por', 1, {
+    cachePath: '/tmp',
+    errorHandler: (e: unknown) => { erroDoWorker = e },
+  })
   try {
     const { data } = await worker.recognize(Buffer.from(jpeg), {}, { blocks: true, text: true })
+    if (erroDoWorker) throw new Error(String(erroDoWorker))
     const palavras: { x: number; y: number; h: number; s: string; c: number }[] = []
     for (const b of data.blocks ?? []) {
       for (const p of b.paragraphs ?? []) {
