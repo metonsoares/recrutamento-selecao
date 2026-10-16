@@ -1,7 +1,12 @@
 import 'server-only'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { abrirSessaoRhid, cpfNormalizado, rhidLeitura, type SessaoRhid } from '@/lib/rhid'
+import { cpfNormalizado, rhidLeitura, type SessaoRhid } from '@/lib/rhid'
 import type { ContextoMcp } from './auth'
+import {
+  ContextoRhid, consolidarApuracao, evidencias, hhmm, janelasMensais, lerApuracao, lerEscalaDiaria,
+  lerEspelhos, lerSaldoBanco, marcacoesPorDia, porSemana, somar, type DiaPonto,
+} from './ponto'
+import { extrairJpegs, funcionarioNaFolhaAnalitica, lerContracheque, lerPdf } from './pdf'
 
 /**
  * Operações da ponte de RH do ChatGPT — TODAS SOMENTE LEITURA.
@@ -23,10 +28,7 @@ import type { ContextoMcp } from './auth'
 type Json = Record<string, unknown>
 const FUSO = 'America/Sao_Paulo'
 const STATUS_FUNCIONARIO = ['contratado', 'aprovado', 'freelancer', 'desligado']
-const MAX_DIAS = 93
-const JANELA_RHID = 31
-const LIMITE_PAGINAS_PDF = 40
-const LIMITE_CHARS_PAGINA = 8000
+const LIMITE_IMAGEM_BYTES = 3_000_000
 
 export class ErroMcp extends Error {
   constructor(message: string, readonly status = 400) { super(message) }
@@ -84,27 +86,27 @@ function normaliza(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 }
 
-/** Quebra [ini, fim] (AAAA-MM-DD) em janelas de até 31 dias, no formato do RHiD. */
+/** Janelas mensais de até 31 dias, no formato do RHiD (erro vira ErroMcp). */
 function janelas(ini: string, fim: string): { ini: string; fim: string }[] {
-  const d0 = new Date(`${ini}T12:00:00Z`)
-  const d1 = new Date(`${fim}T12:00:00Z`)
-  const dias = Math.round((d1.getTime() - d0.getTime()) / 864e5)
-  if (dias < 0) throw new ErroMcp('A data final é anterior à inicial.')
-  if (dias > MAX_DIAS) throw new ErroMcp(`Período máximo de ${MAX_DIAS} dias por consulta.`)
-  const fmt = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '') // datas de calendário, sem fuso
-  const out: { ini: string; fim: string }[] = []
-  let a = d0
-  while (a <= d1) {
-    const b = new Date(Math.min(a.getTime() + (JANELA_RHID - 1) * 864e5, d1.getTime()))
-    out.push({ ini: fmt(a), fim: fmt(b) })
-    a = new Date(b.getTime() + 864e5)
+  try {
+    return janelasMensais(ini, fim).map(j => ({ ini: j.ini, fim: j.fim }))
+  } catch (e) {
+    throw new ErroMcp((e as Error).message)
   }
-  return out
+}
+
+/** Valida o período (máx. 93 dias) antes de qualquer chamada ao RHiD. */
+function periodo(args: Json): { ini: string; fim: string } {
+  const ini = argData(args, 'inicio')
+  const fim = argData(args, 'fim')
+  janelas(ini, fim)
+  return { ini, fim }
 }
 
 // Campos que nunca saem (dado pessoal desnecessário ou credencial). Lista por
 // nome de campo, para servir a respostas cujo formato o RHiD não documenta.
-const CHAVE_SENSIVEL = /^(rg|nis|cnh|ctps|cep)$|cpf|pis(?!o)|identity|foto|photo|picture|image|senha|password|token|e-?mail|phone|telefone|celular|endereco|address|biometr|template|nascimento|birth|mother|father|^mae$|^pai$|bank|banco|agencia/i
+// ("banco" sozinho é conta bancária; banco de HORAS — saldoBanco… — passa.)
+const CHAVE_SENSIVEL = /^(rg|nis|cnh|ctps|cep|banco|agencia|conta)$|cpf|pis(?!o)|identity|foto|photo|picture|image|senha|password|token|e-?mail|phone|telefone|celular|endereco|address|biometr|template|nascimento|birth|mother|father|^mae$|^pai$|bank|dadosBanc|contaBanc/i
 
 /** Data .NET do RHiD ("/Date(1719800000000-0300)/") → texto local. */
 function dataRhid(v: string): string | null {
@@ -243,16 +245,19 @@ function publico(f: Funcionario): Json {
 // ---------------------------------------------------------------------------
 // RHiD
 // ---------------------------------------------------------------------------
-async function pessoaRhid(f: Funcionario): Promise<{ s: SessaoRhid; idRhid: number; matricula: string | null; statusRhid: number }> {
+/**
+ * Pessoa no RHiD (casada por CPF). `rh` reaproveita a sessão e a lista de
+ * pessoas dentro da mesma consulta (auditoria de vários funcionários).
+ */
+async function pessoaRhid(f: Funcionario, rh = new ContextoRhid()): Promise<{
+  s: SessaoRhid; rh: ContextoRhid; idRhid: number; matricula: string | null; statusRhid: number
+}> {
   if (f.cpf.length !== 11 || /^0+$/.test(f.cpf)) {
     throw new ErroMcp('O cadastro deste funcionário não tem CPF válido para localizar no RHiD.', 422)
   }
-  const s = await abrirSessaoRhid()
-  const lista = await rhidLeitura(s, 'GET', 'customerdb/person.svc/a_resumido') as { data?: Json[] } | Json[] | null
-  const pessoas = (Array.isArray(lista) ? lista : Array.isArray(lista?.data) ? lista!.data! : []) as Json[]
-  const p = pessoas.find(x => cpfNormalizado(x.cpf) === f.cpf)
+  const p = await rh.idPorCpf(f.cpf)
   if (!p) throw new ErroMcp('Funcionário não encontrado no RHiD (nenhum cadastro com o mesmo CPF).', 404)
-  return { s, idRhid: Number(p.id), matricula: texto(p.register), statusRhid: Number(p.status ?? 0) }
+  return { s: await rh.s(), rh, idRhid: p.id, matricula: p.matricula, statusRhid: p.status }
 }
 
 const LACUNA_PONTO = 'Dia sem marcação NÃO é zero hora: pode ser folga, falta, afastamento ou batida não registrada — conferir escala e ocorrências.'
@@ -350,12 +355,69 @@ function competenciaNoPeriodo(ref: string | null, ini: string, fim: string): boo
   return a <= fim.slice(0, 7) && b >= ini.slice(0, 7)
 }
 
-async function extrairTexto(bytes: Uint8Array): Promise<{ paginas: string[]; total: number }> {
-  const { getDocumentProxy, extractText } = await import('unpdf')
-  const pdf = await getDocumentProxy(bytes)
-  const { totalPages, text } = await extractText(pdf, { mergePages: false })
-  const paginas = (Array.isArray(text) ? text : [String(text)]).slice(0, LIMITE_PAGINAS_PDF)
-  return { paginas: paginas.map(t => t.slice(0, LIMITE_CHARS_PAGINA)), total: totalPages }
+async function baixar(doc: Doc): Promise<Uint8Array> {
+  const db = await createSupabaseServiceClient()
+  const { data: blob, error } = await db.storage.from(doc.bucket).download(doc.path)
+  if (error || !blob) throw new ErroMcp('Arquivo não encontrado no armazenamento.', 404)
+  return new Uint8Array(await blob.arrayBuffer())
+}
+
+function ehPdf(bytes: Uint8Array): boolean {
+  return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
+}
+
+/** Imagens das páginas pedidas, para o ChatGPT ler (sem OCR nosso). */
+function imagensDasPaginas(bytes: Uint8Array, paginas: number[]): { pagina: number; mime: string; base64: string }[] {
+  const jpegs = extrairJpegs(bytes, 40)
+  const out: { pagina: number; mime: string; base64: string }[] = []
+  let total = 0
+  for (const p of paginas) {
+    const j = jpegs[p - 1]
+    if (!j || total + j.length > LIMITE_IMAGEM_BYTES) continue
+    total += j.length
+    out.push({ pagina: p, mime: 'image/jpeg', base64: Buffer.from(j).toString('base64') })
+  }
+  return out
+}
+
+/** Folha analítica do contador para a empresa/competência do funcionário (se houver). */
+async function folhaAnaliticaDe(f: Funcionario, competenciaAAAAMM: string) {
+  if (!f.empresaNome) return null
+  const db = await createSupabaseServiceClient()
+  const { data } = await db.from('folhas_analiticas')
+    .select('id, file_path, file_name, created_at')
+    .eq('empresa', f.empresaNome)
+    .eq('competencia', `${competenciaAAAAMM}-01`)
+    .order('created_at', { ascending: false })
+  for (const fa of data ?? []) {
+    const { data: blob } = await db.storage.from('folhas-analiticas').download(String(fa.file_path))
+    if (!blob) continue
+    const pdf = await lerPdf(new Uint8Array(await blob.arrayBuffer()))
+    const r = funcionarioNaFolhaAnalitica(pdf, f.nome)
+    if (r.encontrado) return { documento: String(fa.file_name ?? ''), origem_texto: pdf.origem, ...r }
+  }
+  return null
+}
+
+/** "08/2026" → "2026-08"; aceita também "8/26". */
+function competenciaDaReferencia(ref: string | null): string | null {
+  const m = String(ref ?? '').match(/(\d{1,2})\/(\d{2,4})/)
+  if (!m) return null
+  const ano = m[2].length === 2 ? `20${m[2]}` : m[2]
+  return `${ano}-${m[1].padStart(2, '0')}`
+}
+
+/** Meses (AAAA-MM) cobertos pelo período. */
+function mesesDoPeriodo(ini: string, fim: string): string[] {
+  const out: string[] = []
+  let [a, m] = ini.slice(0, 7).split('-').map(Number)
+  const [af, mf] = fim.slice(0, 7).split('-').map(Number)
+  while (a < af || (a === af && m <= mf)) {
+    out.push(`${a}-${String(m).padStart(2, '0')}`)
+    m++
+    if (m > 12) { m = 1; a++ }
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -455,29 +517,30 @@ export const OPERACOES: Record<string, Operacao> = {
     escopos: ['ponto_read'],
     async executar(args, ctx) {
       const f = await obterFuncionario(ctx, argId(args))
-      const ini = argData(args, 'inicio')
-      const fim = argData(args, 'fim')
+      const { ini, fim } = periodo(args)
       const p = await pessoaRhid(f)
-      const partes: unknown[] = []
-      for (const j of janelas(ini, fim)) {
-        const r = await rhidLeitura(p.s, 'POST', 'report.svc/espelhoponto/', {
-          params: { idPerson: String(p.idRhid), ini: j.ini, fim: j.fim },
-          body: {},
-          timeoutMs: 90000,
-        })
-        partes.push({ janela: j, espelho: sanitiza(r) })
-      }
+      const espelhos = await lerEspelhos(p.rh, p.idRhid, ini, fim)
+      const dias = marcacoesPorDia(espelhos)
       return {
-        linhas: partes.length,
+        linhas: dias.length,
         dados: {
           funcionario: publico(f),
           periodo: { inicio: ini, fim },
-          espelhos: partes,
-          meta: meta('RHiD · report/espelhoponto (espelho de ponto, como a tela do RHiD exibe)', {
+          marcacoes_por_dia: dias,
+          espelhos_brutos: args.incluir_bruto === true
+            ? espelhos.map(e => ({ janela: { ini: e.janela.ini, fim: e.janela.fim }, espelho: sanitiza(e.espelho) }))
+            : undefined,
+          meta: meta('RHiD · report/espelhoponto', {
             periodo: { inicio: ini, fim },
+            campos: {
+              originais: 'batidas do relógio/app (espelho.afdt) — o registro original',
+              tratadas: 'horários exibidos no espelho após tratamento (acjef.horariosEspelho)',
+              incluidas_manualmente: 'marcações que não vieram do relógio (afdtNaoOriginal) — inclusão manual',
+            },
             observacoes: [
-              'O espelho traz as marcações registradas e as tratadas pelo RHiD (inclusões, desconsiderações, justificativas). Nomes de campos são os do RHiD.',
-              'Para separar com segurança marcação ORIGINAL de AJUSTADA, cruze com bdt_get_time_adjustments (cada alteração tem tipo e responsável).',
+              'Original e tratada são devolvidas lado a lado; nada é substituído.',
+              'Quem incluiu/alterou e quando: bdt_get_time_adjustments.',
+              'incluir_bruto=true devolve o espelho completo do RHiD.',
               LACUNA_PONTO,
             ],
           }),
@@ -706,36 +769,50 @@ export const OPERACOES: Record<string, Operacao> = {
       if (TIPOS_FOLHA.has(doc.tipo) && !ctx.escopos.includes('folha_read')) {
         throw new ErroMcp('Contracheques exigem o grupo folha_read, que não está liberado para esta conta.', 403)
       }
-      const db = await createSupabaseServiceClient()
-      const { data: blob, error } = await db.storage.from(doc.bucket).download(doc.path)
-      if (error || !blob) throw new ErroMcp('Arquivo não encontrado no armazenamento.', 404)
-      const bytes = new Uint8Array(await blob.arrayBuffer())
-      const ehPdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
-      if (!ehPdf) {
+      const bytes = await baixar(doc)
+      const incluirImagem = args.incluir_imagem === true
+      const paginaPedida = Math.max(1, Number(args.pagina) || 1)
+      const documento = { id: doc.id, tipo: doc.tipo, competencia: doc.competencia, nome_arquivo: doc.nome }
+
+      if (!ehPdf(bytes)) {
+        const ehJpeg = bytes[0] === 0xff && bytes[1] === 0xd8
         return {
           linhas: 0,
           dados: {
-            documento: { id: doc.id, tipo: doc.tipo, competencia: doc.competencia, nome_arquivo: doc.nome },
+            documento,
+            origem_texto: 'sem_texto',
             legivel: false,
-            motivo: 'O arquivo não é PDF (provavelmente imagem). Texto não extraído; OCR não é feito por esta ferramenta.',
+            motivo: 'O arquivo não é PDF. Texto não extraído; OCR não é feito por esta ferramenta.',
+            imagens: incluirImagem && ehJpeg && bytes.length <= LIMITE_IMAGEM_BYTES
+              ? [{ pagina: 1, mime: 'image/jpeg', base64: Buffer.from(bytes).toString('base64') }]
+              : [],
             meta: meta('Recrutamento/RH · Storage admission-docs'),
           },
         }
       }
-      const { paginas, total } = await extrairTexto(bytes)
-      const comTexto = paginas.filter(p => p.replace(/\s+/g, '').length > 20).length
+
+      const pdf = await lerPdf(bytes)
+      const contracheque = doc.tipo === 'contracheque' && pdf.origem !== 'sem_texto' ? lerContracheque(pdf) : null
+      const imagens = incluirImagem ? imagensDasPaginas(bytes, [paginaPedida]) : []
       return {
-        linhas: paginas.length,
+        linhas: pdf.paginas.length,
         dados: {
-          documento: { id: doc.id, tipo: doc.tipo, competencia: doc.competencia, nome_arquivo: doc.nome, total_paginas: total },
-          legivel: comTexto > 0,
-          motivo: comTexto > 0 ? null
-            : 'PDF digitalizado (imagem): não há texto para extrair. OCR não é feito por esta ferramenta. Para ponto, use o espelho do RHiD (bdt_get_time_entries).',
-          paginas: paginas.map((t, i) => ({ pagina: i + 1, texto: t })),
-          meta: meta('Recrutamento/RH · Storage admission-docs (texto extraído do PDF original, sem alteração)', {
+          documento: { ...documento, total_paginas: pdf.totalPaginas },
+          origem_texto: pdf.origem,
+          legivel: pdf.origem !== 'sem_texto',
+          motivo: pdf.origem === 'sem_texto'
+            ? 'PDF digitalizado sem camada de texto. Peça de novo com incluir_imagem=true para ler a imagem da página.'
+            : pdf.origem === 'ocr_do_scanner'
+              ? 'Texto vem do OCR do scanner: pode ter erro de reconhecimento. Para valores, confira a imagem (incluir_imagem=true).'
+              : null,
+          contracheque_estruturado: contracheque,
+          paginas: pdf.paginas,
+          imagens,
+          meta: meta('Recrutamento/RH · Storage admission-docs (PDF original, sem alteração)', {
             observacoes: [
-              total > paginas.length ? `Documento com ${total} páginas; devolvidas as ${paginas.length} primeiras.` : null,
-              'Extração automática: colunas de tabela podem sair fora de ordem. Confira valores críticos no original.',
+              'Linhas remontadas pela posição na página (esquerda → direita).',
+              pdf.temImagens && !incluirImagem ? 'O documento tem imagem digitalizada: use incluir_imagem=true e pagina=N para receber a imagem.' : null,
+              incluirImagem && imagens.length === 0 ? 'Imagem não disponível para esta página (formato não-JPEG ou acima de 3 MB).' : null,
             ].filter(Boolean),
           }),
         },
@@ -783,3 +860,481 @@ export const OPERACOES: Record<string, Operacao> = {
     },
   },
 }
+
+// ---------------------------------------------------------------------------
+// Conferências (extras, noturno, banco, escala × realizado, pago × apurado)
+// e auditoria consolidada. Tudo leitura; "indícios" são evidência, não laudo.
+// ---------------------------------------------------------------------------
+const NOTA_MINUTOS = 'Campos *_min estão em MINUTOS (unidade do RHiD); "em_horas"/"hhmm" trazem o mesmo valor em H:MM.'
+const APURADO_NAO_PAGO = 'Apurado pelo ponto NÃO é o pago: para o pago use bdt_get_payslip / bdt_compare_paid_vs_worked.'
+
+async function diasApurados(f: Funcionario, ini: string, fim: string, rh?: ContextoRhid) {
+  const p = await pessoaRhid(f, rh)
+  const linhas = await lerApuracao(p.rh, p.idRhid, ini, fim)
+  return { p, dias: consolidarApuracao(linhas) }
+}
+
+function diaResumo(d: DiaPonto) {
+  return {
+    data: d.data,
+    dia_semana: d.dia_semana,
+    folga: d.folga,
+    feriado: d.feriado,
+    previsto: hhmm(d.previsto_min),
+    trabalhado: hhmm(d.trabalhado_min),
+    extras: hhmm(d.extras_total_min),
+    extra_diurna_min: d.extra_diurna_min,
+    extra_noturna_min: d.extra_noturna_min,
+    extra_interjornada_min: d.extra_interjornada_min,
+    extra_intervalo_min: d.extra_intervalo_min,
+    extras_por_percentual: d.extras_por_percentual,
+  }
+}
+
+interface ContrachequeDoMes {
+  documento_id: string
+  nome_arquivo: string
+  origem_texto: string
+  leitura: ReturnType<typeof lerContracheque> | null
+}
+
+async function contrachequesDoMes(f: Funcionario, mes: string): Promise<ContrachequeDoMes[]> {
+  const docs = (await documentosDe(f)).filter(d => d.tipo === 'contracheque' && competenciaDaReferencia(d.competencia) === mes)
+  const out: ContrachequeDoMes[] = []
+  for (const d of docs) {
+    const bytes = await baixar(d)
+    if (!ehPdf(bytes)) { out.push({ documento_id: d.id, nome_arquivo: d.nome, origem_texto: 'sem_texto', leitura: null }); continue }
+    const pdf = await lerPdf(bytes)
+    out.push({
+      documento_id: d.id,
+      nome_arquivo: d.nome,
+      origem_texto: pdf.origem,
+      leitura: pdf.origem === 'sem_texto' ? null : lerContracheque(pdf),
+    })
+  }
+  return out
+}
+
+type RubricaPaga = { categoria: string; descricao: string; referencia: string; referencia_minutos: number | null; valor: number }
+
+/** Compara um item apurado (minutos) com as rubricas pagas da mesma categoria. */
+function comparaItem(nome: string, apuradoMin: number | null, pagas: RubricaPaga[], alternativoMin?: number | null) {
+  const ref = pagas.map(r => r.referencia_minutos).filter((x): x is number => x != null)
+  const pagoMin = ref.length ? ref.reduce((s, x) => s + x, 0) : null
+  const valor = pagas.reduce((s, r) => s + r.valor, 0)
+  let status: string
+  if (!pagas.length && !apuradoMin) status = 'sem_ocorrencia'
+  else if (!pagas.length) status = 'apurado_sem_rubrica_paga'
+  else if (apuradoMin == null) status = 'sem_dado_apurado'
+  else if (pagoMin == null) status = 'pago_sem_referencia_de_horas'
+  else {
+    const confere = (x: number | null | undefined) => x != null && Math.abs(x - pagoMin) <= 6
+    status = confere(apuradoMin) || confere(alternativoMin) ? 'confere' : 'diverge'
+  }
+  return {
+    item: nome,
+    apurado: hhmm(apuradoMin),
+    apurado_alternativo: alternativoMin != null ? hhmm(alternativoMin) : undefined,
+    pago_referencia: hhmm(pagoMin),
+    pago_valor: pagas.length ? Math.round(valor * 100) / 100 : null,
+    rubricas: pagas.map(r => `${r.descricao} [${r.referencia}] ${r.valor.toFixed(2)}`),
+    status,
+  }
+}
+
+async function conferirMes(f: Funcionario, mes: string, diasDoMes: DiaPonto[]) {
+  const apurado = somar(diasDoMes)
+  const analitica = await folhaAnaliticaDe(f, mes).catch(() => null)
+  const contracheques = await contrachequesDoMes(f, mes).catch(() => [] as ContrachequeDoMes[])
+  // Fonte do pago: folha analítica com texto nativo > contracheque.
+  let fonte = 'nenhuma'
+  let confianca = 'nenhuma'
+  let pagas: RubricaPaga[] = []
+  if (analitica?.funcionario) {
+    fonte = `folha analítica do contador (${analitica.documento})`
+    confianca = analitica.origem_texto === 'nativo' ? 'alta' : 'media'
+    pagas = analitica.funcionario.rubricas.map(r => ({ ...r }))
+  } else {
+    const lido = contracheques.find(c => c.leitura && c.leitura.rubricas.length)
+    if (lido?.leitura) {
+      fonte = `contracheque ${lido.nome_arquivo} (${lido.documento_id})`
+      confianca = lido.leitura.confianca
+      pagas = lido.leitura.rubricas.map(r => ({ ...r }))
+    }
+  }
+  const de = (prefixo: string) => pagas.filter(r => r.categoria.startsWith(prefixo))
+  const itens = [
+    ...apurado.extras_por_percentual.map(p => {
+      const exatas = de(`hora_extra_${p.percentual}`)
+      return comparaItem(`horas extras ${p.percentual}%`, p.minutos, exatas.length ? exatas : de('hora_extra'))
+    }),
+    ...(apurado.extras_por_percentual.length ? [] : [comparaItem('horas extras', apurado.extras_total_min, de('hora_extra'))]),
+    comparaItem('adicional noturno', apurado.noturno_total_reduzido_min, de('adicional_noturno'), apurado.noturno_total_min),
+    comparaItem('faltas/atrasos (horas)', apurado.ausente_min + apurado.atraso_min, [...de('faltas'), ...de('atrasos')]),
+  ]
+  const semTexto = contracheques.filter(c => !c.leitura)
+  return {
+    competencia: mes,
+    apurado_rhid: {
+      dias_trabalhados: apurado.dias_trabalhados,
+      domingos_trabalhados: apurado.domingos_trabalhados,
+      feriados_trabalhados: apurado.feriados_trabalhados,
+      faltas_dia_inteiro: apurado.faltas_dia_inteiro,
+      em_horas: apurado.em_horas,
+      extras_por_percentual: apurado.extras_por_percentual,
+    },
+    pago: {
+      fonte,
+      confianca,
+      salario_contratual_na_folha: analitica?.funcionario?.salario_contratual ?? null,
+      liquido: analitica?.funcionario?.liquido ?? contracheques.find(c => c.leitura)?.leitura?.liquido ?? null,
+      rubricas: pagas.map(r => ({ categoria: r.categoria, descricao: r.descricao, referencia: r.referencia, valor: r.valor })),
+    },
+    comparacao: itens,
+    documentos_para_conferencia_visual: contracheques.map(c => ({ documento_id: c.documento_id, nome_arquivo: c.nome_arquivo, origem_texto: c.origem_texto })),
+    avisos: [
+      confianca === 'media' ? 'Valores pagos lidos de digitalização (OCR do scanner): confira na imagem do contracheque.' : null,
+      fonte === 'nenhuma' ? 'Sem folha analítica nem contracheque com texto para o mês: leia a imagem do contracheque (bdt_read_employee_document com incluir_imagem=true).' : null,
+      semTexto.length ? `${semTexto.length} contracheque(s) do mês sem texto (só imagem).` : null,
+    ].filter(Boolean),
+  }
+}
+
+async function emParalelo<T, R>(itens: T[], limite: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(itens.length)
+  let i = 0
+  await Promise.all(Array.from({ length: Math.min(limite, itens.length) }, async () => {
+    while (i < itens.length) { const k = i++; out[k] = await fn(itens[k]) }
+  }))
+  return out
+}
+
+async function ajustesPorTipo(p: { s: SessaoRhid; idRhid: number }, ini: string, fim: string) {
+  const ajustes: Json[] = []
+  for (const j of janelas(ini, fim)) {
+    const a = await rhidLeitura(p.s, 'POST', 'report.svc/list_alteracoes_ponto', {
+      body: { approvalStatus: [], departments: [], companies: [], people: [p.idRhid], ini: j.ini, fim: j.fim, insertedIni: '', insertedFim: '', classification: 'any', pendenciesOnly: false },
+    })
+    const lista = Array.isArray(a) ? a : Array.isArray((a as Json)?.data) ? (a as Json).data as unknown[] : []
+    ajustes.push(...(lista as Json[]))
+  }
+  const porTipo: Record<string, number> = {}
+  for (const a of ajustes) {
+    const tipo = String(a.classification ?? a.classificacao ?? a.tipo ?? a.type ?? 'outro')
+    porTipo[tipo] = (porTipo[tipo] ?? 0) + 1
+  }
+  return { total: ajustes.length, por_tipo: porTipo }
+}
+
+const OPERACOES_CONFERENCIA: Record<string, Operacao> = {
+  'ponto.extras': {
+    escopos: ['ponto_read'],
+    async executar(args, ctx) {
+      const f = await obterFuncionario(ctx, argId(args))
+      const { ini, fim } = periodo(args)
+      const { dias } = await diasApurados(f, ini, fim)
+      const comExtra = dias.filter(d => d.extras_total_min || d.extra_interjornada_min || d.extra_intervalo_min)
+      return {
+        linhas: dias.length,
+        dados: {
+          funcionario: publico(f),
+          periodo: { inicio: ini, fim },
+          totais: somar(dias),
+          por_semana: porSemana(dias),
+          dias_com_extra: comExtra.map(diaResumo),
+          meta: meta('RHiD · apuracao_ponto_salva_tabela (cálculo do RHiD)', {
+            periodo: { inicio: ini, fim },
+            criterio: 'Extras, percentuais e tolerâncias conforme a configuração do RHiD (horário contratual do funcionário). Extra interjornada/intervalo são horas que o RHiD paga como extra por descanso não cumprido.',
+            observacoes: [NOTA_MINUTOS, APURADO_NAO_PAGO, 'Não trate extra como irregular sem verificar acordo de compensação/banco e a CCT.'],
+          }),
+        },
+      }
+    },
+  },
+
+  'ponto.noturno': {
+    escopos: ['ponto_read'],
+    async executar(args, ctx) {
+      const f = await obterFuncionario(ctx, argId(args))
+      const { ini, fim } = periodo(args)
+      const { dias } = await diasApurados(f, ini, fim)
+      const comNoturno = dias.filter(d => d.noturno_total_min || d.extra_noturna_min)
+      const t = somar(dias)
+      const fator = t.noturno_total_min ? Math.round((t.noturno_total_reduzido_min / t.noturno_total_min) * 10000) / 10000 : null
+      return {
+        linhas: comNoturno.length,
+        dados: {
+          funcionario: publico(f),
+          periodo: { inicio: ini, fim },
+          totais: {
+            minutos_noturnos_relogio: t.noturno_total_min,
+            minutos_noturnos_computados: t.noturno_total_reduzido_min,
+            extras_noturnas_min: t.extra_noturna_min,
+            em_horas: {
+              relogio: hhmm(t.noturno_total_min),
+              computadas: hhmm(t.noturno_total_reduzido_min),
+              extras_noturnas: hhmm(t.extra_noturna_min),
+            },
+            fator_observado: fator,
+          },
+          dias: comNoturno.map(d => ({
+            data: d.data, dia_semana: d.dia_semana,
+            noturno_relogio: hhmm(d.noturno_total_min),
+            noturno_computado: hhmm(d.noturno_total_reduzido_min),
+            extra_noturna_min: d.extra_noturna_min,
+          })),
+          memoria_de_calculo: {
+            janela_noturna: 'CLT art. 73: 22h às 5h (urbano). Prorrogação após as 5h pode ser noturna (Súmula 60 TST) — depende da configuração do RHiD.',
+            hora_reduzida: 'Hora noturna de 52min30s → fator 60/52,5 = 1,142857. "computadas" = minutos do relógio × fator, como o RHiD calcula (fator_observado mostra o aplicado).',
+            percentual: 'Mínimo legal 20%; percentual efetivo depende da CCT — não fixado aqui. O pago aparece na rubrica do contracheque.',
+            valor: 'Valor em R$ não é calculado pelo ponto: está na folha (bdt_get_payslip).',
+          },
+          meta: meta('RHiD · apuracao_ponto_salva_tabela (horasTotalNoturno e _MultiplicadoNot)', {
+            periodo: { inicio: ini, fim },
+            observacoes: [NOTA_MINUTOS, APURADO_NAO_PAGO],
+          }),
+        },
+      }
+    },
+  },
+
+  'ponto.banco': {
+    escopos: ['ponto_read'],
+    async executar(args, ctx) {
+      const f = await obterFuncionario(ctx, argId(args))
+      const { ini, fim } = periodo(args)
+      const { p, dias } = await diasApurados(f, ini, fim)
+      const vespera = new Date(new Date(`${ini}T12:00:00Z`).getTime() - 864e5).toISOString().slice(0, 10).replace(/-/g, '')
+      const [saldoIni, saldoFim] = await Promise.all([
+        lerSaldoBanco(p.rh, p.idRhid, vespera),
+        lerSaldoBanco(p.rh, p.idRhid, fim.replace(/-/g, '')),
+      ])
+      const diarios = dias.filter(d => d.saldo_banco_fim_dia_min != null)
+      const acordos = (await documentosDe(f)).filter(d => d.tipo === 'acordo_banco_horas')
+      const configurado = saldoIni != null || saldoFim != null || diarios.length > 0
+      return {
+        linhas: diarios.length,
+        dados: {
+          funcionario: publico(f),
+          periodo: { inicio: ini, fim },
+          banco_configurado_no_rhid: configurado,
+          saldo_inicial_min: saldoIni,
+          saldo_final_min: saldoFim,
+          saldo_inicial: hhmm(saldoIni),
+          saldo_final: hhmm(saldoFim),
+          variacao: saldoIni != null && saldoFim != null ? hhmm(saldoFim - saldoIni) : null,
+          saldo_por_dia: diarios.map(d => ({ data: d.data, saldo: hhmm(d.saldo_banco_fim_dia_min) })),
+          acordos_assinados: acordos.map(d => ({ documento_id: d.id, nome_arquivo: d.nome })),
+          meta: meta('RHiD · person_banco_horas (saldo na data) + apuração (saldo diário)', {
+            periodo: { inicio: ini, fim },
+            observacoes: [
+              configurado ? NOTA_MINUTOS : 'O RHiD não devolve saldo de banco de horas para este funcionário: banco não configurado no ponto. Horas além da jornada aparecem como EXTRA (bdt_get_overtime).',
+              'Compensação/prazo: o acordo de banco (acordos_assinados) define o prazo; CLT art. 59 §5º (acordo individual: até 6 meses) e §2º (coletivo: até 1 ano).',
+              'Banco não se mistura com extra paga: o pago está na folha.',
+            ],
+          }),
+        },
+      }
+    },
+  },
+
+  'ponto.comparar': {
+    escopos: ['ponto_read', 'escalas_read'],
+    async executar(args, ctx) {
+      const f = await obterFuncionario(ctx, argId(args))
+      const { ini, fim } = periodo(args)
+      const { p, dias } = await diasApurados(f, ini, fim)
+      const [espelhos, escala] = await Promise.all([
+        lerEspelhos(p.rh, p.idRhid, ini, fim),
+        lerEscalaDiaria(p.rh, p.idRhid, ini, fim).catch(() => null),
+      ])
+      const marcas = marcacoesPorDia(espelhos)
+      const porData = new Map(marcas.map(m => [m.data, m]))
+      const ev = evidencias(dias, marcas)
+      return {
+        linhas: dias.length,
+        dados: {
+          funcionario: publico(f),
+          periodo: { inicio: ini, fim },
+          dias: dias.map(d => {
+            const m = porData.get(d.data)
+            return {
+              data: d.data,
+              dia_semana: d.dia_semana,
+              previsto: { folga: d.folga, feriado: d.feriado, horas: hhmm(d.previsto_min) },
+              marcacoes_originais: m?.originais ?? [],
+              marcacoes_tratadas: m?.tratadas ?? [],
+              incluidas_manualmente: m?.incluidas_manualmente ?? [],
+              apurado: {
+                trabalhado: hhmm(d.trabalhado_min),
+                diferenca_vs_previsto: hhmm(d.trabalhado_min - d.previsto_min),
+                extras: hhmm(d.extras_total_min),
+                atraso_min: d.atraso_min,
+                saida_antecipada_min: d.saida_antecipada_min,
+                falta_dia_inteiro: d.falta_dia_inteiro,
+              },
+            }
+          }),
+          totais: somar(dias),
+          por_semana: porSemana(dias),
+          indicios: ev.indicios,
+          regras_de_referencia: ev.regras_de_referencia,
+          escala_prevista_rhid: escala ? sanitiza(escala) : 'indisponível',
+          meta: meta('RHiD · apuração + espelho (marcações) + person_day_shift (escala)', {
+            periodo: { inicio: ini, fim },
+            observacoes: [
+              'Quatro camadas lado a lado: previsto (escala/horário do RHiD), marcações originais, tratadas/incluídas e apurado.',
+              'Indícios são evidência para análise, não conclusão: acordo de compensação, 12x36, CCT ou cargo de confiança podem mudar a regra.',
+              'Escala proposta (ex.: novembro) não está no sistema: compare a que vier anexada com estes dados.',
+              NOTA_MINUTOS,
+            ],
+          }),
+        },
+      }
+    },
+  },
+
+  'folha.contracheque': {
+    escopos: ['folha_read', 'documentos_rh_read'],
+    async executar(args, ctx) {
+      const f = await obterFuncionario(ctx, argId(args))
+      const mes = competenciaDaReferencia(argTexto(args, 'competencia'))
+      if (!mes) throw new ErroMcp('Informe competencia no formato MM/AAAA (ex.: 08/2026).')
+      const [lidos, analitica] = await Promise.all([contrachequesDoMes(f, mes), folhaAnaliticaDe(f, mes).catch(() => null)])
+      let imagens: { pagina: number; mime: string; base64: string }[] = []
+      if (args.incluir_imagem === true) {
+        const doc = (await documentosDe(f)).find(d => d.tipo === 'contracheque' && competenciaDaReferencia(d.competencia) === mes)
+        if (doc) imagens = imagensDasPaginas(await baixar(doc), [1])
+      }
+      return {
+        linhas: lidos.length,
+        dados: {
+          funcionario: publico(f),
+          competencia: mes,
+          contracheques: lidos,
+          folha_analitica_do_contador: analitica,
+          imagens,
+          meta: meta('Recrutamento/RH · contracheques (employee_files) + folha analítica do contador (folhas_analiticas)', {
+            observacoes: [
+              'Rubricas lidas por posição no PDF. "confianca": alta = texto nativo; media = OCR do scanner (conferir na imagem); baixa = não reconhecido.',
+              'Folha analítica (quando existe para a empresa/mês) costuma ter texto nativo e é a fonte mais confiável do pago.',
+              'incluir_imagem=true devolve a imagem da 1ª página do contracheque para leitura visual.',
+            ],
+          }),
+        },
+      }
+    },
+  },
+
+  'folha.conferir': {
+    escopos: ['folha_read', 'ponto_read'],
+    async executar(args, ctx) {
+      const f = await obterFuncionario(ctx, argId(args))
+      const { ini, fim } = periodo(args)
+      const { dias } = await diasApurados(f, ini, fim)
+      const competencias = []
+      for (const mes of mesesDoPeriodo(ini, fim)) {
+        competencias.push(await conferirMes(f, mes, dias.filter(d => d.data.startsWith(mes))))
+      }
+      return {
+        linhas: competencias.length,
+        dados: {
+          funcionario: publico(f),
+          periodo: { inicio: ini, fim },
+          competencias,
+          meta: meta('RHiD (apurado) × folha analítica/contracheque (pago)', {
+            periodo: { inicio: ini, fim },
+            criterio: 'Compara horas (referência da rubrica em H:MM) com minutos apurados no RHiD; tolerância de 6 min. "confere"/"diverge" é sobre QUANTIDADE de horas; valor em R$ depende de salário-hora, percentual da CCT e reflexos (DSR).',
+            observacoes: [
+              'Período parcial do mês compara apurado parcial com folha do mês inteiro — use meses cheios.',
+              'Adicional noturno: compara com minutos computados (hora reduzida) e com minutos do relógio; a folha pode usar qualquer dos dois.',
+              'Quando o pago vem de OCR (confianca=media), confirme na imagem antes de concluir.',
+            ],
+          }),
+        },
+      }
+    },
+  },
+
+  'auditoria.consolidada': {
+    escopos: ['rh_read'],
+    async executar(args, ctx) {
+      const ids = (Array.isArray(args.funcionario_ids) ? args.funcionario_ids : [])
+        .map(x => String(x).toLowerCase()).filter(x => /^[0-9a-f-]{36}$/.test(x))
+      if (!ids.length || ids.length > 8) throw new ErroMcp('Informe funcionario_ids com 1 a 8 ids (de bdt_list_employees).')
+      const { ini, fim } = periodo(args)
+      const pode = (g: string) => ctx.escopos.includes(g)
+      const rh = new ContextoRhid()
+      const db = await createSupabaseServiceClient()
+      const meses = mesesDoPeriodo(ini, fim)
+
+      const pessoas = await emParalelo(ids, 3, async id => {
+        const lacunas: string[] = []
+        let f: Funcionario
+        try { f = await obterFuncionario(ctx, id) } catch (e) { return { funcionario_id: id, erro: (e as Error).message } }
+        const r: Json = { funcionario: publico(f) }
+        if (pode('ponto_read')) {
+          try {
+            const { p, dias } = await diasApurados(f, ini, fim, rh)
+            const espelhos = await lerEspelhos(p.rh, p.idRhid, ini, fim)
+            const marcas = marcacoesPorDia(espelhos)
+            const ev = evidencias(dias, marcas)
+            r.ponto = {
+              totais: somar(dias),
+              por_mes: meses.map(m => ({ competencia: m, ...somar(dias.filter(d => d.data.startsWith(m))).em_horas })),
+              dias_com_marcacao_incluida_manualmente: marcas.filter(m => m.incluidas_manualmente.length).length,
+              ajustes: await ajustesPorTipo(p, ini, fim).catch(() => 'indisponível'),
+              indicios: ev.indicios,
+            }
+            if (pode('folha_read')) {
+              const conf = []
+              for (const m of meses) {
+                try { conf.push(await conferirMes(f, m, dias.filter(d => d.data.startsWith(m)))) } catch (e) { lacunas.push(`Folha ${m}: ${(e as Error).message}`) }
+              }
+              r.pago_x_apurado = conf.map(c => ({ competencia: c.competencia, fonte_pago: c.pago.fonte, confianca: c.pago.confianca, comparacao: c.comparacao, avisos: c.avisos }))
+            }
+          } catch (e) { lacunas.push(`Ponto: ${(e as Error).message}`) }
+        }
+        try {
+          const [faltas, ferias, atestados] = await Promise.all([
+            db.from('absences').select('absence_date, days, kind').eq('candidate_id', f.id).gte('absence_date', ini).lte('absence_date', fim),
+            db.from('vacations').select('start_date, end_date, days, kind').eq('candidate_id', f.id).lte('start_date', fim).gte('end_date', ini),
+            db.from('medical_certificates').select('certificate_date').eq('candidate_id', f.id).gte('certificate_date', ini).lte('certificate_date', fim),
+          ])
+          r.ocorrencias_rh = { faltas: faltas.data ?? [], ferias_licencas: ferias.data ?? [], atestados_datas: (atestados.data ?? []).map(a => a.certificate_date) }
+        } catch { lacunas.push('Ocorrências do RH indisponíveis.') }
+        if (pode('documentos_rh_read')) {
+          const docs = await documentosDe(f)
+          const noPeriodo = new Set(meses)
+          r.documentos = {
+            no_periodo: docs.filter(d => noPeriodo.has(competenciaDaReferencia(d.competencia) ?? '')).map(d => ({ id: d.id, tipo: d.tipo, competencia: d.competencia })),
+            contratuais: docs.filter(d => /^(contrato|acordo)/.test(d.tipo)).map(d => ({ id: d.id, tipo: d.tipo, nome_arquivo: d.nome })),
+          }
+        }
+        if (f.vinculo === 'intermitente') lacunas.push('Intermitente: convocações não são registradas no sistema; analisar separado da escala regular.')
+        r.lacunas = lacunas
+        return r
+      })
+
+      return {
+        linhas: pessoas.length,
+        dados: {
+          periodo: { inicio: ini, fim },
+          funcionarios: pessoas,
+          meta: meta('Consolidado: RH (Recrutamento) + RHiD (apuração, espelho, ajustes) + folha (analítica/contracheque)', {
+            periodo: { inicio: ini, fim },
+            grupos_usados: ctx.escopos,
+            observacoes: [
+              'Resumo por funcionário; detalhe dia a dia sob demanda em bdt_compare_schedule_vs_actual e bdt_compare_paid_vs_worked.',
+              'Indícios citam a regra legal de referência; acordo, CCT, 12x36 e cargo de confiança podem afastá-los. Não são conclusões.',
+              NOTA_MINUTOS,
+              LACUNA_PONTO,
+            ],
+          }),
+        },
+      }
+    },
+  },
+}
+
+Object.assign(OPERACOES, OPERACOES_CONFERENCIA)
