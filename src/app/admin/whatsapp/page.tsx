@@ -1,8 +1,11 @@
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/auth-guard'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { WhatsappConversations } from './whatsapp-conversations'
 
 export default async function WhatsAppPage() {
-  const supabase = await createSupabaseServerClient()
+  // A tela mostra conversas de candidatos e só exigia login.
+  await requirePermission('whatsapp.ver')
+  const supabase = await createSupabaseServiceClient()
   const { data: conversations } = await supabase
     .from('whatsapp_conversations')
     .select('*, candidates(full_name)')

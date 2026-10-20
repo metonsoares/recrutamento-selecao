@@ -1,4 +1,5 @@
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/auth-guard'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -11,8 +12,10 @@ import { listarCargos } from '@/lib/cargos'
 export const dynamic = 'force-dynamic'
 
 export default async function FichaAdmissaoPage({ params }: { params: Promise<{ id: string }> }) {
+  // A ficha de admissão traz CPF, dados bancários e endereço, e só exigia login.
+  await requirePermission('ficha.admissao')
   const { id } = await params
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidate } = await supabase
     .from('candidates')

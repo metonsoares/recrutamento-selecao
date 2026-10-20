@@ -1,4 +1,5 @@
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/auth-guard'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import { AutoPrint } from '../print/auto-print'
 import { AdmissionFormData } from '../ficha-admissao/ficha-admissao-form'
@@ -20,8 +21,10 @@ import { formatName } from '@/lib/helpers'
 export const dynamic = 'force-dynamic'
 
 export default async function PrintFichaPage({ params }: { params: Promise<{ id: string }> }) {
+  // Mesma ficha da tela de admissão, em versão para impressão: mesma permissão.
+  await requirePermission('ficha.admissao')
   const { id } = await params
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidate } = await supabase
     .from('candidates')

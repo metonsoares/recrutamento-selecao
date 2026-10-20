@@ -1,7 +1,7 @@
 import { requirePermission } from '@/lib/auth-guard'
 import { countFichaPending, countCompanyPending } from '@/lib/doc-pendency'
 import { assinarUrlsDeArquivos } from '@/lib/arquivo-assinado-servidor'
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { UserCheck, ArrowLeft, Users } from 'lucide-react'
 import { ContratadosTable } from './contratados-table'
@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic'
 
 export default async function ContratadosPage() {
   await requirePermission('colaboradores.ver')
-  const supabase = await createSupabaseServerClient()
+  // Autorização é o requirePermission acima; o client de serviço libera a
+  // remoção da policy ALL/authenticated/true das tabelas lidas aqui.
+  const supabase = await createSupabaseServiceClient()
 
   // Busca candidatos com latest_application
   const { data: candidates } = await supabase
