@@ -1,4 +1,5 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/auth-guard'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import { formatDate, formatName } from '@/lib/helpers'
 import { AutoPrint } from './auto-print'
@@ -77,8 +78,11 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function PrintPage({ params }: { params: Promise<{ id: string }> }) {
+  // A ficha impressa traz CPF, endereço e respostas: exige a mesma permissão da
+  // tela de candidatos, de onde se chega aqui. Antes bastava estar logado.
+  await requirePermission('candidatos.ver')
   const { id } = await params
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidate } = await supabase
     .from('candidates').select('*').eq('id', id).single()

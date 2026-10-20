@@ -209,10 +209,11 @@ export async function DELETE(
 ) {
   const { id } = await params
 
-  // Auth check
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+  // Apagar candidato é destrutivo e em cascata. A tela já só mostra o botão para
+  // o master (`isMaster &&` na ficha); aqui o backend passa a exigir o mesmo, em
+  // vez de aceitar qualquer conta logada — igual ao PATCH desta mesma rota.
+  const denied = await requireMasterApi()
+  if (denied) return denied
 
   const service = await createSupabaseServiceClient()
 

@@ -1,12 +1,14 @@
 import { requirePermission } from '@/lib/auth-guard'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// Autorização = requirePermission('curriculos.secoes') abaixo; o client de
+// serviço libera a remoção da policy ALL/authenticated/true de form_sections/form_questions.
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { SectionsManager } from './sections-manager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SecoesPage() {
   await requirePermission('curriculos.secoes')
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const [{ data: sections }, { data: questions }] = await Promise.all([
     supabase

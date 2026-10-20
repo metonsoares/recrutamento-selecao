@@ -161,7 +161,10 @@ export default async function CandidatePage({
     : sp.tab === 'registros' ? 'registros'
     : 'curriculo'
 
-  const supabase = await createSupabaseServerClient()
+  // Autorização = requirePermission('candidatos.ver') acima. Service client para
+  // que a policy ALL/authenticated/true de candidates/applications/admin_notes/
+  // jobs/form_answers/culture_answers possa ser removida na migration.
+  const supabase = await createSupabaseServiceClient()
 
   // Perfil AO VIVO do Portal (o metadata pode estar desatualizado — ex.: o Portal
   // grava o perfil geral 'operador' mesmo para quem é Master/super_admin).

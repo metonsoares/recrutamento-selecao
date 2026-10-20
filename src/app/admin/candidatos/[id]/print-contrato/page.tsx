@@ -1,4 +1,5 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/auth-guard'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import { AutoPrint } from '../print/auto-print'
 import { ContractData } from '../dados-contrato-tab'
@@ -12,8 +13,11 @@ function fmtDate(iso?: string | null) {
 }
 
 export default async function PrintContratoPage({ params }: { params: Promise<{ id: string }> }) {
+  // Contrato impresso traz CPF e dados do vínculo: mesma permissão da tela de
+  // candidatos, de onde se chega aqui. Antes bastava estar logado.
+  await requirePermission('candidatos.ver')
   const { id } = await params
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidate } = await supabase
     .from('candidates').select('full_name, cpf').eq('id', id).single()

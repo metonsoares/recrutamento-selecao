@@ -1,5 +1,7 @@
 import { requirePermission } from '@/lib/auth-guard'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// Autorização = requirePermission abaixo; o client de serviço libera a remoção
+// da policy ALL/authenticated/true de ai_settings.
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { KanbanColunasForm } from './kanban-colunas-form'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +20,7 @@ export const DEFAULT_COLUMNS = [
 
 export default async function KanbanColunasPage() {
   await requirePermission('config.kanban')
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
   const { data: settings } = await supabase
     .from('ai_settings')
     .select('id, kanban_column_order')

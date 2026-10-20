@@ -1,10 +1,12 @@
 import { requirePermission } from '@/lib/auth-guard'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// Autorização = requirePermission('config.whatsapp') abaixo; o client de serviço
+// libera a remoção da policy ALL/authenticated/true de whatsapp_settings/whatsapp_logs.
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { ZApiSettingsForm } from './zapi-settings-form'
 
 export default async function WhatsAppConfigPage() {
   await requirePermission('config.whatsapp')
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
   const { data: settings } = await supabase.from('whatsapp_settings').select('*').limit(1).single()
   const { data: logs } = await supabase
     .from('whatsapp_logs')

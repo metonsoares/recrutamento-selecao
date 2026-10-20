@@ -1,5 +1,9 @@
 import { requirePermission } from '@/lib/auth-guard'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// Quem autoriza esta tela é o requirePermission('candidatos.ver') abaixo. O
+// client de serviço substitui o de sessão para que a policy ALL/authenticated/true
+// de `candidates`/`applications` — que hoje deixa qualquer conta logada ler os
+// 372 cadastros com CPF direto do navegador — possa ser removida na migration.
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
 import { CandidatesBoard } from './candidates-board'
@@ -8,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function CandidatosPage() {
   await requirePermission('candidatos.ver')
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
   const { role: effRole } = await getEffectiveRole()
   const granted = await getGrantedPerms(effRole)
   const role = (effRole === 'master' ? 'master' : 'gestor') as 'master' | 'gestor'

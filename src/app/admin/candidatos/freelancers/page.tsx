@@ -1,6 +1,8 @@
 import { requirePermission } from '@/lib/auth-guard'
 import { assinarUrlsDeArquivos } from '@/lib/arquivo-assinado-servidor'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// Autorização = requirePermission('colaboradores.ver') abaixo; o client de
+// serviço libera a remoção da policy ALL/authenticated/true das tabelas lidas aqui.
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { ArrowLeft, Users, Briefcase } from 'lucide-react'
 import { FreelancersTable } from './freelancers-table'
@@ -9,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function FreelancersPage() {
   await requirePermission('colaboradores.ver')
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidates } = await supabase
     .from('candidates')

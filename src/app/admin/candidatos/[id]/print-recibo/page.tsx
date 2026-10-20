@@ -1,4 +1,5 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/auth-guard'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import { AutoPrint } from '../print/auto-print'
 import { ContractData } from '../dados-contrato-tab'
@@ -10,8 +11,11 @@ function fmtBRL(n: number) { return n.toLocaleString('pt-BR', { style: 'currency
 function fmtDate(iso?: string | null) { return iso ? new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR') : '—' }
 
 export default async function PrintReciboPage({ params }: { params: Promise<{ id: string }> }) {
+  // A ficha impressa traz CPF e valores: exige a mesma permissão da tela de
+  // candidatos, de onde se chega aqui. Antes bastava estar logado.
+  await requirePermission('candidatos.ver')
   const { id } = await params
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidate } = await supabase
     .from('candidates').select('full_name, cpf').eq('id', id).single()

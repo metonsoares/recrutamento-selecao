@@ -1,4 +1,7 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// Painel inicial do /admin: o layout já exige login. Sem permissão própria de
+// propósito — requirePermission redireciona para /admin e criaria laço aqui.
+// O client de serviço libera a remoção da policy ALL/authenticated/true.
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Users, UserCheck, ClipboardList, FlaskConical, Brain,
@@ -11,7 +14,7 @@ import { CandidateStatus, STATUS_LABELS } from '@/types'
 import { DashboardPublicLink } from './dashboard-public-link'
 
 async function getDashboardStats() {
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
 
   const { data: candidates } = await supabase
     .from('candidates')

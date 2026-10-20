@@ -1,5 +1,8 @@
 import { requirePermission } from '@/lib/auth-guard'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// Autorização = requirePermission abaixo; o client de serviço libera a remoção
+// da policy ALL/authenticated/true de ai_settings — que hoje deixa qualquer
+// conta logada reescrever o prompt da análise direto do navegador.
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { IaSettingsForm } from './ia-settings-form'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +30,7 @@ type AiSettingsRow = {
 
 export default async function IaConfigPage() {
   await requirePermission('config.ia')
-  const supabase = await createSupabaseServerClient()
+  const supabase = await createSupabaseServiceClient()
   const { data: settings } = await supabase
     .from('ai_settings')
     .select(
