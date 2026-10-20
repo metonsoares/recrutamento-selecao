@@ -570,6 +570,14 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
       : [],
   }
 
+  // A nota cultural só é GRAVADA quando foi calculada a partir de respostas que
+  // esta execução leu. Sem isso, uma análise que começa antes do teste cultural
+  // (a do envio do currículo) e termina depois dele grava 0 por cima da nota
+  // real que o teste acabou de salvar — foi a causa das 43 divergências, 40
+  // delas com nota 0 e as 10 respostas presentes. Quando não há respostas, a
+  // coluna fica como está e o cálculo da nota final usa o valor já gravado.
+  const notaCultural = allCa.length > 0 ? { culture_score: realCultureScore } : {}
+
   // ── Salva resultado ───────────────────────────────────────────────────────────
   const { error: saveErr } = await supabase.from('applications').update({
     ai_summary:           aiResult.resumo_candidato,
@@ -579,8 +587,7 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
     ai_status_suggestion: aiResult.status_sugerido,
     ai_raw_response:      aiResult as unknown as Record<string, unknown>,
     ai_judicial_alert:    judicialAlert,
-    // Scores: culture_score vem do teste real, experiência e disponibilidade da IA
-    culture_score:        realCultureScore,
+    ...notaCultural,
     experience_score:     aiResult.nota_experiencia,
     availability_score:   aiResult.nota_disponibilidade,
     final_score:          finalScore,
