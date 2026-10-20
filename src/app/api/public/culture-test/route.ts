@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { calculateCultureScore } from '@/lib/helpers'
+import { enfileirarEProcessar } from '@/lib/fila-ia'
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,12 +52,10 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     }).eq('id', application.id)
 
-    // Trigger AI analysis async (fire and forget)
-    fetch(`${process.env.APP_URL || 'http://localhost:3000'}/api/admin/ai/analyze-candidate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-internal': process.env.ENCRYPTION_SECRET || '' },
-      body: JSON.stringify({ applicationId: application.id }),
-    }).catch(() => {})
+    // Pede a reanálise pela FILA, agora que o teste cultural existe. O job é
+    // o mesmo da etapa do currículo quando ele ainda está vivo (índice único
+    // parcial), então não saem duas análises para a mesma pessoa.
+    await enfileirarEProcessar(application.id, 'teste_cultural')
 
     return NextResponse.json({ success: true })
   } catch (err) {

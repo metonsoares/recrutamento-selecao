@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { normalizePhone, normalizeEmail, generateToken } from '@/lib/helpers'
+import { enfileirarEProcessar } from '@/lib/fila-ia'
 
 interface CurriculoPayload {
   full_name: string
@@ -259,12 +260,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Trigger AI analysis async (fire and forget) — analisa imediatamente ao receber o currículo
-    fetch(`${process.env.APP_URL || 'http://localhost:3000'}/api/admin/ai/analyze-candidate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ applicationId: newApplication.id }),
-    }).catch(() => {})
+    // Pede a análise pela FILA: grava a linha agora (escrita durável, nesta
+    // requisição) e cutuca o worker sem esperar. Antes era um `fetch` sem
+    // await para a rota administrativa — se não vingasse, ninguém ficava
+    // sabendo e o candidato nunca ganhava parecer.
+    await enfileirarEProcessar(newApplication.id, 'curriculo')
 
     return NextResponse.json({ success: true, token: cultureToken })
   } catch (err) {

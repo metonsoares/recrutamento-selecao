@@ -80,12 +80,17 @@ function describe(method: string, pathname: string, isPage: boolean): string {
 }
 
 /**
- * Rotas `/api/admin/**` chamadas servidor-a-servidor (sem cookie de sessão):
- * `analyze-candidate` é disparada em fire-and-forget pelos formulários PÚBLICOS
- * (curriculo, culture-test) e pelo analyze-pending. Liberadas do gate de login
- * aqui; serão protegidas por um segredo interno na Fase 2.
+ * Nenhuma rota `/api/admin/**` fica fora do gate de login.
+ *
+ * Até a fila de análises existir, `analyze-candidate` estava liberada aqui
+ * porque os formulários públicos a chamavam servidor-a-servidor. Sem nenhuma
+ * verificação no caminho, isso deixava qualquer pessoa na internet disparar
+ * análise de qualquer candidatura — gastando crédito e sobrescrevendo o
+ * parecer. Agora os formulários públicos gravam na fila (`lib/fila-ia.ts`), que
+ * é escrita no próprio banco, e quem executa é o worker do cron, autenticado
+ * por `CRON_SECRET` em `/api/cron/analises` — rota que nem mora sob /api/admin.
  */
-const INTERNAL_ALLOW = ['/api/admin/ai/analyze-candidate']
+const INTERNAL_ALLOW: string[] = []
 
 type ProxyUser = { id: string; email?: string | null } | null
 
