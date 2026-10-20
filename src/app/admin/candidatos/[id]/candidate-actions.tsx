@@ -795,7 +795,7 @@ export function CandidateActions({
       // Mostra qual provider foi usado
       const providerLabel = data?.provider === 'anthropic' ? 'Claude (Anthropic)'
         : data?.provider === 'openai' ? 'GPT (OpenAI)'
-        : data?.provider === 'fallback' ? 'Fallback (sem chave IA)'
+        : data?.provider === 'fallback' ? 'Fallback (a IA não respondeu)'
         : 'IA'
       showToast('success', `✅ Análise concluída via ${providerLabel}! Recarregando...`, 5000)
 

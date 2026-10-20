@@ -2,7 +2,7 @@
   "regions": ["gru1"],
   "functions": {
     "src/app/api/admin/ai/analyze-candidate/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 90
     }
   }
 }

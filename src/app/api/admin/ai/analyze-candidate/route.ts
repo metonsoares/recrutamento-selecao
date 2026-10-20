@@ -386,10 +386,13 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
 
   console.log(`[analyze] calling AI ${Date.now() - t0}ms`)
 
+  // Motivo real da falha, para a tela dizer o que aconteceu em vez de acusar a chave.
+  let motivoFalha = ''
+
   if (useAnthropic) {
     try {
       const ctrl = new AbortController()
-      const t = setTimeout(() => ctrl.abort(), 25000)
+      const t = setTimeout(() => ctrl.abort(), 60000)  // cabe no maxDuration de 90s do vercel.json
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         signal: ctrl.signal,
@@ -400,7 +403,10 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 2048,
+          // O prompt de análise configurado em Configurações → IA pede um parecer
+          // longo: com 2048 o JSON vinha cortado (stop_reason=max_tokens) e o
+          // JSON.parse quebrava, jogando tudo no fallback.
+          max_tokens: 4096,
           temperature: 0,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
@@ -415,17 +421,27 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
         const m = txt.match(/\{[\s\S]*\}/)
         if (m) {
           try { aiResult = JSON.parse(m[0]); aiProvider = 'anthropic' } catch (je) {
-            console.error('[analyze] JSON parse error:', String(je))
+            console.error('[analyze] JSON parse error:', String(je), 'stop_reason=', body.stop_reason)
+            motivoFalha = body.stop_reason === 'max_tokens'
+              ? 'A IA escreveu mais do que o limite da resposta e o texto veio cortado.'
+              : 'A IA respondeu em um formato que o sistema não conseguiu ler.'
           }
         } else {
           console.warn('[analyze] No JSON in Anthropic response')
+          motivoFalha = 'A IA respondeu em um formato que o sistema não conseguiu ler.'
         }
       } else {
         const err = await res.json().catch(() => ({}))
         console.error('[analyze] Anthropic HTTP error:', res.status, JSON.stringify(err).slice(0, 300))
+        motivoFalha = res.status === 401 || res.status === 403
+          ? 'A chave da Anthropic foi recusada. Confira em Configurações → Configuração IA.'
+          : `A Anthropic respondeu com erro ${res.status}. Tente de novo em alguns minutos.`
       }
     } catch (e) {
       console.error('[analyze] Anthropic timeout/error:', String(e))
+      motivoFalha = String(e).includes('abort')
+        ? 'A IA demorou mais que o tempo limite para responder. Tente novamente.'
+        : 'Não foi possível falar com a IA agora. Tente novamente.'
     }
   }
 
@@ -447,7 +463,7 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          max_tokens: 2048,
+          max_tokens: 4096,
           response_format: { type: 'json_object' },
         }),
       })
@@ -472,14 +488,19 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
 
   // ── Fallback sem IA ───────────────────────────────────────────────────────────
   if (!aiResult) {
-    const reason = (!useAnthropic && !useOpenAI)
+    const semChave = !useAnthropic && !useOpenAI
+    const reason = semChave
       ? 'Chave de IA não encontrada. Acesse Configurações → Configuração IA.'
-      : 'A IA não retornou resposta válida. Tente novamente.'
-    console.warn(`[analyze] Fallback useAnthropic=${!!useAnthropic} useOpenAI=${!!useOpenAI}`)
+      : (motivoFalha || 'A IA não retornou resposta válida. Tente novamente.')
+    console.warn(`[analyze] Fallback useAnthropic=${!!useAnthropic} useOpenAI=${!!useOpenAI} motivo=${motivoFalha || 'n/d'}`)
     aiResult = {
       resumo_candidato: reason,
       pontos_fortes: [],
-      pontos_de_atencao: ['Verifique as chaves de API nas configurações.'],
+      // Só acusa a chave quando a chave é mesmo o problema — antes esta linha
+      // aparecia em toda falha e mandava o usuário caçar erro onde não havia.
+      pontos_de_atencao: [semChave || motivoFalha.includes('chave')
+        ? 'Verifique as chaves de API nas configurações.'
+        : 'A análise pode ser refeita pelo botão "Analisar com IA".'],
       compatibilidade_cultural: realCultureScore,
       compatibilidade_com_a_vaga: 0,
       nota_experiencia: 0,
