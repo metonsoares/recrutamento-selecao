@@ -60,6 +60,22 @@ function calcAge(dateStr: string | null | undefined): number | null {
 }
 
 /**
+ * "B" → o texto da alternativa B daquela pergunta.
+ *
+ * A tela do candidato grava a letra a partir da POSIÇÃO da opção
+ * (`['A','B','C','D'][i]` em culture-test-form.tsx), então a posição no array
+ * `options` é a fonte da verdade. Devolve `null` quando a pergunta não tem o
+ * texto guardado — aí o relatório mostra a letra pura, como antes, em vez de
+ * inventar alternativa.
+ */
+function textoDaAlternativa(letra: string, options: unknown): string | null {
+  const i = ['A', 'B', 'C', 'D'].indexOf(letra)
+  if (i < 0 || !Array.isArray(options)) return null
+  const texto = options[i]
+  return typeof texto === 'string' && texto.trim() ? texto.trim() : null
+}
+
+/**
  * Calcula score cultural REAL a partir das respostas do teste.
  * Usa a média das notas individuais (escala 0-10) convertida para 0-100.
  * Este valor é FIXO e não pode ser alterado pela IA.
@@ -99,7 +115,7 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
       .select('answer_text, form_questions(question_text, field_type, category)')
       .eq('application_id', applicationId),
     supabase.from('culture_answers')
-      .select('selected_option, score, culture_questions(question_text, culture_value)')
+      .select('selected_option, score, culture_questions(question_text, culture_value, options)')
       .eq('application_id', applicationId),
   ])
 
@@ -215,10 +231,21 @@ async function runAnalysis(applicationId: string): Promise<Record<string, unknow
     .join('\n') || 'Não preenchido'
 
   // ── Bloco do teste cultural com scores individuais ────────────────────────────
+  //
+  // `culture_answers.selected_option` guarda só a LETRA. Até aqui a IA recebia
+  // "Resposta: B" sem saber o que B dizia — dava para comentar a nota, nunca a
+  // resposta. O texto vem de `culture_questions.options`, e a posição é a fonte
+  // da verdade: a tela do candidato monta a letra por `['A','B','C','D'][i]`.
   const cultureLines = allCa.map(a => {
-    const score  = Number(a.score) ?? 0
-    const label  = score >= 8 ? '✓ Alta aderência' : score >= 5 ? '~ Aderência parcial' : '✗ Baixa aderência'
-    return `- ${(a.culture_questions as { question_text?: string } | null)?.question_text}\n  → Resposta: "${a.selected_option}" | Nota: ${score}/10 | ${label}`
+    const q = a.culture_questions as
+      { question_text?: string; culture_value?: string; options?: unknown } | null
+    const score = Number(a.score) ?? 0
+    const label = score >= 8 ? '✓ Alta aderência' : score >= 5 ? '~ Aderência parcial' : '✗ Baixa aderência'
+    const letra = String(a.selected_option ?? '').trim().toUpperCase()
+    const texto = textoDaAlternativa(letra, q?.options)
+    const resposta = texto ? `${letra}) ${texto}` : letra || '(sem resposta)'
+    const valor = q?.culture_value ? `\n    Valor avaliado: ${q.culture_value}` : ''
+    return `- ${q?.question_text}\n  → Resposta escolhida: ${resposta}\n    Nota: ${score}/10 | ${label}${valor}`
   })
   const cultureText = cultureLines.length
     ? `Média geral: ${realCultureScore}% de compatibilidade cultural\n\n${cultureLines.join('\n')}`
