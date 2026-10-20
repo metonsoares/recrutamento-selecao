@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { AiSettings } from '@/types'
 
 export function AiSettingsForm({ settings }: { settings: AiSettings | null }) {
@@ -26,12 +25,13 @@ export function AiSettingsForm({ settings }: { settings: AiSettings | null }) {
 
   async function handleSave() {
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
-    if (settings?.id) {
-      await supabase.from('ai_settings').update({ ...form, updated_at: new Date().toISOString() }).eq('id', settings.id)
-    } else {
-      await supabase.from('ai_settings').insert(form)
-    }
+    // Pela API: a gravação direta dependia da policy aberta de `ai_settings` —
+    // qualquer conta logada reescrevia prompt, pesos, missão e visão.
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
     setSaving(false)
     router.refresh()
     alert('Configurações salvas!')

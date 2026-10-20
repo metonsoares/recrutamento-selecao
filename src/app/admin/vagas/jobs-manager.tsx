@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Job } from '@/types'
 import { Plus, Pencil, Trash2, Search, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 
@@ -100,27 +99,30 @@ export function JobsManager({ jobs }: { jobs: Job[] }) {
   async function handleSave() {
     if (!form.title.trim()) return
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
+    // Pela API: a gravação direta dependia da policy aberta de `jobs`, que
+    // deixava qualquer conta logada criar, editar e apagar vaga.
     const payload = {
       title: form.title.trim(),
       description: form.description.trim() || null,
       cbo_code: form.cbo_code.trim() || null,
       cbo_title: form.cbo_title.trim() || null,
-      updated_at: new Date().toISOString(),
     }
-    if (editing) {
-      await supabase.from('jobs').update(payload).eq('id', editing.id)
-    } else {
-      await supabase.from('jobs').insert({ ...payload })
-    }
+    await fetch('/api/admin/vagas', {
+      method: editing ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
+    })
     setSaving(false)
     setOpen(false)
     router.refresh()
   }
 
   async function handleDelete(job: Job) {
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('jobs').delete().eq('id', job.id)
+    await fetch('/api/admin/vagas', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: job.id }),
+    })
     setConfirmDelete(null)
     router.refresh()
   }

@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { AiSettings } from '@/types'
 import { Sparkles, Loader2, Upload, ImageIcon, CheckCircle2 } from 'lucide-react'
 import Image from 'next/image'
@@ -108,17 +107,15 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
 
   async function handleSaveIdentidade() {
     setSavingIdentidade(true)
-    const supabase = createSupabaseBrowserClient()
-    const payload = {
-      company_name: companyName.trim() || null,
-      logo_url: logoUrl || null,
-      updated_at: new Date().toISOString(),
-    }
-    if (settings?.id) {
-      await supabase.from('ai_settings').update(payload).eq('id', settings.id)
-    } else {
-      await supabase.from('ai_settings').insert(payload)
-    }
+    // Pela API: a gravação direta dependia da policy aberta de `ai_settings`.
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_name: companyName.trim() || null,
+        logo_url: logoUrl || null,
+      }),
+    })
     setSavingIdentidade(false)
     router.refresh()
     alert('Identidade visual salva!')
@@ -153,21 +150,18 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
   // ── Salvar dados da empresa ───────────────────────────────────────────────
   async function handleSaveEmpresa() {
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
-    const data = {
-      mission: form.mission,
-      vision: form.vision,
-      company_culture: form.company_culture,
-      ideal_candidate_profile: form.ideal_candidate_profile,
-      desired_behaviors: form.desired_behaviors.split('\n').filter(Boolean),
-      alert_behaviors: form.alert_behaviors.split('\n').filter(Boolean),
-      updated_at: new Date().toISOString(),
-    }
-    if (settings?.id) {
-      await supabase.from('ai_settings').update(data).eq('id', settings.id)
-    } else {
-      await supabase.from('ai_settings').insert(data)
-    }
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mission: form.mission,
+        vision: form.vision,
+        company_culture: form.company_culture,
+        ideal_candidate_profile: form.ideal_candidate_profile,
+        desired_behaviors: form.desired_behaviors.split('\n').filter(Boolean),
+        alert_behaviors: form.alert_behaviors.split('\n').filter(Boolean),
+      }),
+    })
     setSaving(false)
     router.refresh()
     alert('Dados da empresa salvos!')
@@ -176,19 +170,16 @@ export function EmpresaSettingsForm({ settings }: { settings: AiSettings | null 
   // ── Salvar config da IA ───────────────────────────────────────────────────
   async function handleSaveAi() {
     setSavingAi(true)
-    const supabase = createSupabaseBrowserClient()
-    const data = {
-      analysis_prompt: aiForm.analysis_prompt,
-      culture_weight: Number(aiForm.culture_weight),
-      experience_weight: Number(aiForm.experience_weight),
-      availability_weight: Number(aiForm.availability_weight),
-      updated_at: new Date().toISOString(),
-    }
-    if (settings?.id) {
-      await supabase.from('ai_settings').update(data).eq('id', settings.id)
-    } else {
-      await supabase.from('ai_settings').insert(data)
-    }
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analysis_prompt: aiForm.analysis_prompt,
+        culture_weight: Number(aiForm.culture_weight),
+        experience_weight: Number(aiForm.experience_weight),
+        availability_weight: Number(aiForm.availability_weight),
+      }),
+    })
     setSavingAi(false)
     router.refresh()
     alert('Configuração da IA salva!')

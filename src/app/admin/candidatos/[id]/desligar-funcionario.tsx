@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import { UserMinus, Loader2, X, Upload, FileText, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 interface Props { candidateId: string; applicationId?: string }
@@ -52,19 +51,19 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
     // A carta não trava o desligamento: nem sempre existe no dia, e o registro
     // do desligamento não pode esperar por ela. Dá para anexar depois.
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
-    const now = new Date().toISOString()
-    const { error: err } = await supabase
-      .from('applications')
-      .update({
+    // Pela API: gravar desligamento direto no banco dependia da policy aberta
+    // de `applications` — qualquer conta logada podia desligar qualquer pessoa.
+    const res = await fetch(`/api/admin/applications/${applicationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         status: 'desligado',
         terminated_at: `${date}T12:00:00`,
         termination_data: { requester, letter, date },
-        updated_at: now,
-      })
-      .eq('id', applicationId)
+      }),
+    })
     setSaving(false)
-    if (err) { setError('Erro ao salvar.'); return }
+    if (!res.ok) { setError('Erro ao salvar.'); return }
     setOpen(false)
     router.refresh()
   }
@@ -187,13 +186,15 @@ export function CartaDesligamento({
       const arquivo = { url: d.url as string, name: f.name, path: d.path as string }
 
       setSalvando(true)
-      const supabase = createSupabaseBrowserClient()
       // Mantém o resto do desligamento (quem pediu, quando) e troca só a carta.
-      const { error: err } = await supabase.from('applications').update({
-        termination_data: { ...(terminationData ?? {}), letter: arquivo },
-        updated_at: new Date().toISOString(),
-      }).eq('id', applicationId)
-      if (err) throw new Error('Erro ao salvar.')
+      const salvo = await fetch(`/api/admin/applications/${applicationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          termination_data: { ...(terminationData ?? {}), letter: arquivo },
+        }),
+      })
+      if (!salvo.ok) throw new Error('Erro ao salvar.')
       setLetter(arquivo)
       router.refresh()
     } catch (e) {

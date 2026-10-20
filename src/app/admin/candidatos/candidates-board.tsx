@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { CandidateStatus } from '@/types'
 import { formatDate, formatName, contemBusca } from '@/lib/helpers'
 import { inferSex } from '@/lib/infer-sex'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Search, SortAsc, GripVertical, BrainCircuit, Loader2, AlertCircle, Sparkles, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -289,17 +288,13 @@ export function CandidatesBoard({ candidates: initial, jobs, columnOrder, settin
 
   // ── Salva ordem das colunas no banco ──────────────────────────────────────
   async function saveColumnOrder(order: string[]) {
-    const supabase = createSupabaseBrowserClient()
-    if (settingsId) {
-      await supabase
-        .from('ai_settings')
-        .update({ kanban_column_order: order, updated_at: new Date().toISOString() })
-        .eq('id', settingsId)
-    } else {
-      await supabase
-        .from('ai_settings')
-        .insert({ kanban_column_order: order })
-    }
+    // Pela API: a gravação direta dependia da policy aberta de `ai_settings`,
+    // a mesma linha que guarda o prompt da IA e os dados da empresa.
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kanban_column_order: order }),
+    })
   }
 
   // ── Handlers drag de coluna ───────────────────────────────────────────────

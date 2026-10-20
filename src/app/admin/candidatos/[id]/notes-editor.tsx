@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useRouter } from 'next/navigation'
 import { Loader2, Send } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
@@ -30,19 +29,17 @@ export function CandidateNotesEditor({
   async function handleSave() {
     if (!text.trim()) return
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
-    const { data, error } = await supabase
-      .from('admin_notes')
-      .insert({
-        candidate_id: candidateId,
-        application_id: applicationId || null,
-        note: text.trim(),
-      })
-      .select('id, note, created_at')
-      .single()
+    // Pela API: o insert direto dependia da policy aberta de `admin_notes`,
+    // que deixava qualquer conta logada anotar na ficha de qualquer pessoa.
+    const res = await fetch(`/api/admin/candidatos/${candidateId}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: text.trim(), applicationId: applicationId || null }),
+    })
+    const d = await res.json().catch(() => ({}))
 
-    if (!error && data) {
-      setNotes(prev => [data as Note, ...prev])
+    if (res.ok && d.nota) {
+      setNotes(prev => [d.nota as Note, ...prev])
       setText('')
     }
     setSaving(false)

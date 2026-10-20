@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Pencil, Check, X, Loader2 } from 'lucide-react'
 
 interface Props {
@@ -20,11 +19,13 @@ export function EditVagaButton({ applicationId, currentJobId, currentJobTitle, j
   async function handleSave() {
     if (selected === (currentJobId || '')) { setEditing(false); return }
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
-    await supabase
-      .from('applications')
-      .update({ job_id: selected || null, updated_at: new Date().toISOString() })
-      .eq('id', applicationId)
+    // Pela API: a gravação direta no banco dependia da policy aberta de
+    // `applications`, que deixava qualquer conta logada trocar a vaga.
+    await fetch(`/api/admin/applications/${applicationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: selected || null }),
+    })
     setSaving(false)
     setEditing(false)
     router.refresh()

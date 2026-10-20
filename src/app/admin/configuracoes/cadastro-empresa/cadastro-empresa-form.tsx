@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { AiSettings } from '@/types'
 import { Search, AlertCircle, CheckCircle2, Loader2, Building2 } from 'lucide-react'
 
@@ -106,7 +105,7 @@ export function CadastroEmpresaForm({ settings }: { settings: AiSettings | null 
     }
     setSaving(true)
     setSaved(false)
-    const supabase = createSupabaseBrowserClient()
+    // Pela API: a gravação direta dependia da policy aberta de `ai_settings`.
     const payload = {
       apelido: form.apelido.trim() || null,
       cnpj: digits || null,
@@ -118,13 +117,12 @@ export function CadastroEmpresaForm({ settings }: { settings: AiSettings | null 
       endereco_cidade: form.endereco_cidade.trim() || null,
       endereco_estado: form.endereco_estado.trim() || null,
       endereco_cep: form.endereco_cep.replace(/\D/g, '') || null,
-      updated_at: new Date().toISOString(),
     }
-    if (settings?.id) {
-      await supabase.from('ai_settings').update(payload).eq('id', settings.id)
-    } else {
-      await supabase.from('ai_settings').insert(payload)
-    }
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
     setSaving(false)
     setSaved(true)
     router.refresh()

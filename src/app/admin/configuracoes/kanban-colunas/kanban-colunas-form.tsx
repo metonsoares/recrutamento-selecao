@@ -1,7 +1,6 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { Button } from '@/components/ui/button'
 import {
   GripVertical, ChevronUp, ChevronDown,
@@ -69,18 +68,12 @@ export function KanbanColunasForm({ columns: initial, settingsId }: Props) {
   async function handleSave() {
     setSaving(true)
     setSaved(false)
-    const supabase = createSupabaseBrowserClient()
-    const order = cols.map(c => c.key)
-    if (settingsId) {
-      await supabase
-        .from('ai_settings')
-        .update({ kanban_column_order: order, updated_at: new Date().toISOString() })
-        .eq('id', settingsId)
-    } else {
-      await supabase
-        .from('ai_settings')
-        .insert({ kanban_column_order: order })
-    }
+    // Pela API: a gravação direta dependia da policy aberta de `ai_settings`.
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kanban_column_order: cols.map(c => c.key) }),
+    })
     setSaving(false)
     setSaved(true)
     router.refresh()
@@ -90,13 +83,11 @@ export function KanbanColunasForm({ columns: initial, settingsId }: Props) {
   async function handleReset() {
     if (!confirm('Restaurar a ordem padrão das colunas?')) return
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
-    if (settingsId) {
-      await supabase
-        .from('ai_settings')
-        .update({ kanban_column_order: null, updated_at: new Date().toISOString() })
-        .eq('id', settingsId)
-    }
+    await fetch('/api/admin/ai-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kanban_column_order: null }),
+    })
     setSaving(false)
     router.refresh()
   }

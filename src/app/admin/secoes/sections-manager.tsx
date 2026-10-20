@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { FormSection, FormQuestion } from '@/types'
 import {
   Plus, Pencil, Trash2, ChevronUp, ChevronDown,
@@ -134,7 +133,6 @@ export function SectionsManager({
   async function handleSaveSection() {
     if (!sectionForm.name.trim()) return
     setSavingSection(true)
-    const supabase = createSupabaseBrowserClient()
 
     const payload = {
       name: sectionForm.name.trim(),
@@ -142,24 +140,25 @@ export function SectionsManager({
       category: sectionForm.category.trim() || slugify(sectionForm.name.trim()),
       sort_order: sectionForm.sort_order,
       is_active: sectionForm.is_active,
-      updated_at: new Date().toISOString(),
     }
 
+    // Pela API: a gravação direta dependia da policy aberta de `form_sections`.
     if (editingSection) {
-      const { data: updated } = await supabase
-        .from('form_sections')
-        .update(payload)
-        .eq('id', editingSection.id)
-        .select('*')
-        .single()
-      if (updated) setSections(prev => prev.map(s => s.id === editingSection.id ? (updated as FormSection) : s))
+      await fetch('/api/admin/formulario/secoes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingSection.id, ...payload }),
+      })
+      setSections(prev => prev.map(s =>
+        s.id === editingSection.id ? { ...s, ...payload } as FormSection : s))
     } else {
-      const { data: inserted } = await supabase
-        .from('form_sections')
-        .insert({ ...payload, created_at: new Date().toISOString() })
-        .select('*')
-        .single()
-      if (inserted) setSections(prev => [...prev, inserted as FormSection])
+      const res = await fetch('/api/admin/formulario/secoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (d.registro) setSections(prev => [...prev, d.registro as FormSection])
     }
 
     setSavingSection(false)
@@ -167,8 +166,11 @@ export function SectionsManager({
   }
 
   async function handleDeleteSection(s: FormSection) {
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('form_sections').delete().eq('id', s.id)
+    await fetch('/api/admin/formulario/secoes', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: s.id }),
+    })
     setSections(prev => prev.filter(x => x.id !== s.id))
     setConfirmDeleteSection(null)
   }
@@ -184,11 +186,16 @@ export function SectionsManager({
       if (item.id === target.id) return { ...item, sort_order: s.sort_order }
       return item
     }))
-    const supabase = createSupabaseBrowserClient()
-    await Promise.all([
-      supabase.from('form_sections').update({ sort_order: target.sort_order }).eq('id', s.id),
-      supabase.from('form_sections').update({ sort_order: s.sort_order }).eq('id', target.id),
-    ])
+    // As duas trocas vão no mesmo pedido: se a segunda falhasse sozinha, a
+    // lista ficaria com duas seções na mesma posição.
+    await fetch('/api/admin/formulario/secoes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itens: [
+        { id: s.id, sort_order: target.sort_order },
+        { id: target.id, sort_order: s.sort_order },
+      ] }),
+    })
     setMovingSection(null)
   }
 
@@ -224,7 +231,6 @@ export function SectionsManager({
   async function handleSaveQuestion() {
     if (!questionForm.question_text.trim()) return
     setSavingQuestion(true)
-    const supabase = createSupabaseBrowserClient()
 
     // Determine category from the target section
     const section = sections.find(s => s.id === targetSectionId)
@@ -239,24 +245,25 @@ export function SectionsManager({
       sort_order: questionForm.sort_order,
       category,
       form_type: 'registration',
-      updated_at: new Date().toISOString(),
     }
 
+    // Pela API: a gravação direta dependia da policy aberta de `form_questions`.
     if (editingQuestion) {
-      const { data: updated } = await supabase
-        .from('form_questions')
-        .update(payload)
-        .eq('id', editingQuestion.id)
-        .select('*')
-        .single()
-      if (updated) setQuestions(prev => prev.map(q => q.id === editingQuestion.id ? (updated as FormQuestion) : q))
+      await fetch('/api/admin/formulario/perguntas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingQuestion.id, ...payload }),
+      })
+      setQuestions(prev => prev.map(q =>
+        q.id === editingQuestion.id ? { ...q, ...payload } as FormQuestion : q))
     } else {
-      const { data: inserted } = await supabase
-        .from('form_questions')
-        .insert({ ...payload, created_at: new Date().toISOString() })
-        .select('*')
-        .single()
-      if (inserted) setQuestions(prev => [...prev, inserted as FormQuestion])
+      const res = await fetch('/api/admin/formulario/perguntas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (d.registro) setQuestions(prev => [...prev, d.registro as FormQuestion])
     }
 
     setSavingQuestion(false)
@@ -267,15 +274,21 @@ export function SectionsManager({
     setQuestions(prev => prev.map(item =>
       item.id === q.id ? { ...item, is_active: !item.is_active } : item
     ))
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('form_questions').update({ is_active: !q.is_active }).eq('id', q.id)
+    await fetch('/api/admin/formulario/perguntas', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: q.id, is_active: !q.is_active }),
+    })
   }
 
   async function handleDeleteQuestion(q: FormQuestion) {
     setQuestions(prev => prev.filter(item => item.id !== q.id))
     setConfirmDeleteQuestion(null)
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('form_questions').delete().eq('id', q.id)
+    await fetch('/api/admin/formulario/perguntas', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: q.id }),
+    })
   }
 
   async function moveQuestionDir(q: FormQuestion, s: FormSection, dir: 'up' | 'down') {
@@ -290,11 +303,14 @@ export function SectionsManager({
       if (item.id === target.id) return { ...item, sort_order: q.sort_order }
       return item
     }))
-    const supabase = createSupabaseBrowserClient()
-    await Promise.all([
-      supabase.from('form_questions').update({ sort_order: target.sort_order }).eq('id', q.id),
-      supabase.from('form_questions').update({ sort_order: q.sort_order }).eq('id', target.id),
-    ])
+    await fetch('/api/admin/formulario/perguntas', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itens: [
+        { id: q.id, sort_order: target.sort_order },
+        { id: target.id, sort_order: q.sort_order },
+      ] }),
+    })
     setMovingQuestion(null)
   }
 

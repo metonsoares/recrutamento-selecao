@@ -32,6 +32,24 @@ export async function requirePermissionApi(perm: Permission): Promise<NextRespon
   return null
 }
 
+/**
+ * Guard para rotas de API que aceitam MAIS DE UMA permissão para a mesma ação.
+ *
+ * Existe porque o mesmo campo às vezes é editado por duas telas com permissões
+ * diferentes — ex.: `analysis_prompt` é salvo tanto em Configurações → Empresa
+ * (`config.empresa_cultura`) quanto em Configurações → IA (`config.ia`). Exigir
+ * só uma delas tiraria de alguém um acesso que ele já tem hoje.
+ */
+export async function requireAnyPermissionApi(perms: Permission[]): Promise<NextResponse | null> {
+  const { user, role } = await getEffectiveRole()
+  if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+  const granted = await getGrantedPerms(role)
+  if (!perms.some(p => granted.has(p))) {
+    return NextResponse.json({ error: 'Sem permissão para esta ação.' }, { status: 403 })
+  }
+  return null
+}
+
 /** Retorna o perfil do usuário logado (ou redireciona para login). */
 export async function getUserRole(): Promise<Role> {
   const { user, role } = await getEffectiveRole()

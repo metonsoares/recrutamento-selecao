@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { formatDateTime, contemBusca } from '@/lib/helpers'
 import { MessageSquare, Search, ExternalLink, ArrowLeft, RefreshCw, Trash2, ChevronRight } from 'lucide-react'
 
@@ -83,13 +82,12 @@ export function WhatsappConversations({ conversations }: { conversations: Conv[]
   async function loadMessages(conv: Conv) {
     setLoadingMsgs(true)
     setMessages([])
-    const supabase = createSupabaseBrowserClient()
-    const { data } = await supabase
-      .from('whatsapp_messages')
-      .select('id, direction, message_text, created_at, zapi_message_id')
-      .eq('conversation_id', conv.id)
-      .order('created_at', { ascending: true })
-    setMessages((data as Msg[]) || [])
+    // Pela API: a leitura direta dependia da policy aberta de
+    // `whatsapp_messages`, que expunha a conversa de qualquer candidato a
+    // qualquer conta logada.
+    const res = await fetch(`/api/admin/whatsapp/conversation/${conv.id}/mensagens`)
+    const d = await res.json().catch(() => ({}))
+    setMessages((d.mensagens as Msg[]) || [])
     setLoadingMsgs(false)
   }
 

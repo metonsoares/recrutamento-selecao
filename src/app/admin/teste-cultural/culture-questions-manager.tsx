@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { CultureQuestion } from '@/types'
 import {
   Plus, Pencil, Power, Sparkles, Loader2,
@@ -122,7 +121,9 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
   async function handleSave() {
     if (!form.question_text.trim()) return
     setSaving(true)
-    const supabase = createSupabaseBrowserClient()
+    // Pela API: a gravação direta dependia da policy aberta de
+    // `culture_questions`. São essas perguntas que definem a nota cultural de
+    // todo candidato — qualquer conta logada podia reescrevê-las.
     const data = {
       question_text: form.question_text,
       options: [form.optA, form.optB, form.optC, form.optD].filter(Boolean),
@@ -132,27 +133,32 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
       weight: form.weight,
       sort_order: form.sort_order,
       is_active: form.is_active,
-      updated_at: new Date().toISOString(),
     }
-    if (editing) {
-      await supabase.from('culture_questions').update(data).eq('id', editing.id)
-    } else {
-      await supabase.from('culture_questions').insert(data)
-    }
+    await fetch('/api/admin/teste-cultural', {
+      method: editing ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editing ? { id: editing.id, ...data } : data),
+    })
     setSaving(false)
     setOpen(false)
     router.refresh()
   }
 
   async function toggleActive(q: CultureQuestion) {
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('culture_questions').update({ is_active: !q.is_active }).eq('id', q.id)
+    await fetch('/api/admin/teste-cultural', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: q.id, is_active: !q.is_active }),
+    })
     router.refresh()
   }
 
   async function handleDelete(q: CultureQuestion) {
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('culture_questions').delete().eq('id', q.id)
+    await fetch('/api/admin/teste-cultural', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: q.id }),
+    })
     setConfirmDelete(null)
     router.refresh()
   }
@@ -209,15 +215,18 @@ export function CultureQuestionsManager({ questions }: { questions: CultureQuest
   async function handleAiApply() {
     if (!aiTarget) return
     setAiSaving(true)
-    const supabase = createSupabaseBrowserClient()
-    await supabase.from('culture_questions').update({
-      question_text: sugForm.question_text,
-      options: [sugForm.optA, sugForm.optB, sugForm.optC, sugForm.optD].filter(Boolean),
-      scores: { A: sugForm.scoreA, B: sugForm.scoreB, C: sugForm.scoreC, D: sugForm.scoreD },
-      ideal_answer: sugForm.ideal_answer,
-      culture_value: sugForm.culture_value,
-      updated_at: new Date().toISOString(),
-    }).eq('id', aiTarget.id)
+    await fetch('/api/admin/teste-cultural', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: aiTarget.id,
+        question_text: sugForm.question_text,
+        options: [sugForm.optA, sugForm.optB, sugForm.optC, sugForm.optD].filter(Boolean),
+        scores: { A: sugForm.scoreA, B: sugForm.scoreB, C: sugForm.scoreC, D: sugForm.scoreD },
+        ideal_answer: sugForm.ideal_answer,
+        culture_value: sugForm.culture_value,
+      }),
+    })
     setAiSaving(false)
     setAiOpen(false)
     router.refresh()
