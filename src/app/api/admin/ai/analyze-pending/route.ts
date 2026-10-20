@@ -25,12 +25,14 @@ export async function POST(_req: NextRequest) {
 
     const supabase = await createSupabaseServiceClient()
 
+    // Duas consultas simples em vez do embed `candidates!inner(...)`, que neste
+    // projeto falha — era por isso que este botão vinha devolvendo 500, bem
+    // antes da fila existir. O filtro de excluídos é feito aqui, com um Set.
     const { data: apps, error } = await supabase
       .from('applications')
-      .select('id, candidate_id, candidates!inner(deleted_at)')
+      .select('id, candidate_id')
       .eq('is_latest', true)
       .is('final_score', null)
-      .is('candidates.deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(200)
 
@@ -40,8 +42,17 @@ export async function POST(_req: NextRequest) {
     }
     if (!apps || apps.length === 0) return NextResponse.json({ queued: 0 })
 
+    const { data: excluidos } = await supabase
+      .from('candidates')
+      .select('id')
+      .not('deleted_at', 'is', null)
+    const idsExcluidos = new Set((excluidos ?? []).map(c => c.id as string))
+
+    const elegiveis = apps.filter(a => !idsExcluidos.has(a.candidate_id as string))
+    if (elegiveis.length === 0) return NextResponse.json({ queued: 0 })
+
     let enfileiradas = 0
-    for (const app of apps) {
+    for (const app of elegiveis) {
       const r = await enfileirarAnalise(app.id as string, 'pendentes')
       if (r.ok && !r.jaEstava) enfileiradas++
     }
@@ -53,7 +64,7 @@ export async function POST(_req: NextRequest) {
     console.log(`[analyze-pending] ${enfileiradas} enfileiradas, ${resumo.concluidos} já concluídas`)
     return NextResponse.json({
       queued: enfileiradas,
-      jaNaFila: apps.length - enfileiradas,
+      jaNaFila: elegiveis.length - enfileiradas,
       processadasAgora: resumo.concluidos,
     })
   } catch (err) {
