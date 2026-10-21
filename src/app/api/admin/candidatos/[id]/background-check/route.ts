@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 import { BackgroundCheckResult } from '@/types'
 import { nivelDeRisco } from '@/lib/risco-processos'
@@ -629,9 +630,14 @@ export async function POST(
   try {
     const { id } = await params
 
-    const supabaseAuth = await createSupabaseServerClient()
-    const { data: { user } } = await supabaseAuth.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+    // Consultar processos judiciais de um candidato é a ação mais sensível da
+    // ficha (dado de terceiro, custo por consulta no Escavador). Até 21/10/2026
+    // bastava estar logado: a toolbar só aparece para o master, mas um POST
+    // direto nesta rota passava com qualquer sessão. Agora vale a matriz —
+    // "Currículos → Ação — Check Processos" (`acao.check_processos`), que o
+    // Gestor RH NÃO tem.
+    const denied = await requirePermissionApi('acao.check_processos')
+    if (denied) return denied
 
     const supabase = await createSupabaseServiceClient()
 

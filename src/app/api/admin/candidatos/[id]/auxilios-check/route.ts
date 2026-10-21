@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
+import { createSupabaseServiceClient } from '@/lib/supabase-server'
+import { requirePermissionApi } from '@/lib/auth-guard'
 import { AuxiliosCheckResult, AuxilioItem } from '@/types'
 
 export const maxDuration = 45
@@ -154,9 +155,10 @@ async function publicConsulta(cpf: string, name: string): Promise<AuxiliosCheckR
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const auth = await createSupabaseServerClient()
-    const { data: { user } } = await auth.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+    // Mesmo caso do check de processos: a rota exigia apenas sessão. Passa a
+    // exigir "Currículos → Ação — Check Auxílios" (`acao.check_auxilios`).
+    const denied = await requirePermissionApi('acao.check_auxilios')
+    if (denied) return denied
 
     const supabase = await createSupabaseServiceClient()
     const { data: candidate } = await supabase.from('candidates').select('full_name, cpf').eq('id', id).single()
