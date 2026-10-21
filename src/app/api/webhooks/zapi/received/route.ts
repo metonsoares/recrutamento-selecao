@@ -210,7 +210,7 @@ async function buildAiReply(
   const orderedHistory = (history || []).reverse().slice(0, -1)
 
   const attendantName = (settings.attendant_name as string) || 'Atendente de RH'
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://recrutamento.browniedoton.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://recrutamento.browniedoton.com.br'
   const formLink = `${appUrl}/curriculo`
 
   const basePrompt = (aiSettings.whatsapp_agent_prompt as string) ||

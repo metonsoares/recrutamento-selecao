@@ -19,7 +19,11 @@ export function generateShortCode(): string {
 
 /** Base pública da aplicação (domínio próprio), evitando URLs de preview da Vercel. */
 export function publicAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || 'https://recrutamento.browniedoton.com'
+  // Endereço oficial desde 20/10/2026. É daqui que saem os links enviados ao
+  // candidato (currículo, convite de entrevista, portal de documentos,
+  // pesquisa de clima), então ele precisa ser o domínio definitivo — o `.com`
+  // antigo continua respondendo e redireciona.
+  return process.env.NEXT_PUBLIC_APP_URL || 'https://recrutamento.browniedoton.com.br'
 }
 
 export function maskToken(token: string): string {
