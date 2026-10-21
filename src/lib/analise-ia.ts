@@ -585,6 +585,27 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
   // coluna fica como está e o cálculo da nota final usa o valor já gravado.
   const notaCultural = allCa.length > 0 ? { culture_score: realCultureScore } : {}
 
+  /**
+   * A etapa do candidato só avança para "Análise IA Concluída" quando ele ainda
+   * NÃO passou por decisão humana.
+   *
+   * Antes isto era gravado incondicionalmente, e uma reanálise devolvia para a
+   * fila de candidatos gente já contratada — aconteceu em 20/10/2026 com dois
+   * contratados, ao rodar "Analisar pendentes". A IA é consultiva: ela escreve
+   * o parecer e as notas, nunca desfaz o que uma pessoa decidiu.
+   *
+   * A sugestão da IA continua gravada em `ai_status_suggestion`, visível na
+   * ficha; o que ela não faz é mover ninguém sozinha.
+   */
+  const ETAPAS_ANTES_DA_DECISAO = ['novo', 'teste_cultural_preenchido', 'analise_ia_concluida']
+  const statusAtual = String(app.status ?? '')
+  const etapa = ETAPAS_ANTES_DA_DECISAO.includes(statusAtual)
+    ? { status: 'analise_ia_concluida' }
+    : {}
+  if (!('status' in etapa)) {
+    console.log(`[analyze] status preservado: "${statusAtual}" (decisão humana, não sobrescreve)`)
+  }
+
   // ── Salva resultado ───────────────────────────────────────────────────────────
   const { error: saveErr } = await supabase.from('applications').update({
     ai_summary:           aiResult.resumo_candidato,
@@ -598,7 +619,7 @@ nota_final: não calcule — o sistema calcula automaticamente. Coloque 0.
     experience_score:     aiResult.nota_experiencia,
     availability_score:   aiResult.nota_disponibilidade,
     final_score:          finalScore,
-    status:               'analise_ia_concluida',
+    ...etapa,
     updated_at:           new Date().toISOString(),
   }).eq('id', applicationId)
 
