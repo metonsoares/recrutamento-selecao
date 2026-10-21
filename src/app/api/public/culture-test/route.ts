@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
-import { calculateCultureScore } from '@/lib/helpers'
+import { calculateCultureScore, calculateFinalScore } from '@/lib/helpers'
 import { enfileirarEProcessar } from '@/lib/fila-ia'
 
 export async function POST(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     const { data: application } = await supabase
       .from('applications')
-      .select('id, candidate_id')
+      .select('id, candidate_id, experience_score, availability_score')
       .eq('culture_test_token', token)
       .gte('culture_test_token_expires_at', new Date().toISOString())
       .single()
@@ -46,9 +46,21 @@ export async function POST(req: NextRequest) {
 
     const cultureScore = calculateCultureScore(scoreDetails)
 
+    // A nota final TAMBÉM é refeita aqui. Antes esta rota gravava só a nota
+    // cultural, e a `final_score` continuava a que a análise tinha calculado
+    // ANTES do teste existir — ou seja, com cultura zero. Resultado: 28
+    // candidaturas com nota final 23 a 48 pontos abaixo do real, uma delas de
+    // pessoa já contratada (migration 033 consertou o passado).
+    const notaFinal = calculateFinalScore(
+      cultureScore,
+      Number(application.experience_score) || 0,
+      Number(application.availability_score) || 0,
+    )
+
     await supabase.from('applications').update({
       status: 'teste_cultural_preenchido',
       culture_score: cultureScore,
+      final_score: notaFinal,
       updated_at: new Date().toISOString(),
     }).eq('id', application.id)
 
