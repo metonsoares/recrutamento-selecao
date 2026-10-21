@@ -439,6 +439,20 @@ function BackgroundCheckModal({
                     </p>
                     <RiskBadge level={result.nivel_risco} />
                   </div>
+                  {/* O selo diz o TIPO de processo, não o veredito sobre a
+                      pessoa. Processo trabalhista como reclamante é comum em
+                      quem vem de restaurante, hotelaria e navio — sem esta
+                      linha, "Risco Alto" vermelho é lido como "descartar". */}
+                  {found && (
+                    <p className="text-[13px] leading-relaxed text-gray-600 mb-2 border-l-2 border-gray-300 pl-2.5">
+                      <strong className="text-gray-700">Vermelho não quer dizer descartar.</strong>{' '}
+                      A cor segue uma regra fixa pelo tipo de processo — criminal ou trabalhista
+                      ficam em vermelho, os demais em amarelo. Ser autor de uma reclamação
+                      trabalhista é exercer um direito, e isso não desqualifica ninguém.
+                      Use como ponto a conversar na entrevista; a decisão continua sendo da pessoa
+                      que recruta.
+                    </p>
+                  )}
                   <p className="text-sm leading-relaxed text-gray-700 break-words">
                     {result.parecer_geral}
                   </p>
