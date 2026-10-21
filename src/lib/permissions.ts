@@ -81,14 +81,18 @@ export function normalizeRole(raw: string | null | undefined): Role {
   return 'externo'
 }
 
-/**
- * Lê o perfil de acesso do user_metadata priorizando `perfil` (provisionado pelo
- * Portal BDT via SSO) sobre `role` (contas locais antigas). Mesmo nome de perfil.
+/*
+ * roleFromMetadata() foi REMOVIDA em 20/10/2026.
+ *
+ * Ela lia o perfil de `user_metadata`, que o próprio titular grava com um
+ * `supabase.auth.updateUser({ data: { perfil: 'master' } })` no navegador —
+ * não é fonte de autorização, é entrada do usuário. Era usada como fallback em
+ * cinco pontos, incluindo a rota que edita a matriz de permissões.
+ *
+ * O perfil agora vem só do Portal, por `getEffectiveRole()`/`resolvePortalRole()`
+ * em `lib/portal-perfil.ts`; quando o Portal não confirma, nega (`externo`).
+ * A função foi apagada de propósito, para o padrão não voltar por descuido.
  */
-export function roleFromMetadata(meta: Record<string, unknown> | null | undefined): Role {
-  const raw = (meta?.perfil ?? meta?.role) as string | null | undefined
-  return normalizeRole(raw)
-}
 
 /**
  * Converte o "perfil" da tela Cadastrar Usuários (administrador/gestor/operador)

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
-import { roleFromMetadata } from '@/lib/permissions'
 import { resolvePortalRole } from '@/lib/portal-perfil'
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string; responseId: string }> }) {
@@ -11,7 +10,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const authClient = await createSupabaseServerClient()
     const { data: { user } } = await authClient.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    const role = (await resolvePortalRole(user.email ?? '')) ?? roleFromMetadata(user.user_metadata)
+    const role = (await resolvePortalRole(user.email ?? '')) ?? 'externo'  // Portal nao confirmou = nega;
+      // `user_metadata` e gravavel pelo proprio titular e nao serve de autorizacao.
     if (role !== 'master') return NextResponse.json({ error: 'Sem permissão para remover respostas.' }, { status: 403 })
 
     const supabase = await createSupabaseServiceClient()

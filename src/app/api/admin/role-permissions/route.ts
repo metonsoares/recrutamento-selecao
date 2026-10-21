@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import {
-  roleFromMetadata, ALL_ROLES, PERMISSION_MATRIX, MASTER_ONLY_PERMS, LEVELS,
+  ALL_ROLES, PERMISSION_MATRIX, MASTER_ONLY_PERMS, LEVELS,
   type Role, type Level,
 } from '@/lib/permissions'
 import { resolvePortalRole } from '@/lib/portal-perfil'
@@ -15,7 +15,8 @@ export async function PUT(req: NextRequest) {
     const auth = await createSupabaseServerClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    const role = (await resolvePortalRole(user.email ?? '')) ?? roleFromMetadata(user.user_metadata)
+    const role = (await resolvePortalRole(user.email ?? '')) ?? 'externo'  // Portal nao confirmou = nega;
+      // `user_metadata` e gravavel pelo proprio titular e nao serve de autorizacao.
     if (role !== 'master') {
       return NextResponse.json({ error: 'Apenas o perfil Master pode alterar permissões.' }, { status: 403 })
     }

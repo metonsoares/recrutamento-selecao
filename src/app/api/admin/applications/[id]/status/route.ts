@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
-import { roleFromMetadata } from '@/lib/permissions'
 import { resolvePortalRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
 
@@ -14,7 +13,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const auth = await createSupabaseServerClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-    const role = (await resolvePortalRole(user.email ?? '')) ?? roleFromMetadata(user.user_metadata)
+    const role = (await resolvePortalRole(user.email ?? '')) ?? 'externo'  // Portal nao confirmou = nega;
+      // `user_metadata` e gravavel pelo proprio titular e nao serve de autorizacao.
     const granted = await getGrantedPerms(role)
     if (!granted.has('candidatos.status')) {
       return NextResponse.json({ error: 'Sem permissão para alterar status.' }, { status: 403 })

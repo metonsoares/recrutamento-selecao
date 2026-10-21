@@ -3,7 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createPortalClient } from '@/lib/portal-supabase'
 import { portalBridge } from '@/lib/portal-bridge'
-import { perfilToRole, roleFromMetadata, type Role } from '@/lib/permissions'
+import { perfilToRole, type Role } from '@/lib/permissions'
 
 /**
  * "Donos" do sistema: SEMPRE Master (break-glass). Garante que o administrador
@@ -56,14 +56,30 @@ export const resolvePortalRole = cache(async (email: string): Promise<Role | nul
 })
 
 /**
- * Usuário logado + perfil efetivo. Prioriza o perfil AO VIVO do Portal;
- * cai no metadata (perfil ?? role) quando o Portal não resolve (conta local).
- * Memoizado por request.
+ * Usuário logado + perfil efetivo. O perfil vem do Portal, SEMPRE.
+ *
+ * Até 20/10/2026 isto caía em `roleFromMetadata(user.user_metadata)` quando o
+ * Portal não resolvia — e `user_metadata` é gravável pelo próprio titular, com
+ * um `supabase.auth.updateUser({ data: { perfil: 'master' } })` no navegador.
+ * Ou seja: qualquer conta logada podia se promover a master, e duas contas
+ * reais já tinham `master` ali sem o Portal conhecê-las.
+ *
+ * Agora `null` do Portal significa NEGAR (perfil `externo`, sem painel), nos
+ * dois casos em que ele acontece: o Portal respondeu que a pessoa não tem
+ * acesso a este app, ou o Portal não pôde ser consultado. Acesso que não dá
+ * para verificar não é acesso. A única exceção é o break-glass por
+ * OWNER_EMAILS, resolvido antes disso em `resolvePortalRole`.
  */
 export const getEffectiveRole = cache(async (): Promise<{ user: User | null; role: Role }> => {
   const supabase = await createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { user: null, role: 'externo' }
   const portalRole = await resolvePortalRole(user.email ?? '')
-  return { user, role: portalRole ?? roleFromMetadata(user.user_metadata) }
+  if (!portalRole) {
+    // Sem e-mail no log: serve para diagnosticar indisponibilidade do Portal,
+    // não para rastrear pessoa.
+    console.warn('[perfil] Portal não confirmou o acesso — negando (externo).')
+    return { user, role: 'externo' }
+  }
+  return { user, role: portalRole }
 })
