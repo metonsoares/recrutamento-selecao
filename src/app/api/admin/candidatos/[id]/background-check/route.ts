@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
 import { getAnthropicKey, getOpenAIKey } from '@/lib/ai-key'
 import { BackgroundCheckResult } from '@/types'
+import { nivelDeRisco } from '@/lib/risco-processos'
 
 // Tempo máximo: buscas (≤16s) + IA (≤18s) = ≤34s com folga
 export const maxDuration = 45
@@ -521,7 +522,16 @@ PROCESSOS JUDICIAIS:
 
 RIGOR:
 - "encontrado: true" somente com evidência explícita e concreta
-- Se não há dados suficientes, use nivel_risco: "nao_determinado"
+- Termine CADA linha de "detalhes" com "— Tipo: CRIMINAL", "— Tipo: TRABALHISTA",
+  "— Tipo: CÍVEL" ou o tipo que for: o sistema lê esse rótulo para calcular o
+  nível de risco.
+
+NÍVEL DE RISCO:
+- NÃO decida o nível. O campo "nivel_risco" do JSON é ignorado e recalculado
+  pelo sistema a partir do tipo dos processos (regra da empresa: criminal e
+  trabalhista são risco alto; cível e demais, médio; sem processo, baixo).
+- Não escreva no parecer que o risco é baixo/médio/alto — descreva os fatos e
+  deixe a classificação para o sistema.
 
 Retorne SOMENTE este JSON (sem markdown):
 {
@@ -654,6 +664,12 @@ export async function POST(
     result.fontes_consultadas = results
       .filter(r => r.snippets.length > 0 || r.urls.length > 0)
       .map(r => r.source)
+
+    // O NÍVEL é regra da casa, não opinião do modelo: criminal e trabalhista
+    // são risco alto, cível e demais são médio, e só quem não tem processo
+    // fica em baixo. Sobrescreve o que a IA tiver devolvido — era ela quem
+    // dava "baixo" para candidato com reclamação trabalhista.
+    result.nivel_risco = nivelDeRisco(result.processos_judiciais)
 
     await supabase.from('candidates').update({
       background_check_result: result,
