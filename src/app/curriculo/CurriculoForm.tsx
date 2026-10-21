@@ -69,14 +69,17 @@ interface FileInfo {
 }
 
 /**
- * 2 MiB — o mesmo limite do bucket e da rota de upload.
+ * São DOIS números, de propósito — foi confundi-los que travou cadastro.
  *
- * Estava 5 MB, então `compressImage` comprimia a foto até caber em 5 MB e
- * mandava um arquivo que o Storage recusava. Com o alvo certo, a foto de
- * celular é reduzida até passar, em vez de travar o cadastro inteiro: o envio
- * do currículo é bloqueado enquanto o anexo estiver com erro.
+ * `ALVO_COMPRESSAO` é para onde a foto é reduzida: 2 MB mantém o arquivo leve
+ * (a média real no banco é 306 KB). `MAX_FILE_BYTES` é o que o sistema ACEITA,
+ * e tem de ser idêntico ao `file_size_limit` do bucket `candidatos-arquivos` —
+ * é o bucket quem recusa de verdade. A folga entre os dois existe para o caso
+ * raro em que o navegador não consegue abrir a imagem para comprimir: aí o
+ * original sobe inteiro em vez de travar o cadastro.
  */
-const MAX_FILE_BYTES = 2 * 1024 * 1024
+const ALVO_COMPRESSAO = 2 * 1024 * 1024
+const MAX_FILE_BYTES = 5 * 1024 * 1024
 
 function isImageFile(file: File) {
   if (file.type.startsWith('image/')) return true
@@ -90,7 +93,7 @@ function formatBytes(b: number) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-async function compressImageSafe(file: File, maxBytes = MAX_FILE_BYTES): Promise<File> {
+async function compressImageSafe(file: File, maxBytes = ALVO_COMPRESSAO): Promise<File> {
   return Promise.race([
     compressImage(file, maxBytes),
     new Promise<File>((_, reject) =>
@@ -99,7 +102,7 @@ async function compressImageSafe(file: File, maxBytes = MAX_FILE_BYTES): Promise
   ])
 }
 
-async function compressImage(file: File, maxBytes = MAX_FILE_BYTES): Promise<File> {
+async function compressImage(file: File, maxBytes = ALVO_COMPRESSAO): Promise<File> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = document.createElement('img')
@@ -241,7 +244,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
       // Comprime ANTES de validar o tamanho — foto de câmera de celular passa
       // de 5 MB e a compressão reduz até caber nos 2 MB que o bucket aceita.
       try {
-        const compressed = await compressImageSafe(file, MAX_FILE_BYTES)
+        const compressed = await compressImageSafe(file, ALVO_COMPRESSAO)
         fileToUpload = compressed
         setFileInfos(p => {
           const cur = p[id]; if (!cur) return p
@@ -258,10 +261,10 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
       // A mensagem muda conforme o motivo: quem não conseguiu comprimir
       // precisa trocar a foto, não "diminuir a resolução".
       const motivo = compressaoFalhou
-        ? 'Não conseguimos preparar essa foto. Tire uma nova pela câmera do celular e envie.'
+        ? `Não conseguimos preparar essa foto e ela tem ${formatBytes(fileToUpload.size)}. Tire uma nova pela câmera do celular e envie.`
         : isImageFile(fileToUpload)
           ? `A foto ficou com ${formatBytes(fileToUpload.size)} mesmo depois de reduzida. Tire outra, mais de perto.`
-          : `Arquivo de ${formatBytes(fileToUpload.size)}. O máximo é 2 MB — envie um PDF mais leve.`
+          : `Arquivo de ${formatBytes(fileToUpload.size)}. O máximo é 5 MB — envie um PDF mais leve.`
       setFileInfos(p => ({ ...p, [id]: { file: fileToUpload, error: motivo } }))
       return
     }

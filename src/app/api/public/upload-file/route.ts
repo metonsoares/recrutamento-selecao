@@ -4,16 +4,19 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 const BUCKET = 'candidatos-arquivos'
 
 /**
- * 2 MiB — o MESMO limite do bucket `candidatos-arquivos` no Supabase.
+ * 5 MB — o MESMO valor do `file_size_limit` do bucket `candidatos-arquivos`.
  *
- * Aqui estava 5 MB enquanto o bucket cortava em 2 MiB. Arquivo entre os dois
- * passava por esta rota e era recusado lá na frente pelo Storage, voltando um
- * 500 genérico — e o formulário público NÃO deixa enviar o currículo enquanto
- * o anexo estiver com erro. Na prática, quem tirava foto do currículo pelo
- * celular (3 a 5 MB é comum) não conseguia se cadastrar e não entendia o
- * motivo. Foi o que aconteceu com um candidato em 20/10/2026.
+ * Os dois números precisam andar juntos: é o BUCKET quem recusa de verdade, e
+ * um limite maior aqui só adia a rejeição para um 500 sem explicação. Foi
+ * assim que um candidato ficou impedido de se cadastrar em 20/10/2026 — esta
+ * rota aceitava 5 MB e o bucket cortava em 2 MiB.
+ *
+ * A folga é intencional: o formulário comprime a foto mirando 2 MB (a média
+ * real no banco é 306 KB), e os 5 MB cobrem o caso raro em que o navegador não
+ * consegue abrir a imagem para comprimir. Antes de mexer neste número, mudar o
+ * bucket — nunca só aqui.
  */
-const MAX_SIZE = 2 * 1024 * 1024
+const MAX_SIZE = 5 * 1024 * 1024
 
 /** Detect MIME type from file extension when browser sends empty type (common on Android camera) */
 function resolveType(file: File): string {
@@ -54,8 +57,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: isPDF
-            ? 'O PDF passa de 2 MB. Envie uma versão mais leve ou mande uma foto das páginas.'
-            : 'A imagem passa de 2 MB mesmo depois de reduzida. Tente tirar a foto novamente, mais de perto e com menos resolução.',
+            ? 'O PDF passa de 5 MB. Envie uma versão mais leve ou mande uma foto das páginas.'
+            : 'A imagem passa de 5 MB mesmo depois de reduzida. Tire a foto novamente, mais de perto.',
         },
         { status: 400 },
       )
