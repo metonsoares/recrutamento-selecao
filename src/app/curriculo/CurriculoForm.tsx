@@ -236,21 +236,33 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
     }
     setFileInfos(p => ({ ...p, [id]: { file, error: null, uploading: true, uploadPct: 0 } }))
     let fileToUpload = file
+    let compressaoFalhou = false
     if (isImageFile(file)) {
-      // Comprime ANTES de validar o tamanho — foto de câmera de celular
-      // costuma passar de 5 MB e a compressão reduz para ~2 MB.
+      // Comprime ANTES de validar o tamanho — foto de câmera de celular passa
+      // de 5 MB e a compressão reduz até caber nos 2 MB que o bucket aceita.
       try {
-        const compressed = await compressImageSafe(file, 2 * 1024 * 1024)
+        const compressed = await compressImageSafe(file, MAX_FILE_BYTES)
         fileToUpload = compressed
         setFileInfos(p => {
           const cur = p[id]; if (!cur) return p
           return { ...p, [id]: { ...cur, file: fileToUpload } }
         })
-      } catch { /* upload original */ }
+      } catch {
+        // Formato que o navegador não abre (HEIC costuma ser o caso) ou
+        // compressão que demorou demais. Sobe o original; se couber, tudo bem.
+        compressaoFalhou = true
+      }
     }
     // Tamanho só DEPOIS da compressão (PDF é validado no tamanho original)
     if (fileToUpload.size > MAX_FILE_BYTES) {
-      setFileInfos(p => ({ ...p, [id]: { file: fileToUpload, error: `Arquivo muito grande (${formatBytes(fileToUpload.size)}). O máximo é 2 MB — envie um PDF mais leve ou uma foto com menos resolução.` } }))
+      // A mensagem muda conforme o motivo: quem não conseguiu comprimir
+      // precisa trocar a foto, não "diminuir a resolução".
+      const motivo = compressaoFalhou
+        ? 'Não conseguimos preparar essa foto. Tire uma nova pela câmera do celular e envie.'
+        : isImageFile(fileToUpload)
+          ? `A foto ficou com ${formatBytes(fileToUpload.size)} mesmo depois de reduzida. Tire outra, mais de perto.`
+          : `Arquivo de ${formatBytes(fileToUpload.size)}. O máximo é 2 MB — envie um PDF mais leve.`
+      setFileInfos(p => ({ ...p, [id]: { file: fileToUpload, error: motivo } }))
       return
     }
     startUpload(id, fileToUpload)
@@ -572,10 +584,17 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
 
         return (
           <div className="space-y-2">
+            {/* `accept` sem `.heic`/`.heif` de propósito: quando o accept NÃO
+                lista HEIC, o iPhone converte a foto para JPEG na hora de
+                escolher. Listando, ele entrega o HEIC cru — que o navegador não
+                consegue abrir no canvas, então a compressão falha, o arquivo
+                original (3 a 5 MB) sobe inteiro e o cadastro trava. O
+                `isImageFile` continua aceitando HEIC para o caso de um escapar
+                por outro caminho. */}
             <input
               ref={el => { fileRefs.current[q.id] = el }}
               type="file"
-              accept="image/*,application/pdf,.pdf,.heic,.heif"
+              accept="image/*,application/pdf,.pdf"
               className="hidden"
               onChange={e => {
                 const f = e.target.files?.[0]
