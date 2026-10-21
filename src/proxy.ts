@@ -6,7 +6,7 @@ export const config = {
 }
 
 /** Papéis que a pré-visualização do Portal aceita. */
-const PERFIS_PREVIEW = ['gestor', 'gestor_rh', 'operador', 'visualizador']
+const PERFIS_PREVIEW = ['admin', 'gestor', 'gestor_rh', 'operador', 'visualizador']
 
 const PAGE_LABELS: [RegExp, string][] = [
   [/^\/admin\/?$/, 'Acessou o Dashboard'],
@@ -132,15 +132,28 @@ export async function proxy(req: NextRequest) {
   // não recebem searchParams, então o parâmetro vira um cookie que o layout lê.
   // Quem decide se o preview vale é o layout, e SÓ para master/admin: aqui é
   // apenas transporte. Nenhum guard de página ou de API usa este cookie.
+  //
+  // Responde com um redirect para a mesma página SEM os parâmetros: o cookie
+  // novo já vale na próxima requisição (o layout lê o cookie da requisição,
+  // então gravar só na resposta deixava a primeira tela no perfil antigo).
   if (pathname.startsWith('/admin')) {
     const preview = req.nextUrl.searchParams.get('preview')
     const perfil = req.nextUrl.searchParams.get('perfil')
-    if (preview === '1' && perfil && PERFIS_PREVIEW.includes(perfil)) {
-      res.cookies.set('bdt_preview_perfil', perfil, {
-        httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60,
-      })
-    } else if (preview === '0') {
-      res.cookies.delete('bdt_preview_perfil')
+    if (preview === '1' || preview === '0') {
+      const limpa = req.nextUrl.clone()
+      limpa.searchParams.delete('preview')
+      limpa.searchParams.delete('perfil')
+      const red = NextResponse.redirect(limpa)
+      // Leva junto a sessão renovada pelo Supabase nesta mesma requisição.
+      res.cookies.getAll().forEach((c) => red.cookies.set(c))
+      if (preview === '1' && perfil && PERFIS_PREVIEW.includes(perfil)) {
+        red.cookies.set('bdt_preview_perfil', perfil, {
+          httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60,
+        })
+      } else {
+        red.cookies.delete('bdt_preview_perfil')
+      }
+      return red
     }
   }
 

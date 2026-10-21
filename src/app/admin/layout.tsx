@@ -68,6 +68,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         nome={nome}
         perfilLabel={ROLE_LABELS[perfilPreview ?? role]}
         podeVerAtualizacoes={podeVerAtualizacoes}
+        // Quem decide se o "Visualizar como…" aparece é o papel REAL, nunca o
+        // simulado: sem isso, entrar como operador esconderia a própria saída.
+        podeVisualizarComo={podePreVisualizar}
+        visualizandoComo={perfilPreview}
       />
       <PresenceHeartbeat />
       {/* Avisa quem está com a aba aberta que saiu publicação nova. */}
@@ -82,6 +86,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             perfilLabel={ROLE_LABELS[perfilPreview ?? role]}
             podeVerAtualizacoes={podeVerAtualizacoes}
             mostrarNome
+            podeVisualizarComo={podePreVisualizar}
+            visualizandoComo={perfilPreview}
           />
         </header>
 

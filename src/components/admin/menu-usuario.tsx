@@ -2,10 +2,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Moon, Sun, CircleHelp, History, LogOut } from 'lucide-react'
+import { Moon, Sun, CircleHelp, History, LogOut, Eye, Check, ChevronDown } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { definirTema, useTema } from '@/lib/tema'
 import { cn } from '@/lib/utils'
+import { ROLE_LABELS, type Role } from '@/lib/permissions'
+
+/** Perfis que o master pode simular (os mesmos que o proxy aceita). */
+const PERFIS_VISUALIZAR: Role[] = ['admin', 'gestor', 'gestor_rh', 'operador', 'visualizador']
 
 /** Iniciais do nome, como nos outros apps da casa (uma do primeiro, uma do último). */
 function iniciais(nome: string): string {
@@ -24,15 +28,21 @@ function iniciais(nome: string): string {
  */
 export function MenuUsuario({
   nome, perfilLabel, podeVerAtualizacoes, mostrarNome = false,
+  podeVisualizarComo = false, visualizandoComo = null,
 }: {
   nome: string
   perfilLabel: string
   podeVerAtualizacoes: boolean
   /** Mostra o nome ao lado do avatar (computador); no celular só o avatar cabe. */
   mostrarNome?: boolean
+  /** Quem pode simular a tela de outro perfil (não muda nenhum acesso). */
+  podeVisualizarComo?: boolean
+  /** Perfil simulado agora, ou null quando está vendo como ele mesmo. */
+  visualizandoComo?: Role | null
 }) {
   const router = useRouter()
   const [aberto, setAberto] = useState(false)
+  const [verComoAberto, setVerComoAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
   const tema = useTema()
   const escuro = tema === 'escuro'
@@ -93,6 +103,42 @@ export function MenuUsuario({
             <p className="text-[12px] text-[#8a8a8a]">{perfilLabel}</p>
           </div>
           <div className="h-px bg-[#e8e8e8] my-1" />
+
+          {podeVisualizarComo && (
+            <>
+              <button type="button" role="menuitem" className={ITEM}
+                aria-expanded={verComoAberto}
+                onClick={() => setVerComoAberto(v => !v)}>
+                <Eye className="w-4 h-4 shrink-0" />
+                Visualizar como…
+                <ChevronDown className={cn('w-4 h-4 ml-auto shrink-0 transition-transform', verComoAberto && 'rotate-180')} />
+              </button>
+              {verComoAberto && (
+                <div className="ml-4 border-l border-[#e8e8e8] pl-2 mb-1">
+                  {/* <a> (e não Link): a troca passa pelo proxy, que grava o
+                      perfil e recarrega o painel inteiro já no perfil novo. */}
+                  <a href="/admin?preview=0" role="menuitem" className={ITEM}>
+                    {visualizandoComo === null
+                      ? <Check className="w-4 h-4 shrink-0 text-[#1F4332]" />
+                      : <span className="w-4 shrink-0" />}
+                    Master (eu)
+                  </a>
+                  {PERFIS_VISUALIZAR.map(p => (
+                    <a key={p} href={`/admin?perfil=${p}&preview=1`} role="menuitem" className={ITEM}>
+                      {visualizandoComo === p
+                        ? <Check className="w-4 h-4 shrink-0 text-[#1F4332]" />
+                        : <span className="w-4 shrink-0" />}
+                      {ROLE_LABELS[p]}
+                    </a>
+                  ))}
+                  <p className="px-3 pb-1 pt-0.5 text-[11px] leading-snug text-[#8a8a8a]">
+                    Muda só a tela. Seus acessos reais não mudam.
+                  </p>
+                </div>
+              )}
+              <div className="h-px bg-[#e8e8e8] my-1" />
+            </>
+          )}
 
           <button type="button" role="menuitem" className={ITEM}
             onClick={() => definirTema(escuro ? 'claro' : 'escuro')}>

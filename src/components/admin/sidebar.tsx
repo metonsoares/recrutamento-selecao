@@ -528,6 +528,8 @@ export function AdminNav({
   nome,
   perfilLabel,
   podeVerAtualizacoes,
+  podeVisualizarComo = false,
+  visualizandoComo = null,
 }: {
   logoUrl?: string | null
   companyName?: string | null
@@ -536,6 +538,8 @@ export function AdminNav({
   nome: string
   perfilLabel: string
   podeVerAtualizacoes: boolean
+  podeVisualizarComo?: boolean
+  visualizandoComo?: UserRole | null
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -556,7 +560,8 @@ export function AdminNav({
         </div>
         <div className="flex items-center gap-1">
         <SinoNotificacoes />
-        <MenuUsuario nome={nome} perfilLabel={perfilLabel} podeVerAtualizacoes={podeVerAtualizacoes} />
+        <MenuUsuario nome={nome} perfilLabel={perfilLabel} podeVerAtualizacoes={podeVerAtualizacoes}
+          podeVisualizarComo={podeVisualizarComo} visualizandoComo={visualizandoComo} />
         <button
           onClick={() => setMobileOpen(true)}
           aria-label="Abrir menu"
