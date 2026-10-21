@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 
-const MAX_SIZE = 5 * 1024 * 1024 // 5 MB (client compresses large images before upload)
 const BUCKET = 'candidatos-arquivos'
+
+/**
+ * 2 MiB — o MESMO limite do bucket `candidatos-arquivos` no Supabase.
+ *
+ * Aqui estava 5 MB enquanto o bucket cortava em 2 MiB. Arquivo entre os dois
+ * passava por esta rota e era recusado lá na frente pelo Storage, voltando um
+ * 500 genérico — e o formulário público NÃO deixa enviar o currículo enquanto
+ * o anexo estiver com erro. Na prática, quem tirava foto do currículo pelo
+ * celular (3 a 5 MB é comum) não conseguia se cadastrar e não entendia o
+ * motivo. Foi o que aconteceu com um candidato em 20/10/2026.
+ */
+const MAX_SIZE = 2 * 1024 * 1024
 
 /** Detect MIME type from file extension when browser sends empty type (common on Android camera) */
 function resolveType(file: File): string {
@@ -38,8 +49,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (file.size > MAX_SIZE) {
+      // A mensagem diz o que fazer: quem está com o celular na mão precisa de
+      // uma saída, não de um número.
       return NextResponse.json(
-        { error: 'Arquivo muito grande. Tamanho máximo: 5 MB.' },
+        {
+          error: isPDF
+            ? 'O PDF passa de 2 MB. Envie uma versão mais leve ou mande uma foto das páginas.'
+            : 'A imagem passa de 2 MB mesmo depois de reduzida. Tente tirar a foto novamente, mais de perto e com menos resolução.',
+        },
         { status: 400 },
       )
     }

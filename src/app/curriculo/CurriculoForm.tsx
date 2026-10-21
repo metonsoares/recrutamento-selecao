@@ -68,7 +68,15 @@ interface FileInfo {
   uploadedUrl?: string
 }
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024
+/**
+ * 2 MiB — o mesmo limite do bucket e da rota de upload.
+ *
+ * Estava 5 MB, então `compressImage` comprimia a foto até caber em 5 MB e
+ * mandava um arquivo que o Storage recusava. Com o alvo certo, a foto de
+ * celular é reduzida até passar, em vez de travar o cadastro inteiro: o envio
+ * do currículo é bloqueado enquanto o anexo estiver com erro.
+ */
+const MAX_FILE_BYTES = 2 * 1024 * 1024
 
 function isImageFile(file: File) {
   if (file.type.startsWith('image/')) return true
@@ -242,7 +250,7 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
     }
     // Tamanho só DEPOIS da compressão (PDF é validado no tamanho original)
     if (fileToUpload.size > MAX_FILE_BYTES) {
-      setFileInfos(p => ({ ...p, [id]: { file: fileToUpload, error: `Arquivo muito grande (${formatBytes(fileToUpload.size)}). Máximo 5 MB.` } }))
+      setFileInfos(p => ({ ...p, [id]: { file: fileToUpload, error: `Arquivo muito grande (${formatBytes(fileToUpload.size)}). O máximo é 2 MB — envie um PDF mais leve ou uma foto com menos resolução.` } }))
       return
     }
     startUpload(id, fileToUpload)
