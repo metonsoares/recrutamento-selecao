@@ -34,6 +34,7 @@ import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
 import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
+import type { AnexoNota } from '@/lib/notas-anexos'
 import { StatusSelect } from './status-select'
 import { PesquisasClimaTab, ClimateAssignment, SurveyOption } from './pesquisas-clima-tab'
 import { ContratosTab, ContractItem } from './contratos-tab'
@@ -1034,6 +1035,7 @@ export default async function CandidatePage({
               id: n.id as string,
               note: n.note as string,
               created_at: n.created_at as string,
+              attachments: (n.attachments as AnexoNota[] | null) ?? [],
             }))}
           />
         </CardContent>
