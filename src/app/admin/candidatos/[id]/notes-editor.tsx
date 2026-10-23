@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useRouter } from 'next/navigation'
 import { Loader2, Send, Paperclip, X, FileText, ImageIcon } from 'lucide-react'
 import { formatDateTime } from '@/lib/helpers'
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
   ACCEPT_ANEXOS, MAX_ANEXO_BYTES, tamanhoLegivel, type AnexoNota,
 } from '@/lib/notas-anexos'
@@ -42,6 +43,11 @@ export function CandidateNotesEditor({
   // O arquivo sobe assim que é escolhido: na hora de salvar a observação só vai
   // a ficha dele. Assim um anexo grande não trava o botão Salvar, e o erro de
   // tamanho aparece no momento em que a pessoa escolhe o arquivo.
+  //
+  // São dois passos de propósito: a API autoriza (devolve onde gravar e um
+  // token) e o arquivo vai DIRETO para o Storage. Mandar o arquivo pela API
+  // não funcionaria — a Vercel recusa corpo acima de ~4,5 MB, abaixo dos 5 MB
+  // que o limite promete.
   async function handleEscolherArquivos(e: React.ChangeEvent<HTMLInputElement>) {
     const escolhidos = Array.from(e.target.files ?? [])
     e.target.value = '' // permite reanexar o mesmo arquivo depois de remover
@@ -55,18 +61,27 @@ export function CandidateNotesEditor({
       }
       setEnviando(n => n + 1)
       try {
-        const fd = new FormData()
-        fd.append('file', file)
         const res = await fetch(`/api/admin/candidatos/${candidateId}/notes/upload`, {
           method: 'POST',
-          body: fd,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
         })
         const d = await res.json().catch(() => ({}))
-        if (!res.ok || !d.anexo) {
+        if (!res.ok || !d.token) {
           setErro(d.error || `Não foi possível anexar "${file.name}".`)
-        } else {
-          setAnexos(prev => [...prev, d.anexo as AnexoNota])
+          continue
         }
+
+        const supabase = createSupabaseBrowserClient()
+        const { error } = await supabase.storage
+          .from(d.bucket as string)
+          .uploadToSignedUrl(d.path as string, d.token as string, file, { contentType: file.type })
+
+        if (error) {
+          setErro(`Não foi possível enviar "${file.name}". Tente de novo.`)
+          continue
+        }
+        setAnexos(prev => [...prev, d.anexo as AnexoNota])
       } catch {
         setErro(`Não foi possível anexar "${file.name}". Verifique a conexão.`)
       } finally {

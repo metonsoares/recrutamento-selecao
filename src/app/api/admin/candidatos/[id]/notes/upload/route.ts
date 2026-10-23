@@ -8,10 +8,17 @@ export const dynamic = 'force-dynamic'
 /**
  * POST /api/admin/candidatos/[id]/notes/upload
  *
- * Sobe UM anexo da observação interna e devolve a ficha do arquivo
- * ({ name, path, size, type }) para a tela guardar junto da anotação.
- * O arquivo vai para um bucket PRIVADO — nada de URL pública: quem baixa
- * passa por /notes/anexo, que assina uma URL de curta duração.
+ * NÃO recebe o arquivo: devolve uma autorização de upload (path + token) para
+ * o navegador mandar o arquivo DIRETO ao Supabase Storage.
+ *
+ * Por quê: a Vercel corta o corpo de qualquer função em ~4,5 MB
+ * (FUNCTION_PAYLOAD_TOO_LARGE). Medido em 23/10/2026 no ar: 1 MB passa, 4,4 MB
+ * já volta 413. Ou seja, um anexo de 5 MB JAMAIS chegaria aqui se o arquivo
+ * viesse no corpo — o limite pedido pelo dono só é possível subindo direto.
+ *
+ * O que continua do lado do servidor: a permissão, o nome do objeto e a pasta
+ * (o navegador não escolhe onde grava). O tamanho real é conferido de novo
+ * quando a observação é salva, lendo o objeto no bucket.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -21,20 +28,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     if (!id) return NextResponse.json({ error: 'Candidato não informado.' }, { status: 400 })
 
-    const form = await req.formData()
-    const file = form.get('file')
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 })
+    const { name, type, size } = await req.json().catch(() => ({})) as {
+      name?: string; type?: string; size?: number
     }
-    if (file.size === 0) {
+
+    if (typeof name !== 'string' || !name.trim()) {
+      return NextResponse.json({ error: 'Arquivo sem nome.' }, { status: 400 })
+    }
+    if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) {
       return NextResponse.json({ error: 'O arquivo está vazio.' }, { status: 400 })
     }
-    if (file.size > MAX_ANEXO_BYTES) {
+    if (size > MAX_ANEXO_BYTES) {
       return NextResponse.json({
-        error: `"${file.name}" tem ${(file.size / 1024 / 1024).toFixed(1)} MB. O limite é 5 MB por arquivo.`,
+        error: `"${name}" tem ${(size / 1024 / 1024).toFixed(1)} MB. O limite é 5 MB por arquivo.`,
       }, { status: 400 })
     }
-    if (!TIPOS_ANEXO.includes(file.type)) {
+    if (typeof type !== 'string' || !TIPOS_ANEXO.includes(type)) {
       return NextResponse.json({
         error: 'Formato não aceito. Use PDF, imagem (JPG, PNG, WEBP, HEIC), Word ou Excel.',
       }, { status: 400 })
@@ -42,22 +51,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // Nome do objeto: carimbo + sorteio. O nome original fica só no banco —
     // acentos e espaços no path do Storage dão dor de cabeça na hora de assinar.
-    const nome = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extensaoDe(file.name, file.type)}`
-    const path = `${PASTA_ANEXOS}/${id}/${nome}`
+    const objeto = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extensaoDe(name, type)}`
+    const path = `${PASTA_ANEXOS}/${id}/${objeto}`
 
     const supabase = await createSupabaseServiceClient()
-    const { error } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from(BUCKET_ANEXOS)
-      .upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false })
+      .createSignedUploadUrl(path)
 
-    if (error) {
-      console.error('[notes upload]', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error || !data?.token) {
+      console.error('[notes upload sign]', error)
+      return NextResponse.json({ error: 'Não foi possível preparar o envio.' }, { status: 500 })
     }
 
     return NextResponse.json({
       ok: true,
-      anexo: { name: file.name, path, size: file.size, type: file.type },
+      bucket: BUCKET_ANEXOS,
+      path,
+      token: data.token,
+      anexo: { name: name.slice(0, 200), path, size, type },
     })
   } catch (err) {
     console.error('[notes upload POST]', err)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
-import { sanitizarAnexos } from '@/lib/notas-anexos'
+import { sanitizarAnexos, BUCKET_ANEXOS, MAX_ANEXO_BYTES } from '@/lib/notas-anexos'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +41,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
 
     const supabase = await createSupabaseServiceClient()
+
+    // O tamanho que vale é o do OBJETO no bucket, não o que o navegador disse:
+    // o arquivo sobe direto para o Storage (a Vercel corta corpo acima de
+    // ~4,5 MB), então é aqui que se confirma que ele existe e cabe no limite.
+    for (const anexo of attachments) {
+      const barra = anexo.path.lastIndexOf('/')
+      const { data: achados } = await supabase.storage
+        .from(BUCKET_ANEXOS)
+        .list(anexo.path.slice(0, barra), { search: anexo.path.slice(barra + 1), limit: 1 })
+
+      const bytes = (achados?.[0]?.metadata as { size?: number } | null | undefined)?.size
+      if (typeof bytes !== 'number' || bytes <= 0 || bytes > MAX_ANEXO_BYTES) {
+        return NextResponse.json({
+          error: `O anexo "${anexo.name}" não subiu por completo. Anexe novamente.`,
+        }, { status: 400 })
+      }
+      anexo.size = bytes
+    }
+
     const { data, error } = await supabase
       .from('admin_notes')
       .insert({
