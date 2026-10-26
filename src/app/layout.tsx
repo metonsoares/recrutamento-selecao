@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SCRIPT_TEMA } from "@/lib/tema";
+import { publicAppUrl } from "@/lib/helpers";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -14,7 +15,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// `metadataBase` resolve as URLs relativas das paginas (canonical, Open Graph).
+// Sem ele o Next nao consegue montar a canonical absoluta e o Google passa a ver
+// o formulario publico como copia: ele responde 200 tanto no dominio oficial
+// quanto no endereco .vercel.app, e sem canonical nenhum dos dois se declara o
+// certo. Foi o que o Search Console apontou em 24/10/2026
+// ("Copia sem pagina canonica selecionada pelo usuario").
 export const metadata: Metadata = {
+  metadataBase: new URL(publicAppUrl()),
   title: "Banco de Talentos do Ton",
   description: "Sistema de Recrutamento e Seleção — Brownie do Ton",
 };

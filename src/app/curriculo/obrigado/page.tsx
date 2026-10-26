@@ -1,5 +1,13 @@
 import Link from 'next/link'
 
+import type { Metadata } from 'next'
+
+// Pagina de confirmacao: so faz sentido depois de enviar o formulario.
+// O robots.txt impede o rastreamento; o noindex garante que a URL nao
+// apareca no indice mesmo se o link vazar por referrer ou compartilhamento.
+export const metadata: Metadata = { robots: { index: false, follow: false } }
+
+
 export default function ObrigadoPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center px-4 py-12">

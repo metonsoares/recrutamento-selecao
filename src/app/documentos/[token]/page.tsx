@@ -2,6 +2,14 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { docsPendentesFicha } from '@/lib/doc-pendency'
 import { EnvioDocumentosForm } from './envio-form'
 
+import type { Metadata } from 'next'
+
+// Link por token com dado de candidato: nunca pode entrar em buscador.
+// O robots.txt impede o rastreamento; o noindex garante que a URL nao
+// apareca no indice mesmo se o link vazar por referrer ou compartilhamento.
+export const metadata: Metadata = { robots: { index: false, follow: false } }
+
+
 export const dynamic = 'force-dynamic'
 
 /**
