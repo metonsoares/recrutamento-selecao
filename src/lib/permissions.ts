@@ -241,6 +241,19 @@ const ACTION_OF: Record<string, string> = Object.fromEntries(PERMISSION_MATRIX.m
 // Permissão sempre exclusiva do master (módulo de Perfil de usuário / editor de acessos)
 export const MASTER_ONLY_PERMS: Permission[] = ['config.usuarios_perfil', 'auditoria.ver']
 
+/**
+ * Ações cujo RÓTULO não diz o CRUD — aqui o nível vem escrito à mão.
+ *
+ * `naturalLevel()` lê o texto da ação ("adicionar", "editar", "excluir") para
+ * adivinhar o nível. "Desligar funcionário" não tem nenhuma dessas palavras, e
+ * por isso caía em "Visualizar" — liberava a ação, mas na matriz lia-se como se
+ * fosse só leitura. Decisão do dono em 27/10/2026: mostrar Editar/Remover/Ver,
+ * como o antigo perfil RH já estava gravado no banco.
+ */
+const NIVEL_ESCRITO_A_MAO: Partial<Record<Permission, Level>> = {
+  'acao.desligar': 'edit_remove_view',
+}
+
 /** Nível PADRÃO (código) para um perfil/permissão — usado quando não há valor salvo no banco. */
 export function defaultLevel(role: Role, perm: Permission): Level {
   if (MASTER_ONLY_PERMS.includes(perm)) return role === 'master' ? 'full' : 'none'
@@ -248,5 +261,5 @@ export function defaultLevel(role: Role, perm: Permission): Level {
   if (role === 'visualizador') return 'view'                 // somente leitura
   if (role === 'externo') return 'none'                      // sem acesso ao painel
   if (!can(role, perm)) return 'none'
-  return naturalLevel(ACTION_OF[perm] || '')
+  return NIVEL_ESCRITO_A_MAO[perm] ?? naturalLevel(ACTION_OF[perm] || '')
 }
