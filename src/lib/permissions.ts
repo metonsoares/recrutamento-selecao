@@ -52,9 +52,15 @@ const GESTOR: Permission[] = [
 // Gestor RH: RH-focado. Dashboard, Candidatos (status sim; SEM Check Auxílios/Processos,
 // SEM coluna Reprovados), Agenda (config + remover), Colaboradores + fichas, Documentos da
 // empresa e Relatórios. SEM Configurações/Pesquisas/Treinamentos/WhatsApp/Templates.
+//
+// `acao.desligar` entrou em 27/10/2026, consertando um desligamento que falhava:
+// a ficha mostra o botão "Desligar funcionário" para o Gestor RH e a rota de
+// status já dizia "Somente master e Gestor RH podem desligar um colaborador" —
+// mas a rota que grava a data e a carta exigia esta permissão, que o perfil não
+// tinha. Resultado: a janela abria, aceitava a carta e devolvia "Erro ao salvar".
 const GESTOR_RH: Permission[] = [
   'dashboard.ver',
-  'candidatos.ver', 'candidatos.status',
+  'candidatos.ver', 'candidatos.status', 'acao.desligar',
   'agenda.ver', 'agenda.config_locais', 'agenda.config_entrevistadores', 'agenda.remover_agendamento',
   'colaboradores.ver', 'documentos_empresa',
   'ficha.admissao', 'ficha.contrato', 'ficha.documentos', 'ficha.bancarios', 'ficha.ferias',

@@ -63,7 +63,14 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
       }),
     })
     setSaving(false)
-    if (!res.ok) { setError('Erro ao salvar.'); return }
+    if (!res.ok) {
+      // Mostrar o motivo que o servidor deu. O "Erro ao salvar." genérico que
+      // ficava aqui escondeu por dias um 403 de permissão — quem usa a tela não
+      // tinha como saber que o problema era acesso, e não o arquivo ou a data.
+      const d = await res.json().catch(() => ({}))
+      setError(d.error || `Não foi possível salvar (erro ${res.status}).`)
+      return
+    }
     setOpen(false)
     router.refresh()
   }
