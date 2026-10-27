@@ -276,9 +276,36 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
     if (fileRefs.current[id]) fileRefs.current[id]!.value = ''
   }
 
-  function startUpload(id: string, file: File) {
+  // São dois passos de propósito: a API AUTORIZA (confere tipo e tamanho e diz
+  // onde o arquivo cai) e o arquivo vai DIRETO ao Storage. Mandar o arquivo
+  // pela API não funciona — a Vercel recusa corpo acima de ~4,5 MB, abaixo dos
+  // 5 MB que este formulário promete, e o candidato levava um erro cru.
+  async function startUpload(id: string, file: File) {
+    const falhar = (msg: string) => setFileInfos(p => {
+      const cur = p[id]; if (!cur) return p
+      return { ...p, [id]: { ...cur, uploading: false, error: msg } }
+    })
+
+    let autorizacao: { signedUrl: string; url: string }
+    try {
+      const res = await fetch('/api/public/upload-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.signedUrl) { falhar(d.error || 'Erro ao enviar arquivo.'); return }
+      autorizacao = d as { signedUrl: string; url: string }
+    } catch {
+      falhar('Falha na conexão. Verifique sua internet e tente novamente.')
+      return
+    }
+
+    // Formato que o Storage espera no upload assinado (o mesmo que o SDK monta).
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('cacheControl', '3600')
+    fd.append('', file)
+
     const xhr = new XMLHttpRequest()
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -290,33 +317,25 @@ export function CurriculoForm({ jobs, questions, sections, companyInfo: _company
       }
     }
     xhr.onload = () => {
-      try {
-        const data = JSON.parse(xhr.responseText)
-        if (xhr.status >= 200 && xhr.status < 300 && !data.error) {
-          setFileInfos(p => {
-            const cur = p[id]; if (!cur) return p
-            return { ...p, [id]: { ...cur, uploading: false, uploadPct: 100, uploadedUrl: data.url } }
-          })
-        } else {
-          setFileInfos(p => {
-            const cur = p[id]; if (!cur) return p
-            return { ...p, [id]: { ...cur, uploading: false, error: data.error || 'Erro ao enviar arquivo.' } }
-          })
-        }
-      } catch {
+      if (xhr.status >= 200 && xhr.status < 300) {
         setFileInfos(p => {
           const cur = p[id]; if (!cur) return p
-          return { ...p, [id]: { ...cur, uploading: false, error: 'Resposta inválida do servidor.' } }
+          return { ...p, [id]: { ...cur, uploading: false, uploadPct: 100, uploadedUrl: autorizacao.url } }
         })
+        return
+      }
+      // O Storage responde em inglês; o candidato não tem que lidar com isso.
+      const bruto = xhr.responseText || ''
+      if (xhr.status === 413 || /exceed|maximum allowed size|too large/i.test(bruto)) {
+        falhar('O arquivo passa de 5 MB. Envie uma versão mais leve ou tire a foto mais de perto.')
+      } else if (/mime|content type/i.test(bruto)) {
+        falhar('Formato não aceito. Envie a foto em JPG ou PNG, ou o arquivo em PDF.')
+      } else {
+        falhar('Erro ao enviar arquivo. Tente novamente.')
       }
     }
-    xhr.onerror = () => {
-      setFileInfos(p => {
-        const cur = p[id]; if (!cur) return p
-        return { ...p, [id]: { ...cur, uploading: false, error: 'Falha na conexão. Verifique sua internet e tente novamente.' } }
-      })
-    }
-    xhr.open('POST', '/api/public/upload-file')
+    xhr.onerror = () => falhar('Falha na conexão. Verifique sua internet e tente novamente.')
+    xhr.open('PUT', autorizacao.signedUrl)
     xhr.send(fd)
   }
 
