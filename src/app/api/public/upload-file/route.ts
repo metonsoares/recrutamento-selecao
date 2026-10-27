@@ -22,8 +22,22 @@ const MAX_SIZE = 5 * 1024 * 1024
  * Tipos que o BUCKET aceita (`allowed_mime_types`). Conferir aqui é o que
  * transforma "Erro ao fazer upload. Tente novamente." — que faria o candidato
  * tentar a vida toda — em uma instrução do que mandar.
+ *
+ * WEBP e HEIC entraram em 27/10/2026, por decisão do dono: o formulário
+ * comprime a foto para JPEG quando consegue abrir a imagem, e estes são
+ * justamente os formatos que às vezes ele NÃO consegue abrir — recusar deixava
+ * o candidato sem saída. Mudar esta lista exige mudar o bucket junto.
+ *
+ * Cuidado ao mexer no `accept` do formulário: ele é `image/*` SEM `.heic` de
+ * propósito, para o iPhone converter a foto em JPEG na hora de escolher. HEIC
+ * aqui é rede de segurança, não o caminho desejado — o navegador do painel não
+ * exibe HEIC (só o Safari), então a foto chega, mas pode não aparecer na ficha.
  */
-const TIPOS_DO_BUCKET = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf']
+const TIPOS_DO_BUCKET = [
+  'image/jpeg', 'image/jpg', 'image/png',
+  'image/webp', 'image/heic', 'image/heif',
+  'application/pdf',
+]
 
 /** Detect MIME type from file extension when browser sends empty type (common on Android camera) */
 function resolveType(nome: string, tipo: string): string {
