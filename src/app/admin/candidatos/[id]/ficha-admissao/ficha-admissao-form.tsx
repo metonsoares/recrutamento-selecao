@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DOCS_FICHA } from '@/lib/documentos-defs'
 import { formatDateTime, formatName } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 import { LinkDocumentos } from './link-documentos'
@@ -94,24 +95,7 @@ interface Props {
 
 // ─── Docs definition ──────────────────────────────────────────────────────────
 
-const ALL_DOCS = [
-  { key: 'carteira_profissional',      label: 'Carteira de Trabalho Digital' },
-  { key: 'foto_3x4',                   label: '01 Foto 3 × 4' },
-  { key: 'atestado_admissional',       label: 'Atestado Admissional (Médico do Trabalho)' },
-  { key: 'cartao_pis',                 label: 'Cartão de Inscrição no PIS' },
-  { key: 'cpf',                        label: 'CPF' },
-  { key: 'identidade',                 label: 'Carteira de Identidade (RG)' },
-  { key: 'titulo_eleitor',             label: 'Título de Eleitor' },
-  { key: 'certificado_reservista',     label: 'Certificado de Reservista' },
-  { key: 'comprovante_escolaridade',   label: 'Comprovante de Escolaridade' },
-  { key: 'certidao_civil',             label: 'Certidão de Nascimento / Casamento / outros' },
-  { key: 'comprovante_residencia',     label: 'Comprovante de Residência' },
-  { key: 'certidao_nascimento_filhos', label: 'Certidão de Nascimento dos filhos', perChild: true },
-  { key: 'cpf_dependentes',            label: 'CPF dos dependentes', perChild: true },
-  { key: 'carteira_vacinacao',         label: 'Carteira de Vacinação (filhos)', perChild: true, maxArquivos: 4 },
-  { key: 'declaracao_escolar',         label: 'Declaração Escolar dos filhos', perChild: true },
-  { key: 'pensao_alimenticia',         label: 'Decisão Judicial – Pensão Alimentícia', maxArquivos: 10 },
-]
+const ALL_DOCS = DOCS_FICHA
 
 const MARITAL = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável', 'Separado(a)']
 const EDUCATION = ['Fundamental Incompleto', 'Fundamental Completo', 'Médio Incompleto', 'Médio Completo', 'Superior Incompleto', 'Superior Completo', 'Pós-graduação']

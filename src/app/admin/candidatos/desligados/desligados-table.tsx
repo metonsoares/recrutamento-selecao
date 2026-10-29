@@ -5,6 +5,7 @@ import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { formatDate, formatName, contemBusca } from '@/lib/helpers'
 import { FotoColaborador } from '@/components/admin/foto-colaborador'
+import { BotaoDossie } from './botao-dossie'
 
 interface Row {
   id: string
@@ -81,6 +82,8 @@ export function DesligadosTable({ rows, companyOptions }: Props) {
                   <div className="flex items-center gap-3">
                     <FotoColaborador url={c.photoUrl} nome={c.full_name} corFallback="bg-rose-100" corTexto="text-rose-700" />
                     <p className="font-medium text-gray-900 group-hover:text-rose-700 transition-colors">{formatName(c.full_name)}</p>
+                    {/* Dossiê: todos os anexos da ficha num ZIP, pasta por aba. */}
+                    <BotaoDossie candidateId={c.id} nome={c.full_name} />
                   </div>
                 </td>
                 <td className="px-4 py-3">

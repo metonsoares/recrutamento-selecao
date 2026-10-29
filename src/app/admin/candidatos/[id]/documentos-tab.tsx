@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DOCS_EMPRESA } from '@/lib/documentos-defs'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 import { VerArquivo } from '@/components/ver-arquivo'
 import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
@@ -34,24 +35,7 @@ interface CustomDoc {
 // serviço (registro, experiência, banco de horas, vale transporte, escala,
 // prêmio, regulamento interno e entrega de uniforme/EPI): listar isso para ele
 // só criaria pendência que não existe.
-const COMPANY_DOCS: {
-  key: string; label: string; multiple: boolean; na: boolean; max?: number
-  soIntermitente?: boolean; semFreelancer?: boolean
-}[] = [
-  { key: 'ficha_registro',      label: 'Ficha de registro',                              multiple: true,  na: false, max: 2, semFreelancer: true },
-  { key: 'contrato_tempo_determinado', label: 'Contrato de prestação de serviço',        multiple: true,  na: true  },
-  { key: 'contrato_experiencia',label: 'Contrato de experiência',                        multiple: false, na: true, semFreelancer: true },
-  { key: 'contrato_trabalho',   label: 'Contrato de trabalho corporativo',               multiple: false, na: false, semFreelancer: true },
-  { key: 'contrato_intermitente', label: 'Contrato de trabalho intermitente',             multiple: false, na: false, soIntermitente: true },
-  { key: 'regulamento_interno', label: 'Regulamento interno',                            multiple: false, na: false, semFreelancer: true },
-  { key: 'banco_horas',         label: 'Acordo individual de banco de horas',            multiple: true,  na: true, semFreelancer: true },
-  { key: 'cessao_imagem',       label: 'Termo de cessão de imagem',                      multiple: true,  na: false },
-  { key: 'vale_transporte',     label: 'Termo declaração vale transporte',               multiple: true,  na: true, semFreelancer: true },
-  { key: 'uniformes_epis',      label: 'Termo entrega de uniformes/EPIs',                multiple: true,  na: false, max: 10, semFreelancer: true },
-  { key: 'acrm_geral',          label: 'Termo entrega geral',                           multiple: true,  na: true,  max: 10 },
-  { key: 'acrm_escala',         label: 'Acordo individual de escala 12×36',             multiple: false, na: true, semFreelancer: true },
-  { key: 'premio_caju',         label: 'Prêmio Caju',                                    multiple: true,  na: true, max: 10, semFreelancer: true },
-]
+const COMPANY_DOCS = DOCS_EMPRESA
 
 function emptyDoc(): DocState { return { not_applicable: false, files: [] } }
 
