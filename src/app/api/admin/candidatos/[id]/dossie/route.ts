@@ -20,7 +20,6 @@ export const dynamic = 'force-dynamic'
 
 const VALIDADE_SEGUNDOS = 60 * 30
 const BUCKET_FICHA = 'admission-docs'
-const BUCKET_CURRICULO = 'candidatos-arquivos'
 
 interface Anexo { url?: string | null; name?: string | null; path?: string | null }
 
@@ -72,7 +71,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const [
       { data: warnings }, { data: certificates }, { data: employeeFiles },
       { data: records }, { data: vacations }, { data: contracts },
-      { data: companies }, { data: formAnswers },
+      { data: companies }, { data: absences },
     ] = await Promise.all([
       supabase.from('warnings').select('*').eq('candidate_id', id).order('occurred_at', { ascending: false }),
       supabase.from('medical_certificates').select('*').eq('candidate_id', id).order('certificate_date', { ascending: false }),
@@ -81,9 +80,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       supabase.from('vacations').select('*').eq('candidate_id', id).order('start_date', { ascending: false }),
       supabase.from('freelancer_contracts').select('*').eq('candidate_id', id).order('contract_date', { ascending: false }),
       supabase.from('companies').select('id, apelido, razao_social'),
-      app?.id
-        ? supabase.from('form_answers').select('answer_text, form_questions(question_text, field_type)').eq('application_id', app.id as string)
-        : Promise.resolve({ data: [] as unknown[] }),
+      supabase.from('absences').select('*').eq('candidate_id', id).order('absence_date', { ascending: false }),
+    ])
+
+    const [{ data: salaryRaises }, { data: roleChanges }] = await Promise.all([
+      supabase.from('salary_raises').select('*').eq('candidate_id', id).order('raise_date'),
+      supabase.from('role_changes').select('*').eq('candidate_id', id).order('change_date'),
     ])
 
     const arquivos: ArquivoDossie[] = []
@@ -163,13 +165,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       incluir('Contratos', `${titulo} - assinado`, { url: ct.signed_file_url, name: ct.file_name, path: null })
     }
 
-    // Anexos do próprio currículo (foto e o que o candidato enviou no formulário).
-    for (const fa of (formAnswers ?? []) as { answer_text: string | null; form_questions: { question_text?: string; field_type?: string } | null }[]) {
-      if (fa.form_questions?.field_type !== 'file_upload') continue
-      const valor = (fa.answer_text ?? '').replace(/^"|"$/g, '')
-      if (!valor.startsWith('http')) continue
-      incluir('Currículo', (fa.form_questions.question_text ?? '').trim(), { url: valor }, BUCKET_CURRICULO)
-    }
+    // A pasta "Currículo" existia e vinha só com a foto do formulário — que não
+    // serve a ninguém num dossiê (decisão do dono, 29/10/2026). O que vale do
+    // currículo é o Resumo em PDF na raiz, montado com os dados abaixo.
 
     // ── Assinatura em lote, por bucket ───────────────────────────────────────
     const porBucket = new Map<string, string[]>()
@@ -216,7 +214,53 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       advertencias: (warnings ?? []).length,
       atestados: (certificates ?? []).length,
       ferias: (vacations ?? []).length,
+      faltas: (absences ?? []).length,
       cadastradoEm: (candidate.created_at as string | null) ?? null,
+      /** Períodos de férias gozados, como aparecem na aba Férias. */
+      periodosFerias: (vacations ?? []).map(v => ({
+        inicio: (v.start_date as string | null) ?? null,
+        fim: (v.end_date as string | null) ?? null,
+        dias: (v.days as number | null) ?? null,
+      })),
+      /** Mesma linha do tempo do painel Resumo ("Histórico na empresa"). */
+      historico: montarHistorico(),
+    }
+
+    /**
+     * Histórico na empresa — espelha a linha do tempo da tela (page.tsx).
+     * Fica aqui, e não na tela, porque o PDF do dossiê é gerado sem passar
+     * pela ficha: quem baixa está na lista de Desligados.
+     */
+    function montarHistorico(): { data: string; texto: string }[] {
+      const itens: { data: string; texto: string }[] = []
+      const push = (data: unknown, texto: string) => {
+        const d = String(data ?? '').slice(0, 10)
+        if (d) itens.push({ data: d, texto })
+      }
+
+      push(candidate!.created_at, 'Cadastro no sistema')
+      push(adm?.admission_date, 'Admissão / contratação')
+      for (const v of vacations ?? []) push(v.start_date, `Férias (${v.days} dia${v.days !== 1 ? 's' : ''})`)
+      for (const a of absences ?? []) {
+        push(a.absence_date, a.kind === 'afastamento' ? `Afastamento (${a.days} dia${a.days !== 1 ? 's' : ''})` : 'Falta')
+      }
+      for (const w of warnings ?? []) push(w.occurred_at, `Advertência${w.reason ? ': ' + String(w.reason).slice(0, 60) : ''}`)
+      for (const c of certificates ?? []) push(c.certificate_date, `Atestado${c.comment ? ': ' + String(c.comment).slice(0, 60) : ''}`)
+      for (const r of salaryRaises ?? []) {
+        const valor = Number(r.new_value)
+        push(r.raise_date, `Aumento de salário${Number.isFinite(valor) ? ': ' + valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : ''}`)
+      }
+      for (const c of roleChanges ?? []) {
+        push(c.change_date, c.previous_title
+          ? `Mudança de função: ${c.previous_title} → ${c.new_title}`
+          : `Mudança de função: ${c.new_title}`)
+      }
+      if (app?.terminated_at) {
+        const quem = (app.termination_data as { requester?: string } | null)?.requester
+        const porQuem = quem === 'funcionario' ? ' (a pedido do funcionário)' : quem === 'empresa' ? ' (pela empresa)' : ''
+        push(app.terminated_at, `Desligamento${porQuem}`)
+      }
+      return itens.sort((a, b) => a.data.localeCompare(b.data))
     }
 
     return NextResponse.json({ ok: true, resumo, arquivos: lista })

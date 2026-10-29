@@ -21,13 +21,36 @@ interface Resumo {
   cpf: string | null; telefone: string | null; email: string | null; cidade: string | null
   idade: number | null; admissao: string | null; salario: string | null
   desligamento: string | null; solicitante: string | null
-  advertencias: number; atestados: number; ferias: number; cadastradoEm: string | null
+  advertencias: number; atestados: number; ferias: number; faltas: number
+  cadastradoEm: string | null
+  historico: { data: string; texto: string }[]
 }
 interface ArquivoDossie { pasta: string; nome: string; url: string }
 
 const SOLICITANTE: Record<string, string> = {
   funcionario: 'Solicitado pelo funcionário',
   empresa: 'A empresa desligou',
+}
+
+/**
+ * Tempo de casa, como o painel Resumo mostra. Para quem já saiu, a conta para
+ * no desligamento — no dossiê, "tempo de casa" é quanto a pessoa ficou, não
+ * quanto tempo passou desde que ela entrou.
+ */
+function tempoDeCasa(admissao: string | null, desligamento: string | null): string {
+  if (!admissao) return '—'
+  const de = new Date(admissao + 'T00:00:00')
+  const ate = desligamento ? new Date(desligamento) : new Date()
+  if (Number.isNaN(de.getTime()) || Number.isNaN(ate.getTime())) return '—'
+  let meses = (ate.getFullYear() - de.getFullYear()) * 12 + (ate.getMonth() - de.getMonth())
+  if (ate.getDate() < de.getDate()) meses--
+  if (meses < 0) return '—'
+  const anos = Math.floor(meses / 12)
+  const resto = meses % 12
+  const partes: string[] = []
+  if (anos > 0) partes.push(`${anos} ano${anos !== 1 ? 's' : ''}`)
+  if (resto > 0) partes.push(`${resto} ${resto !== 1 ? 'meses' : 'mês'}`)
+  return partes.length ? partes.join(' e ') : 'menos de 1 mês'
 }
 
 /** CPF como a ficha mostra: 000.000.000-00. No banco ele é só dígitos. */
@@ -56,6 +79,7 @@ function pdfDoResumo(r: Resumo): ArrayBuffer {
     ['Data de desligamento', r.desligamento ? formatDate(r.desligamento) : '—'],
     ['Solicitante do desligamento', r.solicitante ? (SOLICITANTE[r.solicitante] ?? r.solicitante) : '—'],
     ['Admissão', r.admissao ? formatDate(r.admissao) : '—'],
+    ['Tempo de casa', tempoDeCasa(r.admissao, r.desligamento)],
     ['Salário', r.salario || '—'],
     ['CPF', cpfBonito(r.cpf)],
     ['Idade', r.idade != null ? `${r.idade} anos` : '—'],
@@ -65,6 +89,7 @@ function pdfDoResumo(r: Resumo): ArrayBuffer {
     ['Advertências', String(r.advertencias)],
     ['Atestados', String(r.atestados)],
     ['Períodos de férias', String(r.ferias)],
+    ['Faltas / afastamentos', String(r.faltas ?? 0)],
     ['Cadastrado em', r.cadastradoEm ? formatDate(r.cadastradoEm) : '—'],
   ]
 
@@ -77,6 +102,21 @@ function pdfDoResumo(r: Resumo): ArrayBuffer {
     headStyles: { fillColor: [26, 92, 56] },
     columnStyles: { 0: { cellWidth: 190, fontStyle: 'bold' } },
   })
+
+  // Histórico na empresa — a mesma linha do tempo do painel Resumo.
+  const historico = r.historico ?? []
+  if (historico.length > 0) {
+    autoTable(doc, {
+      // @ts-expect-error — lastAutoTable é posto pelo próprio plugin no doc.
+      startY: (doc.lastAutoTable?.finalY ?? 86) + 22,
+      head: [['Histórico na empresa', '']],
+      body: historico.map(h => [formatDate(h.data), h.texto]),
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 6 },
+      headStyles: { fillColor: [26, 92, 56] },
+      columnStyles: { 0: { cellWidth: 90 } },
+    })
+  }
 
   doc.setFontSize(8)
   doc.setTextColor(130)
