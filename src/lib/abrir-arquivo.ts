@@ -8,6 +8,40 @@ export interface ArquivoRef {
 export type BucketArquivo = 'admission-docs' | 'candidatos-arquivos' | 'folhas-analiticas'
 
 /**
+ * Como o arquivo deve ser ABERTO quando a pessoa clica no olho "Visualizar".
+ *
+ *  - `navegador`: o próprio navegador desenha (PDF, imagem, texto).
+ *  - `office`: Word/Excel/PowerPoint. O navegador NÃO desenha esses formatos —
+ *    mandar a aba para a URL do arquivo deixava a aba em branco e dava a
+ *    impressão de botão quebrado (reclamação de 29/10/2026, na ficha de
+ *    registro .xlsx de um colaborador). O visualizador do Office resolve, do
+ *    mesmo jeito que a aba de Contratos e a tela de Templates já fazem.
+ *  - `baixar`: formato que ninguém exibe. Melhor baixar na hora do que abrir
+ *    uma aba vazia.
+ */
+export type ModoDeAbertura = 'navegador' | 'office' | 'baixar'
+
+const EXT_NAVEGADOR = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'txt']
+const EXT_OFFICE = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']
+
+export function modoDeAbertura(nome?: string | null): ModoDeAbertura {
+  const ext = (nome ?? '').split('?')[0].split('.').pop()?.toLowerCase() ?? ''
+  if (EXT_NAVEGADOR.includes(ext)) return 'navegador'
+  if (EXT_OFFICE.includes(ext)) return 'office'
+  return 'baixar'
+}
+
+/**
+ * Visualizador do Office. ATENÇÃO: a Microsoft BUSCA o arquivo pela URL
+ * assinada, ou seja, o documento passa pelos servidores dela. É o mesmo
+ * caminho que o app já usa para contrato .docx; para trocar por download,
+ * basta devolver 'baixar' em vez de 'office' acima.
+ */
+export function urlNoVisualizadorOffice(assinada: string): string {
+  return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(assinada)}`
+}
+
+/**
  * Abre um arquivo do Storage assinando a URL NO CLIQUE.
  *
  * Usado no `onClick` dos links que antes apontavam direto para `file.url` —
