@@ -83,9 +83,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       supabase.from('absences').select('*').eq('candidate_id', id).order('absence_date', { ascending: false }),
     ])
 
-    const [{ data: salaryRaises }, { data: roleChanges }] = await Promise.all([
+    const [{ data: salaryRaises }, { data: roleChanges }, { data: respostas }] = await Promise.all([
       supabase.from('salary_raises').select('*').eq('candidate_id', id).order('raise_date'),
       supabase.from('role_changes').select('*').eq('candidate_id', id).order('change_date'),
+      // A data de nascimento NÃO é coluna de `candidates`: mora na resposta do
+      // formulário cujo tipo é `date` (é de lá que a ficha tira a idade).
+      app?.id
+        ? supabase.from('form_answers').select('answer_text, form_questions(field_type)').eq('application_id', app.id as string)
+        : Promise.resolve({ data: [] as unknown[] }),
     ])
 
     const arquivos: ArquivoDossie[] = []
@@ -192,14 +197,29 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     // ── Dados do Resumo (viram o PDF na raiz) ────────────────────────────────
     const adm = (app?.admission_form ?? null) as Record<string, unknown> | null
     const empresa = (companies ?? []).find(c => c.id === adm?.selected_company_id)
-    const nascimento = candidate.birth_date as string | null
-    const idade = nascimento
-      ? Math.floor((Date.now() - new Date(nascimento + 'T00:00:00').getTime()) / 31557600000)
-      : null
+    const nascimento = ((respostas ?? []) as { answer_text: string | null; form_questions: { field_type?: string } | null }[])
+      .find(r => r.form_questions?.field_type === 'date')
+      ?.answer_text?.replace(/^"|"$/g, '')
+      ?.trim() || null
+
+    let idade: number | null = null
+    if (nascimento) {
+      const d = new Date(nascimento.length === 10 ? nascimento + 'T00:00:00' : nascimento)
+      if (!Number.isNaN(d.getTime())) {
+        const hoje = new Date()
+        idade = hoje.getFullYear() - d.getFullYear()
+        if (hoje.getMonth() < d.getMonth() || (hoje.getMonth() === d.getMonth() && hoje.getDate() < d.getDate())) idade--
+        if (idade < 0 || idade > 120) idade = null
+      }
+    }
 
     const resumo = {
       nome: candidate.full_name as string,
-      cargo: (adm?.function_title as string | null) || ((app?.jobs as { title?: string } | null)?.title ?? null),
+      // Mesma regra da ficha: o cargo da admissão vale para quem está na ativa;
+      // para quem saiu, vale a vaga da candidatura — é o que a tela mostra.
+      cargo: (['contratado', 'aprovado'].includes(String(app?.status ?? '')) && adm?.function_title)
+        ? (adm.function_title as string)
+        : ((app?.jobs as { title?: string } | null)?.title ?? (adm?.function_title as string | null) ?? null),
       empresa: empresa?.apelido || empresa?.razao_social || null,
       status: (app?.status as string | null) ?? null,
       cpf: (candidate.cpf as string | null) ?? null,
