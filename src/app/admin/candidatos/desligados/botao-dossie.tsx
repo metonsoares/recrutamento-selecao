@@ -30,6 +30,13 @@ const SOLICITANTE: Record<string, string> = {
   empresa: 'A empresa desligou',
 }
 
+/** CPF como a ficha mostra: 000.000.000-00. No banco ele é só dígitos. */
+function cpfBonito(valor: string | null): string {
+  const d = (valor ?? '').replace(/\D/g, '')
+  if (d.length !== 11) return valor || '—'
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+}
+
 function pdfDoResumo(r: Resumo): ArrayBuffer {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const nome = formatName(r.nome)
@@ -50,7 +57,7 @@ function pdfDoResumo(r: Resumo): ArrayBuffer {
     ['Solicitante do desligamento', r.solicitante ? (SOLICITANTE[r.solicitante] ?? r.solicitante) : '—'],
     ['Admissão', r.admissao ? formatDate(r.admissao) : '—'],
     ['Salário', r.salario || '—'],
-    ['CPF', r.cpf || '—'],
+    ['CPF', cpfBonito(r.cpf)],
     ['Idade', r.idade != null ? `${r.idade} anos` : '—'],
     ['Telefone', r.telefone || '—'],
     ['E-mail', r.email || '—'],
