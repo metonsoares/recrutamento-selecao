@@ -6,6 +6,7 @@ import {
   Search, ChevronLeft, ChevronRight, ChevronDown, Download, ExternalLink,
   Check, Loader2, AlertCircle, CheckCircle2, History, Trash2, Copy, Wallet, Plus, Calculator,
 } from 'lucide-react'
+import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
@@ -132,6 +133,7 @@ export function LancamentosClient({
   const [ok, setOk] = useState('')
   const [historicoAberto, setHistoricoAberto] = useState<Set<string>>(new Set())
   const [removendo, setRemovendo] = useState<{ linha: LinhaLancamento; registro: RegistroLancamento } | null>(null)
+  const { ask, dialog: dialogExclusao } = useConfirmarExclusao()
 
   const multiplos = !!config.itensMultiplos
   const temContagens = config.colunas.length > 0
@@ -180,7 +182,20 @@ export function LancamentosClient({
       [id]: [...(prev[id] ?? [{ valor: '', descricao: '' }]), { valor: '', descricao: '' }],
     }))
   }
-  function removerItem(id: string, i: number) {
+  /**
+   * Tirar um item do lançamento SEMPRE pergunta antes (regra do dono,
+   * 03/11/2026): num mês já aprovado, a linha que some aqui é um lançamento
+   * que deixa de existir na próxima aprovação. Linha ainda em branco não tem
+   * o que perder, então segue direto.
+   */
+  async function removerItem(id: string, i: number) {
+    const item = (itensPorCand[id] ?? [])[i]
+    const descricao = (item?.descricao ?? '').trim()
+    const valor = (item?.valor ?? '').trim()
+    if (descricao || valor) {
+      const alvo = [descricao || 'item sem descrição', valor && `R$ ${valor}`].filter(Boolean).join(' — ')
+      if (!(await ask(`Remover ${alvo} deste lançamento?`))) return
+    }
     setItensPorCand(prev => {
       const lista = (prev[id] ?? []).filter((_, k) => k !== i)
       return { ...prev, [id]: lista.length ? lista : [{ valor: '', descricao: '' }] }
@@ -944,6 +959,8 @@ export function LancamentosClient({
           </div>
         </Modal>
       )}
+
+      {dialogExclusao}
 
       {/* ── Remover lançamento ── */}
       {removendo && (

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import {
   Briefcase, Plus, Trash2, Loader2, X, CheckCircle2, AlertCircle, CalendarDays, ArrowRight,
 } from 'lucide-react'
+import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
@@ -37,6 +38,7 @@ interface Props {
 export function RoleChangesPanel({ candidateId, initialChanges, funcaoAtual, cargos }: Props) {
   const router = useRouter()
   const [changes, setChanges] = useState<RoleChange[]>(initialChanges)
+  const { ask, dialog: dialogExclusao } = useConfirmarExclusao()
   const [open, setOpen] = useState(false)
   const [changeDate, setChangeDate] = useState('')
   const [newTitle, setNewTitle] = useState('')
@@ -77,6 +79,10 @@ export function RoleChangesPanel({ candidateId, initialChanges, funcaoAtual, car
   }
 
   async function handleRemove(id: string) {
+    // Nunca apagar registro sem perguntar (regra do dono, 03/11/2026).
+    const alvo = changes.find(c => c.id === id)
+    const quando = alvo?.change_date ? ` de ${formatDate(alvo.change_date)}` : ''
+    if (!(await ask(`Remover a mudança de função${quando}${alvo?.new_title ? ` (${alvo.new_title})` : ''}?`))) return
     setRemoving(id)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}/role-changes/${id}`, { method: 'DELETE' })
@@ -195,6 +201,7 @@ export function RoleChangesPanel({ candidateId, initialChanges, funcaoAtual, car
           </div>
         </div>
       )}
+      {dialogExclusao}
     </>
   )
 }
