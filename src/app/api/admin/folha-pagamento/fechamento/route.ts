@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
           vinculo: l.vinculo,
           dias_trabalhados: l.dias_trabalhados,
           faltas: l.faltas,
+          afastamento_dias: l.afastamento_dias ?? 0,
           vale_transporte: l.vale_transporte,
           mensalidade_sindical: l.mensalidade_sindical,
           gorjeta: l.gorjeta,

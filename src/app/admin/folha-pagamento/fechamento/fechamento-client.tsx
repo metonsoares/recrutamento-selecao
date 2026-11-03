@@ -136,6 +136,7 @@ export function FechamentoClient({
   const todasMarcadas = marcaveis.length > 0 && selecionadas.length === marcaveis.length
   const totalDias = selecionadas.reduce((s, l) => s + l.dias_trabalhados, 0)
   const totalFaltas = selecionadas.reduce((s, l) => s + l.faltas, 0)
+  const totalAfastamento = selecionadas.reduce((s, l) => s + (l.afastamento_dias ?? 0), 0)
   const totalSalario = selecionadas
     .map(l => paraNumero(l.salario))
     // Intermitente costuma ter valor/HORA na ficha; somar com mensal daria
@@ -172,7 +173,7 @@ export function FechamentoClient({
   }
 
   const CABECALHO = [
-    'Colaborador', 'Empresa', 'Vínculo', 'Dias trabalhados', 'Dias de férias', 'Vale transporte', 'Faltas',
+    'Colaborador', 'Empresa', 'Vínculo', 'Dias trabalhados', 'Dias de férias', 'Vale transporte', 'Faltas', 'Afastado (dias)',
     'Domingos', 'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial',
     'Horas normais', 'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Atrasos', 'Gratificação',
     'Insalubridade 20%', 'Cargo de confiança', 'Quebra de caixa', 'Gorjeta',
@@ -251,6 +252,7 @@ export function FechamentoClient({
       { titulo: 'Férias', alinhamento: 'center', valor: l => l.dias_ferias || '' },
       { titulo: 'VT', alinhamento: 'center', valor: l => simNaoTexto(l.vale_transporte) },
       { titulo: 'Faltas', alinhamento: 'center', valor: l => l.faltas || '' },
+      { titulo: 'Afastado', alinhamento: 'center', valor: l => l.afastamento_dias || '' },
       { titulo: 'Dom/Fer', alinhamento: 'center', valor: l => l.domingos + l.feriados || '' },
       { titulo: 'Sindical', alinhamento: 'center', valor: l => simNaoTexto(l.mensalidade_sindical) },
       { titulo: 'Avarias', alinhamento: 'center', valor: l => dinheiro(l.avarias) },
@@ -284,7 +286,7 @@ export function FechamentoClient({
     const corpo = selecionadas.map(l => [
       formatName(l.nome), l.empresa ?? '—',
       l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
-      l.dias_trabalhados, l.dias_ferias, simNaoTexto(l.vale_transporte), l.faltas,
+      l.dias_trabalhados, l.dias_ferias, simNaoTexto(l.vale_transporte), l.faltas, l.afastamento_dias ?? 0,
       l.domingos, l.feriados, simNaoTexto(l.mensalidade_sindical),
       l.avarias, l.adiantamento,
       formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
@@ -429,6 +431,7 @@ export function FechamentoClient({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Cartao titulo="Colaboradores marcados" valor={`${selecionadas.length} de ${filtradas.length}`} cor="text-gray-900" />
         <Cartao titulo="Faltas" valor={String(totalFaltas)} cor={totalFaltas > 0 ? 'text-red-600' : 'text-gray-900'} />
+        <Cartao titulo="Dias afastado" valor={String(totalAfastamento)} cor={totalAfastamento > 0 ? 'text-blue-700' : 'text-gray-900'} />
         <Cartao titulo="Salários (mensais)" valor={brl(totalSalario)} cor="text-emerald-700" />
       </div>
 
@@ -498,6 +501,7 @@ export function FechamentoClient({
                 <th className="px-2 py-2 font-semibold text-center min-w-[72px] break-words">Férias</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[96px] break-words">Vale transporte</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[64px] break-words">Faltas</th>
+                <th className="px-2 py-2 font-semibold text-center min-w-[64px] break-words">Afastado</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[92px] break-words">Domingos e feriados</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[104px] break-words">Mensalidade sindical</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[80px] break-words">Avarias</th>
@@ -564,6 +568,13 @@ export function FechamentoClient({
                   <td className="px-2 py-2 text-center"><SimNao v={l.vale_transporte} /></td>
                   <td className="px-2 py-2 text-center">
                     {l.faltas > 0 && <span className="font-semibold text-red-600">{l.faltas}</span>}
+                  </td>
+                  {/* Afastamento é benefício, não desconto: azul, longe do
+                      vermelho das faltas. */}
+                  <td className="px-2 py-2 text-center">
+                    {(l.afastamento_dias ?? 0) > 0 && (
+                      <span className="font-semibold text-blue-700">{l.afastamento_dias}</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-center whitespace-nowrap">
                     {l.domingos + l.feriados > 0 && (

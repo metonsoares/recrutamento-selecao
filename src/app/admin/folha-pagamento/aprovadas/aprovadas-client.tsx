@@ -24,6 +24,8 @@ export interface ItemAprovado {
   vinculo: 'contratado' | 'intermitente'
   dias_trabalhados: number
   faltas: number
+  /** Dias de afastamento no mês — separados das faltas. */
+  afastamento_dias: number
   /** null = a ficha não tinha resposta na hora da aprovação */
   vale_transporte: boolean | null
   mensalidade_sindical: boolean | null
@@ -116,7 +118,7 @@ function nomeArquivo(competencia: string, empresa: string): string {
 }
 
 const CABECALHO = [
-  'Colaborador', 'Dias trabalhados', 'Vale transporte', 'Faltas', 'Domingos',
+  'Colaborador', 'Dias trabalhados', 'Vale transporte', 'Faltas', 'Afastado (dias)', 'Domingos',
   'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial', 'Horas normais',
   'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Atrasos', 'Gratificação', 'Insalubridade 20%',
   'Cargo de confiança', 'Quebra de caixa', 'Gorjeta', 'Salário', 'Comentário',
@@ -221,7 +223,7 @@ export function AprovadasClient({
     setMenu(null)
     const corpo = filtrar(e).map(l => [
       formatName(l.nome),
-      l.dias_trabalhados, simNaoTexto(l.vale_transporte), l.faltas, l.domingos, l.feriados,
+      l.dias_trabalhados, simNaoTexto(l.vale_transporte), l.faltas, l.afastamento_dias, l.domingos, l.feriados,
       simNaoTexto(l.mensalidade_sindical), l.avarias, l.adiantamento,
       formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
       formatarHoras(l.adicional_noturno), formatarHoras(l.atrasos),
@@ -257,6 +259,7 @@ export function AprovadasClient({
       { titulo: 'Dias', alinhamento: 'center', fixa: true, valor: l => l.dias_trabalhados || '' },
       { titulo: 'VT', alinhamento: 'center', valor: l => simNaoTexto(l.vale_transporte) },
       { titulo: 'Faltas', alinhamento: 'center', valor: l => l.faltas || '' },
+      { titulo: 'Afastado', alinhamento: 'center', valor: l => l.afastamento_dias || '' },
       { titulo: 'Dom/Fer', alinhamento: 'center', valor: l => l.domingos + l.feriados || '' },
       { titulo: 'Sindical', alinhamento: 'center', valor: l => simNaoTexto(l.mensalidade_sindical) },
       { titulo: 'Avarias', alinhamento: 'center', valor: l => dinheiro(l.avarias) },
@@ -488,6 +491,7 @@ export function AprovadasClient({
                             <th className="px-2 py-2 font-semibold text-center min-w-[100px] break-words">Dias trabalhados</th>
                             <th className="px-2 py-2 font-semibold text-center min-w-[96px] break-words">Vale transporte</th>
                             <th className="px-2 py-2 font-semibold text-center min-w-[64px] break-words">Faltas</th>
+                            <th className="px-2 py-2 font-semibold text-center min-w-[64px] break-words">Afastado</th>
                             <th className="px-2 py-2 font-semibold text-center min-w-[92px] break-words">Domingos e feriados</th>
                             <th className="px-2 py-2 font-semibold text-center min-w-[104px] break-words">Mensalidade sindical</th>
                             <th className="px-2 py-2 font-semibold text-right min-w-[80px] break-words">Avarias</th>
@@ -519,6 +523,9 @@ export function AprovadasClient({
                               <td className="px-2 py-2 text-center"><SimNao v={l.vale_transporte} /></td>
                               <td className="px-2 py-2 text-center">
                                 {l.faltas > 0 && <span className="font-semibold text-red-600">{l.faltas}</span>}
+                              </td>
+                              <td className="px-2 py-2 text-center">
+                                {l.afastamento_dias > 0 && <span className="font-semibold text-blue-700">{l.afastamento_dias}</span>}
                               </td>
                               <td className="px-2 py-2 text-center whitespace-nowrap">
                                 {l.domingos + l.feriados > 0 && (

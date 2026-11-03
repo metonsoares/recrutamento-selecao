@@ -35,7 +35,7 @@ export default async function FolhasAprovadasPage({
   // falharam silenciosamente neste projeto.
   const { data: itens } = cicloIds.length
     ? await supabase.from('fechamento_itens')
-        .select('ciclo_id, candidate_id, nome, cargo, vinculo, dias_trabalhados, faltas, vale_transporte, mensalidade_sindical, gorjeta, cargo_confianca, insalubridade_20, quebra_caixa_15, salario, comentario, domingos, feriados, avarias, adiantamento, horas_normais, horas_50, horas_100, adicional_noturno, gratificacao, confianca_valor, quebra_valor, atrasos')
+        .select('ciclo_id, candidate_id, nome, cargo, vinculo, dias_trabalhados, faltas, afastamento_dias, vale_transporte, mensalidade_sindical, gorjeta, cargo_confianca, insalubridade_20, quebra_caixa_15, salario, comentario, domingos, feriados, avarias, adiantamento, horas_normais, horas_50, horas_100, adicional_noturno, gratificacao, confianca_valor, quebra_valor, atrasos')
         .in('ciclo_id', cicloIds)
     : { data: [] as Record<string, unknown>[] }
 
@@ -49,6 +49,7 @@ export default async function FolhasAprovadasPage({
       vinculo: i.vinculo === 'intermitente' ? 'intermitente' : 'contratado',
       dias_trabalhados: Number(i.dias_trabalhados) || 0,
       faltas: Number(i.faltas) || 0,
+      afastamento_dias: Number(i.afastamento_dias) || 0,
       vale_transporte: (i.vale_transporte as boolean | null) ?? null,
       mensalidade_sindical: (i.mensalidade_sindical as boolean | null) ?? null,
       gorjeta: Number(i.gorjeta) || 0,

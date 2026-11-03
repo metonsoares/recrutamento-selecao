@@ -21,6 +21,8 @@ export interface LinhaFechamento {
   cargo: string | null
   /** Data de início do afastamento que alcança este mês (null = não afastado). */
   afastado_desde?: string | null
+  /** Dias de afastamento dentro da competência (separados das faltas). */
+  afastamento_dias: number
   empresa_id: string | null
   empresa: string | null
   vinculo: 'contratado' | 'intermitente'
@@ -132,8 +134,12 @@ export async function montarFechamento(competencia: string): Promise<{
     supabase.from('companies').select('id, apelido, razao_social'),
     supabase.from('vt_ciclos').select('id').eq('competencia', competencia).maybeSingle(),
     supabase.from('gorjeta_ciclos').select('id').eq('competencia', competencia).maybeSingle(),
+    // Só falta INJUSTIFICADA entra na coluna de faltas. Afastamento é outra
+    // coisa (benefício, não desconto) e tem coluna própria — antes os dois
+    // caíam no mesmo número.
     supabase.from('absences')
       .select('candidate_id, days')
+      .eq('kind', 'injustificada')
       .gte('absence_date', competencia).lte('absence_date', fim),
     supabase.from('fechamento_comentarios')
       .select('candidate_id, comentario').eq('competencia', competencia),
@@ -204,6 +210,8 @@ export async function montarFechamento(competencia: string): Promise<{
    * de um contrato suspenso, ficava só na memória de quem lançou.
    */
   const afastadoDesde = new Map<string, string>()
+  /** Dias de afastamento DENTRO do mês — a coluna própria na folha. */
+  const afastamentoDiasPorCand = new Map<string, number>()
   for (const a of afastamentos ?? []) {
     const inicio = String(a.absence_date)
     const dias = Math.max(1, Number(a.days) || 1)
@@ -214,6 +222,16 @@ export async function montarFechamento(competencia: string): Promise<{
     const cand = a.candidate_id as string
     const atual = afastadoDesde.get(cand)
     if (!atual || inicio < atual) afastadoDesde.set(cand, inicio)
+
+    // Interseção do afastamento com a competência, em dias.
+    const de = inicio > competencia ? inicio : competencia
+    const ate = terminaEm < fim ? terminaEm : fim
+    if (de <= ate) {
+      const qtd = Math.round(
+        (new Date(ate + 'T00:00:00').getTime() - new Date(de + 'T00:00:00').getTime()) / 86400000,
+      ) + 1
+      afastamentoDiasPorCand.set(cand, (afastamentoDiasPorCand.get(cand) ?? 0) + qtd)
+    }
   }
 
   const candIds = appsList.map(a => a.candidate_id as string).filter(Boolean)
@@ -306,6 +324,7 @@ export async function montarFechamento(competencia: string): Promise<{
         quebra_caixa_15: simNao(af?.quebra_caixa_15),
         salario,
         afastado_desde: afastadoDesde.get(id) ?? null,
+        afastamento_dias: afastamentoDiasPorCand.get(id) ?? 0,
         // Comentário digitado manda; sem ele, a folha já sai dizendo desde
         // quando a pessoa está afastada.
         comentario: comentarioPorCand.get(id)
