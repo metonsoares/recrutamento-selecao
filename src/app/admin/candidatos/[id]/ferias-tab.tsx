@@ -7,6 +7,7 @@ import {
 import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { impedimentoParaIniciarFerias, proximoInicioValido } from '@/lib/feriados'
 import { DATA_MINIMA, limiteDeDataFutura, formatDate, dataPura } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
@@ -188,6 +189,16 @@ function VacationFormDrawer({
     }
     if (!isEdit && mode === 'solicitacao' && parse(form.start_date) < new Date(today + 'T00:00:00')) {
       setError('Para solicitar férias, use datas futuras (ou registre como histórico).'); return
+    }
+    // CLT art. 134, §3º — férias não começam em feriado, fim de semana nem
+    // nos dois dias que antecedem feriado ou o repouso semanal. Vale só para
+    // o que está sendo AGENDADO: histórico registra o que já aconteceu.
+    if (mode === 'solicitacao') {
+      const impedimento = impedimentoParaIniciarFerias(form.start_date)
+      if (impedimento) {
+        setError(`${impedimento}. Sugestão: começar em ${formatDate(proximoInicioValido(form.start_date))}.`)
+        return
+      }
     }
     if (saldoRestante < 0) { setError('Saldo insuficiente para esse período.'); return }
     setSaving(true)

@@ -11,6 +11,8 @@
  */
 
 /** Uma linha de `vacations`: férias já gozadas ou agendadas. */
+import { impedimentoParaIniciarFerias, ultimoInicioValido } from '@/lib/feriados'
+
 export interface FeriasRegistro {
   candidate_id: string
   inicio: string   // yyyy-mm-dd
@@ -109,6 +111,9 @@ function emMeses(dias: number): string {
 /** Aviso prévio mínimo de férias (CLT art. 135). */
 const DIAS_ANTECEDENCIA = 30
 
+/** Pagamento até 2 dias antes do início (CLT art. 145). */
+const DIAS_PAGAMENTO = 2
+
 export type StatusFerias = 'agendada' | 'agendar' | 'aguardando' | 'vencida' | 'sem_admissao'
 
 export interface SituacaoFerias {
@@ -119,6 +124,16 @@ export interface SituacaoFerias {
   ordem: number
   /** Último dia para agendar (`yyyy-mm-dd`), quando há período em aberto. */
   limite?: string
+  /**
+   * Último dia em que as férias ainda PODEM começar — já recuado quando o fim
+   * do período concessivo cai em feriado, fim de semana ou na véspera deles
+   * (CLT art. 134, §3º).
+   */
+  inicioLimite?: string
+  /** Por que o início agendado não pode ser nesse dia (CLT art. 134, §3º). */
+  avisoInicio?: string
+  /** Data-limite para pagar as férias agendadas (CLT art. 145). */
+  pagarAte?: string
 }
 
 /**
@@ -141,6 +156,9 @@ export function situacaoFerias(admissao: string | null, registros: FeriasRegistr
       status: 'agendada',
       prazo: `sai em ${formatarData(agendada.inicio)} · ${emMeses(dias)}`,
       ordem: 100000 + dias,
+      // O dia marcado é permitido? E até quando a empresa tem de pagar?
+      avisoInicio: impedimentoParaIniciarFerias(agendada.inicio) ?? undefined,
+      pagarAte: somarDias(agendada.inicio, -DIAS_PAGAMENTO),
     }
   }
 
@@ -170,7 +188,11 @@ export function situacaoFerias(admissao: string | null, registros: FeriasRegistr
   }
 
   const fimConcessivo = somarAnos(admissao, pendente + 1)
-  const limiteAgendar = somarDias(fimConcessivo, -DIAS_ANTECEDENCIA)
+  // O último dia do concessivo pode ser domingo, feriado ou véspera deles —
+  // e nesse dia as férias não podem COMEÇAR. O prazo real anda para trás até
+  // o último início permitido, e o aviso de 30 dias conta a partir dele.
+  const inicioLimite = ultimoInicioValido(fimConcessivo)
+  const limiteAgendar = somarDias(inicioLimite, -DIAS_ANTECEDENCIA)
   const dias = diasEntre(hj, paraData(limiteAgendar))
 
   if (dias < 0) {
@@ -179,6 +201,7 @@ export function situacaoFerias(admissao: string | null, registros: FeriasRegistr
       prazo: `prazo venceu em ${formatarData(limiteAgendar)} · há ${emMeses(-dias)}`,
       ordem: dias,
       limite: limiteAgendar,
+      inicioLimite,
     }
   }
   return {
@@ -186,5 +209,6 @@ export function situacaoFerias(admissao: string | null, registros: FeriasRegistr
     prazo: `agendar até ${formatarData(limiteAgendar)} · ${emMeses(dias)}`,
     ordem: dias,
     limite: limiteAgendar,
+    inicioLimite,
   }
 }

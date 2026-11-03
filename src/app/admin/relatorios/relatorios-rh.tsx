@@ -12,6 +12,7 @@ import {
   FeriasRegistro, StatusFerias, situacaoFerias,
   hoje, paraData, formatarData, somarDias, diasEntre,
 } from '@/lib/ferias'
+import { diaDaSemana } from '@/lib/feriados'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -250,9 +251,15 @@ export function RelatoriosRh({
       const linhas = feriasLinhas.map(c => [
         formatName(c.nome), c.empresa ?? '—', c.cargo ?? '—',
         c.situacao.prazo, ROTULO_FERIAS[c.situacao.status].texto,
+        c.situacao.inicioLimite ? formatarData(c.situacao.inicioLimite) : '',
+        c.situacao.pagarAte ? formatarData(c.situacao.pagarAte) : '',
+        c.situacao.avisoInicio ?? '',
       ])
       return baixarArquivo(
-        await gerarXlsx([['Nome', 'Empresa', 'Cargo', 'Quanto tempo para tirar férias', 'Status'], ...linhas], 'Férias'),
+        await gerarXlsx([[
+          'Nome', 'Empresa', 'Cargo', 'Quanto tempo para tirar férias', 'Status',
+          'Começar até', 'Pagar até', 'Alerta de início',
+        ], ...linhas], 'Férias'),
         `ferias${sufixo}.xlsx`,
       )
     }
@@ -611,7 +618,27 @@ export function RelatoriosRh({
                       <span className="block text-[11px] text-muted-foreground">{c.cargo ?? '—'}</span>
                     </td>
                     <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{c.empresa ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-gray-600">{c.situacao.prazo}</td>
+                    <td className="px-4 py-2.5 text-gray-600">
+                      {c.situacao.prazo}
+                      {/* O dia em que as férias podem COMEÇAR tem regra própria
+                          (CLT art. 134, §3º): nada de feriado, fim de semana ou
+                          a véspera deles. */}
+                      {c.situacao.inicioLimite && (
+                        <span className="block text-[11.5px] text-muted-foreground">
+                          começar até {formatarData(c.situacao.inicioLimite)} ({diaDaSemana(c.situacao.inicioLimite)})
+                        </span>
+                      )}
+                      {c.situacao.avisoInicio && (
+                        <span className="block text-[11.5px] text-red-600 font-medium">
+                          início inválido: {c.situacao.avisoInicio}
+                        </span>
+                      )}
+                      {c.situacao.pagarAte && !c.situacao.avisoInicio && (
+                        <span className="block text-[11.5px] text-muted-foreground">
+                          pagar até {formatarData(c.situacao.pagarAte)} (art. 145)
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       <span className={`inline-flex items-center text-[11px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 border ${r.classe}`}>
                         {r.texto}

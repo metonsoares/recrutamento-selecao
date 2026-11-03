@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { conferirData } from '@/lib/helpers'
+import { impedimentoParaIniciarFerias } from '@/lib/feriados'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
 
@@ -39,6 +40,17 @@ export async function POST(
     }
     const problemaData = conferirData(b.start_date, 'A data de início') ?? conferirData(b.end_date, 'A data de término')
     if (problemaData) return NextResponse.json({ error: problemaData }, { status: 400 })
+
+    // Férias AGENDADAS não podem começar em feriado, fim de semana ou na
+    // véspera deles (CLT art. 134, §3º). Histórico registra o passado como foi.
+    if (b.kind !== 'historico') {
+      const impedimento = impedimentoParaIniciarFerias(String(b.start_date))
+      if (impedimento) {
+        return NextResponse.json({
+          error: `${impedimento}. Escolha outro dia para o início das férias.`,
+        }, { status: 400 })
+      }
+    }
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
       .from('vacations')
