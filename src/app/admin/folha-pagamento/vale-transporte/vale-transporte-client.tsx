@@ -33,7 +33,7 @@ export interface LinhaVT {
 export interface EmpresaOpcao { id: string; nome: string }
 export interface RegistroDias { candidate_id: string; competencia: string; dias: number }
 
-type Filtro = 'todos' | 'recebe' | 'nao' | 'sem_info'
+type Filtro = 'todos' | 'recebe' | 'nao' | 'sem_info' | 'sem_dias'
 
 interface PendenteRhid { candidate_id: string; nome: string; motivo: 'sem_cpf' | 'nao_encontrado' }
 
@@ -116,6 +116,13 @@ export function ValeTransporteClient({
     if (situacao === 'recebe' && l.recebe !== true) return false
     if (situacao === 'nao' && l.recebe !== false) return false
     if (situacao === 'sem_info' && l.recebe !== null) return false
+    // "Não trabalhou nenhum dia" é o ZERO DIGITADO (ou importado), não o campo
+    // em branco: antes de preencher o mês, todo mundo está vazio, e listar a
+    // empresa inteira como "não trabalhou" não ajudaria ninguém.
+    if (situacao === 'sem_dias') {
+      const digitado = (dias[l.candidate_id] ?? '').trim()
+      if (digitado === '' || Number(digitado) !== 0) return false
+    }
     const termo = busca.trim()
     if (!termo) return true
     const digitos = termo.replace(/\D/g, '')
@@ -469,6 +476,7 @@ export function ValeTransporteClient({
           <option value="recebe">Só quem recebe</option>
           <option value="nao">Só quem não recebe</option>
           <option value="sem_info">Só sem informação na ficha</option>
+          <option value="sem_dias">Só quem não trabalhou nenhum dia</option>
         </select>
         <div className="flex gap-2">
           <Button onClick={() => { setErro(''); setOk(''); setConfirmando(true) }}
