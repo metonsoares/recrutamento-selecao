@@ -40,7 +40,7 @@ export default async function LancamentosPage({
       .select('candidate_id, admission_form, admission_form_history, status')
       .in('status', ['contratado', 'em_contrato', 'aprovado'])
       .eq('is_latest', true),
-    supabase.from('companies').select('id, apelido, razao_social'),
+    supabase.from('companies').select('id, apelido, razao_social, cnpj'),
     supabase.from('folha_ciclos').select('id, competencia, aprovado_por, total_valor, total_qtd, total_qtd2, total_qtd3, total_qtd4, total_qtd5, total_desconto').eq('tipo', tipo),
   ])
 
@@ -148,9 +148,22 @@ export default async function LancamentosPage({
     catalogo = (itensCad ?? []).map(i => ({ nome: String(i.nome), valor: Number(i.valor) || 0 }))
   }
 
+  // Razão social e CNPJ vão junto: é o cabeçalho do recibo de ciência de
+  // avaria, que sai por item na aba de avarias.
+  const dadosEmpresa = new Map(
+    (empresas ?? []).map(e => [e.id as string, {
+      razaoSocial: (e.razao_social as string | null) ?? null,
+      cnpj: (e.cnpj as string | null) ?? null,
+    }]),
+  )
+
   const empresasOpcoes: EmpresaOpcao[] = Array.from(
     new Map(linhas.filter(l => l.empresa_id).map(l => [l.empresa_id as string, l.empresa ?? '—'])).entries(),
-  ).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  ).map(([id, nome]) => ({
+    id, nome,
+    razaoSocial: dadosEmpresa.get(id)?.razaoSocial ?? null,
+    cnpj: dadosEmpresa.get(id)?.cnpj ?? null,
+  })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
   return (
     <LancamentosClient

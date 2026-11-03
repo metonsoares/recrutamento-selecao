@@ -4,9 +4,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown, Download, ExternalLink,
-  Check, Loader2, AlertCircle, CheckCircle2, History, Trash2, Copy, Wallet, Plus, Calculator,
+  Check, Loader2, AlertCircle, CheckCircle2, History, Trash2, Copy, Wallet, Plus, Calculator, FileSignature,
 } from 'lucide-react'
 import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
+import { gerarReciboAvaria } from './recibo-avaria'
 import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
@@ -26,7 +27,13 @@ export interface LinhaLancamento {
   salario: string | null
 }
 
-export interface EmpresaOpcao { id: string; nome: string }
+export interface EmpresaOpcao {
+  id: string
+  nome: string
+  /** Para o recibo de avaria: o papel vai com a razão social e o CNPJ. */
+  razaoSocial?: string | null
+  cnpj?: string | null
+}
 
 export interface RegistroLancamento {
   candidate_id: string
@@ -136,6 +143,8 @@ export function LancamentosClient({
   const { ask, dialog: dialogExclusao } = useConfirmarExclusao()
 
   const multiplos = !!config.itensMultiplos
+  /** Só avarias têm recibo de ciência para assinar. */
+  const ehAvaria = config.slug === 'avarias'
   const temContagens = config.colunas.length > 0
 
   /** Valor sugerido pelo percentual do salário (0 quando não se aplica). */
@@ -199,6 +208,18 @@ export function LancamentosClient({
     setItensPorCand(prev => {
       const lista = (prev[id] ?? []).filter((_, k) => k !== i)
       return { ...prev, [id]: lista.length ? lista : [{ valor: '', descricao: '' }] }
+    })
+  }
+
+  /** Recibo de ciência da avaria — um PDF por item lançado. */
+  function baixarRecibo(l: LinhaLancamento, item: { descricao: string | null; valor: number }) {
+    const emp = empresas.find(e => e.id === l.empresa_id)
+    gerarReciboAvaria({
+      razaoSocial: emp?.razaoSocial ?? l.empresa ?? null,
+      cnpj: emp?.cnpj ?? null,
+      funcionario: l.nome,
+      item: item.descricao,
+      valor: item.valor,
     })
   }
 
@@ -766,8 +787,17 @@ export function LancamentosClient({
                                   </p>
                                   {/* Item a item, descrição primeiro. */}
                                   {multiplos && (itensDoMes.get(`${l.candidate_id}|${h.competencia}`) ?? []).map((it, i) => (
-                                    <p key={i} className="text-[11px] text-muted-foreground ml-2">
-                                      {it.descricao || 'sem descrição'} — {brl(it.valor)}
+                                    <p key={i} className="text-[11px] text-muted-foreground ml-2 flex items-center gap-1">
+                                      <span>{it.descricao || 'sem descrição'} — {brl(it.valor)}</span>
+                                      {/* Recibo de ciência: um PDF por avaria, para o
+                                          colaborador assinar. */}
+                                      {ehAvaria && (
+                                        <button onClick={() => baixarRecibo(l, it)}
+                                          title="Recibo de ciência desta avaria (PDF)"
+                                          className="p-1 text-gray-400 hover:text-primary hover:bg-primary/10 rounded">
+                                          <FileSignature className="w-3 h-3" />
+                                        </button>
+                                      )}
                                     </p>
                                   ))}
                                 </div>
