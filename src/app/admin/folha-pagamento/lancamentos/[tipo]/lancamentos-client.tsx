@@ -211,15 +211,20 @@ export function LancamentosClient({
     })
   }
 
-  /** Recibo de ciência da avaria — um PDF por item lançado. */
-  function baixarRecibo(l: LinhaLancamento, item: { descricao: string | null; valor: number }) {
+  /**
+   * Recibo de ciência das avarias do MÊS: um PDF só, uma folha por item
+   * (decisão do dono em 03/11/2026 — três avarias no período não viram três
+   * downloads).
+   */
+  function baixarRecibo(l: LinhaLancamento, competenciaDoMes: string) {
     const emp = empresas.find(e => e.id === l.empresa_id)
+    const itens = itensDoMes.get(`${l.candidate_id}|${competenciaDoMes}`) ?? []
     gerarReciboAvaria({
       razaoSocial: emp?.razaoSocial ?? l.empresa ?? null,
       cnpj: emp?.cnpj ?? null,
       funcionario: l.nome,
-      item: item.descricao,
-      valor: item.valor,
+      periodo: rotuloMes(competenciaDoMes),
+      itens: itens.length > 0 ? itens : [{ descricao: null, valor: 0 }],
     })
   }
 
@@ -779,6 +784,15 @@ export function LancamentosClient({
                                       {maiuscula(rotuloMes(h.competencia))}{' — '}
                                       <strong className="text-emerald-700">{resumoRegistro(h)}</strong>
                                     </span>
+                                    {/* Recibo de ciência do mês: um PDF, uma folha
+                                        por avaria, para o colaborador assinar. */}
+                                    {ehAvaria && (
+                                      <button onClick={() => baixarRecibo(l, h.competencia)}
+                                        title="Recibo de ciência das avarias deste mês (PDF)"
+                                        className="inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md bg-red-600 text-white text-[10.5px] font-semibold hover:bg-red-700 transition-colors">
+                                        <FileSignature className="w-3 h-3" />Recibo
+                                      </button>
+                                    )}
                                     <button onClick={() => setRemovendo({ linha: l, registro: h })}
                                       title="Remover o lançamento deste mês"
                                       className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
@@ -789,15 +803,6 @@ export function LancamentosClient({
                                   {multiplos && (itensDoMes.get(`${l.candidate_id}|${h.competencia}`) ?? []).map((it, i) => (
                                     <p key={i} className="text-[11px] text-muted-foreground ml-2 flex items-center gap-1">
                                       <span>{it.descricao || 'sem descrição'} — {brl(it.valor)}</span>
-                                      {/* Recibo de ciência: um PDF por avaria, para o
-                                          colaborador assinar. */}
-                                      {ehAvaria && (
-                                        <button onClick={() => baixarRecibo(l, it)}
-                                          title="Recibo de ciência desta avaria (PDF)"
-                                          className="inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md bg-red-600 text-white text-[10.5px] font-semibold hover:bg-red-700 transition-colors">
-                                          <FileSignature className="w-3 h-3" />Recibo
-                                        </button>
-                                      )}
                                     </p>
                                   ))}
                                 </div>

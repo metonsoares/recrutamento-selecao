@@ -2,21 +2,32 @@ import { jsPDF } from 'jspdf'
 import { formatName } from '@/lib/helpers'
 
 /**
- * Recibo de ciência de quebra/avaria — UM documento por avaria.
+ * Recibo de ciência de quebra/avaria.
  *
  * O texto é o que o dono ditou em 03/11/2026: empresa (razão social e CNPJ da
  * empresa em que o colaborador está registrado), nome, item danificado, valor
  * do desconto, a declaração, a data em branco e o espaço da assinatura. Data e
  * assinatura ficam em branco de propósito: quem assina é o colaborador, no
  * papel.
+ *
+ * Um PDF por MÊS, com uma folha por avaria (decisão do dono no mesmo dia):
+ * três avarias no período viram três páginas de um arquivo só, em vez de três
+ * downloads.
  */
+
+export interface ItemRecibo {
+  descricao: string | null
+  valor: number
+}
 
 export interface DadosRecibo {
   razaoSocial: string | null
   cnpj: string | null
   funcionario: string
-  item: string | null
-  valor: number
+  /** Uma folha para cada item. */
+  itens: ItemRecibo[]
+  /** Só para o nome do arquivo ("outubro de 2026"). */
+  periodo?: string | null
 }
 
 function cnpjFormatado(valor: string | null): string {
@@ -28,13 +39,14 @@ function cnpjFormatado(valor: string | null): string {
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 /** Nome do arquivo sem o que o sistema de arquivos recusa. */
-function nomeDoArquivo(funcionario: string, item: string | null): string {
-  const partes = ['Recibo de avaria', formatName(funcionario), (item ?? '').trim()].filter(Boolean)
-  return partes.join(' - ').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120) + '.pdf'
+function nomeDoArquivo(d: DadosRecibo): string {
+  const umItem = d.itens.length === 1 ? (d.itens[0].descricao ?? '').trim() : ''
+  const partes = ['Recibo de avaria', formatName(d.funcionario), umItem || (d.periodo ?? '').trim()]
+  return partes.filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120) + '.pdf'
 }
 
-export function gerarReciboAvaria(d: DadosRecibo) {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+/** Desenha UMA folha — um item por folha. */
+function folha(doc: jsPDF, d: DadosRecibo, item: ItemRecibo) {
   const margem = 56
   const largura = doc.internal.pageSize.getWidth() - margem * 2
   let y = 90
@@ -59,8 +71,8 @@ export function gerarReciboAvaria(d: DadosRecibo) {
   campo('CNPJ:', cnpjFormatado(d.cnpj))
   y += 6
   campo('Nome do funcionário:', formatName(d.funcionario))
-  campo('Item danificado:', (d.item ?? '').trim() || '—')
-  campo('Valor do desconto:', brl(d.valor))
+  campo('Item danificado:', (item.descricao ?? '').trim() || '—')
+  campo('Valor do desconto:', brl(item.valor))
 
   y += 22
   doc.setFont('helvetica', 'normal')
@@ -82,6 +94,16 @@ export function gerarReciboAvaria(d: DadosRecibo) {
   y += 16
   doc.setFontSize(10)
   doc.text('Assinatura do colaborador', margem, y)
+}
 
-  doc.save(nomeDoArquivo(d.funcionario, d.item))
+export function gerarReciboAvaria(d: DadosRecibo) {
+  const itens = d.itens.length > 0 ? d.itens : [{ descricao: null, valor: 0 }]
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+
+  itens.forEach((item, i) => {
+    if (i > 0) doc.addPage()
+    folha(doc, d, item)
+  })
+
+  doc.save(nomeDoArquivo(d))
 }
