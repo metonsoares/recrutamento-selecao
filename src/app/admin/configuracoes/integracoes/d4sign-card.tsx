@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, CheckCircle2, AlertCircle, X, Eye, EyeOff, ExternalLink, Unplug, HelpCircle, ChevronDown } from 'lucide-react'
@@ -66,7 +67,7 @@ export function D4SignCard({ initialStatus, initialEnvironment, initialConnected
   }
 
   async function disconnect() {
-    if (!confirm('Desconectar a integração com a D4Sign? As credenciais serão removidas.')) return
+    if (!(await confirmarExclusao('Desconectar a integração com a D4Sign? As credenciais serão removidas.'))) return
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/admin/integrations/d4sign', { method: 'DELETE' })

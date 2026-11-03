@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -951,10 +952,12 @@ export function CandidateActions({
             variant="outline"
             size="sm"
             disabled={savingStatus}
-            onClick={() => {
-              if (confirm('Bloquear este freelancer? O status passará para "Reprovado".')) {
-                handleStatusChange('reprovado', { freelancerBlocked: true })
-              }
+            onClick={async () => {
+              const ok = await confirmarExclusao(
+                'Bloquear este freelancer? O status passará para "Reprovado".',
+                { titulo: 'Bloquear freelancer', confirmar: 'Bloquear', destrutivo: false },
+              )
+              if (ok) handleStatusChange('reprovado', { freelancerBlocked: true })
             }}
             className="gap-1 border-red-300 text-red-700 hover:bg-red-50"
           >

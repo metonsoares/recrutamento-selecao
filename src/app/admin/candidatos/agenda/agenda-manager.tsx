@@ -5,6 +5,7 @@ import {
   CalendarClock, Plus, Trash2, Loader2, X, Settings2, MapPin, User, Clock,
   CheckCircle2, AlertCircle, Phone, Pencil,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatName } from '@/lib/helpers'
@@ -348,7 +349,7 @@ function InterviewerCard({ interviewer, onSaved, onDeleted, showToast }: {
     } finally { setSaving(false) }
   }
   async function del() {
-    if (!confirm('Remover este entrevistador?')) return
+    if (!(await confirmarExclusao('Remover este entrevistador?'))) return
     const res = await fetch(`/api/admin/interviews/interviewers/${interviewer.id}`, { method: 'DELETE' })
     if (res.ok) onDeleted(); else showToast('err', 'Erro ao remover.')
   }

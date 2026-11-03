@@ -4,6 +4,7 @@ import {
   Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download,
   CheckCircle2, AlertCircle, History,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
@@ -70,7 +71,7 @@ export function RegistrosTab({ candidateId, initialRecords }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover este registro?')) return
+    if (!(await confirmarExclusao('Remover este registro?'))) return
     setDeletingId(id)
     const res = await fetch(`/api/admin/candidatos/${candidateId}/records/${id}`, { method: 'DELETE' })
     const json = await res.json(); setDeletingId(null)

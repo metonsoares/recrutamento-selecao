@@ -5,6 +5,7 @@ import { AdminNav } from '@/components/admin/sidebar'
 import { MenuUsuario } from '@/components/admin/menu-usuario'
 import { PresenceHeartbeat } from '@/components/PresenceHeartbeat'
 import { AvisoNovaVersao } from '@/components/aviso-nova-versao'
+import { ConfirmarExclusaoHost } from '@/components/confirmar-exclusao'
 import { versaoAtual } from '@/lib/versao'
 import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
@@ -74,6 +75,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         visualizandoComo={perfilPreview}
       />
       <PresenceHeartbeat />
+      {/* Janela única de "tem certeza?" — é ela que as telas chamam por
+          confirmarExclusao(), sem precisar montar modal em cada uma. */}
+      <ConfirmarExclusaoHost />
       {/* Avisa quem está com a aba aberta que saiu publicação nova. */}
       <AvisoNovaVersao versaoAtual={versaoAtual()} />
 

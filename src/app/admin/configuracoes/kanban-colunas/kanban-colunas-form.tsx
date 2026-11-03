@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import {
   GripVertical, ChevronUp, ChevronDown,
@@ -81,7 +82,10 @@ export function KanbanColunasForm({ columns: initial, settingsId }: Props) {
 
   // ── Reset to default ──────────────────────────────────────────────────────
   async function handleReset() {
-    if (!confirm('Restaurar a ordem padrão das colunas?')) return
+    const ok = await confirmarExclusao('Restaurar a ordem padrão das colunas?', {
+      titulo: 'Restaurar ordem padrão', confirmar: 'Restaurar', destrutivo: false,
+    })
+    if (!ok) return
     setSaving(true)
     await fetch('/api/admin/ai-settings', {
       method: 'PATCH',

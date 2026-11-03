@@ -4,6 +4,7 @@ import {
   ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle,
   Clock, BarChart3, ExternalLink,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatDateTime } from '@/lib/helpers'
 
@@ -100,7 +101,7 @@ export function PesquisasClimaTab({ candidateId, isMaster, appUrl, surveys, init
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover esta pesquisa da ficha do funcionário?')) return
+    if (!(await confirmarExclusao('Remover esta pesquisa da ficha do funcionário?'))) return
     setDeletingId(id)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}/climate-assignments/${id}`, { method: 'DELETE' })

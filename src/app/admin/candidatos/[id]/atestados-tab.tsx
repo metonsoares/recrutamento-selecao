@@ -4,6 +4,7 @@ import {
   Plus, Pencil, Trash2, Loader2, X, Upload, FileDown, FileText,
   Stethoscope, CheckCircle2, AlertCircle, Download,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
@@ -126,7 +127,7 @@ export function AtestadosTab({ candidateId, initialCertificates }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover este atestado?')) return
+    if (!(await confirmarExclusao('Remover este atestado?'))) return
     setDeletingId(id)
     const res = await fetch(`/api/admin/candidatos/${candidateId}/certificates/${id}`, { method: 'DELETE' })
     const json = await res.json()

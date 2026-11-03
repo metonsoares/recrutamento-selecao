@@ -4,6 +4,7 @@ import {
   Plane, Plus, History, Pencil, Trash2, Loader2, X, CheckCircle2, AlertCircle,
   Upload, FileText, CalendarDays, CalendarCheck, CalendarClock, DollarSign, Clock, Info,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate, dataPura } from '@/lib/helpers'
@@ -381,7 +382,7 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover este registro de férias?')) return
+    if (!(await confirmarExclusao('Remover este registro de férias?'))) return
     setDeletingId(id)
     const res = await fetch(`/api/admin/candidatos/${candidateId}/vacations/${id}`, { method: 'DELETE' })
     const json = await res.json()
@@ -432,7 +433,7 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
   }
 
   async function handleDeleteFalta(id: string) {
-    if (!confirm('Remover esta falta?')) return
+    if (!(await confirmarExclusao('Remover esta falta?'))) return
     const res = await fetch(`/api/admin/candidatos/${candidateId}/absences/${id}`, { method: 'DELETE' })
     if (res.ok) { setAbsences(prev => prev.filter(a => a.id !== id)); showToast('ok', 'Falta removida.') }
   }

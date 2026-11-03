@@ -4,6 +4,7 @@ import {
   FileText, Plus, Trash2, Loader2, X, Upload, FileDown, Download,
   CheckCircle2, AlertCircle, FileSignature, Eye, Pencil, Braces,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
@@ -156,7 +157,7 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover este template de contrato?')) return
+    if (!(await confirmarExclusao('Remover este template de contrato?'))) return
     setDeletingId(id)
     try {
       const res = await fetch(`/api/admin/contract-templates/${id}`, { method: 'DELETE' })

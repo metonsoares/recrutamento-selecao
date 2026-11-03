@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { BarChart3, Loader2, Brain, FileDown, Users, AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 
 interface SurveyLite { id: string; title: string; company_name: string | null; climate_responses?: { count: number }[] }
@@ -56,7 +57,7 @@ export function ResultadosManager({ surveys, initialSurveyId, isMaster }: Props)
 
   async function deleteResponse(responseId: string) {
     if (!selectedId) return
-    if (!confirm('Remover esta resposta permanentemente? Ela deixará de impactar o resultado geral da empresa.')) return
+    if (!(await confirmarExclusao('Remover esta resposta permanentemente? Ela deixará de impactar o resultado geral da empresa.'))) return
     setDeleting(p => ({ ...p, [responseId]: true }))
     try {
       const res = await fetch(`/api/admin/climate-surveys/${selectedId}/responses/${responseId}`, { method: 'DELETE' })

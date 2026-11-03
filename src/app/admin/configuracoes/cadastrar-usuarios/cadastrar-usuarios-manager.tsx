@@ -3,6 +3,7 @@ import { useState } from 'react'
 import {
   UserPlus, Trash2, Loader2, X, CheckCircle2, AlertCircle, Users, KeyRound, Check,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -132,7 +133,7 @@ export function CadastrarUsuariosManager({ systemUsers: initial, eligible, compa
   }
 
   async function handleDelete(u: SystemUser) {
-    if (!confirm(`Remover o usuário ${u.name || u.email}?`)) return
+    if (!(await confirmarExclusao(`Remover o usuário ${u.name || u.email}?`))) return
     setDeletingId(u.id)
     const res = await fetch(`/api/admin/system-users/${u.id}`, { method: 'DELETE' })
     const data = await res.json()

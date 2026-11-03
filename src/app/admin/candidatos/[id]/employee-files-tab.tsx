@@ -4,6 +4,7 @@ import {
   Plus, Pencil, Trash2, Loader2, X, Upload, FileText, FileDown, Download,
   CheckCircle2, AlertCircle, Wallet, CalendarDays,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
@@ -118,7 +119,7 @@ export function EmployeeFilesTab({ candidateId, kind, title, referenceLabel, ins
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover este arquivo?')) return
+    if (!(await confirmarExclusao('Remover este arquivo?'))) return
     setDeletingId(id)
     const res = await fetch(`/api/admin/candidatos/${candidateId}/employee-files/${id}`, { method: 'DELETE' })
     const json = await res.json()

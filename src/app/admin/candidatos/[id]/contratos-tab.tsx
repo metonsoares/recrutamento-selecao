@@ -4,6 +4,7 @@ import {
   Plus, Trash2, Loader2, X, Upload, FileText, FileDown, Download, Eye, Pencil,
   CheckCircle2, AlertCircle, FileSignature, PenTool, Clock, RefreshCw,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
@@ -285,7 +286,7 @@ export function ContratosTab({ candidateId, initialContracts }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover este contrato?')) return
+    if (!(await confirmarExclusao('Remover este contrato?'))) return
     setDeletingId(id)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}/contratos/${id}`, { method: 'DELETE' })

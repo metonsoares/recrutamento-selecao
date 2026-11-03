@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import {
   TrendingUp, Plus, Trash2, Loader2, X, CheckCircle2, AlertCircle, CalendarDays,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
@@ -82,7 +83,7 @@ export function SalaryRaisesPanel({ candidateId, initialRaises }: Props) {
   }
 
   async function handleRemove(id: string) {
-    if (!confirm('Remover este aumento de salário do histórico?')) return
+    if (!(await confirmarExclusao('Remover este aumento de salário do histórico?'))) return
     setRemoving(id)
     try {
       const res = await fetch(`/api/admin/candidatos/${candidateId}/salary-raises/${id}`, { method: 'DELETE' })

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import {
   ClipboardList, Plus, Trash2, Loader2, X, Copy, QrCode, CheckCircle2, AlertCircle, ExternalLink, Upload, Pencil, BarChart3, FileText,
 } from 'lucide-react'
+import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { STATUS_LABELS, CandidateStatus } from '@/types'
@@ -189,7 +190,7 @@ export function CadastrarPesquisaManager({ initialSurveys, companyOptions, emplo
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover esta pesquisa e suas respostas?')) return
+    if (!(await confirmarExclusao('Remover esta pesquisa e suas respostas?'))) return
     const res = await fetch(`/api/admin/climate-surveys/${id}`, { method: 'DELETE' })
     if (res.ok) { setSurveys(p => p.filter(s => s.id !== id)); showToast('ok', 'Pesquisa removida.') }
     else showToast('err', 'Erro ao remover.')
