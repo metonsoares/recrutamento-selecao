@@ -794,8 +794,8 @@ export function LancamentosClient({
                                       {ehAvaria && (
                                         <button onClick={() => baixarRecibo(l, it)}
                                           title="Recibo de ciência desta avaria (PDF)"
-                                          className="p-1 text-gray-400 hover:text-primary hover:bg-primary/10 rounded">
-                                          <FileSignature className="w-3 h-3" />
+                                          className="inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md bg-red-600 text-white text-[10.5px] font-semibold hover:bg-red-700 transition-colors">
+                                          <FileSignature className="w-3 h-3" />Recibo
                                         </button>
                                       )}
                                     </p>

@@ -105,6 +105,35 @@ export function dataPura(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Data digitada que faz sentido para um fato do RH (ocorrido, atestado…).
+ *
+ * Existe por causa de 03/11/2026: uma advertência foi salva como 09/10/**0206**
+ * — o campo de data aceita ano de 4 dígitos e um 2 a menos passa calado. A
+ * advertência sumiu do Prêmio Caju do mês e a colaboradora apareceu "sem
+ * ocorrência". O ano errado não dá erro em lugar nenhum: só some do filtro.
+ *
+ * Aceita de 2000 até um ano à frente (data futura em RH é quase sempre engano,
+ * mas há agendamento legítimo de férias).
+ */
+export const DATA_MINIMA = '2000-01-01'
+
+export function limiteDeDataFutura(anosAFrente = 1): string {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() + anosAFrente)
+  return dataPura(d)
+}
+
+/** `null` quando está boa; a mensagem do problema quando não está. */
+export function conferirData(valor: string | null | undefined, rotulo = 'A data'): string | null {
+  const v = (valor ?? '').trim()
+  if (!v) return `${rotulo} é obrigatória.`
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${rotulo} está em formato inválido.`
+  if (v < DATA_MINIMA) return `${rotulo} tem o ano ${v.slice(0, 4)} — confira, provavelmente faltou um dígito.`
+  if (v > limiteDeDataFutura()) return `${rotulo} está muito à frente (${v.slice(0, 4)}). Confira o ano.`
+  return null
+}
+
 export function formatDateTime(date: string | null): string {
   if (!date) return '-'
   return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })

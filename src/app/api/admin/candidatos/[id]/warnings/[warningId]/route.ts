@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
+import { conferirData } from '@/lib/helpers'
 
 /** PUT — atualiza advertência */
 export async function PUT(
@@ -14,7 +15,11 @@ export async function PUT(
     const { occurred_at, reason, file_url, file_name, file_path } = await req.json()
     const supabase = await createSupabaseServiceClient()
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
-    if (occurred_at) payload.occurred_at = occurred_at
+    if (occurred_at) {
+      const problema = conferirData(occurred_at, 'A data do ocorrido')
+      if (problema) return NextResponse.json({ error: problema }, { status: 400 })
+      payload.occurred_at = occurred_at
+    }
     if (reason !== undefined) payload.reason = reason
     if (file_url !== undefined) payload.file_url = file_url
     if (file_name !== undefined) payload.file_name = file_name

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
+import { conferirData } from '@/lib/helpers'
 
 /** GET — lista advertências do candidato */
 export async function GET(
@@ -38,6 +39,10 @@ export async function POST(
     if (!occurred_at || !reason?.trim()) {
       return NextResponse.json({ error: 'Data e motivo são obrigatórios.' }, { status: 400 })
     }
+    // Ano digitado errado não dá erro em lugar nenhum — só faz a advertência
+    // sumir dos filtros por mês (Prêmio Caju, relatórios).
+    const problema = conferirData(occurred_at, 'A data do ocorrido')
+    if (problema) return NextResponse.json({ error: problema }, { status: 400 })
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
       .from('warnings')

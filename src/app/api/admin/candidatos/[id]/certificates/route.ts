@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
+import { conferirData } from '@/lib/helpers'
 
 export async function GET(
   _req: NextRequest,
@@ -36,6 +37,8 @@ export async function POST(
     if (!certificate_date) {
       return NextResponse.json({ error: 'Data do atestado é obrigatória.' }, { status: 400 })
     }
+    const problema = conferirData(certificate_date, 'A data do atestado')
+    if (problema) return NextResponse.json({ error: problema }, { status: 400 })
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
       .from('medical_certificates')

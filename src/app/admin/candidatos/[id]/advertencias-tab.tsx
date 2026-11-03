@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatDate } from '@/lib/helpers'
+import { DATA_MINIMA, limiteDeDataFutura, conferirData, formatDate } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 import { VerArquivo } from '@/components/ver-arquivo'
 
@@ -93,7 +93,8 @@ function WarningForm({
   }
 
   async function handleSubmit() {
-    if (!data.occurred_at) { setError('Informe a data do ocorrido.'); return }
+    const problemaData = conferirData(data.occurred_at, 'A data do ocorrido')
+    if (problemaData) { setError(problemaData); return }
     if (!data.reason.trim()) { setError('Informe o motivo da advertência.'); return }
     setSaving(true)
     setError('')
@@ -111,7 +112,8 @@ function WarningForm({
       <div className="px-5 py-4 space-y-3">
         <div className="space-y-1">
           <label className="text-xs font-medium text-gray-600">Data do ocorrido *</label>
-          <Input type="date" value={data.occurred_at} onChange={e => setData(p => ({ ...p, occurred_at: e.target.value }))} />
+          <Input type="date" min={DATA_MINIMA} max={limiteDeDataFutura()}
+            value={data.occurred_at} onChange={e => setData(p => ({ ...p, occurred_at: e.target.value }))} />
         </div>
 
         <div className="space-y-1">
