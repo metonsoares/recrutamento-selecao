@@ -33,7 +33,7 @@ export async function POST(
     const denied = await requirePermissionApi('ficha.ferias')
     if (denied) return denied
     const { id } = await params
-    const { absence_date, days, kind, comment } = await req.json()
+    const { absence_date, days, kind, comment, em_aberto } = await req.json()
     if (!absence_date) return NextResponse.json({ error: 'Data é obrigatória.' }, { status: 400 })
     const problemaData = conferirData(absence_date, 'A data da falta')
     if (problemaData) return NextResponse.json({ error: problemaData }, { status: 400 })
@@ -43,8 +43,11 @@ export async function POST(
       .insert({
         candidate_id: id,
         absence_date,
-        days: Math.max(1, Number(days) || 1),
+        // Afastamento em aberto não tem contagem: a duração sai da data de
+        // início até hoje, por isso `days` fica zerado em vez de um palpite.
+        days: em_aberto === true ? 0 : Math.max(1, Number(days) || 1),
         kind: kind === 'afastamento' ? 'afastamento' : 'injustificada',
+        em_aberto: kind === 'afastamento' && em_aberto === true,
         comment: comment || null,
       })
       .select()

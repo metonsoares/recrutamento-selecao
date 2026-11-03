@@ -84,7 +84,7 @@ export default async function PremioCajuPage({
   // A busca não tem piso de data: uma suspensão iniciada meses antes continua
   // cobrindo esta competência.
   const { data: afastamentos } = await supabase
-    .from('absences').select('candidate_id, absence_date, days')
+    .from('absences').select('candidate_id, absence_date, days, em_aberto')
     .eq('kind', 'afastamento').lte('absence_date', fim)
 
   // Histórico de pagamentos aprovados (mês + valor por pessoa).
@@ -112,7 +112,11 @@ export default async function PremioCajuPage({
     const porCand = new Map<string, Set<string>>()
     for (const a of afastamentos ?? []) {
       const inicioAf = new Date(String(a.absence_date) + 'T00:00:00')
-      const total = Math.max(1, Number(a.days) || 1)
+      // Em aberto (sem data de retorno) cobre tudo daí para a frente: enquanto
+      // o afastamento não for encerrado, o mês inteiro está coberto.
+      const total = a.em_aberto === true
+        ? Math.max(1, Math.round((new Date(fim + 'T00:00:00').getTime() - inicioAf.getTime()) / 86400000) + 1)
+        : Math.max(1, Number(a.days) || 1)
       const cand = a.candidate_id as string
       const dias = porCand.get(cand) ?? new Set<string>()
       for (let i = 0; i < total; i++) {

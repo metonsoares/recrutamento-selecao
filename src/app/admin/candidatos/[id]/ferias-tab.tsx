@@ -34,8 +34,19 @@ interface Absence {
   absence_date: string
   days: number
   kind: 'injustificada' | 'afastamento'
+  /** Afastamento sem data de retorno: conta da data de início até hoje. */
+  em_aberto?: boolean
   comment: string | null
   created_at: string
+}
+
+/** Dias que o afastamento já consumiu — em aberto conta até hoje. */
+function diasDeAfastamento(a: Absence): number {
+  if (!a.em_aberto) return a.days || 0
+  const inicio = new Date(a.absence_date + 'T00:00:00')
+  if (Number.isNaN(inicio.getTime())) return 0
+  const dias = Math.floor((Date.now() - inicio.getTime()) / 86400000) + 1
+  return Math.max(1, dias)
 }
 
 interface Props {
@@ -329,7 +340,7 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
     () => absences.filter(a => a.kind === 'injustificada').reduce((s, a) => s + (a.days || 0), 0),
     [absences])
   const diasAfastamento = useMemo(
-    () => absences.filter(a => a.kind === 'afastamento').reduce((s, a) => s + (a.days || 0), 0),
+    () => absences.filter(a => a.kind === 'afastamento').reduce((s, a) => s + diasDeAfastamento(a), 0),
     [absences])
   const descontoFaltas = descontoPorFaltas(faltasInjustificadas)
   const descontoAfastamento = diasAfastamento > 180 ? 30 : 0
@@ -540,7 +551,11 @@ export function FeriasTab({ candidateId, admissionDate, initialVacations, initia
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${a.kind === 'afastamento' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                   {a.kind === 'afastamento' ? 'Afastamento' : 'Falta injust.'}
                 </span>
-                <span className="text-gray-700">{a.days} dia{a.days !== 1 ? 's' : ''}</span>
+                <span className="text-gray-700">
+                  {a.em_aberto
+                    ? <>em aberto · {diasDeAfastamento(a)} dia{diasDeAfastamento(a) !== 1 ? 's' : ''} até hoje</>
+                    : <>{a.days} dia{a.days !== 1 ? 's' : ''}</>}
+                </span>
                 {a.comment && <span className="text-muted-foreground truncate flex-1">— {a.comment}</span>}
                 <button onClick={() => handleDeleteFalta(a.id)} className="ml-auto text-gray-300 hover:text-red-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
@@ -729,10 +744,11 @@ function VacFileSlot({ label, candidateId, value, onSaved }: {
 
 // ─── Modal de registro de falta/afastamento ───────────────────────────────────
 
-function FaltaModal({ onSave, onClose }: { onSave: (f: { absence_date: string; days: number; kind: string; comment: string }) => Promise<void>; onClose: () => void }) {
+function FaltaModal({ onSave, onClose }: { onSave: (f: { absence_date: string; days: number; kind: string; comment: string; em_aberto: boolean }) => Promise<void>; onClose: () => void }) {
   const [absence_date, setDate] = useState('')
   const [days, setDays] = useState('1')
   const [kind, setKind] = useState('injustificada')
+  const [emAberto, setEmAberto] = useState(false)
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -741,7 +757,11 @@ function FaltaModal({ onSave, onClose }: { onSave: (f: { absence_date: string; d
     if (!absence_date) { setError('Informe a data.'); return }
     setSaving(true); setError('')
     try {
-      await onSave({ absence_date, days: Number(days) || 1, kind, comment })
+      await onSave({
+        absence_date, kind, comment,
+        em_aberto: kind === 'afastamento' && emAberto,
+        days: kind === 'afastamento' && emAberto ? 0 : (Number(days) || 1),
+      })
     } catch (e) { setError((e as Error).message || 'Erro ao salvar.') }
     finally { setSaving(false) }
   }
@@ -769,9 +789,26 @@ function FaltaModal({ onSave, onClose }: { onSave: (f: { absence_date: string; d
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Qtd. de dias</label>
-              <Input type="number" min={1} value={days} onChange={e => setDays(e.target.value)} />
+              <Input type="number" min={1} value={emAberto ? '' : days} disabled={emAberto}
+                placeholder={emAberto ? 'em aberto' : undefined}
+                onChange={e => setDays(e.target.value)} />
             </div>
           </div>
+
+          {/* Afastamento sem data de retorno: contrato suspenso, INSS em curso. */}
+          {kind === 'afastamento' && (
+            <label className="flex items-start gap-2 text-[13px] text-gray-700">
+              <input type="checkbox" checked={emAberto} onChange={e => setEmAberto(e.target.checked)}
+                className="mt-0.5 accent-primary" />
+              <span>
+                Sem data de retorno (por tempo indeterminado)
+                <span className="block text-[11.5px] text-muted-foreground">
+                  Conta da data de início até hoje. Quando a pessoa voltar, troque por um
+                  afastamento com a quantidade de dias.
+                </span>
+              </span>
+            </label>
+          )}
           <div className="space-y-1">
             <label className="text-xs font-medium text-gray-600">Observação (opcional)</label>
             <textarea value={comment} onChange={e => setComment(e.target.value)} rows={2}
