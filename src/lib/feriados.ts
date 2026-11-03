@@ -25,7 +25,26 @@ const FIXOS = [
   '12-25', // Natal
 ]
 
-/** Datas extras (feriado municipal, ponto facultativo tratado como feriado). */
+/**
+ * Feriados de PETRÓPOLIS/RJ, onde ficam todas as empresas do grupo — conferidos
+ * em 03/11/2026 no calendário do TRF2 e em calendários de feriados do município.
+ *
+ *  - 23/04, Dia de São Jorge: feriado ESTADUAL do Rio de Janeiro.
+ *  - 16/03, aniversário da cidade (fundação em 16/03/1843).
+ *  - 29/06, Dia do Colono (chegada dos primeiros colonos alemães).
+ *
+ * Fora da lista de propósito: 19/10 (São Pedro de Alcântara). A criação desse
+ * feriado apareceu em notícia local, mas o calendário oficial do TRF2 para
+ * Petrópolis não o traz — sem a lei sancionada confirmada, não entra.
+ * 20/11 (Consciência Negra) já é nacional.
+ */
+const FIXOS_LOCAIS = [
+  '03-16',
+  '04-23',
+  '06-29',
+]
+
+/** Datas avulsas (ponto facultativo tratado como feriado, feriado de um ano só). */
 const FERIADOS_EXTRAS: string[] = []
 
 /** Domingo de Páscoa pelo algoritmo de Meeus/Jones/Butcher. */
@@ -64,7 +83,7 @@ export function feriadosDoAno(ano: number): Set<string> {
   const pronto = cache.get(ano)
   if (pronto) return pronto
 
-  const dias = new Set<string>(FIXOS.map(md => `${ano}-${md}`))
+  const dias = new Set<string>([...FIXOS, ...FIXOS_LOCAIS].map(md => `${ano}-${md}`))
   const dom = pascoa(ano)
   dias.add(iso(somar(dom, -48)))  // segunda de carnaval
   dias.add(iso(somar(dom, -47)))  // terça de carnaval
