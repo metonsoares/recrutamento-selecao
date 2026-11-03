@@ -66,7 +66,7 @@ export default async function PremioCajuPage({
     candIds.length
       ? supabase.from('candidates').select('id, full_name, cpf, deleted_at').in('id', candIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string; cpf: string | null; deleted_at: string | null }[] }),
-    // Faltas injustificadas do mês fechado (afastamento/atestado não tiram o prêmio).
+    // Faltas injustificadas do mês fechado (atestado não tira o prêmio).
     supabase.from('absences').select('candidate_id, absence_date, days')
       .eq('kind', 'injustificada').gte('absence_date', inicio).lte('absence_date', fim),
     supabase.from('warnings').select('candidate_id, occurred_at')
@@ -76,6 +76,16 @@ export default async function PremioCajuPage({
     supabase.from('vacations').select('candidate_id, start_date, end_date')
       .lte('start_date', fim).gte('end_date', inicio),
   ])
+
+  // Afastamentos (contrato suspenso, INSS): quem passou o MÊS INTEIRO afastado
+  // não trabalhou nenhum dia e não leva o prêmio — decisão do dono em
+  // 03/11/2026, depois de um colaborador com contrato suspenso aparecer "sem
+  // ocorrência". Afastamento parcial não tira: o mês ainda foi trabalhado.
+  // A busca não tem piso de data: uma suspensão iniciada meses antes continua
+  // cobrindo esta competência.
+  const { data: afastamentos } = await supabase
+    .from('absences').select('candidate_id, absence_date, days')
+    .eq('kind', 'afastamento').lte('absence_date', fim)
 
   // Histórico de pagamentos aprovados (mês + valor por pessoa).
   // Consultas simples e cruzamento em memória — o embed do PostgREST
@@ -92,6 +102,32 @@ export default async function PremioCajuPage({
   const empresaPorId = new Map(
     (empresas ?? []).map(e => [e.id as string, (e.apelido as string) || (e.razao_social as string) || '—']),
   )
+
+  /**
+   * Quem ficou afastado em TODOS os dias da competência. A união dos períodos
+   * é considerada: um afastamento lançado em dois pedaços cobre o mês igual.
+   */
+  const afastadoMesInteiro = new Set<string>()
+  {
+    const porCand = new Map<string, Set<string>>()
+    for (const a of afastamentos ?? []) {
+      const inicioAf = new Date(String(a.absence_date) + 'T00:00:00')
+      const total = Math.max(1, Number(a.days) || 1)
+      const cand = a.candidate_id as string
+      const dias = porCand.get(cand) ?? new Set<string>()
+      for (let i = 0; i < total; i++) {
+        const d = new Date(inicioAf)
+        d.setDate(d.getDate() + i)
+        const iso = d.toISOString().slice(0, 10)
+        if (iso > fim) break
+        if (iso >= inicio) dias.add(iso)
+      }
+      porCand.set(cand, dias)
+    }
+    for (const [cand, dias] of porCand) {
+      if (dias.size >= diasDoMes(competencia)) afastadoMesInteiro.add(cand)
+    }
+  }
 
   const faltasPorCand = new Map<string, number>()
   for (const f of faltas ?? []) {
@@ -185,10 +221,12 @@ export default async function PremioCajuPage({
         sem_data_admissao: !admissao,
         dias_ferias: diasFerias,
         dias_mes: diasNoMes,
+        afastado_mes: afastadoMesInteiro.has(id),
         // Sem data de admissão não há mês trabalhado para premiar — é a mesma
         // regra do fechamento de folha, e sem a data nem dá para saber se a
         // experiência já acabou.
-        elegivel: dias === 0 && adv === 0 && !emExperiencia && !!admissao,
+        elegivel: dias === 0 && adv === 0 && !emExperiencia && !!admissao
+          && !afastadoMesInteiro.has(id),
       }
     })
     .filter(Boolean) as LinhaCaju[]

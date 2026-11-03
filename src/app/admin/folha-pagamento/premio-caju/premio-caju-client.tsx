@@ -31,6 +31,8 @@ export interface LinhaCaju {
   dias_ferias: number
   /** Dias do mês da competência, base do cálculo proporcional. */
   dias_mes: number
+  /** Passou o mês inteiro afastado (contrato suspenso, INSS): não recebe. */
+  afastado_mes: boolean
   elegivel: boolean
 }
 
@@ -569,6 +571,7 @@ export function PremioCajuClient({
                         <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-red-600">
                           <Ban className="w-3.5 h-3.5" />
                           {[l.sem_data_admissao ? 'Sem data de admissão' : null,
+                            l.afastado_mes ? 'Afastado o mês inteiro' : null,
                             l.em_experiencia ? 'Em experiência' : null,
                             l.faltas > 0 ? `${l.faltas} falta${l.faltas !== 1 ? 's' : ''}` : null,
                             l.advertencias > 0 ? `${l.advertencias} advertência${l.advertencias !== 1 ? 's' : ''}` : null,
