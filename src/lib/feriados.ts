@@ -33,15 +33,21 @@ const FIXOS = [
  *  - 16/03, aniversário da cidade (fundação em 16/03/1843).
  *  - 29/06, Dia do Colono (chegada dos primeiros colonos alemães).
  *
- * Fora da lista de propósito: 19/10 (São Pedro de Alcântara). A criação desse
- * feriado apareceu em notícia local, mas o calendário oficial do TRF2 para
- * Petrópolis não o traz — sem a lei sancionada confirmada, não entra.
+ *  - 19/10, Dia de São Pedro de Alcântara (padroeiro): confirmado pelo dono em
+ *    03/11/2026. Veio de lei municipal de 2025, por isso só vale de 2026 em
+ *    diante — o calendário do TRF2 consultado ainda não trazia a data.
+ *
  * 20/11 (Consciência Negra) já é nacional.
  */
 const FIXOS_LOCAIS = [
   '03-16',
   '04-23',
   '06-29',
+]
+
+/** Feriado local criado por lei recente: só vale a partir do ano indicado. */
+const LOCAIS_A_PARTIR_DE: { md: string; desde: number }[] = [
+  { md: '10-19', desde: 2026 },   // São Pedro de Alcântara
 ]
 
 /** Datas avulsas (ponto facultativo tratado como feriado, feriado de um ano só). */
@@ -84,6 +90,7 @@ export function feriadosDoAno(ano: number): Set<string> {
   if (pronto) return pronto
 
   const dias = new Set<string>([...FIXOS, ...FIXOS_LOCAIS].map(md => `${ano}-${md}`))
+  for (const l of LOCAIS_A_PARTIR_DE) if (ano >= l.desde) dias.add(`${ano}-${l.md}`)
   const dom = pascoa(ano)
   dias.add(iso(somar(dom, -48)))  // segunda de carnaval
   dias.add(iso(somar(dom, -47)))  // terça de carnaval
