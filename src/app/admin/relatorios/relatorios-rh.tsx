@@ -289,6 +289,26 @@ export function RelatoriosRh({
     }
   }
 
+  /** "1 colaborador" / "3 colaboradores" — o relatório fala com gente. */
+  const plural = (n: number, singular: string, pluralForma: string) =>
+    `${n} ${n === 1 ? singular : pluralForma}`
+
+  /**
+   * Quantos aparecem na aba aberta. Nem toda aba lista todo mundo: Advertências
+   * só mostra quem levou alguma, Aniversariantes só quem faz no mês, e por aí.
+   */
+  const recorteDaAba: Record<Aba, string | null> = {
+    salarios: null,
+    experiencia: plural(experiencia.length, 'em contrato de experiência', 'em contrato de experiência'),
+    aniversarios: somenteMes
+      ? plural(aniversariantes.length, 'aniversariante no mês', 'aniversariantes no mês')
+      : plural(aniversariantes.length, 'aniversariante', 'aniversariantes'),
+    ferias: feriasLinhas.length === baseFerias.length
+      ? null
+      : plural(feriasLinhas.length, 'na situação escolhida', 'na situação escolhida'),
+    advertencias: `${plural(advLinhas.length, 'com advertência', 'com advertência')} (${plural(totalAdvertencias, 'advertência', 'advertências')})`,
+  }
+
   const ABAS: { id: Aba; label: string; icone: React.ElementType; qtd: number }[] = [
     { id: 'salarios', label: 'Salários', icone: Wallet, qtd: salarios.length },
     { id: 'experiencia', label: 'Contratos de experiência', icone: FileClock, qtd: experiencia.length },
@@ -349,6 +369,26 @@ export function RelatoriosRh({
         <Button variant="outline" onClick={exportar} className="gap-1.5 shrink-0">
           <Download className="w-3.5 h-3.5" />Exportar
         </Button>
+      </div>
+
+      {/* Quantos colaboradores o filtro alcançou — a pergunta que a tela sempre
+          responde primeiro, com ou sem filtro aplicado. */}
+      <div className="px-3 py-2 border-b flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-gray-600">
+        {base.length === 0 ? (
+          <span>Nenhum colaborador com os filtros aplicados.</span>
+        ) : (
+          <>
+            <span>
+              <strong className="text-gray-900">{plural(base.length, 'colaborador', 'colaboradores')}</strong>
+              {nomeEmpresa ? <> em <strong className="text-gray-900">{nomeEmpresa}</strong></> : ' em todas as empresas'}
+            </span>
+            {busca.trim() && <span className="text-gray-400">· busca “{busca.trim()}”</span>}
+            {recorteDaAba[aba] && <span className="text-gray-400">· {recorteDaAba[aba]}</span>}
+            {(empresaFiltro || busca.trim()) && (
+              <span className="text-gray-400">· {colaboradores.length} no total</span>
+            )}
+          </>
+        )}
       </div>
 
       {erroArquivo && (
