@@ -19,6 +19,8 @@ export interface LinhaFechamento {
   nome: string
   cpf: string | null
   cargo: string | null
+  /** Data de início do afastamento que alcança este mês (null = não afastado). */
+  afastado_desde?: string | null
   empresa_id: string | null
   empresa: string | null
   vinculo: 'contratado' | 'intermitente'
@@ -93,6 +95,21 @@ function simNao(v: unknown): boolean | null {
   return null
 }
 
+/** dd/mm/aaaa sem passar por Date (evita o fuso trocar o dia). */
+function dataBr(iso: string): string {
+  const [a, m, d] = iso.slice(0, 10).split('-')
+  return `${d}/${m}/${a}`
+}
+
+/**
+ * Estagiário não entra na folha de pagamento (decisão do dono, 03/11/2026):
+ * não tem dias lançados nem vale-transporte, e aparecia todo mês com zero,
+ * virando ruído em quem confere "quem não trabalhou".
+ */
+function ehEstagiario(cargo: string | null | undefined): boolean {
+  return /estagi/i.test(cargo ?? '')
+}
+
 export async function montarFechamento(competencia: string): Promise<{
   linhas: LinhaFechamento[]
   empresas: EmpresaOpcao[]
@@ -106,7 +123,7 @@ export async function montarFechamento(competencia: string): Promise<{
   // falharam silenciosamente neste projeto.
   const [
     { data: apps }, { data: empresas }, { data: vtCiclo }, { data: gorjetaCiclo },
-    { data: faltas }, { data: comentarios }, { data: feriasMes },
+    { data: faltas }, { data: comentarios }, { data: feriasMes }, { data: afastamentos },
   ] = await Promise.all([
     supabase.from('applications')
       .select('candidate_id, admission_form, admission_form_history, status')
@@ -123,6 +140,10 @@ export async function montarFechamento(competencia: string): Promise<{
     // Férias que cruzam o mês: quem fecha a folha precisa ver quem esteve fora.
     supabase.from('vacations').select('candidate_id, start_date, end_date')
       .lte('start_date', fim).gte('end_date', competencia),
+    // Afastamentos que alcançam o mês. Sem piso de data: afastamento em aberto
+    // (contrato suspenso) começa num mês e segue valendo nos seguintes.
+    supabase.from('absences').select('candidate_id, absence_date, days, em_aberto')
+      .eq('kind', 'afastamento').lte('absence_date', fim),
   ])
 
   // Lançamentos do mês (avarias, horas extras, gratificação…): o fechamento
@@ -176,6 +197,25 @@ export async function montarFechamento(competencia: string): Promise<{
   ])
 
   const appsList = apps ?? []
+  /**
+   * Desde quando cada pessoa está afastada, quando o afastamento alcança este
+   * mês. Vira o comentário da linha: quem fecha a folha precisa ver no papel
+   * por que a pessoa não tem dias — antes isso era digitado à mão e, no caso
+   * de um contrato suspenso, ficava só na memória de quem lançou.
+   */
+  const afastadoDesde = new Map<string, string>()
+  for (const a of afastamentos ?? []) {
+    const inicio = String(a.absence_date)
+    const dias = Math.max(1, Number(a.days) || 1)
+    const terminaEm = a.em_aberto === true
+      ? '9999-12-31'
+      : (() => { const d = new Date(inicio + 'T00:00:00'); d.setDate(d.getDate() + dias - 1); return d.toISOString().slice(0, 10) })()
+    if (terminaEm < competencia) continue   // acabou antes do mês
+    const cand = a.candidate_id as string
+    const atual = afastadoDesde.get(cand)
+    if (!atual || inicio < atual) afastadoDesde.set(cand, inicio)
+  }
+
   const candIds = appsList.map(a => a.candidate_id as string).filter(Boolean)
   const { data: cands } = candIds.length
     ? await supabase.from('candidates').select('id, full_name, cpf, deleted_at').in('id', candIds)
@@ -221,6 +261,9 @@ export async function montarFechamento(competencia: string): Promise<{
       // ficha nova (empresa nova, admissão nova) e sumiria dos meses anteriores.
       const af = fichaDaCompetencia(a, fim)
 
+      // Estagiário fica de fora da folha inteira — inclusive do que é aprovado.
+      if (ehEstagiario(String(af?.function_title ?? ''))) return null
+
       // Sem data de admissão a pessoa ainda está em contratação: não há mês
       // trabalhado para fechar. E quem foi admitido DEPOIS do mês também não
       // entra no período.
@@ -262,7 +305,11 @@ export async function montarFechamento(competencia: string): Promise<{
         insalubridade_20: simNao(af?.insalubridade_20),
         quebra_caixa_15: simNao(af?.quebra_caixa_15),
         salario,
-        comentario: comentarioPorCand.get(id) ?? '',
+        afastado_desde: afastadoDesde.get(id) ?? null,
+        // Comentário digitado manda; sem ele, a folha já sai dizendo desde
+        // quando a pessoa está afastada.
+        comentario: comentarioPorCand.get(id)
+          ?? (afastadoDesde.has(id) ? `Afastado desde ${dataBr(afastadoDesde.get(id)!)}` : ''),
         ...lanc,
       }
     })

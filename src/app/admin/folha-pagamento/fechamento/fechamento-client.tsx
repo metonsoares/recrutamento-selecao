@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { formatName, contemBusca } from '@/lib/helpers'
+import { formatDate, formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { gerarPdfTabela } from '@/lib/pdf'
 import { maiuscula, mesVizinho, rotuloMes } from '@/lib/competencia'
@@ -533,6 +533,12 @@ export function FechamentoClient({
                       <span className="ml-1.5 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 bg-emerald-100 text-emerald-700 align-middle"
                         title="Já consta na folha aprovada deste mês">
                         Aprovado
+                      </span>
+                    )}
+                    {l.afastado_desde && (
+                      <span className="ml-1.5 text-[9px] font-bold uppercase rounded-full px-1.5 py-0.5 bg-blue-100 text-blue-700 align-middle"
+                        title={`Afastado desde ${formatDate(l.afastado_desde)}`}>
+                        Afastado
                       </span>
                     )}
                     {l.vinculo === 'intermitente' && (
