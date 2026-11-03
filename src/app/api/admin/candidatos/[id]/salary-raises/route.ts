@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { conferirData } from '@/lib/helpers'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
 
@@ -37,6 +38,8 @@ export async function POST(
     if (!b.raise_date) {
       return NextResponse.json({ error: 'Data do aumento é obrigatória.' }, { status: 400 })
     }
+    const problemaData = conferirData(b.raise_date, 'A data do aumento')
+    if (problemaData) return NextResponse.json({ error: problemaData }, { status: 400 })
     const value = Number(b.new_value)
     if (!Number.isFinite(value) || value <= 0) {
       return NextResponse.json({ error: 'Novo valor de salário inválido.' }, { status: 400 })

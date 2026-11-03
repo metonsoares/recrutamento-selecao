@@ -7,7 +7,7 @@ import {
 import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatDate } from '@/lib/helpers'
+import { DATA_MINIMA, limiteDeDataFutura, formatDate } from '@/lib/helpers'
 import { SelectCargo } from '@/components/admin/select-cargo'
 
 export interface RoleChange {
@@ -175,7 +175,8 @@ export function RoleChangesPanel({ candidateId, initialChanges, funcaoAtual, car
               </p>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Data da mudança</label>
-                <Input type="date" value={changeDate} onChange={e => setChangeDate(e.target.value)} />
+                <Input type="date" min={DATA_MINIMA} max={limiteDeDataFutura()}
+                  value={changeDate} onChange={e => setChangeDate(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Nova função</label>

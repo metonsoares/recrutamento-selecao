@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { conferirData } from '@/lib/helpers'
 import { createSupabaseServiceClient, createSupabaseServerClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
 
@@ -49,6 +50,8 @@ export async function POST(
     if (!/^\d{4}-\d{2}-\d{2}$/.test(changeDate)) {
       return NextResponse.json({ error: 'Informe a data da mudança.' }, { status: 400 })
     }
+    const problemaData = conferirData(changeDate, 'A data da mudança')
+    if (problemaData) return NextResponse.json({ error: problemaData }, { status: 400 })
     const newTitle = String(body.new_title ?? '').trim()
     if (!newTitle) {
       return NextResponse.json({ error: 'Informe a nova função.' }, { status: 400 })

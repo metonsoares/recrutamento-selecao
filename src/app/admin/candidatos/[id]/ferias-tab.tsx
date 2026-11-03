@@ -7,7 +7,7 @@ import {
 import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatDate, dataPura } from '@/lib/helpers'
+import { DATA_MINIMA, limiteDeDataFutura, formatDate, dataPura } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -205,13 +205,16 @@ function VacationFormDrawer({
             <h3 className="text-sm font-semibold text-gray-900">Período</h3>
             <p className="text-[12px] text-muted-foreground mb-2">Indique os dias de início e término do período de férias.</p>
             <div className="grid grid-cols-2 gap-3">
+              {/* Os limites de modo (histórico só no passado, solicitação só à
+                  frente) continuam; o piso e o teto gerais entram quando o modo
+                  não impõe nada, para não aceitar ano digitado errado. */}
               <Input type="date" value={form.start_date}
-                max={mode === 'historico' && !isEdit ? today : undefined}
-                min={mode === 'solicitacao' && !isEdit ? today : undefined}
+                max={mode === 'historico' && !isEdit ? today : limiteDeDataFutura()}
+                min={mode === 'solicitacao' && !isEdit ? today : DATA_MINIMA}
                 onChange={e => set('start_date', e.target.value)} />
               <Input type="date" value={form.end_date}
-                max={mode === 'historico' && !isEdit ? today : undefined}
-                min={form.start_date || (mode === 'solicitacao' && !isEdit ? today : undefined)}
+                max={mode === 'historico' && !isEdit ? today : limiteDeDataFutura()}
+                min={form.start_date || (mode === 'solicitacao' && !isEdit ? today : DATA_MINIMA)}
                 onChange={e => set('end_date', e.target.value)} />
             </div>
           </div>
@@ -761,7 +764,8 @@ function FaltaModal({ onSave, onClose }: { onSave: (f: { absence_date: string; d
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Data {kind === 'afastamento' ? 'de início' : ''} *</label>
-              <Input type="date" value={absence_date} onChange={e => setDate(e.target.value)} />
+              <Input type="date" min={DATA_MINIMA} max={limiteDeDataFutura()}
+                value={absence_date} onChange={e => setDate(e.target.value)} />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Qtd. de dias</label>

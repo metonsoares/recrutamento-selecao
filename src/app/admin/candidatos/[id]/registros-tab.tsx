@@ -7,7 +7,7 @@ import {
 import { confirmarExclusao } from '@/components/confirmar-exclusao'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatDate } from '@/lib/helpers'
+import { DATA_MINIMA, limiteDeDataFutura, formatDate } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 
 export interface RecordItem {
@@ -147,7 +147,8 @@ export function RegistrosTab({ candidateId, initialRecords }: Props) {
             <div className="px-5 py-4 space-y-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Data *</label>
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+                <Input type="date" min={DATA_MINIMA} max={limiteDeDataFutura()}
+                  value={date} onChange={e => setDate(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-600">Comentário</label>

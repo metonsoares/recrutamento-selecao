@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { conferirData } from '@/lib/helpers'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
 
@@ -25,6 +26,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params
     const { record_date, comment, file_url, file_name, file_path } = await req.json()
     if (!record_date) return NextResponse.json({ error: 'Data é obrigatória.' }, { status: 400 })
+    const problemaData = conferirData(record_date, 'A data do registro')
+    if (problemaData) return NextResponse.json({ error: problemaData }, { status: 400 })
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
       .from('records')

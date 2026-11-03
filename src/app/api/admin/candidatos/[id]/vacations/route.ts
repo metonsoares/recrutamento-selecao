@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { conferirData } from '@/lib/helpers'
 import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { requirePermissionApi } from '@/lib/auth-guard'
 
@@ -36,6 +37,8 @@ export async function POST(
     if (!b.start_date || !b.end_date) {
       return NextResponse.json({ error: 'Datas de início e término são obrigatórias.' }, { status: 400 })
     }
+    const problemaData = conferirData(b.start_date, 'A data de início') ?? conferirData(b.end_date, 'A data de término')
+    if (problemaData) return NextResponse.json({ error: problemaData }, { status: 400 })
     const supabase = await createSupabaseServiceClient()
     const { data, error } = await supabase
       .from('vacations')
