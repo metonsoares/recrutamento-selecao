@@ -4,8 +4,6 @@ import { FolhasAnaliticasManager, FolhaAnalitica } from './folhas-analiticas-man
 
 export const dynamic = 'force-dynamic'
 
-const BUCKET = 'folhas-analiticas'
-
 export default async function FolhasAnaliticasPage() {
   await requirePermission('documentos_empresa')
 

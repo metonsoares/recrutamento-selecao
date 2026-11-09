@@ -9,6 +9,36 @@ import { Button } from '@/components/ui/button'
 import { MESES, rotuloMesLongo } from '@/lib/competencia'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
 import { contemBusca } from '@/lib/helpers'
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { MAX_FOLHA_BYTES, ehPdf, tamanhoDaFolha } from '@/lib/folhas-analiticas'
+
+/**
+ * POST em JSON que não engole o motivo do erro.
+ *
+ * O 413 da Vercel (corpo acima de ~4,5 MB) e as páginas de erro da plataforma
+ * NÃO são JSON: com `res.json()` direto, o motivo virava `undefined` e a tela
+ * mostrava só "Erro ao enviar.". Aqui o texto é lido antes de tentar o JSON.
+ */
+async function postJson(url: string, corpo: unknown): Promise<Record<string, unknown>> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  })
+  const texto = await res.text()
+  let dados: Record<string, unknown> = {}
+  try { dados = texto ? JSON.parse(texto) as Record<string, unknown> : {} } catch { /* não-JSON */ }
+  if (!res.ok) {
+    const motivo = typeof dados.error === 'string' ? dados.error : ''
+    throw new Error(
+      motivo
+      || (res.status === 413 ? 'O arquivo é grande demais para o servidor receber. Avise a TI.' : '')
+      || (res.status === 403 ? 'Você não tem permissão para enviar folha analítica.' : '')
+      || `Não foi possível enviar (erro ${res.status}).`,
+    )
+  }
+  return dados
+}
 
 export interface FolhaAnalitica {
   id: string
@@ -233,29 +263,62 @@ function ModalAdicionar({
   const [ano, setAno] = useState(String(agora.getFullYear()))
   const [arquivos, setArquivos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
+  const [passo, setPasso] = useState('')
   const [erro, setErro] = useState('')
 
   const anos = Array.from({ length: 7 }, (_, i) => agora.getFullYear() + 1 - i)
 
+  /**
+   * O arquivo vai DIRETO ao Storage, não pelo corpo da função.
+   *
+   * A Vercel corta o corpo em ~4,5 MB, e folha analítica digitalizada passa
+   * disso fácil — era isso o "Erro ao enviar." (um 413 sem JSON). O servidor
+   * autoriza o envio (`/assinar`), o navegador sobe o PDF e só então o
+   * documento é registrado.
+   */
   async function enviar() {
     if (!empresa) { setErro('Escolha a empresa.'); return }
     if (arquivos.length === 0) { setErro('Anexe ao menos um arquivo PDF.'); return }
+
+    const grande = arquivos.find(a => a.size > MAX_FOLHA_BYTES)
+    if (grande) {
+      setErro(`"${grande.name}" tem ${tamanhoDaFolha(grande.size)} — o limite é 25 MB por arquivo.`)
+      return
+    }
+    const naoPdf = arquivos.find(a => !ehPdf(a.name, a.type))
+    if (naoPdf) { setErro(`"${naoPdf.name}" não é PDF.`); return }
+
+    const competencia = `${ano}-${mes}-01`
     setEnviando(true); setErro('')
     try {
-      const fd = new FormData()
-      fd.append('empresa', empresa)
-      fd.append('competencia', `${ano}-${mes}-01`)
-      for (const a of arquivos) fd.append('file', a)
-      const res = await fetch('/api/admin/folhas-analiticas', { method: 'POST', body: fd })
-      const d = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(d.error || 'Erro ao enviar.')
-      const n = Number(d.enviados) || arquivos.length
+      const supabase = createSupabaseBrowserClient()
+      const subidos: { path: string; file_name: string }[] = []
+
+      for (const [i, a] of arquivos.entries()) {
+        setPasso(arquivos.length > 1
+          ? `Enviando ${i + 1} de ${arquivos.length}: ${a.name}`
+          : `Enviando ${a.name} (${tamanhoDaFolha(a.size)})`)
+
+        const auth = await postJson('/api/admin/folhas-analiticas/assinar', {
+          name: a.name, type: a.type, size: a.size, competencia,
+        })
+        const { error } = await supabase.storage
+          .from(auth.bucket as string)
+          .uploadToSignedUrl(auth.path as string, auth.token as string, a, { contentType: 'application/pdf' })
+        if (error) throw new Error(`Não foi possível enviar "${a.name}". Tente de novo.`)
+
+        subidos.push({ path: auth.path as string, file_name: a.name })
+      }
+
+      setPasso('Registrando…')
+      const d = await postJson('/api/admin/folhas-analiticas', { empresa, competencia, arquivos: subidos })
+      const n = Number(d.enviados) || subidos.length
       onPronto(n > 1
         ? `${n} folhas de ${mes}/${ano} adicionadas para ${empresa}.`
         : `Folha de ${mes}/${ano} adicionada para ${empresa}.`)
     } catch (e) {
       setErro((e as Error).message)
-    } finally { setEnviando(false) }
+    } finally { setEnviando(false); setPasso('') }
   }
 
   return (
@@ -306,7 +369,9 @@ function ModalAdicionar({
               </span>
               {/* Vários de uma vez: o período pode ter mais de uma folha, e
                   cada arquivo entra como um documento (não substitui o outro). */}
-              <input type="file" accept="application/pdf" multiple className="hidden"
+              {/* ".pdf" junto do mime: PDF de scanner/Drive às vezes chega sem
+                  rótulo e, só com o mime, o seletor não deixava escolher. */}
+              <input type="file" accept="application/pdf,.pdf" multiple className="hidden"
                 onChange={e => { setArquivos(Array.from(e.target.files ?? [])); setErro('') }} />
             </label>
             {arquivos.length > 1 && (
@@ -317,6 +382,11 @@ function ModalAdicionar({
             <p className="text-[10px] text-muted-foreground">Somente PDF, até 25 MB cada. Pode anexar mais de um no mesmo período.</p>
           </div>
 
+          {enviando && passo && (
+            <p className="text-[12px] text-gray-600 flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" />{passo}
+            </p>
+          )}
           {erro && <p className="text-[12px] text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erro}</p>}
         </div>
 
