@@ -401,13 +401,6 @@ function SidebarContent({
         </div>
         )}
 
-        {can('whatsapp.ver') && (
-          <Link href="/admin/whatsapp" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/whatsapp') ? NAV_ACTIVE : NAV_DEFAULT)}>
-            <MessageSquare className="w-[15px] h-[15px] shrink-0 opacity-60" />
-            Mensagens WhatsApp
-          </Link>
-        )}
-
         {can('relatorios.ver') && (
           <Link href="/admin/relatorios" onClick={go} className={cn(NAV_BASE, pathname.startsWith('/admin/relatorios') ? NAV_ACTIVE : NAV_DEFAULT)}>
             <BarChart3 className="w-[15px] h-[15px] shrink-0 opacity-60" />

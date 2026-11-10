@@ -219,14 +219,11 @@ export const PERMISSION_MATRIX: MatrixRow[] = [
 
   { module: 'Documentos da empresa', action: 'Ver / Adicionar / Editar / Excluir', perm: 'documentos_empresa' },
 
-  { module: 'Mensagens WhatsApp', action: 'Ver conversas e histórico', perm: 'whatsapp.ver' },
-  { module: 'Mensagens WhatsApp', action: 'Excluir conversa', perm: 'whatsapp.excluir' },
-
   { module: 'Relatórios', action: 'Ver relatórios', perm: 'relatorios.ver' },
 
   { module: 'Auditoria', action: 'Ver auditoria', perm: 'auditoria.ver' },
 
-  { module: 'Configurações', action: 'WhatsApp / Z-API', perm: 'config.whatsapp' },
+  { module: 'Configurações', action: 'WhatsApp (número oficial)', perm: 'config.whatsapp' },
   { module: 'Configurações', action: 'Configuração IA', perm: 'config.ia' },
   { module: 'Configurações', action: 'Empresa — Cadastro de empresa', perm: 'config.empresa_cadastro' },
   { module: 'Configurações', action: 'Empresa — Cultura da empresa', perm: 'config.empresa_cultura' },

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/supabase-server'
-import { generateToken, normalizePhone, decryptToken } from '@/lib/helpers'
+import { generateToken } from '@/lib/helpers'
+import { enviarWhatsApp, primeiroNome, TEMPLATE_TESTE_CULTURA } from '@/lib/whatsapp'
 
 /**
  * POST /api/admin/candidatos/[id]/send-culture-test
  * - Gera token do teste cultural (7 dias)
  * - Atualiza status da candidatura para 'aguardando_teste_cultural'
- * - Envia link via Z-API (WhatsApp) diretamente, sem checar is_active
+ * - Envia o link pelo WhatsApp oficial do Portal BDT (modelo aprovado)
  */
 export async function POST(
   _req: NextRequest,
@@ -69,86 +70,25 @@ export async function POST(
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
   const testUrl = `${appUrl}/candidato/teste-cultural?token=${token}`
 
-  // ── Z-API: send WhatsApp directly (bypass is_active check) ───────────────
+  // ── WhatsApp pelo número oficial do Portal BDT ───────────────────────────
+  // A Meta só deixa iniciar conversa com modelo aprovado. O modelo do teste
+  // cultural ainda não existe: enquanto não for aprovado, o link continua
+  // sendo gerado (a tela mostra e copia) e o envio volta com o motivo.
   let whatsappSent = false
   let whatsappError: string | null = null
   const rawPhone = candidate.phone || candidate.phone_normalized
 
   if (rawPhone) {
-    const phoneNorm = candidate.phone_normalized || normalizePhone(rawPhone)
-    const firstName = (candidate.full_name as string).split(' ')[0]
-
-    const message =
-      `Olá, ${firstName}! 🎯\n\n` +
-      `Você está participando do processo seletivo para a vaga de *${jobTitle}* na *Brownie do Ton*!\n\n` +
-      `Para darmos continuidade, pedimos que você responda ao nosso Teste Cultural. ` +
-      `São poucas perguntas e leva menos de 5 minutos 😊\n\n` +
-      `👉 Acesse aqui:\n${testUrl}\n\n` +
-      `O link é válido por 7 dias. Qualquer dúvida é só chamar!\n` +
-      `— Equipe Brownie do Ton`
-
-    // Fetch Z-API settings
-    const { data: wSettings } = await service
-      .from('whatsapp_settings')
-      .select('instance_id, instance_token_encrypted, client_token_encrypted, api_base_url')
-      .limit(1).single()
-
-    if (!wSettings?.instance_id || !wSettings?.instance_token_encrypted || !wSettings?.api_base_url) {
-      whatsappError = 'Z-API não configurada (instance_id ou token ausente).'
-      console.warn('[send-culture-test] WhatsApp not configured:', whatsappError)
-    } else {
-      try {
-        const instanceToken = decryptToken(wSettings.instance_token_encrypted as string)
-        const clientToken = wSettings.client_token_encrypted
-          ? decryptToken(wSettings.client_token_encrypted as string)
-          : null
-
-        const zapiUrl = `${wSettings.api_base_url}/instances/${wSettings.instance_id}/token/${instanceToken}/send-text`
-
-        const zapiRes = await fetch(zapiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(clientToken ? { 'client-token': clientToken } : {}),
-          },
-          body: JSON.stringify({ phone: rawPhone, message }),
-        })
-
-        const zapiData = await zapiRes.json().catch(() => ({}))
-
-        // Log to whatsapp_logs (ignora erro de log — não é crítico)
-        await service.from('whatsapp_logs').insert({
-          direction: 'outbound',
-          action: 'send_culture_test',
-          phone: rawPhone,
-          message,
-          status: zapiRes.ok ? 'sent' : 'error',
-          response_payload: zapiData,
-        })
-
-        // Also log in conversation if it exists
-        const { data: conv } = await service
-          .from('whatsapp_conversations')
-          .select('id').eq('phone', phoneNorm).maybeSingle()
-        if (conv?.id) {
-          await service.from('whatsapp_messages').insert({
-            conversation_id: conv.id,
-            direction: 'outbound',
-            message_text: message,
-            raw_payload: { phone: rawPhone, zapi_status: zapiRes.status, zapi_response: zapiData },
-          })
-        }
-
-        whatsappSent = zapiRes.ok
-        if (!zapiRes.ok) {
-          whatsappError = `Z-API retornou ${zapiRes.status}: ${JSON.stringify(zapiData)}`
-          console.error('[send-culture-test] Z-API error:', whatsappError)
-        }
-      } catch (err) {
-        whatsappError = String(err)
-        console.error('[send-culture-test] Z-API fetch error:', err)
-      }
-    }
+    const envio = await enviarWhatsApp({
+      numero: rawPhone as string,
+      template: TEMPLATE_TESTE_CULTURA,
+      variaveis: [primeiroNome(candidate.full_name as string), jobTitle, testUrl],
+      nome: candidate.full_name as string,
+      referencia: candidate.id as string,
+      acao: 'send_culture_test',
+    })
+    whatsappSent = envio.ok
+    whatsappError = envio.ok ? null : (envio.erro ?? 'Não foi possível enviar pelo WhatsApp.')
   }
 
   return NextResponse.json({ ok: true, whatsappSent, whatsappError, testUrl })

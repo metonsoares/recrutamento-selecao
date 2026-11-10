@@ -83,7 +83,7 @@ function baseAction(l: AuditLog): string {
     [/\/(jobs|vagas)/, verb === 'Criou' ? 'Criou uma vaga' : verb === 'Removeu' ? 'Removeu uma vaga' : 'Editou uma vaga'],
     [/\/integrations/, 'Configurou uma integração'],
     [/\/(templates|documentos-empresa)/, 'Gerenciou modelos/documentos da empresa'],
-    [/\/zapi/, 'Alterou configuração de WhatsApp (Z-API)'],
+    [/\/zapi/, 'Alterou configuração de WhatsApp (Z-API, desativada em 10/11/2026)'],
     [/\/(companies|empresa)/, 'Atualizou dados/cultura da empresa'],
     [/\/kanban/, 'Configurou colunas do Kanban'],
     [/\/(form-questions|sections|secoes|formulario)/, 'Editou o formulário / seções'],
