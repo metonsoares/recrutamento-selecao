@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import { AutoPrint } from '../print/auto-print'
 import { AdmissionFormData } from '../ficha-admissao/ficha-admissao-form'
+import { contatosDeEmergencia } from '@/lib/contatos-emergencia'
 
 /**
  * Data no padrão brasileiro DD-MM-AAAA.
@@ -66,6 +67,7 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
     : (rawJobs as { title?: string } | null)?.title) ?? null
 
   const f = (app?.admission_form as AdmissionFormData | null) ?? null
+  const contatosEmergencia = contatosDeEmergencia(f)
   const companyName = brand?.company_name || 'Brownie do Ton'
 
   // Empresa contratante (Razão Social + CNPJ) selecionada na ficha
@@ -180,10 +182,19 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="field"><label>Telefone Celular</label><div className="val filled">{candidate.phone || '—'}</div></div>
           <div className="field"><label>Telefone Fixo</label><div className="val filled">{f?.phone_landline || '—'}</div></div>
         </div>
-        <div className="grid2">
-          <div className="field"><label>Contato de Emergência</label><div className="val filled">{f?.emergency_contact_name || '—'}</div></div>
-          <div className="field"><label>Telefone do Contato</label><div className="val filled">{f?.emergency_contact_phone || '—'}</div></div>
-        </div>
+        {/* Um par por contato de emergência: a ficha aceita mais de um. */}
+        {(contatosEmergencia.length > 0 ? contatosEmergencia : [{ name: '', phone: '' }]).map((c, i) => (
+          <div className="grid2" key={i}>
+            <div className="field">
+              <label>{i === 0 ? 'Contato de Emergência' : `Contato de Emergência ${i + 1}`}</label>
+              <div className="val filled">{c.name || '—'}</div>
+            </div>
+            <div className="field">
+              <label>Telefone do Contato</label>
+              <div className="val filled">{c.phone || '—'}</div>
+            </div>
+          </div>
+        ))}
         <div className="grid2">
           <div className="field"><label>CEP</label><div className="val filled">{f?.address_cep || '—'}</div></div>
           <div className="field"><label>Bairro</label><div className="val filled">{f?.address_bairro || (candidate as {neighborhood?:string}).neighborhood || '—'}</div></div>

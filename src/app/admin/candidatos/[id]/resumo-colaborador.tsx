@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatDate, dataPura } from '@/lib/helpers'
+import { formatDate } from '@/lib/helpers'
 import {
   CalendarClock, User, Plane, AlertTriangle, Briefcase,
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
@@ -7,6 +7,10 @@ import {
 } from 'lucide-react'
 import { EditContact } from './edit-contact'
 import { SalaryRaise } from './salary-raises-panel'
+import { ContatoEmergencia } from '@/lib/contatos-emergencia'
+import {
+  situacaoFerias, FeriasRegistro, formatarData, paraData, hoje, diasEntre, somarDias,
+} from '@/lib/ferias'
 
 interface Props {
   fullName: string
@@ -25,9 +29,10 @@ interface Props {
   /** Versão enxuta (freelancer/intermitente): oculta cargo, admissão, tempo de casa, advertências, salário */
   minimal?: boolean
   candidateId?: string
-  /** Contato de emergência, como está na Ficha de Admissão. */
-  emergencyName?: string | null
-  emergencyPhone?: string | null
+  /** Contatos de emergência, como estão na Ficha de Admissão. */
+  emergencyContacts?: ContatoEmergencia[]
+  /** Férias já lançadas (gozadas ou agendadas) — é o que diz se há pendência. */
+  vacations?: { start_date: string; end_date: string; kind: string }[]
   fichaPending?: number          // pendências na Ficha de Admissão
   companyDocsPending?: number    // pendências em Documentos
   timeline?: { date: string; label: string; type: string }[]
@@ -53,10 +58,6 @@ function humanDuration(months: number): string {
   return parts.length ? parts.join(' e ') : 'menos de 1 mês'
 }
 
-function addMonths(d: Date, months: number): Date {
-  const r = new Date(d); r.setMonth(r.getMonth() + months); return r
-}
-
 function fmtBRL(num: number): string {
   return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -67,49 +68,82 @@ export function ResumoColaborador({
   admissionDate, salary, registeredAt, warningsCount,
   minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0, timeline = [], isMaster = false,
   salaryRaises = [],
-  emergencyName, emergencyPhone,
+  emergencyContacts = [], vacations = [],
 }: Props) {
   const now = new Date()
   const admission = admissionDate ? new Date(admissionDate + 'T00:00:00') : null
   const monthsWorked = admission ? diffMonths(admission, now) : null
 
-  // ── Cálculo de férias (CLT) ──────────────────────────────────────────────
-  // Período aquisitivo: 12 meses. Período concessivo: deve tirar até 24 meses.
-  let vacationStatus: { tone: 'ok' | 'warn' | 'danger'; title: string; detail: string } | null = null
-  if (admission && monthsWorked != null) {
-    if (monthsWorked < 12) {
-      const acquireDate = addMonths(admission, 12)
-      vacationStatus = {
+  // ── Aviso de férias (CLT) ────────────────────────────────────────────────
+  // A conta é a de `@/lib/ferias`, a MESMA da aba Férias e do relatório de RH
+  // — e ela olha as férias JÁ LANÇADAS. A conta que vivia aqui só conhecia a
+  // data de admissão: quem já tinha férias agendadas dentro do prazo aparecia
+  // como "vencidas", e o prazo era medido em meses inteiros, o que disparava
+  // o alarme com até um mês de antecedência (e com data no futuro).
+  const registrosFerias: FeriasRegistro[] = vacations.map(v => ({
+    candidate_id: candidateId ?? '',
+    inicio: v.start_date,
+    fim: v.end_date,
+    tipo: v.kind === 'historico' ? 'historico' : 'solicitacao',
+  }))
+
+  const vacationStatus: { tone: 'ok' | 'warn' | 'danger'; title: string; detail: string } | null = (() => {
+    if (!admissionDate) return null
+    const hj = hoje()
+    const hojeIso = `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`
+
+    // Em férias AGORA vem antes de qualquer prazo: é o que está acontecendo.
+    const emFerias = registrosFerias.find(v => v.inicio <= hojeIso && hojeIso <= v.fim)
+    if (emFerias) {
+      return {
         tone: 'ok',
-        title: 'Ainda não adquiriu direito',
-        detail: `Completará o 1º período aquisitivo em ${formatDate(dataPura(acquireDate))} (${12 - monthsWorked} ${12 - monthsWorked !== 1 ? 'meses' : 'mês'} restantes).`,
-      }
-    } else {
-      // Já adquiriu ao menos um período. Limite para gozo = 24 meses após admissão (por período).
-      const periodsAcquired = Math.floor(monthsWorked / 12)
-      const limitDate = addMonths(admission, periodsAcquired * 12 + 12) // limite concessivo do período atual
-      const monthsUntilLimit = diffMonths(now, limitDate)
-      if (monthsUntilLimit <= 0) {
-        vacationStatus = {
-          tone: 'danger',
-          title: '⚠️ Férias vencidas!',
-          detail: `O prazo para concessão expirou em ${formatDate(dataPura(limitDate))}. Risco de pagamento em dobro. Agende as férias com urgência.`,
-        }
-      } else if (monthsUntilLimit <= 3) {
-        vacationStatus = {
-          tone: 'warn',
-          title: 'Férias a vencer em breve',
-          detail: `Conceder até ${formatDate(dataPura(limitDate))} (${monthsUntilLimit} ${monthsUntilLimit !== 1 ? 'meses' : 'mês'}). Programe o período de gozo.`,
-        }
-      } else {
-        vacationStatus = {
-          tone: 'ok',
-          title: 'Direito a férias adquirido',
-          detail: `${periodsAcquired} período${periodsAcquired !== 1 ? 's' : ''} adquirido${periodsAcquired !== 1 ? 's' : ''}. Conceder até ${formatDate(dataPura(limitDate))}.`,
-        }
+        title: 'Em férias',
+        detail: `De ${formatarData(emFerias.inicio)} a ${formatarData(emFerias.fim)}. Volta em ${formatarData(somarDias(emFerias.fim, 1))}.`,
       }
     }
-  }
+
+    const sit = situacaoFerias(admissionDate, registrosFerias)
+    switch (sit.status) {
+      case 'sem_admissao':
+        return null
+      case 'agendada':
+        return {
+          tone: 'ok',
+          title: 'Férias agendadas',
+          detail: `Já tem férias marcadas — ${sit.prazo}.`
+            + (sit.pagarAte ? ` Pagamento até ${formatarData(sit.pagarAte)}.` : '')
+            + (sit.avisoInicio ? ` Atenção: ${sit.avisoInicio}.` : ''),
+        }
+      case 'vencida':
+        return {
+          tone: 'danger',
+          title: '⚠️ Férias vencidas!',
+          detail: `Há período aquisitivo em aberto e o prazo para agendar venceu em ${formatarData(sit.limite!)}.`
+            + ' Risco de pagamento em dobro. Agende as férias com urgência.',
+        }
+      case 'agendar': {
+        const dias = sit.limite ? diasEntre(hj, paraData(sit.limite)) : 999
+        const inicioAte = sit.inicioLimite ? ` As férias precisam começar até ${formatarData(sit.inicioLimite)}.` : ''
+        return dias <= 90
+          ? {
+              tone: 'warn',
+              title: 'Férias a vencer em breve',
+              detail: `Período aquisitivo em aberto: agendar até ${formatarData(sit.limite!)} (${dias} dia${dias !== 1 ? 's' : ''}).${inicioAte}`,
+            }
+          : {
+              tone: 'ok',
+              title: 'Direito a férias adquirido',
+              detail: `Período aquisitivo em aberto: agendar até ${formatarData(sit.limite!)}.${inicioAte}`,
+            }
+      }
+      case 'aguardando':
+        return {
+          tone: 'ok',
+          title: monthsWorked != null && monthsWorked < 12 ? 'Ainda não adquiriu direito' : 'Férias em dia',
+          detail: `Nenhum período em aberto — ${sit.prazo}.`,
+        }
+    }
+  })()
 
   const toneStyles = {
     ok:     { box: 'bg-emerald-50 border-emerald-200', icon: 'text-emerald-600', Icon: CheckCircle2 },
@@ -221,13 +255,14 @@ export function ResumoColaborador({
             {/* Quem avisar se acontecer alguma coisa. Vem da Ficha de
                 Admissão; só aparece quando está preenchido, para não virar
                 mais um traço no card. */}
-            {(emergencyName || emergencyPhone) && (
+            {emergencyContacts.map((c, i) => (
               <InfoRow
+                key={i}
                 icon={LifeBuoy}
-                label="Emergência"
-                value={[emergencyName, emergencyPhone].filter(Boolean).join(' · ')}
+                label={emergencyContacts.length > 1 ? `Emergência ${i + 1}` : 'Emergência'}
+                value={[c.name, c.phone].filter(Boolean).join(' · ')}
               />
-            )}
+            ))}
           </CardContent>
         </Card>
 

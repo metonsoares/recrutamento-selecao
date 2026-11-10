@@ -3,8 +3,9 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Loader2, Save, CheckCircle2, AlertCircle, Search,
-  Upload, X, FileText, ImageIcon, Clock, Eye, Download,
+  Upload, X, FileText, ImageIcon, Clock, Eye, Download, Plus, Trash2,
 } from 'lucide-react'
+import { ContatoEmergencia, contatosDeEmergencia } from '@/lib/contatos-emergencia'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DOCS_FICHA } from '@/lib/documentos-defs'
@@ -37,9 +38,14 @@ export interface AdmissionFormData {
   address_city: string
   address_cep: string
   phone_landline: string
-  /** Contato de emergência: quem avisar se acontecer alguma coisa. */
+  /**
+   * Contato de emergência: quem avisar se acontecer alguma coisa.
+   * O par abaixo é o PRIMEIRO contato, mantido para quem já lia de lá;
+   * a lista é a verdade e aceita quantos a pessoa quiser indicar.
+   */
   emergency_contact_name: string
   emergency_contact_phone: string
+  emergency_contacts: ContatoEmergencia[]
   pis: string
   pis_date: string
   identity_number: string
@@ -158,6 +164,7 @@ function makeEmpty(c: Candidate, jobTitle: string | null): AdmissionFormData {
     address_complement: addr?.complement || '', address_bairro: addr?.neighborhood || c.neighborhood || '',
     address_city: addr?.city || c.city || '', address_cep: addr?.cep || '',
     phone_landline: '', emergency_contact_name: '', emergency_contact_phone: '',
+    emergency_contacts: [{ name: '', phone: '' }],
     pis: '', pis_date: '',
     identity_number: '', identity_date: '', marital_status: '', education: '',
     union_dues: null, transport_benefit: null,
@@ -182,7 +189,14 @@ function migrateData(data: AdmissionFormData, c: Candidate, jobTitle: string | n
       docs[d.key] = { not_applicable: saved.not_applicable ?? false, files: saved.files ?? [] }
     }
   }
-  return { ...base, ...data, cpf_value: data.cpf_value || base.cpf_value, docs }
+  // Ficha salva antes de 10/11/2026 tem só o par de campos soltos: vira a
+  // primeira linha da lista, para a tela não abrir vazia por cima do que já
+  // estava preenchido.
+  const emergencia = contatosDeEmergencia(data)
+  return {
+    ...base, ...data, cpf_value: data.cpf_value || base.cpf_value, docs,
+    emergency_contacts: emergencia.length > 0 ? emergencia : [{ name: '', phone: '' }],
+  }
 }
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
@@ -525,6 +539,26 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
     }
   }
 
+  // ── Contatos de emergência ────────────────────────────────────────────────
+  // A pessoa pode indicar mais de um. A lista nunca fica vazia: some o último
+  // e sobra uma linha em branco, senão o campo desapareceria da ficha.
+  function mudarEmergencia(i: number, campo: keyof ContatoEmergencia, valor: string) {
+    setForm(prev => {
+      const lista = [...prev.emergency_contacts]
+      lista[i] = { ...lista[i], [campo]: valor }
+      return { ...prev, emergency_contacts: lista }
+    })
+  }
+  function adicionarEmergencia() {
+    setForm(prev => ({ ...prev, emergency_contacts: [...prev.emergency_contacts, { name: '', phone: '' }] }))
+  }
+  function removerEmergencia(i: number) {
+    setForm(prev => {
+      const lista = prev.emergency_contacts.filter((_, k) => k !== i)
+      return { ...prev, emergency_contacts: lista.length > 0 ? lista : [{ name: '', phone: '' }] }
+    })
+  }
+
   async function handleSave() {
     const digits = form.cpf_value.replace(/\D/g, '')
     if (digits.length > 0 && digits.length < 11) { setCpfError('CPF incompleto'); return }
@@ -532,8 +566,17 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
     if (!contato.full_name.trim()) { setToast({ type: 'err', msg: 'O nome não pode ficar vazio.' }); return }
     setSaving(true)
     try {
+      // Linha em branco não vira contato, e o primeiro contato continua
+      // gravado também nos dois campos antigos (quem lê de lá segue vendo).
+      const emergencia = contatosDeEmergencia(form)
+      const payload: AdmissionFormData = {
+        ...form,
+        emergency_contacts: emergencia,
+        emergency_contact_name: emergencia[0]?.name ?? '',
+        emergency_contact_phone: emergencia[0]?.phone ?? '',
+      }
       const res = await fetch(`/api/admin/candidatos/${candidate.id}/admission-form`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -654,21 +697,42 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           {/* Contato de emergência: quem a empresa procura se acontecer algo
               com o colaborador. Fica ao lado do telefone dele de propósito —
               é a mesma informação de "como falar com alguém". */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Contato de Emergência">
-              <Input
-                value={form.emergency_contact_name}
-                onChange={e => set('emergency_contact_name', e.target.value)}
-                placeholder="Nome de quem avisar"
-              />
-            </Field>
-            <Field label="Telefone do Contato de Emergência">
-              <Input
-                value={form.emergency_contact_phone}
-                onChange={e => set('emergency_contact_phone', maskTelefone(e.target.value))}
-                placeholder="(24) 99999-9999"
-              />
-            </Field>
+          {/* Pode ser mais de uma pessoa: o "+" abre outra linha. */}
+          <div className="space-y-3">
+            {form.emergency_contacts.map((contato, i) => (
+              <div key={i} className="grid grid-cols-2 gap-3">
+                <Field label={i === 0 ? 'Contato de Emergência' : `Contato de Emergência ${i + 1}`}>
+                  <Input
+                    value={contato.name}
+                    onChange={e => mudarEmergencia(i, 'name', e.target.value)}
+                    placeholder="Nome de quem avisar"
+                  />
+                </Field>
+                <Field label={i === 0 ? 'Telefone do Contato de Emergência' : 'Telefone do Contato'}>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={contato.phone}
+                      onChange={e => mudarEmergencia(i, 'phone', maskTelefone(e.target.value))}
+                      placeholder="(24) 99999-9999"
+                    />
+                    {form.emergency_contacts.length > 1 && (
+                      <button type="button" onClick={() => removerEmergencia(i)}
+                        title="Remover este contato"
+                        className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {i === form.emergency_contacts.length - 1 && (
+                      <button type="button" onClick={adicionarEmergencia}
+                        title="Adicionar outro contato de emergência"
+                        className="shrink-0 p-1.5 rounded-md text-primary hover:bg-primary/10">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </Field>
+              </div>
+            ))}
           </div>
           {/* CEP */}
           <div className="grid grid-cols-3 gap-3">

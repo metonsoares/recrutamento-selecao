@@ -52,6 +52,12 @@ export interface ConfigLancamento {
   /** Rótulo do campo de descrição, quando há vários itens. */
   rotuloDescricao?: string
   /**
+   * Cada item tem QUANTIDADE, e o valor digitado é o de uma unidade só.
+   * É o caso das avarias (duas taças iguais são uma linha com 2); num
+   * adiantamento de salário contar unidades não quer dizer nada.
+   */
+  itensComQuantidade?: boolean
+  /**
    * Quando definido, só entra na lista quem tem esta resposta = Sim na ficha.
    * Segue o que a tela de Gorjetas já faz: não faz sentido cobrar valor de
    * insalubridade de quem a ficha diz que não recebe.
@@ -92,6 +98,7 @@ export const LANCAMENTOS: Record<TipoLancamento, ConfigLancamento> = {
     colunas: [],
     temValor: true,
     itensMultiplos: true,
+    itensComQuantidade: true,
     rotuloDescricao: 'Descrição do item',
   },
   'adiantamento-salarial': {

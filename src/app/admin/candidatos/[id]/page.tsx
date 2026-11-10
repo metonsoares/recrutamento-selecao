@@ -17,6 +17,7 @@ import { CandidateTabNav } from './candidate-tab-nav'
 import { InviteInterviewButton } from './invite-interview-button'
 import { NotifyRecruiterButton } from './notify-recruiter-button'
 import { FichaAdmissaoForm, AdmissionFormData, CandidateAddress, CompanyOption } from './ficha-admissao/ficha-admissao-form'
+import { contatosDeEmergencia } from '@/lib/contatos-emergencia'
 import { DocumentosTab } from './documentos-tab'
 import { AdvertenciasTab } from './advertencias-tab'
 import { DadosBancariosTab, BankData } from './dados-bancarios-tab'
@@ -771,8 +772,8 @@ export default async function CandidatePage({
             city={candidate.city as string | null}
             age={age}
             admissionDate={admissionForm?.admission_date || null}
-            emergencyName={admissionForm?.emergency_contact_name || null}
-            emergencyPhone={admissionForm?.emergency_contact_phone || null}
+            emergencyContacts={contatosDeEmergencia(admissionForm)}
+            vacations={vacationsData || []}
             salary={salarioVigente(admissionForm?.salary || null, salaryRaises, dataPura(new Date()))}
             registeredAt={candidate.created_at}
             warningsCount={(warningsData || []).length}

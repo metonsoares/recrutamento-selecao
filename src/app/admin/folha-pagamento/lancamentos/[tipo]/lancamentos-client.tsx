@@ -7,7 +7,7 @@ import {
   Check, Loader2, AlertCircle, CheckCircle2, History, Trash2, Copy, Wallet, Plus, Calculator, FileSignature,
 } from 'lucide-react'
 import { useConfirmarExclusao } from '@/components/confirmar-exclusao'
-import { gerarReciboAvaria } from './recibo-avaria'
+import { gerarReciboAvaria, ItemRecibo } from './recibo-avaria'
 import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
@@ -48,8 +48,41 @@ export interface RegistroLancamento {
   observacao: string | null
 }
 
-/** Um item avulso (avarias): valor + o que foi avariado. */
-interface ItemAvulso { valor: string; descricao: string }
+/**
+ * Um item avulso (avarias): o que foi avariado, quantas unidades e o valor
+ * UNITÁRIO. O desconto do item é quantidade × valor — dois copos quebrados
+ * são uma linha com quantidade 2, não a mesma linha digitada duas vezes.
+ */
+interface ItemAvulso { valor: string; descricao: string; qtd: string }
+
+/** Quantidade do item: inteiro ≥ 1; campo vazio vale 1. */
+function quantidadeDoItem(it: ItemAvulso): number {
+  const n = parseInt((it.qtd ?? '').replace(/\D/g, ''), 10)
+  return Number.isFinite(n) && n > 0 ? n : 1
+}
+
+/** Desconto do item: quantidade × valor unitário. */
+function totalDoItem(it: ItemAvulso): number {
+  return Math.round(quantidadeDoItem(it) * paraNumero(it.valor) * 100) / 100
+}
+
+/**
+ * Como a quantidade aparece na observação do lançamento (e no recibo):
+ * "3x Taça de vinho". Sem quantidade vai a descrição pura.
+ */
+function descricaoComQuantidade(it: ItemAvulso): string {
+  const d = it.descricao.trim()
+  const q = quantidadeDoItem(it)
+  return q > 1 ? `${q}x ${d}` : d
+}
+
+/** Desfaz o "3x " ao reabrir o mês: quantidade e descrição voltam separadas. */
+function separarQuantidade(observacao: string | null, quantidade: number): { qtd: number; descricao: string } {
+  const texto = (observacao ?? '').trim()
+  const casa = /^(\d+)\s*[x×]\s*(.*)$/i.exec(texto)
+  if (casa) return { qtd: Math.max(1, parseInt(casa[1], 10)), descricao: casa[2].trim() }
+  return { qtd: quantidade > 1 ? Math.round(quantidade) : 1, descricao: texto }
+}
 
 /**
  * Perda ou dano pedido na Central de Chamados: o valor de reposição do
@@ -159,7 +192,7 @@ export function LancamentosClient({
   }
 
   const itensDe = (l: LinhaLancamento): ItemAvulso[] =>
-    itensPorCand[l.candidate_id] ?? [{ valor: '', descricao: '' }]
+    itensPorCand[l.candidate_id] ?? [{ valor: '', descricao: '', qtd: '1' }]
 
   /**
    * Preço do item no cadastro, ignorando maiúscula e espaço — é o que permite
@@ -174,7 +207,7 @@ export function LancamentosClient({
 
   function mudarItem(id: string, i: number, campo: keyof ItemAvulso, v: string) {
     setItensPorCand(prev => {
-      const lista = [...(prev[id] ?? [{ valor: '', descricao: '' }])]
+      const lista = [...(prev[id] ?? [{ valor: '', descricao: '', qtd: '1' }])]
       lista[i] = { ...lista[i], [campo]: v }
       // Item reconhecido no cadastro traz o valor junto; item de fora segue
       // digitado à mão, que é como as avarias novas entram.
@@ -188,7 +221,7 @@ export function LancamentosClient({
   function adicionarItem(id: string) {
     setItensPorCand(prev => ({
       ...prev,
-      [id]: [...(prev[id] ?? [{ valor: '', descricao: '' }]), { valor: '', descricao: '' }],
+      [id]: [...(prev[id] ?? [{ valor: '', descricao: '', qtd: '1' }]), { valor: '', descricao: '', qtd: '1' }],
     }))
   }
   /**
@@ -202,19 +235,23 @@ export function LancamentosClient({
     const descricao = (item?.descricao ?? '').trim()
     const valor = (item?.valor ?? '').trim()
     if (descricao || valor) {
-      const alvo = [descricao || 'item sem descrição', valor && `R$ ${valor}`].filter(Boolean).join(' — ')
+      const alvo = [
+        descricaoComQuantidade({ ...item, descricao: descricao || 'item sem descrição' }),
+        valor && `R$ ${paraCampo(totalDoItem(item))}`,
+      ].filter(Boolean).join(' — ')
       if (!(await ask(`Remover ${alvo} deste lançamento?`))) return
     }
     setItensPorCand(prev => {
       const lista = (prev[id] ?? []).filter((_, k) => k !== i)
-      return { ...prev, [id]: lista.length ? lista : [{ valor: '', descricao: '' }] }
+      return { ...prev, [id]: lista.length ? lista : [{ valor: '', descricao: '', qtd: '1' }] }
     })
   }
 
   /**
-   * Recibo de ciência das avarias do MÊS: um PDF só, uma folha por item
-   * (decisão do dono em 03/11/2026 — três avarias no período não viram três
-   * downloads).
+   * Recibo de ciência das avarias do MÊS: um PDF só e um recibo só, com os
+   * itens discriminados (quantidade, valor unitário e valor) e o total do
+   * período embaixo — decisão do dono em 10/11/2026, no lugar da folha por
+   * item de 03/11. Uma assinatura cobre o mês inteiro.
    */
   function baixarRecibo(l: LinhaLancamento, competenciaDoMes: string) {
     const emp = empresas.find(e => e.id === l.empresa_id)
@@ -229,8 +266,10 @@ export function LancamentosClient({
   }
 
   const totalItensDe = (l: LinhaLancamento) =>
-    itensDe(l).reduce((s, it) => s + paraNumero(it.valor), 0)
+    Math.round(itensDe(l).reduce((s, it) => s + totalDoItem(it), 0) * 100) / 100
 
+  /** Avarias: cada item tem quantidade, e o valor digitado é o unitário. */
+  const comQuantidade = !!config.itensComQuantidade
   const valorFixo = !!config.valorFixo
   /** Valor é a própria conta: sem campo para digitar. */
   const valorCalculado = !!config.valorCalculado
@@ -300,11 +339,19 @@ export function LancamentosClient({
   // Os itens de cada mês, preservados: o histórico soma por competência, mas
   // "R$ 12,90" sem dizer do que se trata não serve para conferir nada.
   const itensDoMes = useMemo(() => {
-    const m = new Map<string, { descricao: string | null; valor: number }[]>()
+    const m = new Map<string, ItemRecibo[]>()
     for (const h of historico) {
       const chave = `${h.candidate_id}|${h.competencia}`
       const arr = m.get(chave) ?? []
-      arr.push({ descricao: h.observacao, valor: h.valor })
+      // O recibo discrimina quantidade e valor de cada unidade, então a
+      // descrição volta sem o "3x " e o unitário é recalculado do total.
+      const { qtd, descricao } = separarQuantidade(h.observacao, h.quantidade)
+      arr.push({
+        descricao: descricao || null,
+        quantidade: qtd,
+        valorUnitario: Math.round((h.valor / qtd) * 100) / 100,
+        valor: h.valor,
+      })
       m.set(chave, arr)
     }
     return m
@@ -334,7 +381,14 @@ export function LancamentosClient({
     const m = new Map<string, ItemAvulso[]>()
     for (const h of historico.filter(x => x.competencia === competencia && x.valor > 0)) {
       const arr = m.get(h.candidate_id) ?? []
-      arr.push({ valor: paraCampo(h.valor), descricao: h.observacao ?? '' })
+      // O que foi gravado é o TOTAL do item; aqui ele volta a ser
+      // quantidade × unitário, para o campo abrir do jeito que foi digitado.
+      const { qtd, descricao } = separarQuantidade(h.observacao, h.quantidade)
+      arr.push({
+        valor: paraCampo(Math.round((h.valor / qtd) * 100) / 100),
+        descricao,
+        qtd: String(qtd),
+      })
       m.set(h.candidate_id, arr)
     }
     return m
@@ -395,7 +449,7 @@ export function LancamentosClient({
         if (!id) continue
         const lista = (novo[id] ?? []).filter(i => i.descricao.trim() || paraNumero(i.valor) > 0)
         if (lista.some(i => i.descricao.trim() === a.descricao.trim())) continue
-        novo[id] = [...lista, { valor: paraCampo(a.valor), descricao: a.descricao }]
+        novo[id] = [...lista, { valor: paraCampo(a.valor), descricao: a.descricao, qtd: '1' }]
       }
       return novo
     })
@@ -473,11 +527,15 @@ export function LancamentosClient({
       // isso que preserva a descrição de cada uma no fechamento.
       const itens = multiplos
         ? noEscopo.flatMap(l => itensDe(l)
-            .filter(it => paraNumero(it.valor) > 0)
+            .filter(it => totalDoItem(it) > 0)
             .map(it => ({
               candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
               empresa_id: l.empresa_id, empresa_nome: l.empresa,
-              valor: paraNumero(it.valor), observacao: it.descricao,
+              // Vai o total do item; a quantidade fica na coluna própria e
+              // também na observação, que é o que se lê no recibo.
+              valor: totalDoItem(it),
+              quantidade: quantidadeDoItem(it),
+              observacao: descricaoComQuantidade(it),
             })))
         : noEscopo.map(l => ({
             candidate_id: l.candidate_id, nome: l.nome, cargo: l.cargo,
@@ -924,11 +982,25 @@ export function LancamentosClient({
                                 list={catalogo.length > 0 ? 'cadastro-itens-avaria' : undefined}
                                 autoComplete="off"
                                 className="h-8 flex-1 min-w-[160px] border border-gray-300 rounded-md px-2 text-[13px] bg-white" />
-                              <span className="text-[12px] text-gray-400">R$</span>
+                              {/* Quantidade ao lado do item: dois copos iguais
+                                  são uma linha com 2, não a mesma linha duas
+                                  vezes. O valor ao lado é o de UMA unidade. */}
+                              {comQuantidade && (
+                                <input value={it.qtd}
+                                  onChange={e => mudarItem(l.candidate_id, i, 'qtd', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                  placeholder="1" inputMode="numeric" title="Quantidade"
+                                  className="h-8 w-12 shrink-0 border border-gray-300 rounded-md px-1 text-[13px] bg-white text-center" />
+                              )}
+                              <span className="text-[12px] text-gray-400">{comQuantidade ? '× R$' : 'R$'}</span>
                               <input value={it.valor}
                                 onChange={e => mudarItem(l.candidate_id, i, 'valor', e.target.value.replace(/[^\d,]/g, ''))}
-                                placeholder="0,00" inputMode="decimal"
+                                placeholder="0,00" inputMode="decimal" title="Valor de cada unidade"
                                 className="h-8 w-24 shrink-0 border border-gray-300 rounded-md px-2 text-[13px] bg-white text-right" />
+                              {comQuantidade && quantidadeDoItem(it) > 1 && totalDoItem(it) > 0 && (
+                                <span className="text-[12px] font-medium text-gray-700 whitespace-nowrap shrink-0">
+                                  = {brl(totalDoItem(it))}
+                                </span>
+                              )}
                               {itensDe(l).length > 1 && (
                                 <button onClick={() => removerItem(l.candidate_id, i)} title="Remover este item"
                                   className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded shrink-0">
