@@ -181,6 +181,10 @@ export default async function PrintFichaPage({ params }: { params: Promise<{ id:
           <div className="field"><label>Telefone Fixo</label><div className="val filled">{f?.phone_landline || '—'}</div></div>
         </div>
         <div className="grid2">
+          <div className="field"><label>Contato de Emergência</label><div className="val filled">{f?.emergency_contact_name || '—'}</div></div>
+          <div className="field"><label>Telefone do Contato</label><div className="val filled">{f?.emergency_contact_phone || '—'}</div></div>
+        </div>
+        <div className="grid2">
           <div className="field"><label>CEP</label><div className="val filled">{f?.address_cep || '—'}</div></div>
           <div className="field"><label>Bairro</label><div className="val filled">{f?.address_bairro || (candidate as {neighborhood?:string}).neighborhood || '—'}</div></div>
         </div>

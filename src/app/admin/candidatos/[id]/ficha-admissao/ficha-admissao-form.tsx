@@ -37,6 +37,9 @@ export interface AdmissionFormData {
   address_city: string
   address_cep: string
   phone_landline: string
+  /** Contato de emergência: quem avisar se acontecer alguma coisa. */
+  emergency_contact_name: string
+  emergency_contact_phone: string
   pis: string
   pis_date: string
   identity_number: string
@@ -108,6 +111,14 @@ function maskCPF(v: string) {
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
+/** Telefone com DDD: (24) 99999-9999, ou (24) 3302-1335 no fixo. */
+function maskTelefone(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d.replace(/(\d{1,2})/, '($1')
+  if (d.length <= 6) return d.replace(/(\d{2})(\d+)/, '($1) $2')
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d+)/, '($1) $2-$3')
+  return d.replace(/(\d{2})(\d{5})(\d+)/, '($1) $2-$3')
+}
 function validateCPF(cpf: string) {
   const d = cpf.replace(/\D/g, '')
   if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false
@@ -146,7 +157,8 @@ function makeEmpty(c: Candidate, jobTitle: string | null): AdmissionFormData {
     address_street: addr?.street || '', address_number: addr?.number || '',
     address_complement: addr?.complement || '', address_bairro: addr?.neighborhood || c.neighborhood || '',
     address_city: addr?.city || c.city || '', address_cep: addr?.cep || '',
-    phone_landline: '', pis: '', pis_date: '',
+    phone_landline: '', emergency_contact_name: '', emergency_contact_phone: '',
+    pis: '', pis_date: '',
     identity_number: '', identity_date: '', marital_status: '', education: '',
     union_dues: null, transport_benefit: null,
     cargo_confianca: null, insalubridade_20: null, quebra_caixa_15: null, gorjeta: null,
@@ -632,7 +644,26 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
                 : <Input value={contato.phone} onChange={e => setContato(c => ({ ...c, phone: e.target.value }))} placeholder="(24) 99999-9999" />}
             </Field>
             <Field label="Telefone Fixo">
-              <Input value={form.phone_landline} onChange={e => set('phone_landline', e.target.value)} placeholder="(  )      -    " />
+              <Input value={form.phone_landline} onChange={e => set('phone_landline', maskTelefone(e.target.value))} placeholder="(24) 3302-1335" />
+            </Field>
+          </div>
+          {/* Contato de emergência: quem a empresa procura se acontecer algo
+              com o colaborador. Fica ao lado do telefone dele de propósito —
+              é a mesma informação de "como falar com alguém". */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Contato de Emergência">
+              <Input
+                value={form.emergency_contact_name}
+                onChange={e => set('emergency_contact_name', e.target.value)}
+                placeholder="Nome de quem avisar"
+              />
+            </Field>
+            <Field label="Telefone do Contato de Emergência">
+              <Input
+                value={form.emergency_contact_phone}
+                onChange={e => set('emergency_contact_phone', maskTelefone(e.target.value))}
+                placeholder="(24) 99999-9999"
+              />
             </Field>
           </div>
           {/* CEP */}
