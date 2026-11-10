@@ -436,7 +436,7 @@ function SidebarContent({
                 <div className="ml-5 mt-0.5 space-y-0.5 pl-3 border-l border-[#e8e8e8]">
                   {can('config.whatsapp') && (
                   <Link href="/admin/configuracoes/whatsapp" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/configuracoes/whatsapp') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                    <Zap className="w-3 h-3 shrink-0 opacity-50" />WhatsApp / Z-API
+                    <Zap className="w-3 h-3 shrink-0 opacity-50" />WhatsApp
                   </Link>
                   )}
                   {can('config.ia') && (
