@@ -207,8 +207,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boolean) => void }) {
+  // Sem resposta é pendência como qualquer campo em branco: ganha o mesmo
+  // amarelo dos outros, senão some no meio da ficha.
+  const semResposta = value === null || value === undefined
   return (
-    <div className="flex gap-3">
+    <div className={`flex gap-3 h-9 items-center rounded-md px-2 -mx-2 ${semResposta ? 'bg-amber-50 ring-1 ring-amber-300' : ''}`}>
       {[true, false].map(v => (
         <label key={String(v)} className="flex items-center gap-1.5 cursor-pointer">
           <input type="radio" checked={value === v} onChange={() => onChange(v)} className="accent-primary" />
@@ -602,13 +605,14 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         </div>
 
         {/* Campos desabilitados quando a ficha é arquivada (somente leitura) */}
-        <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 m-0">
+        <fieldset disabled={readOnly} className="ficha-vazios min-w-0 border-0 p-0 m-0">
 
         {/* ── Empresa contratante ──────────────────────────────────────── */}
         {companies.length > 0 && (
           <div className="mb-4">
             <Field label="Empresa contratante">
               <select
+                data-vazio={!form.selected_company_id}
                 value={form.selected_company_id}
                 onChange={e => set('selected_company_id', e.target.value)}
                 className="h-10 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"
@@ -701,7 +705,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <Input value={form.pis} onChange={e => set('pis', maskPIS(e.target.value))} placeholder="000.00000.00-0" />
             </Field>
             <Field label="Data de Cadastro do PIS">
-              <Input type="date" value={form.pis_date} onChange={e => set('pis_date', e.target.value)} />
+              <Input type="date" data-vazio={!form.pis_date} value={form.pis_date} onChange={e => set('pis_date', e.target.value)} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -709,7 +713,7 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <Input value={form.identity_number} onChange={e => set('identity_number', e.target.value)} placeholder="00.000.000-0" />
             </Field>
             <Field label="Data de Emissão (RG)">
-              <Input type="date" value={form.identity_date} onChange={e => set('identity_date', e.target.value)} />
+              <Input type="date" data-vazio={!form.identity_date} value={form.identity_date} onChange={e => set('identity_date', e.target.value)} />
             </Field>
           </div>
           {/* CPF — abaixo do RG */}
@@ -722,14 +726,14 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Estado Civil">
-              <select value={form.marital_status} onChange={e => set('marital_status', e.target.value)}
+              <select data-vazio={!form.marital_status} value={form.marital_status} onChange={e => set('marital_status', e.target.value)}
                 className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
                 <option value="">Selecionar...</option>
                 {MARITAL.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </Field>
             <Field label="Grau de Escolaridade">
-              <select value={form.education} onChange={e => set('education', e.target.value)}
+              <select data-vazio={!form.education} value={form.education} onChange={e => set('education', e.target.value)}
                 className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white">
                 <option value="">Selecionar...</option>
                 {EDUCATION.map(e => <option key={e} value={e}>{e}</option>)}
@@ -746,7 +750,9 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
         <SectionTitle>Dados do Empregador</SectionTitle>
         <div className="grid grid-cols-1 gap-3">
           <Field label="Função / Cargo">
-            <SelectCargo value={form.function_title} cargos={cargos} onChange={v => set('function_title', v)} />
+            <div data-vazio={!form.function_title}>
+              <SelectCargo value={form.function_title} cargos={cargos} onChange={v => set('function_title', v)} />
+            </div>
             {!readOnly && (
               <p className="mt-1 text-[11px] text-muted-foreground">
                 A lista vem de Configurações → Empresa → Cadastro de cargos.
@@ -758,11 +764,12 @@ export function FichaAdmissaoForm({ candidate, jobTitle, companyName: _companyNa
               <Input value={form.salary} onChange={e => set('salary', maskBRL(e.target.value))} inputMode="numeric" placeholder="R$ 0.000,00" />
             </Field>
             <Field label="Data de Admissão">
-              <Input type="date" value={form.admission_date} onChange={e => set('admission_date', e.target.value)} />
+              <Input type="date" data-vazio={!form.admission_date} value={form.admission_date} onChange={e => set('admission_date', e.target.value)} />
             </Field>
           </div>
           <Field label="Contrato de Experiência">
             <select
+              data-vazio={!form.trial_contract}
               value={form.trial_contract}
               onChange={e => set('trial_contract', e.target.value)}
               className="h-9 w-full border border-gray-300 rounded-md px-3 text-sm bg-white"

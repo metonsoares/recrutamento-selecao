@@ -391,3 +391,34 @@
   .dark [class*="text-gray-"], .dark .text-black { color: #111111; }
   .dark [class*="border-gray-"] { border-color: #e5e7eb; }
 }
+
+/* ── Ficha de Admissão: o que falta preencher fica amarelo ────────────────────
+   Pedido do dono em 10/11/2026. Em vez de marcar campo por campo, a regra
+   mora aqui: dentro de `.ficha-vazios`, todo campo de texto que ainda mostra
+   o placeholder (= está vazio) ganha fundo âmbar. Data, select e o cargo não
+   têm placeholder, então esses recebem `data-vazio` no próprio elemento. */
+.ficha-vazios input:placeholder-shown,
+.ficha-vazios textarea:placeholder-shown,
+.ficha-vazios [data-vazio="true"],
+.ficha-vazios [data-vazio="true"] > select {
+  background-color: #fffbeb;   /* amber-50 */
+  border-color: #fcd34d;       /* amber-300 */
+}
+/* Data vazia: o Chrome ainda desenha dd/mm/aaaa, então o fundo é o sinal. */
+.ficha-vazios input[type="date"][data-vazio="true"] { color: #92400e; }
+
+.dark .ficha-vazios input:placeholder-shown,
+.dark .ficha-vazios textarea:placeholder-shown,
+.dark .ficha-vazios [data-vazio="true"],
+.dark .ficha-vazios [data-vazio="true"] > select {
+  background-color: rgb(234 179 8 / 12%);
+  border-color: rgb(234 179 8 / 45%);
+}
+
+@media print {
+  /* No papel o amarelo não ajuda ninguém. */
+  .ficha-vazios input, .ficha-vazios textarea,
+  .ficha-vazios [data-vazio="true"], .ficha-vazios [data-vazio="true"] > select {
+    background-color: #ffffff;
+  }
+}

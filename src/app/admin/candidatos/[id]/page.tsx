@@ -771,6 +771,8 @@ export default async function CandidatePage({
             city={candidate.city as string | null}
             age={age}
             admissionDate={admissionForm?.admission_date || null}
+            emergencyName={admissionForm?.emergency_contact_name || null}
+            emergencyPhone={admissionForm?.emergency_contact_phone || null}
             salary={salarioVigente(admissionForm?.salary || null, salaryRaises, dataPura(new Date()))}
             registeredAt={candidate.created_at}
             warningsCount={(warningsData || []).length}

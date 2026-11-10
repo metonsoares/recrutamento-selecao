@@ -3,7 +3,7 @@ import { formatDate, dataPura } from '@/lib/helpers'
 import {
   CalendarClock, User, Plane, AlertTriangle, Briefcase,
   Building2, Phone, Mail, MapPin, CalendarCheck, ShieldAlert, CheckCircle2,
-  ClipboardList, FolderArchive, Stethoscope, UserMinus, TrendingUp, ArrowRightLeft,
+  ClipboardList, FolderArchive, Stethoscope, UserMinus, TrendingUp, ArrowRightLeft, LifeBuoy,
 } from 'lucide-react'
 import { EditContact } from './edit-contact'
 import { SalaryRaise } from './salary-raises-panel'
@@ -25,6 +25,9 @@ interface Props {
   /** Versão enxuta (freelancer/intermitente): oculta cargo, admissão, tempo de casa, advertências, salário */
   minimal?: boolean
   candidateId?: string
+  /** Contato de emergência, como está na Ficha de Admissão. */
+  emergencyName?: string | null
+  emergencyPhone?: string | null
   fichaPending?: number          // pendências na Ficha de Admissão
   companyDocsPending?: number    // pendências em Documentos
   timeline?: { date: string; label: string; type: string }[]
@@ -64,6 +67,7 @@ export function ResumoColaborador({
   admissionDate, salary, registeredAt, warningsCount,
   minimal = false, candidateId, fichaPending = 0, companyDocsPending = 0, timeline = [], isMaster = false,
   salaryRaises = [],
+  emergencyName, emergencyPhone,
 }: Props) {
   const now = new Date()
   const admission = admissionDate ? new Date(admissionDate + 'T00:00:00') : null
@@ -214,6 +218,16 @@ export function ResumoColaborador({
               </>
             )}
             <InfoRow icon={MapPin} label="Cidade" value={city || '—'} />
+            {/* Quem avisar se acontecer alguma coisa. Vem da Ficha de
+                Admissão; só aparece quando está preenchido, para não virar
+                mais um traço no card. */}
+            {(emergencyName || emergencyPhone) && (
+              <InfoRow
+                icon={LifeBuoy}
+                label="Emergência"
+                value={[emergencyName, emergencyPhone].filter(Boolean).join(' · ')}
+              />
+            )}
           </CardContent>
         </Card>
 
