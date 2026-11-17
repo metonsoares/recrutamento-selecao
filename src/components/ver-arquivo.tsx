@@ -13,6 +13,11 @@ import {
  * diferentes de propósito: conferir um atestado não deveria encher a pasta de
  * downloads, e baixar não deveria exigir abrir uma aba antes.
  *
+ * O botão é AZUL e tem a palavra "Ver" ao lado (17/11/2026): como ícone cinza
+ * de 14px colado na seta de baixar, ele existia e ninguém achava — o dono
+ * pediu "opção de visualizar" em telas que já tinham o botão. A palavra some
+ * em tela estreita, onde não cabe; a cor fica.
+ *
  * A URL é assinada no clique (os buckets são privados), então a aba é aberta
  * antes do await — dentro do helper — para o navegador não bloquear o popup.
  *
@@ -59,13 +64,14 @@ export function VerArquivo({
         setErro(await abrirArquivoAssinado(e, file, bucket, opcoes) ?? '')
         setAbrindo(false)
       }}
-      className={`p-1 rounded-md shrink-0 transition-colors ${
-        erro ? 'text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+      className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md shrink-0 text-[11px] font-semibold transition-colors ${
+        erro ? 'text-red-600 hover:bg-red-50' : 'text-blue-600 hover:bg-blue-100/70'
       }`}
     >
       {abrindo
-        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        : baixa ? <Download className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+        ? <Loader2 className="w-4 h-4 animate-spin" />
+        : baixa ? <Download className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      <span className="hidden md:inline">{baixa ? 'Baixar' : 'Ver'}</span>
     </button>
   )
 }
