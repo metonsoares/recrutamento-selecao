@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DATA_MINIMA, limiteDeDataFutura, formatDate } from '@/lib/helpers'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { VerArquivo } from '@/components/ver-arquivo'
 
 export interface RecordItem {
   id: string
@@ -122,13 +123,20 @@ export function RegistrosTab({ candidateId, initialRecords }: Props) {
                     </button>
                   </div>
                   {r.comment && <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{r.comment}</p>}
+                  {/* Nome do arquivo = baixar; o olho ao lado ABRE numa aba,
+                      para conferir um documento sem encher a pasta de
+                      downloads (pedido do dono em 17/11/2026). É o mesmo par
+                      de ações de Atestados, ASOs, Advertências e Documentos. */}
                   {r.file_url && (
-                    <a href={r.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: r.file_url, path: r.file_path, name: r.file_name })}
-                      target="_blank" rel="noreferrer" download
-                      className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] text-emerald-700 hover:underline font-medium">
-                      {r.file_name?.endsWith('.pdf') ? <FileText className="w-3.5 h-3.5 text-red-500" /> : <FileDown className="w-3.5 h-3.5 text-blue-500" />}
-                      {r.file_name || 'Anexo'}<Download className="w-3 h-3 opacity-60" />
-                    </a>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <a href={r.file_url ?? undefined} onClick={e => abrirArquivoAssinado(e, { url: r.file_url, path: r.file_path, name: r.file_name })}
+                        target="_blank" rel="noreferrer" download
+                        className="inline-flex items-center gap-1.5 text-[12px] text-emerald-700 hover:underline font-medium min-w-0">
+                        {r.file_name?.endsWith('.pdf') ? <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" /> : <FileDown className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
+                        <span className="truncate">{r.file_name || 'Anexo'}</span><Download className="w-3 h-3 opacity-60 shrink-0" />
+                      </a>
+                      <VerArquivo file={{ url: r.file_url, path: r.file_path, name: r.file_name }} />
+                    </div>
                   )}
                 </div>
               </div>
@@ -162,6 +170,7 @@ export function RegistrosTab({ candidateId, initialRecords }: Props) {
                   <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5">
                     <FileText className="w-4 h-4 text-red-500 shrink-0" />
                     <a href={file.url} onClick={e => abrirArquivoAssinado(e, file)} target="_blank" rel="noreferrer" className="text-[12px] text-emerald-700 hover:underline truncate flex-1">{file.name}</a>
+                    <VerArquivo file={file} />
                     <button onClick={() => setFile(null)} className="text-gray-400 hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
