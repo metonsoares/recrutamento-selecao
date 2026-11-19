@@ -11,8 +11,8 @@ import { LancamentosClient, LinhaLancamento, EmpresaOpcao, RegistroLancamento, A
 export const dynamic = 'force-dynamic'
 
 /**
- * Uma página para os sete lançamentos de folha. O tipo vem da URL e diz o que
- * muda: rótulo, unidade lançada e quem entra na lista.
+ * Uma página para TODOS os lançamentos de folha (nove hoje). O tipo vem da URL
+ * e diz o que muda: rótulo, unidade lançada e quem entra na lista.
  */
 export default async function LancamentosPage({
   params, searchParams,

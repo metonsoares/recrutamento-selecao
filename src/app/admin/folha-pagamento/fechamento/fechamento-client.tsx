@@ -174,7 +174,7 @@ export function FechamentoClient({
 
   const CABECALHO = [
     'Colaborador', 'Empresa', 'Vínculo', 'Dias trabalhados', 'Dias de férias', 'Vale transporte', 'Faltas', 'Afastado (dias)',
-    'Domingos', 'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial',
+    'Domingos', 'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial', 'Estorno',
     'Horas normais', 'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Atrasos', 'Gratificação',
     'Insalubridade 20%', 'Cargo de confiança', 'Quebra de caixa', 'Gorjeta',
     'Salário', 'Comentário',
@@ -257,6 +257,7 @@ export function FechamentoClient({
       { titulo: 'Sindical', alinhamento: 'center', valor: l => simNaoTexto(l.mensalidade_sindical) },
       { titulo: 'Avarias', alinhamento: 'center', valor: l => dinheiro(l.avarias) },
       { titulo: 'Adiant.', alinhamento: 'center', valor: l => dinheiro(l.adiantamento) },
+      { titulo: 'Estorno', alinhamento: 'center', valor: l => dinheiro(l.estorno) },
       { titulo: 'Horas extras', alinhamento: 'left', valor: l => resumoHoras(l) },
       { titulo: 'Gratif.', alinhamento: 'center', valor: l => dinheiro(l.gratificacao) },
       { titulo: 'Insal.', alinhamento: 'center', valor: l => simNaoTexto(l.insalubridade_20) },
@@ -288,7 +289,7 @@ export function FechamentoClient({
       l.vinculo === 'intermitente' ? 'Intermitente' : 'Contratado',
       l.dias_trabalhados, l.dias_ferias, simNaoTexto(l.vale_transporte), l.faltas, l.afastamento_dias ?? 0,
       l.domingos, l.feriados, simNaoTexto(l.mensalidade_sindical),
-      l.avarias, l.adiantamento,
+      l.avarias, l.adiantamento, l.estorno,
       formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
       formatarHoras(l.adicional_noturno), formatarHoras(l.atrasos),
       l.gratificacao, simNaoTexto(l.insalubridade_20), l.confianca_valor, l.quebra_valor,
@@ -506,6 +507,7 @@ export function FechamentoClient({
                 <th className="px-2 py-2 font-semibold text-center min-w-[104px] break-words">Mensalidade sindical</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[80px] break-words">Avarias</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[112px] break-words">Adiantamento salarial</th>
+                <th className="px-2 py-2 font-semibold text-right min-w-[88px] break-words">Estorno</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[136px] break-words">Horas extras</th>
                 <th className="px-2 py-2 font-semibold text-right min-w-[104px] break-words">Gratificação</th>
                 <th className="px-2 py-2 font-semibold text-center min-w-[112px] break-words">Insalubridade 20%</th>
@@ -593,6 +595,12 @@ export function FechamentoClient({
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap">
                     {l.adiantamento > 0 && <span className="font-medium text-red-700">{brl(l.adiantamento)}</span>}
+                  </td>
+                  {/* Estorno é lançamento próprio, sem relação com avarias
+                      (decisão do dono, 19/11/2026): fica em cor neutra, sem
+                      dar a entender que soma ou desconta. */}
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
+                    {l.estorno > 0 && <span className="font-medium text-gray-800">{brl(l.estorno)}</span>}
                   </td>
                   {/* Cada tipo de hora numa linha, só as que existem. */}
                   {/* Uma linha por tipo, com o rótulo ao lado do tempo: a

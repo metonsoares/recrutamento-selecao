@@ -879,7 +879,7 @@ export const OPERACOES: Record<string, Operacao> = {
       const fim = argData(args, 'fim')
       const db = await createSupabaseServiceClient()
       const { data: itens } = await db.from('fechamento_itens')
-        .select('vinculo, cargo, salario, dias_trabalhados, faltas, atrasos, domingos, feriados, horas_normais, horas_50, horas_100, adicional_noturno, gorjeta, gratificacao, confianca_valor, quebra_valor, adiantamento, avarias, insalubridade_20, quebra_caixa_15, cargo_confianca, vale_transporte, comentario, ciclo:fechamento_ciclos(competencia, empresa_nome, aprovado_em)')
+        .select('vinculo, cargo, salario, dias_trabalhados, faltas, atrasos, domingos, feriados, horas_normais, horas_50, horas_100, adicional_noturno, gorjeta, gratificacao, confianca_valor, quebra_valor, adiantamento, avarias, estorno, insalubridade_20, quebra_caixa_15, cargo_confianca, vale_transporte, comentario, ciclo:fechamento_ciclos(competencia, empresa_nome, aprovado_em)')
         .eq('candidate_id', f.id)
       const fech = (itens ?? [])
         .map(x => {

@@ -176,6 +176,7 @@ export interface LinhaNossa {
   gratificacao: number
   adiantamento: number
   avarias: number
+  estorno: number
   horas_extras: boolean
   adicional_noturno: boolean
 }
@@ -286,6 +287,9 @@ const PADROES = {
   gratificacao: /gratifica[çc][ãa]o(?!.*fun[çc][ãa]o)/i,
   adiantamento: /adiantamento|vale\s*sal[áa]rio/i,
   avarias: /avaria|desconto\s*de\s*danos|quebra\s*de\s*material/i,
+  // Estorno é rubrica própria; sem este padrão ela cairia em "sem par" na
+  // conferência, como se o contador tivesse inventado a linha.
+  estorno: /estorno/i,
   horas_extras: /hora[s]?\s*extra|\bh\.?\s?e\.?\s*\d/i,
   noturno: /noturn/i,
 }
@@ -404,6 +408,7 @@ export function conferirFolha(
     if (n.gratificacao > 0) compararValor('Gratificação', n.gratificacao, somaDe(f, PADROES.gratificacao))
     if (n.adiantamento > 0) compararValor('Adiantamento salarial', n.adiantamento, somaDe(f, PADROES.adiantamento))
     if (n.avarias > 0) compararValor('Avarias', n.avarias, somaDe(f, PADROES.avarias))
+    if (n.estorno > 0) compararValor('Estorno', n.estorno, somaDe(f, PADROES.estorno))
 
     const conhecidas = Object.values(PADROES)
     const semPar = f.rubricas

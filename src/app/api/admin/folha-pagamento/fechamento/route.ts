@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
           feriados: l.feriados,
           avarias: l.avarias,
           adiantamento: l.adiantamento,
+          estorno: l.estorno,
           horas_normais: l.horas_normais,
           horas_50: l.horas_50,
           horas_100: l.horas_100,

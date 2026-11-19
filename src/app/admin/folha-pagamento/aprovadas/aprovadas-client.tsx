@@ -42,6 +42,8 @@ export interface ItemAprovado {
   feriados: number
   avarias: number
   adiantamento: number
+  /** Estorno do mês: lançamento próprio, sem relação com avarias. */
+  estorno: number
   horas_normais: number
   horas_50: number
   horas_100: number
@@ -119,7 +121,7 @@ function nomeArquivo(competencia: string, empresa: string): string {
 
 const CABECALHO = [
   'Colaborador', 'Dias trabalhados', 'Vale transporte', 'Faltas', 'Afastado (dias)', 'Domingos',
-  'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial', 'Horas normais',
+  'Feriados', 'Mensalidade sindical', 'Avarias', 'Adiantamento salarial', 'Estorno', 'Horas normais',
   'Horas 50%', 'Horas 100%', 'Adicional noturno 20%', 'Atrasos', 'Gratificação', 'Insalubridade 20%',
   'Cargo de confiança', 'Quebra de caixa', 'Gorjeta', 'Salário', 'Comentário',
 ]
@@ -224,7 +226,7 @@ export function AprovadasClient({
     const corpo = filtrar(e).map(l => [
       formatName(l.nome),
       l.dias_trabalhados, simNaoTexto(l.vale_transporte), l.faltas, l.afastamento_dias, l.domingos, l.feriados,
-      simNaoTexto(l.mensalidade_sindical), l.avarias, l.adiantamento,
+      simNaoTexto(l.mensalidade_sindical), l.avarias, l.adiantamento, l.estorno,
       formatarHoras(l.horas_normais), formatarHoras(l.horas_50), formatarHoras(l.horas_100),
       formatarHoras(l.adicional_noturno), formatarHoras(l.atrasos),
       l.gratificacao, simNaoTexto(l.insalubridade_20), l.confianca_valor, l.quebra_valor,
@@ -264,6 +266,7 @@ export function AprovadasClient({
       { titulo: 'Sindical', alinhamento: 'center', valor: l => simNaoTexto(l.mensalidade_sindical) },
       { titulo: 'Avarias', alinhamento: 'center', valor: l => dinheiro(l.avarias) },
       { titulo: 'Adiant.', alinhamento: 'center', valor: l => dinheiro(l.adiantamento) },
+      { titulo: 'Estorno', alinhamento: 'center', valor: l => dinheiro(l.estorno) },
       { titulo: 'Horas extras', alinhamento: 'left', valor: l => resumoHoras(l) },
       { titulo: 'Gratif.', alinhamento: 'center', valor: l => dinheiro(l.gratificacao) },
       { titulo: 'Insal.', alinhamento: 'center', valor: l => simNaoTexto(l.insalubridade_20) },
@@ -304,6 +307,7 @@ export function AprovadasClient({
       gratificacao: l.gratificacao,
       adiantamento: l.adiantamento,
       avarias: l.avarias,
+      estorno: l.estorno,
       horas_extras: l.horas_50 > 0 || l.horas_100 > 0,
       adicional_noturno: l.adicional_noturno > 0,
     }))
@@ -496,6 +500,7 @@ export function AprovadasClient({
                             <th className="px-2 py-2 font-semibold text-center min-w-[104px] break-words">Mensalidade sindical</th>
                             <th className="px-2 py-2 font-semibold text-right min-w-[80px] break-words">Avarias</th>
                             <th className="px-2 py-2 font-semibold text-right min-w-[112px] break-words">Adiantamento salarial</th>
+                            <th className="px-2 py-2 font-semibold text-right min-w-[88px] break-words">Estorno</th>
                             <th className="px-2 py-2 font-semibold text-center min-w-[136px] break-words">Horas extras</th>
                             <th className="px-2 py-2 font-semibold text-right min-w-[104px] break-words">Gratificação</th>
                             <th className="px-2 py-2 font-semibold text-center min-w-[112px] break-words">Insalubridade 20%</th>
@@ -543,6 +548,9 @@ export function AprovadasClient({
                               </td>
                               <td className="px-2 py-2 text-right whitespace-nowrap">
                                 {l.adiantamento > 0 && <span className="font-medium text-red-700">{brl(l.adiantamento)}</span>}
+                              </td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">
+                                {l.estorno > 0 && <span className="font-medium text-gray-800">{brl(l.estorno)}</span>}
                               </td>
                               {/* Uma linha por tipo, com o rótulo ao lado do tempo: a
                                   abreviação solta ("00:33 not.") não se lia. */}

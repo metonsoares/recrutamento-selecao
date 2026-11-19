@@ -46,6 +46,8 @@ export interface LinhaFechamento {
   feriados: number
   avarias: number
   adiantamento: number
+  /** Soma dos estornos do mês (lançamento próprio, independente das avarias). */
+  estorno: number
   horas_normais: number
   horas_50: number
   horas_100: number
@@ -62,7 +64,7 @@ export interface EmpresaOpcao { id: string; nome: string }
 
 /** Só os lançamentos, para somar por colaborador sem repetir onze zeros. */
 type Lancamentos = Pick<LinhaFechamento,
-  'domingos' | 'feriados' | 'avarias' | 'adiantamento' | 'horas_normais' | 'horas_50'
+  'domingos' | 'feriados' | 'avarias' | 'adiantamento' | 'estorno' | 'horas_normais' | 'horas_50'
   | 'horas_100' | 'adicional_noturno' | 'gratificacao' | 'confianca_valor' | 'quebra_valor' | 'atrasos'>
 
 /** "R$ 1.234,56" -> 1234.56 (o salario da ficha e texto). */
@@ -84,7 +86,7 @@ function percentualDoSalario(salario: string | null, percentual: number): number
 
 function lancamentosZerados(): Lancamentos {
   return {
-    domingos: 0, feriados: 0, avarias: 0, adiantamento: 0, horas_normais: 0,
+    domingos: 0, feriados: 0, avarias: 0, adiantamento: 0, estorno: 0, horas_normais: 0,
     horas_50: 0, horas_100: 0, adicional_noturno: 0, gratificacao: 0,
     confianca_valor: 0, quebra_valor: 0, atrasos: 0,
   }
@@ -175,6 +177,7 @@ export async function montarFechamento(competencia: string): Promise<{
     switch (tipo) {
       case 'avarias': atual.avarias += n(i.valor); break
       case 'adiantamento-salarial': atual.adiantamento += n(i.valor); break
+      case 'estornos': atual.estorno += n(i.valor); break
       case 'gratificacao': atual.gratificacao += n(i.valor); break
       case 'cargo-confianca': atual.confianca_valor += n(i.valor); break
       case 'quebra-caixa': atual.quebra_valor += n(i.valor); break

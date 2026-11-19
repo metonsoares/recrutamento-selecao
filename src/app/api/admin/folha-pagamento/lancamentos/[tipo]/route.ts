@@ -4,9 +4,10 @@ import { requireAnyRoleApi } from '@/lib/auth-guard'
 import { LANCAMENTOS, tipoValido } from '@/lib/folha-lancamentos'
 
 /**
- * Fechamento mensal dos lançamentos de folha (avarias, domingos e feriados,
- * horas extras, gratificação, cargo de confiança, insalubridade, quebra de
- * caixa). Uma rota para os sete: o tipo vem na URL.
+ * Fechamento mensal dos lançamentos de folha (avarias, adiantamento salarial,
+ * estornos, domingos e feriados, horas extras, gratificação, cargo de
+ * confiança, insalubridade, quebra de caixa). Uma rota para todos: o tipo vem
+ * na URL.
  */
 
 interface ItemEntrada {
