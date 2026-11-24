@@ -180,7 +180,7 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
         <div className="flex items-center gap-3">
           <FileSignature className="w-6 h-6 text-[#333]" />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Templates de contrato</h1>
+            <h1 className="text-xl font-bold text-gray-900">Templates</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{templates.length} template{templates.length !== 1 ? 's' : ''} · modelos para uso posterior</p>
           </div>
         </div>

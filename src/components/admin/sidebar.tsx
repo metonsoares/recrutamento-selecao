@@ -393,7 +393,7 @@ function SidebarContent({
               </Link>
               {isMaster && (
                 <Link href="/admin/documentos-empresa/templates" onClick={go} className={cn(DEEP_BASE, pathname.startsWith('/admin/documentos-empresa/templates') ? DEEP_ACTIVE : DEEP_DEFAULT)}>
-                  <FileSignature className="w-3 h-3 shrink-0 opacity-50" />Templates de contrato
+                  <FileSignature className="w-3 h-3 shrink-0 opacity-50" />Templates
                 </Link>
               )}
             </div>
