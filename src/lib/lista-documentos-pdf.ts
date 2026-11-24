@@ -73,12 +73,25 @@ export async function gerarListaDocumentosPdf(): Promise<Blob> {
     doc.setFontSize(11)
     doc.setTextColor(30)
     doc.text(d.label, margem + 20, y)
+    // A largura do rótulo tem de ser medida AINDA em 11pt: medindo depois de
+    // trocar para 9pt o número saía ~18% menor e a condição entrava por cima
+    // do nome do documento.
+    const larguraRotulo = doc.getTextWidth(d.label)
 
     const obs = condicao(d.key, d.perChild)
     if (obs) {
       doc.setFontSize(9)
       doc.setTextColor(120)
-      doc.text(`(${obs})`, margem + 22 + doc.getTextWidth(d.label), y)
+      const texto = `(${obs})`
+      const x = margem + 20 + larguraRotulo + 8
+      // Não coube na mesma linha? Vai para a linha de baixo, alinhada com o
+      // rótulo — melhor duas linhas do que texto espremido na margem.
+      if (x + doc.getTextWidth(texto) <= margem + largura) {
+        doc.text(texto, x, y)
+      } else {
+        y += 13
+        doc.text(texto, margem + 20, y)
+      }
     }
     y += 24
   }
