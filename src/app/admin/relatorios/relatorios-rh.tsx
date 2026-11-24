@@ -2,7 +2,7 @@
 import { Fragment, useState } from 'react'
 import {
   Wallet, FileClock, Cake, Search, Download, Palmtree, ShieldAlert,
-  ChevronDown, ChevronRight, FileText, FileDown,
+  ChevronDown, ChevronRight, FileText, FileDown, FolderArchive, Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatName, contemBusca } from '@/lib/helpers'
@@ -135,6 +135,9 @@ export function RelatoriosRh({
   const [statusFerias, setStatusFerias] = useState<StatusFerias | ''>('')
   const [abertos, setAbertos] = useState<Set<string>>(new Set())
   const [erroArquivo, setErroArquivo] = useState('')
+  /** Advertências: quem está marcado para entrar no ZIP. */
+  const [marcados, setMarcados] = useState<Set<string>>(new Set())
+  const [zipando, setZipando] = useState(false)
 
   const nomeEmpresa = empresas.find(e => e.id === empresaFiltro)?.nome
   const sufixo = nomeEmpresa ? '-' + nomeEmpresa.replace(/[^\w]+/g, '-') : ''
@@ -216,6 +219,10 @@ export function RelatoriosRh({
 
   const totalAdvertencias = advLinhas.reduce((s, c) => s + c.itens.length, 0)
 
+  const alternarMarcado = (id: string) => setMarcados(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
+
   const alternarLinha = (id: string) => setAbertos(s => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
   })
@@ -230,6 +237,32 @@ export function RelatoriosRh({
     acc[st] = (acc[st] ?? 0) + 1
     return acc
   }, {} as Record<StatusFerias, number>)
+
+  /**
+   * ZIP das advertências dos marcados: uma pasta por pessoa. O arquivo é
+   * montado no navegador (ver `zip-advertencias.ts`).
+   */
+  async function baixarZip() {
+    const pessoas = advLinhas.filter(c => marcados.has(c.candidate_id))
+    if (pessoas.length === 0) { setErroArquivo('Marque ao menos um colaborador para baixar as advertências.'); return }
+    setErroArquivo('')
+    setZipando(true)
+    try {
+      const { gerarZipAdvertencias } = await import('@/lib/zip-advertencias')
+      const { blob, arquivos, falhas } = await gerarZipAdvertencias(
+        pessoas.map(c => ({ nome: formatName(c.nome), empresa: c.empresa, cargo: c.cargo, itens: c.itens })),
+      )
+      if (arquivos > 0) baixarArquivo(blob, `advertencias${sufixo}.zip`)
+      // Avisar o que ficou de fora vale mais do que um ZIP completo pela metade.
+      if (falhas.length > 0) {
+        setErroArquivo(`${falhas.length} documento(s) não entraram no ZIP: ${falhas.slice(0, 3).join(' · ')}`)
+      } else if (arquivos === 0) {
+        setErroArquivo('Nenhum documento para baixar nos colaboradores marcados.')
+      }
+    } catch (e) {
+      setErroArquivo((e as Error).message || 'Não foi possível montar o ZIP.')
+    } finally { setZipando(false) }
+  }
 
   async function exportar() {
     if (aba === 'advertencias') {
@@ -373,6 +406,16 @@ export function RelatoriosRh({
             {somenteMes ? 'Aniversariantes do mês' : 'Todos, por proximidade'}
           </button>
         )}
+        {aba === 'advertencias' && (
+          <Button variant="outline" onClick={baixarZip} disabled={zipando}
+            title="Baixa as advertências dos marcados, uma pasta por colaborador"
+            className="gap-1.5 shrink-0">
+            {zipando
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <FolderArchive className="w-3.5 h-3.5" />}
+            Baixar ZIP{marcados.size > 0 ? ` (${marcados.size})` : ''}
+          </Button>
+        )}
         <Button variant="outline" onClick={exportar} className="gap-1.5 shrink-0">
           <Download className="w-3.5 h-3.5" />Exportar
         </Button>
@@ -406,7 +449,23 @@ export function RelatoriosRh({
       <div className="overflow-x-auto">
         {aba === 'advertencias' && (
           <table className="w-full text-sm">
-            <Cabecalho colunas={['Colaborador', 'Empresa', 'Cargo', 'Desde a admissão', 'Advertências']} />
+            {/* A primeira coluna é a marcação para o ZIP; o cabeçalho dela é
+                o "marcar todos" da lista FILTRADA, não da base inteira. */}
+            <thead>
+              <tr className="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
+                <th className="px-3 py-2 w-9">
+                  <input type="checkbox" aria-label="Marcar todos"
+                    checked={advLinhas.length > 0 && advLinhas.every(c => marcados.has(c.candidate_id))}
+                    onChange={e => setMarcados(e.target.checked
+                      ? new Set(advLinhas.map(c => c.candidate_id))
+                      : new Set())}
+                    className="accent-primary w-3.5 h-3.5 align-middle" />
+                </th>
+                {['Colaborador', 'Empresa', 'Cargo', 'Desde a admissão', 'Advertências'].map(t => (
+                  <th key={t} className="px-4 py-2 font-semibold whitespace-nowrap">{t}</th>
+                ))}
+              </tr>
+            </thead>
             <tbody className="divide-y">
               {advLinhas.map(c => {
                 const aberto = abertos.has(c.candidate_id)
@@ -414,6 +473,13 @@ export function RelatoriosRh({
                   <Fragment key={c.candidate_id}>
                     <tr className="hover:bg-gray-50 cursor-pointer"
                       onClick={() => alternarLinha(c.candidate_id)}>
+                      {/* stopPropagation: marcar não pode abrir/fechar a linha. */}
+                      <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" aria-label={`Marcar ${c.nome}`}
+                          checked={marcados.has(c.candidate_id)}
+                          onChange={() => alternarMarcado(c.candidate_id)}
+                          className="accent-primary w-3.5 h-3.5 align-middle" />
+                      </td>
                       <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           {aberto
@@ -441,7 +507,7 @@ export function RelatoriosRh({
                     </tr>
                     {aberto && (
                       <tr className="bg-gray-50/70">
-                        <td colSpan={5} className="px-4 py-3">
+                        <td colSpan={6} className="px-4 py-3">
                           <ul className="space-y-2">
                             {c.itens.map(a => (
                               <li key={a.id} className="flex flex-wrap items-start gap-2 text-[13px]">
