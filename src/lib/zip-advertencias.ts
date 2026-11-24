@@ -32,7 +32,10 @@ function limpar(nome: string, limite = 80): string {
     .replace(/[\/:*?"<>|]+/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, limite) || 'sem-nome'
+    .slice(0, limite)
+    // Motivo terminado em ponto virava "regulamento interno..pdf"; ponto e
+    // espaço no fim também incomodam o Windows.
+    .replace(/[.\s]+$/, '') || 'sem-nome'
 }
 
 /** dd/mm/aaaa → o arquivo começa pela data em formato que ordena sozinho. */
