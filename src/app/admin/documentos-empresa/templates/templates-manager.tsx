@@ -59,6 +59,8 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
   const [templates, setTemplates] = useState<ContractTemplate[]>(initialTemplates)
   const [gerandoFicha, setGerandoFicha] = useState(false)
 
+  const [gerandoLista, setGerandoLista] = useState(false)
+
   /** Monta o PDF no navegador e baixa — não há arquivo guardado. */
   async function baixarFichaBranco() {
     setGerandoFicha(true)
@@ -66,6 +68,14 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
       const { gerarFichaAdmissaoBranco, NOME_FICHA_BRANCO } = await import('@/lib/ficha-admissao-branco')
       baixarArquivo(await gerarFichaAdmissaoBranco(), NOME_FICHA_BRANCO)
     } finally { setGerandoFicha(false) }
+  }
+
+  async function baixarListaDocumentos() {
+    setGerandoLista(true)
+    try {
+      const { gerarListaDocumentosPdf, NOME_LISTA_DOCUMENTOS } = await import('@/lib/lista-documentos-pdf')
+      baixarArquivo(await gerarListaDocumentosPdf(), NOME_LISTA_DOCUMENTOS)
+    } finally { setGerandoLista(false) }
   }
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -201,7 +211,7 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
       {/* Ficha de admissão em branco: não é arquivo cadastrado, é gerado na
           hora a partir dos campos da ficha do sistema — assim nunca fica
           velho em relação ao formulário que o RH digita depois. */}
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden divide-y">
         <div className="flex items-center gap-3 px-4 py-3.5">
           <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4 text-red-500" />
@@ -216,6 +226,25 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
             className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5"
             title="Baixar a ficha em branco (PDF)">
             {gerandoFicha ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {/* Mesma fonte da aba "Documentos entregues": a lista do papel e a que
+            o RH confere no sistema não podem divergir. */}
+        <div className="flex items-center gap-3 px-4 py-3.5">
+          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">Listagem de documentos para contratação</p>
+            <p className="text-[12px] text-muted-foreground truncate">
+              PDF · gerado pelo sistema · o que o candidato precisa entregar
+            </p>
+          </div>
+          <button onClick={baixarListaDocumentos} disabled={gerandoLista}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5"
+            title="Baixar a lista de documentos (PDF)">
+            {gerandoLista ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           </button>
         </div>
       </div>
