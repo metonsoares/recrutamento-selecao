@@ -33,6 +33,7 @@ import { EditBirthDate } from './edit-birthdate'
 import { AsosTab, AsoData } from './asos-tab'
 import { RegistrosTab, RecordItem } from './registros-tab'
 import { requirePermission } from '@/lib/auth-guard'
+import { emAvisoPrevio, diasRestantes, dataBr } from '@/lib/aviso-previo'
 import { getEffectiveRole } from '@/lib/portal-perfil'
 import { getGrantedPerms } from '@/lib/permissions-server'
 import type { AnexoNota } from '@/lib/notas-anexos'
@@ -338,6 +339,13 @@ export default async function CandidatePage({
   const currentStatus = (latestApp?.status || 'novo') as CandidateStatus
   const isContratado = currentStatus === 'contratado'
   const isDesligado = currentStatus === 'desligado'
+  /**
+   * Cumprindo aviso prévio: continua contratada, com acesso, até o último dia.
+   * O selo é só para quem cuida de desligamento (master e Gestor RH) — para o
+   * resto do time a pessoa segue um colaborador comum, que é o que ela é.
+   */
+  const avisoAte = (latestApp?.aviso_previo_ate as string | null) ?? null
+  const emAviso = podeDesligar && emAvisoPrevio({ status: currentStatus, aviso_previo_ate: avisoAte })
   // Freelancer bloqueado: status "reprovado" marcado via "Bloquear Freelancer".
   // Mantém as mesmas abas de freelancer (Resumo, Dados Bancários, Contratos, Recibos, Pesquisas de clima).
   const isBlockedFreelancer = currentStatus === 'reprovado'
@@ -518,6 +526,13 @@ export default async function CandidatePage({
             <Badge className={`text-xs ${STATUS_COLORS[currentStatus]}`}>
               {STATUS_LABELS[currentStatus]}
             </Badge>
+            {emAviso && avisoAte && (
+              <Badge className="text-xs bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-100">
+                <Clock className="w-3 h-3 mr-1" />
+                Cumprindo aviso até {dataBr(avisoAte)}
+                {diasRestantes(avisoAte) >= 0 && ` · faltam ${diasRestantes(avisoAte) + 1} dia${diasRestantes(avisoAte) + 1 !== 1 ? 's' : ''}`}
+              </Badge>
+            )}
             {applications && applications.length > 1 && (
               <Badge variant="outline" className="text-xs">{applications.length} candidaturas</Badge>
             )}
@@ -1058,13 +1073,34 @@ export default async function CandidatePage({
         </div>
       </div>
 
+      {/* Em aviso prévio: o registro já existe, o que falta é o prazo correr.
+          O painel mostra as datas e serve de porta para a carta, que costuma
+          chegar depois. O botão de desligar continua logo abaixo — é por ele
+          que se antecipa a saída, se a pessoa sair antes do fim do aviso. */}
+      {emAviso && avisoAte && (
+        <div className="mt-6 border-t pt-5 max-w-3xl">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5 flex items-start gap-2.5">
+            <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-gray-900">Cumprindo aviso prévio</p>
+              <p className="text-[12.5px] text-gray-700 mt-0.5">
+                De <strong>{dataBr((latestApp?.aviso_previo_inicio as string | null) ?? avisoAte)}</strong>{' '}
+                a <strong>{dataBr(avisoAte)}</strong> (último dia trabalhado).
+                No dia seguinte a ficha vai sozinha para os desligados e o acesso aos
+                sistemas é encerrado.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Desligar funcionário (rodapé) ── */}
       {podeDesligar && ['contratado', 'aprovado'].includes(currentStatus) && (
         <DesligarFuncionarioButton candidateId={id} applicationId={latestApp?.id} />
       )}
 
-      {/* Já desligado: a carta pode chegar depois do registro. */}
-      {podeDesligar && currentStatus === 'desligado' && (
+      {/* Desligado, ou em aviso: a carta pode chegar depois do registro. */}
+      {podeDesligar && (currentStatus === 'desligado' || emAviso) && (
         <CartaDesligamento
           candidateId={id}
           applicationId={latestApp?.id}

@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/analises",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/aviso-previo",
+      "schedule": "0 9 * * *"
     }
   ]
 }

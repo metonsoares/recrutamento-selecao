@@ -5,6 +5,7 @@ import { UserMinus, Loader2, X, Upload, FileText, AlertCircle } from 'lucide-rea
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { DIAS_AVISO, fimDoAviso, dataBr, hojeIso } from '@/lib/aviso-previo'
 
 interface Props { candidateId: string; applicationId?: string }
 
@@ -15,6 +16,11 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState('')
   const [requester, setRequester] = useState('')
+  /**
+   * Cumprir aviso é o caso comum de quem PEDE demissão, mas vale também
+   * quando a empresa desliga: o que muda é só quem pediu.
+   */
+  const [cumpreAviso, setCumpreAviso] = useState(false)
   const [letter, setLetter] = useState<{ url: string; name: string; path: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -22,9 +28,14 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
   const fileRef = useRef<HTMLInputElement>(null)
 
   function openModal() {
-    setDate(new Date().toISOString().slice(0, 10))
-    setRequester(''); setLetter(null); setError(''); setOpen(true)
+    // Data de hoje em São Paulo: toISOString() devolve a data em UTC e,
+    // depois das 21h, abria a janela já no dia seguinte.
+    setDate(hojeIso())
+    setRequester(''); setLetter(null); setError(''); setCumpreAviso(false); setOpen(true)
   }
+
+  /** Último dia trabalhado quando há aviso (o primeiro dia já conta). */
+  const fimAviso = date ? fimDoAviso(date) : ''
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -46,7 +57,7 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
   async function handleSave() {
     if (!applicationId) return
     setError('')
-    if (!date) { setError('Informe a data do desligamento.'); return }
+    if (!date) { setError(cumpreAviso ? 'Informe o início do aviso prévio.' : 'Informe a data do desligamento.'); return }
     if (!requester) { setError('Informe quem solicitou o desligamento.'); return }
     // A carta não trava o desligamento: nem sempre existe no dia, e o registro
     // do desligamento não pode esperar por ela. Dá para anexar depois.
@@ -56,11 +67,22 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
     const res = await fetch(`/api/admin/applications/${applicationId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: 'desligado',
-        terminated_at: `${date}T12:00:00`,
-        termination_data: { requester, letter, date },
-      }),
+      // Com aviso prévio o status NÃO muda: a pessoa continua contratada
+      // (e com acesso) até o último dia, e o cron diário faz o desligamento.
+      // Mexer no status agora derrubaria o login dela no Portal na hora.
+      body: JSON.stringify(cumpreAviso
+        ? {
+            aviso_previo_inicio: date,
+            aviso_previo_ate: fimAviso,
+            termination_data: { requester, letter, date, aviso_previo: true, aviso_fim: fimAviso },
+          }
+        : {
+            status: 'desligado',
+            terminated_at: `${date}T12:00:00`,
+            aviso_previo_inicio: null,
+            aviso_previo_ate: null,
+            termination_data: { requester, letter, date, aviso_previo: false },
+          }),
     })
     setSaving(false)
     if (!res.ok) {
@@ -92,9 +114,36 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
             </div>
 
             <div className="px-5 py-4 space-y-3">
+              {/* Aviso prévio antes da data: é ele que diz o que a data significa. */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-600">Como será a saída *</label>
+                <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 cursor-pointer ${!cumpreAviso ? 'border-rose-300 bg-rose-50' : 'border-gray-200'}`}>
+                  <input type="radio" checked={!cumpreAviso} onChange={() => setCumpreAviso(false)} className="mt-0.5 accent-rose-600" />
+                  <span className="text-[12.5px]">
+                    <strong className="font-semibold text-gray-900">Desligamento imediato</strong>
+                    <span className="block text-muted-foreground">Sai agora: vai para os desligados e perde o acesso aos sistemas.</span>
+                  </span>
+                </label>
+                <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 cursor-pointer ${cumpreAviso ? 'border-amber-300 bg-amber-50' : 'border-gray-200'}`}>
+                  <input type="radio" checked={cumpreAviso} onChange={() => setCumpreAviso(true)} className="mt-0.5 accent-amber-600" />
+                  <span className="text-[12.5px]">
+                    <strong className="font-semibold text-gray-900">Vai cumprir aviso prévio ({DIAS_AVISO} dias)</strong>
+                    <span className="block text-muted-foreground">Continua trabalhando, com acesso normal, até o último dia.</span>
+                  </span>
+                </label>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Data do desligamento *</label>
+                <label className="text-xs font-medium text-gray-600">
+                  {cumpreAviso ? 'Início do aviso prévio *' : 'Data do desligamento *'}
+                </label>
                 <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+                {cumpreAviso && fimAviso && (
+                  <p className="text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+                    Último dia trabalhado: <strong>{dataBr(fimAviso)}</strong>. No dia seguinte o sistema move
+                    para os desligados e o acesso cai sozinho.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -144,7 +193,8 @@ export function DesligarFuncionarioButton({ candidateId, applicationId }: Props)
             <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-2xl">
               <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button>
               <Button variant="destructive" onClick={handleSave} disabled={saving || uploading} className="gap-1.5">
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserMinus className="w-3.5 h-3.5" />}Salvar e desligar
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserMinus className="w-3.5 h-3.5" />}
+                {cumpreAviso ? 'Salvar aviso prévio' : 'Salvar e desligar'}
               </Button>
             </div>
           </div>

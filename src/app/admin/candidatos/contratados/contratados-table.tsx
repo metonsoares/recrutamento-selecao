@@ -1,13 +1,14 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle, Download } from 'lucide-react'
+import { Search, CalendarX, X, Loader2, CheckCircle2, AlertCircle, Download, Clock } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { formatName, contemBusca } from '@/lib/helpers'
 import { gerarXlsx, baixarArquivo } from '@/lib/xlsx'
 import { FotoColaborador } from '@/components/admin/foto-colaborador'
+import { dataBr } from '@/lib/aviso-previo'
 
 interface ContratadoRow {
   id: string
@@ -23,6 +24,8 @@ interface ContratadoRow {
   companyName: string | null
   photoUrl: string | null
   pendencia: 'ok' | 'pendente'
+  /** Último dia do aviso prévio, quando está cumprindo (e quem vê pode saber). */
+  avisoAte: string | null
 }
 
 interface Props {
@@ -52,7 +55,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
 
   /** Exporta exatamente o que está na tela (busca + filtro de empresa). */
   async function exportarXlsx() {
-    const cabecalho = ['Nome', 'Empresa', 'Cargo', 'Telefone', 'E-mail', 'Cidade', 'Pendências']
+    const cabecalho = ['Nome', 'Empresa', 'Cargo', 'Telefone', 'E-mail', 'Cidade', 'Pendências', 'Aviso prévio até']
     const corpo = filtered.map(r => [
       formatName(r.full_name),
       r.companyName ?? '—',
@@ -61,6 +64,7 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
       r.email ?? '',
       r.city ?? '',
       r.pendencia === 'pendente' ? 'Pendente' : 'OK',
+      r.avisoAte ? dataBr(r.avisoAte) : '',
     ])
     const sufixo = companyFilter === 'all' ? '' : '-' + companyFilter.replace(/[^\w]+/g, '-')
     baixarArquivo(await gerarXlsx([cabecalho, ...corpo], 'Contratados'), `contratados${sufixo}.xlsx`)
@@ -135,7 +139,14 @@ export function ContratadosTable({ rows, companyOptions }: Props) {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <FotoColaborador url={c.photoUrl} nome={c.full_name} corFallback="bg-emerald-100" corTexto="text-emerald-700" />
-                    <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{formatName(c.full_name)}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">{formatName(c.full_name)}</p>
+                      {c.avisoAte && (
+                        <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-100 text-amber-900 border border-amber-300">
+                          <Clock className="w-3 h-3" />Aviso até {dataBr(c.avisoAte)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
 

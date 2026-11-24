@@ -5,11 +5,14 @@ import { createSupabaseServiceClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { UserCheck, ArrowLeft, Users } from 'lucide-react'
 import { ContratadosTable } from './contratados-table'
+import { emAvisoPrevio } from '@/lib/aviso-previo'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ContratadosPage() {
-  await requirePermission('colaboradores.ver')
+  const role = await requirePermission('colaboradores.ver')
+  // O selo de aviso prévio é só para quem cuida de desligamento.
+  const podeVerAviso = role === 'master' || role === 'gestor_rh'
   // Autorização é o requirePermission acima; o client de serviço libera a
   // remoção da policy ALL/authenticated/true das tabelas lidas aqui.
   const supabase = await createSupabaseServiceClient()
@@ -33,6 +36,7 @@ export default async function ContratadosPage() {
     created_at: string
     final_score: number | null
     culture_score: number | null
+    aviso_previo_ate: string | null
     admission_form: {
       selected_company_id?: string; function_title?: string
       docs?: Record<string, unknown>; children_count?: string; alimony?: boolean | null
@@ -140,6 +144,10 @@ export default async function ContratadosPage() {
       companyName: companyId ? (companyMap[companyId] ?? null) : null,
       photoUrl: app ? (photoMap[app.id] ?? null) : null,
       pendencia: getPendencia(app),
+      // Null quando não há aviso, quando ele já venceu, ou para quem não pode ver.
+      avisoAte: podeVerAviso && emAvisoPrevio({ status: app?.status, aviso_previo_ate: app?.aviso_previo_ate })
+        ? app?.aviso_previo_ate ?? null
+        : null,
     }
   })
 

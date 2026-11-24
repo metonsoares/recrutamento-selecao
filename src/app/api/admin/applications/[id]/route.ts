@@ -19,9 +19,17 @@ export const dynamic = 'force-dynamic'
  */
 const CAMPO_PERMISSOES: Record<string, Permission[]> = {
   job_id:           ['candidatos.editar_vaga'],
-  status:           ['acao.desligar'],
-  terminated_at:    ['acao.desligar'],
-  termination_data: ['acao.desligar'],
+  status:              ['acao.desligar'],
+  terminated_at:       ['acao.desligar'],
+  termination_data:    ['acao.desligar'],
+  // Aviso prévio trabalhado: mesma ação, mesmo dono.
+  aviso_previo_inicio: ['acao.desligar'],
+  aviso_previo_ate:    ['acao.desligar'],
+}
+
+/** Data pura `yyyy-mm-dd` (ou nulo, que limpa o campo). */
+function dataValida(v: unknown): boolean {
+  return v === null || (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v))
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -39,6 +47,18 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         { error: `Campo não permitido: ${desconhecidos.join(', ')}` },
         { status: 400 },
       )
+    }
+
+    // Datas do aviso: formato conferido aqui, porque é delas que o cron
+    // diário depende para desligar na hora certa.
+    for (const campo of ['aviso_previo_inicio', 'aviso_previo_ate'] as const) {
+      if (campo in body && !dataValida(body[campo])) {
+        return NextResponse.json({ error: `Data inválida em ${campo}.` }, { status: 400 })
+      }
+    }
+    if (typeof body.aviso_previo_inicio === 'string' && typeof body.aviso_previo_ate === 'string'
+        && body.aviso_previo_ate < body.aviso_previo_inicio) {
+      return NextResponse.json({ error: 'O fim do aviso prévio não pode ser antes do início.' }, { status: 400 })
     }
 
     // `status` aqui serve ao desligamento. Mudança de etapa do funil continua
