@@ -19,7 +19,7 @@ export const NOME_LISTA_DOCUMENTOS = 'Listagem de documentos para contratacao.pd
 /** Quando o documento não é para todo mundo, a condição vai junto. */
 function condicao(key: string, perChild?: boolean): string {
   if (key === 'pensao_alimenticia') return 'somente se houver decisão judicial de pensão'
-  if (key === 'certificado_reservista') return 'somente para homens'
+  // Reservista saiu sem observação por decisão do dono (24/11/2026).
   if (perChild) return 'para cada filho menor de 14 anos'
   return ''
 }
