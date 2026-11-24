@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/helpers'
 import { guessSource } from '@/lib/template-vars'
 import { abrirArquivoAssinado } from '@/lib/abrir-arquivo'
+import { baixarArquivo } from '@/lib/xlsx'
 
 export interface ContractTemplate {
   id: string
@@ -56,6 +57,16 @@ interface MapRow { key: string; label: string; tags: string[]; source: string; t
 
 export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
   const [templates, setTemplates] = useState<ContractTemplate[]>(initialTemplates)
+  const [gerandoFicha, setGerandoFicha] = useState(false)
+
+  /** Monta o PDF no navegador e baixa — não há arquivo guardado. */
+  async function baixarFichaBranco() {
+    setGerandoFicha(true)
+    try {
+      const { gerarFichaAdmissaoBranco, NOME_FICHA_BRANCO } = await import('@/lib/ficha-admissao-branco')
+      baixarArquivo(await gerarFichaAdmissaoBranco(), NOME_FICHA_BRANCO)
+    } finally { setGerandoFicha(false) }
+  }
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [existingFileName, setExistingFileName] = useState<string | null>(null)
@@ -185,6 +196,28 @@ export function TemplatesManager({ initialTemplates, companyOptions }: Props) {
           </div>
         </div>
         <Button onClick={openModal} className="gap-1.5 shrink-0"><Plus className="w-4 h-4" />Adicionar template</Button>
+      </div>
+
+      {/* Ficha de admissão em branco: não é arquivo cadastrado, é gerado na
+          hora a partir dos campos da ficha do sistema — assim nunca fica
+          velho em relação ao formulário que o RH digita depois. */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3.5">
+          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">Ficha de admissão</p>
+            <p className="text-[12px] text-muted-foreground truncate">
+              PDF · gerado pelo sistema · em branco, para o funcionário preencher
+            </p>
+          </div>
+          <button onClick={baixarFichaBranco} disabled={gerandoFicha}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5"
+            title="Baixar a ficha em branco (PDF)">
+            {gerandoFicha ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
       {templates.length === 0 ? (
