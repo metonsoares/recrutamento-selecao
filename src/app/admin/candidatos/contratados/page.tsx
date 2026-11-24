@@ -24,6 +24,7 @@ export default async function ContratadosPage() {
       id, full_name, phone, email, city, created_at,
       applications!latest_application_id (
         id, status, created_at, final_score, culture_score, admission_form, company_docs,
+        aviso_previo_ate,
         jobs ( title )
       )
     `)
